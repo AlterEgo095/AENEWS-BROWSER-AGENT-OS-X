@@ -13,6 +13,11 @@ import { envValidationSchema } from './config/env.validation';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HealthModule } from './modules/health/health.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { Neo4jModule } from './modules/neo4j/neo4j.module';
+import { QdrantModule } from './modules/qdrant/qdrant.module';
+import { MinioModule } from './modules/minio/minio.module';
+import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -105,6 +110,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
     // Feature Modules
     HealthModule,
+    RedisModule,
+    Neo4jModule,
+    QdrantModule,
+    MinioModule,
+    RabbitMQModule,
   ],
   controllers: [AppController],
   providers: [
