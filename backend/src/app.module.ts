@@ -20,6 +20,11 @@ import { MinioModule } from './modules/minio/minio.module';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { AgentModule } from './modules/agent/agent.module';
 import { TaskModule } from './modules/task/task.module';
+import { EventModule } from './modules/event/event.module';
+import { PluginModule } from './modules/plugin/plugin.module';
+import { TenantModule } from './modules/tenant/tenant.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UserModule } from './modules/user/user.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -119,6 +124,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     RabbitMQModule,
     AgentModule,
     TaskModule,
+    EventModule,
+    PluginModule,
+    TenantModule,
+    AuthModule,
+    UserModule,
   ],
   controllers: [AppController],
   providers: [
