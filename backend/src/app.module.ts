@@ -18,6 +18,8 @@ import { Neo4jModule } from './modules/neo4j/neo4j.module';
 import { QdrantModule } from './modules/qdrant/qdrant.module';
 import { MinioModule } from './modules/minio/minio.module';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
+import { AgentModule } from './modules/agent/agent.module';
+import { TaskModule } from './modules/task/task.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -115,6 +117,8 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     QdrantModule,
     MinioModule,
     RabbitMQModule,
+    AgentModule,
+    TaskModule,
   ],
   controllers: [AppController],
   providers: [
