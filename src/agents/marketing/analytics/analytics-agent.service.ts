@@ -29,23 +29,11 @@ export const ANALYTICS_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          reportType: {
-            type: 'string',
-            enum: ['overview', 'campaign', 'channel', 'content', 'custom'],
-            description: 'Type of report',
-          },
+          reportType: { type: 'string', enum: ['overview', 'campaign', 'channel', 'content', 'custom'], description: 'Type of report' },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
-          channels: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Channels to include',
-          },
-          metrics: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Specific metrics to include',
-          },
+          channels: { type: 'array', items: { type: 'string' }, description: 'Channels to include' },
+          metrics: { type: 'array', items: { type: 'string' }, description: 'Specific metrics to include' },
         },
         required: ['reportType'],
       },
@@ -69,11 +57,7 @@ export const ANALYTICS_AGENT_CONFIG: AgentConfig = {
           conversionType: { type: 'string', description: 'Type of conversion to track' },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
-          attributionModel: {
-            type: 'string',
-            enum: ['first-touch', 'last-touch', 'linear', 'time-decay'],
-            description: 'Attribution model',
-          },
+          attributionModel: { type: 'string', enum: ['first-touch', 'last-touch', 'linear', 'time-decay'], description: 'Attribution model' },
           channels: { type: 'array', items: { type: 'string' }, description: 'Channels to track' },
         },
         required: ['conversionType'],
@@ -95,16 +79,8 @@ export const ANALYTICS_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          funnelType: {
-            type: 'string',
-            enum: ['awareness', 'conversion', 'retention', 'custom'],
-            description: 'Funnel type',
-          },
-          stages: {
-            type: 'array',
-            items: { type: 'object' },
-            description: 'Funnel stages with names',
-          },
+          funnelType: { type: 'string', enum: ['awareness', 'conversion', 'retention', 'custom'], description: 'Funnel type' },
+          stages: { type: 'array', items: { type: 'object' }, description: 'Funnel stages with names' },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
         },
@@ -126,22 +102,11 @@ export const ANALYTICS_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          campaignIds: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Campaign IDs to calculate ROI for',
-          },
-          channels: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Channels to include',
-          },
+          campaignIds: { type: 'array', items: { type: 'string' }, description: 'Campaign IDs to calculate ROI for' },
+          channels: { type: 'array', items: { type: 'string' }, description: 'Channels to include' },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
-          includeAttribution: {
-            type: 'boolean',
-            description: 'Whether to include attribution data',
-          },
+          includeAttribution: { type: 'boolean', description: 'Whether to include attribution data' },
         },
         required: [],
       },
@@ -186,16 +151,8 @@ export const ANALYTICS_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          dataType: {
-            type: 'string',
-            enum: ['report', 'conversions', 'funnel', 'roi', 'raw'],
-            description: 'Type of data to export',
-          },
-          format: {
-            type: 'string',
-            enum: ['csv', 'json', 'xlsx', 'pdf'],
-            description: 'Export format',
-          },
+          dataType: { type: 'string', enum: ['report', 'conversions', 'funnel', 'roi', 'raw'], description: 'Type of data to export' },
+          format: { type: 'string', enum: ['csv', 'json', 'xlsx', 'pdf'], description: 'Export format' },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
           filters: { type: 'object', description: 'Additional filters' },
@@ -433,9 +390,7 @@ export class AnalyticsAgentService extends BaseAgentService {
       throw new Error(`Invalid report type: ${reportType}. Valid: ${validReportTypes.join(', ')}`);
     }
 
-    const fromDate = dateFrom
-      ? new Date(dateFrom)
-      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const toDate = dateTo ? new Date(dateTo) : new Date();
 
     const reportId = `rpt-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
@@ -450,11 +405,8 @@ export class AnalyticsAgentService extends BaseAgentService {
         summary.totalLeads = 2500 + Math.floor(Math.random() * 1500);
         summary.totalConversions = 350 + Math.floor(Math.random() * 200);
         summary.totalRevenue = +(15000 + Math.random() * 25000).toFixed(2);
-        summary.avgConversionRate = +(
-          (summary.totalConversions / summary.totalVisitors) *
-          100
-        ).toFixed(2);
-        summary.avgCPA = +((summary.totalRevenue / summary.totalConversions) * 0.3).toFixed(2);
+        summary.avgConversionRate = +((summary.totalConversions / summary.totalVisitors) * 100).toFixed(2);
+        summary.avgCPA = +(summary.totalRevenue / summary.totalConversions * 0.3).toFixed(2);
 
         data.channels = this.generateChannelData(channels);
         data.trends = this.generateTrendData(fromDate, toDate, 30);
@@ -473,9 +425,7 @@ export class AnalyticsAgentService extends BaseAgentService {
         summary.avgClickRate = +(2.5 + Math.random() * 4).toFixed(2);
         summary.avgConversionRate = +(1.5 + Math.random() * 3).toFixed(2);
 
-        data.campaignBreakdown = this.generateCampaignBreakdown(
-          summary.activeCampaigns + summary.completedCampaigns,
-        );
+        data.campaignBreakdown = this.generateCampaignBreakdown(summary.activeCampaigns + summary.completedCampaigns);
         break;
       }
 
@@ -529,7 +479,9 @@ export class AnalyticsAgentService extends BaseAgentService {
     };
     this.reports.set(reportId, report);
 
-    this.logger.log(`Generated report: ${reportId}, type=${reportType}`);
+    this.logger.log(
+      `Generated report: ${reportId}, type=${reportType}`,
+    );
 
     return {
       reportId,
@@ -565,9 +517,7 @@ export class AnalyticsAgentService extends BaseAgentService {
       throw new Error('A valid conversionType is required');
     }
 
-    const fromDate = dateFrom
-      ? new Date(dateFrom)
-      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const toDate = dateTo ? new Date(dateTo) : new Date();
 
     // Filter conversions by type and date
@@ -636,7 +586,7 @@ export class AnalyticsAgentService extends BaseAgentService {
     }
 
     // Define default funnel stages
-    const stagesByType: Record<string, Array<{ name: string; dropOffRate: number }>> = {
+    const defaultStages: Array<{ name: string; dropOffRate: number }> = {
       awareness: [
         { name: 'Impression', dropOffRate: 0.6 },
         { name: 'Click', dropOffRate: 0.7 },
@@ -658,21 +608,18 @@ export class AnalyticsAgentService extends BaseAgentService {
         { name: 'Second Purchase', dropOffRate: 0.5 },
         { name: 'Loyal Customer', dropOffRate: 0 },
       ],
-      custom:
-        customStages && customStages.length > 0
-          ? customStages.map((s, i, arr) => ({
-              name: s.name,
-              dropOffRate: i < arr.length - 1 ? 0.4 + Math.random() * 0.3 : 0,
-            }))
-          : [
-              { name: 'Entry', dropOffRate: 0.5 },
-              { name: 'Engagement', dropOffRate: 0.4 },
-              { name: 'Action', dropOffRate: 0.5 },
-              { name: 'Completion', dropOffRate: 0 },
-            ],
-    };
-
-    const defaultStages = stagesByType[funnelType];
+      custom: customStages && customStages.length > 0
+        ? customStages.map((s, i, arr) => ({
+            name: s.name,
+            dropOffRate: i < arr.length - 1 ? 0.4 + Math.random() * 0.3 : 0,
+          }))
+        : [
+            { name: 'Entry', dropOffRate: 0.5 },
+            { name: 'Engagement', dropOffRate: 0.4 },
+            { name: 'Action', dropOffRate: 0.5 },
+            { name: 'Completion', dropOffRate: 0 },
+          ],
+    }[funnelType];
 
     if (!defaultStages || defaultStages.length === 0) {
       throw new Error(`Failed to build funnel stages for type: ${funnelType}`);
@@ -691,8 +638,7 @@ export class AnalyticsAgentService extends BaseAgentService {
       const stage: FunnelStage = {
         name: stageDef.name,
         visitors: stageVisitors,
-        conversionRate:
-          i === 0 ? 100 : +((stageVisitors / funnelStages[i - 1].visitors) * 100).toFixed(2),
+        conversionRate: i === 0 ? 100 : +((stageVisitors / funnelStages[i - 1].visitors) * 100).toFixed(2),
         dropOff: dropOff,
       };
 
@@ -704,13 +650,9 @@ export class AnalyticsAgentService extends BaseAgentService {
       currentVisitors = stageVisitors;
     }
 
-    const overallConversionRate =
-      funnelStages.length > 0 && funnelStages[0].visitors > 0
-        ? +(
-            (funnelStages[funnelStages.length - 1].visitors / funnelStages[0].visitors) *
-            100
-          ).toFixed(2)
-        : 0;
+    const overallConversionRate = funnelStages.length > 0 && funnelStages[0].visitors > 0
+      ? +((funnelStages[funnelStages.length - 1].visitors / funnelStages[0].visitors) * 100).toFixed(2)
+      : 0;
 
     const recommendations = this.generateFunnelRecommendations(funnelStages, biggestDropOff);
 
@@ -795,13 +737,7 @@ export class AnalyticsAgentService extends BaseAgentService {
     changes: Record<string, { value: number; percent: number; direction: string }>;
     insights: string[];
   }> {
-    const {
-      periodAFrom,
-      periodATo,
-      periodBFrom,
-      periodBTo,
-      metrics: requestedMetrics = [],
-    } = params;
+    const { periodAFrom, periodATo, periodBFrom, periodBTo, metrics: requestedMetrics = [] } = params;
 
     // Validate dates
     const dates = [periodAFrom, periodATo, periodBFrom, periodBTo].map((d) => new Date(d));
@@ -810,40 +746,20 @@ export class AnalyticsAgentService extends BaseAgentService {
     }
 
     // Generate simulated metrics for both periods
-    const defaultMetrics = [
-      'visitors',
-      'leads',
-      'conversions',
-      'revenue',
-      'conversionRate',
-      'avgOrderValue',
-    ];
+    const defaultMetrics = ['visitors', 'leads', 'conversions', 'revenue', 'conversionRate', 'avgOrderValue'];
     const metricKeys = requestedMetrics.length > 0 ? requestedMetrics : defaultMetrics;
 
     const generatePeriodMetrics = (): Record<string, number> => {
       const m: Record<string, number> = {};
       for (const key of metricKeys) {
         switch (key) {
-          case 'visitors':
-            m[key] = 30000 + Math.floor(Math.random() * 40000);
-            break;
-          case 'leads':
-            m[key] = 1500 + Math.floor(Math.random() * 2000);
-            break;
-          case 'conversions':
-            m[key] = 200 + Math.floor(Math.random() * 400);
-            break;
-          case 'revenue':
-            m[key] = +(10000 + Math.random() * 40000).toFixed(2);
-            break;
-          case 'conversionRate':
-            m[key] = +(1 + Math.random() * 4).toFixed(2);
-            break;
-          case 'avgOrderValue':
-            m[key] = +(30 + Math.random() * 70).toFixed(2);
-            break;
-          default:
-            m[key] = Math.floor(Math.random() * 10000);
+          case 'visitors': m[key] = 30000 + Math.floor(Math.random() * 40000); break;
+          case 'leads': m[key] = 1500 + Math.floor(Math.random() * 2000); break;
+          case 'conversions': m[key] = 200 + Math.floor(Math.random() * 400); break;
+          case 'revenue': m[key] = +(10000 + Math.random() * 40000).toFixed(2); break;
+          case 'conversionRate': m[key] = +(1 + Math.random() * 4).toFixed(2); break;
+          case 'avgOrderValue': m[key] = +(30 + Math.random() * 70).toFixed(2); break;
+          default: m[key] = Math.floor(Math.random() * 10000);
         }
       }
       return m;
@@ -869,19 +785,17 @@ export class AnalyticsAgentService extends BaseAgentService {
     for (const [key, change] of Object.entries(changes)) {
       if (Math.abs(change.percent) > 20) {
         const direction = change.direction === 'up' ? 'increased' : 'decreased';
-        insights.push(
-          `${key} ${direction} significantly by ${Math.abs(change.percent)}% between the two periods.`,
-        );
+        insights.push(`${key} ${direction} significantly by ${Math.abs(change.percent)}% between the two periods.`);
       }
     }
 
     if (insights.length === 0) {
-      insights.push(
-        'No significant changes detected between the two periods. Marketing performance appears stable.',
-      );
+      insights.push('No significant changes detected between the two periods. Marketing performance appears stable.');
     }
 
-    this.logger.log(`Period comparison: ${Object.keys(changes).length} metrics compared`);
+    this.logger.log(
+      `Period comparison: ${Object.keys(changes).length} metrics compared`,
+    );
 
     return { periodA, periodB, changes, insights };
   }
@@ -955,15 +869,7 @@ export class AnalyticsAgentService extends BaseAgentService {
 
   private seedConversionData(): void {
     const channels = ['email', 'social', 'paid-search', 'organic', 'referral', 'display'];
-    const sources = [
-      'google',
-      'facebook',
-      'instagram',
-      'linkedin',
-      'twitter',
-      'direct',
-      'newsletter',
-    ];
+    const sources = ['google', 'facebook', 'instagram', 'linkedin', 'twitter', 'direct', 'newsletter'];
     const types = ['purchase', 'signup', 'download', 'trial', 'demo'];
 
     for (let i = 0; i < 500; i++) {
@@ -994,11 +900,7 @@ export class AnalyticsAgentService extends BaseAgentService {
     return channelData;
   }
 
-  private generateTrendData(
-    fromDate: Date,
-    toDate: Date,
-    points: number,
-  ): Array<{ date: string; value: number }> {
+  private generateTrendData(fromDate: Date, toDate: Date, points: number): Array<{ date: string; value: number }> {
     const trends: Array<{ date: string; value: number }> = [];
     const intervalMs = (toDate.getTime() - fromDate.getTime()) / points;
     let baseValue = 1000 + Math.floor(Math.random() * 5000);
@@ -1046,9 +948,7 @@ export class AnalyticsAgentService extends BaseAgentService {
       );
     }
 
-    const lowConversionStages = stages.filter(
-      (s) => s.conversionRate < 50 && s.name !== stages[0]?.name,
-    );
+    const lowConversionStages = stages.filter((s) => s.conversionRate < 50 && s.name !== stages[0]?.name);
     if (lowConversionStages.length > 0) {
       recommendations.push(
         `Stages with below 50% conversion: ${lowConversionStages.map((s) => s.name).join(', ')}. Consider A/B testing at these points.`,
@@ -1058,15 +958,11 @@ export class AnalyticsAgentService extends BaseAgentService {
     if (stages.length >= 3) {
       const midStageConversion = stages[Math.floor(stages.length / 2)].conversionRate;
       if (midStageConversion < 40) {
-        recommendations.push(
-          'Mid-funnel conversion is low. Improve content relevance and reduce friction in the consideration phase.',
-        );
+        recommendations.push('Mid-funnel conversion is low. Improve content relevance and reduce friction in the consideration phase.');
       }
     }
 
-    recommendations.push(
-      'Implement retargeting campaigns for users who drop off at key funnel stages.',
-    );
+    recommendations.push('Implement retargeting campaigns for users who drop off at key funnel stages.');
 
     return recommendations;
   }

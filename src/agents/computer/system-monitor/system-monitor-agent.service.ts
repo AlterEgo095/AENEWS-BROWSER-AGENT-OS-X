@@ -132,11 +132,7 @@ export const SYSTEM_MONITOR_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          resource: {
-            type: 'string',
-            enum: ['cpu', 'memory', 'disk', 'network', 'all'],
-            default: 'all',
-          },
+          resource: { type: 'string', enum: ['cpu', 'memory', 'disk', 'network', 'all'], default: 'all' },
           duration: { type: 'number', default: 30000, description: 'Monitoring duration in ms' },
           interval: { type: 'number', default: 2000, description: 'Sampling interval in ms' },
           alertThreshold: { type: 'number', description: 'Alert when usage exceeds this percent' },
@@ -263,7 +259,7 @@ interface SystemState {
 
 @Injectable()
 export class SystemMonitorAgentService extends BaseAgentService {
-  private systemState!: SystemState;
+  private systemState: SystemState;
   private historicalCpu: CpuSample[] = [];
   private historicalMemory: MemorySample[] = [];
   private maxHistorySize = 500;
@@ -308,13 +304,15 @@ export class SystemMonitorAgentService extends BaseAgentService {
     this.registerTool({
       name: 'getDiskUsage',
       description: 'Get disk usage statistics',
-      execute: async (params: { path?: string }) => this.getDiskUsage(params.path || '/'),
+      execute: async (params: { path?: string }) =>
+        this.getDiskUsage(params.path || '/'),
     });
 
     this.registerTool({
       name: 'getNetworkStats',
       description: 'Get network interface statistics',
-      execute: async (params: { interface?: string }) => this.getNetworkStats(params.interface),
+      execute: async (params: { interface?: string }) =>
+        this.getNetworkStats(params.interface),
     });
 
     this.registerTool({
@@ -359,12 +357,8 @@ export class SystemMonitorAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'getCpuUsage',
-      'getMemoryUsage',
-      'getDiskUsage',
-      'getNetworkStats',
-      'getSystemInfo',
-      'monitorResource',
+      'getCpuUsage', 'getMemoryUsage', 'getDiskUsage',
+      'getNetworkStats', 'getSystemInfo', 'monitorResource',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -380,13 +374,7 @@ export class SystemMonitorAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -435,10 +423,9 @@ export class SystemMonitorAgentService extends BaseAgentService {
     if (perCore) {
       sample.cores = [];
       for (let i = 0; i < this.systemState.cpuCores; i++) {
-        const coreUsage = Math.max(
-          0,
-          Math.min(100, this.systemState.currentCpuUsage + (Math.random() - 0.5) * 30),
-        );
+        const coreUsage = Math.max(0, Math.min(100,
+          this.systemState.currentCpuUsage + (Math.random() - 0.5) * 30,
+        ));
         sample.cores.push({
           coreIndex: i,
           usagePercent: Math.round(coreUsage * 100) / 100,
@@ -464,7 +451,9 @@ export class SystemMonitorAgentService extends BaseAgentService {
     };
   }
 
-  private async getMemoryUsage(detailed: boolean = false): Promise<{
+  private async getMemoryUsage(
+    detailed: boolean = false,
+  ): Promise<{
     total: number;
     used: number;
     free: number;
@@ -575,9 +564,7 @@ export class SystemMonitorAgentService extends BaseAgentService {
       const availableGb = rootDisk.totalGb - usedGb;
       const usedPercent = Math.round((usedGb / rootDisk.totalGb) * 10000) / 100;
 
-      this.logger.log(
-        `Disk usage for ${path}: ${usedGb.toFixed(1)}/${rootDisk.totalGb} GB (${usedPercent}%)`,
-      );
+      this.logger.log(`Disk usage for ${path}: ${usedGb.toFixed(1)}/${rootDisk.totalGb} GB (${usedPercent}%)`);
       return {
         filesystem: rootDisk.filesystem,
         total: rootDisk.totalGb,
@@ -593,9 +580,7 @@ export class SystemMonitorAgentService extends BaseAgentService {
     const availableGb = disk.totalGb - usedGb;
     const usedPercent = Math.round((usedGb / disk.totalGb) * 10000) / 100;
 
-    this.logger.log(
-      `Disk usage for ${path}: ${usedGb.toFixed(1)}/${disk.totalGb} GB (${usedPercent}%)`,
-    );
+    this.logger.log(`Disk usage for ${path}: ${usedGb.toFixed(1)}/${disk.totalGb} GB (${usedPercent}%)`);
     return {
       filesystem: disk.filesystem,
       total: disk.totalGb,
@@ -620,7 +605,7 @@ export class SystemMonitorAgentService extends BaseAgentService {
         bytesReceived: Math.round(this.systemState.networkBytesReceived),
         bytesSent: Math.round(this.systemState.networkBytesSent * 0.7),
         packetsReceived: Math.round(this.systemState.networkBytesReceived / 1500),
-        packetsSent: Math.round((this.systemState.networkBytesSent * 0.7) / 1500),
+        packetsSent: Math.round(this.systemState.networkBytesSent * 0.7 / 1500),
         errors: Math.floor(Math.random() * 5),
         isUp: true,
         ipAddress: '192.168.1.100',
@@ -629,8 +614,8 @@ export class SystemMonitorAgentService extends BaseAgentService {
         name: 'eth1',
         bytesReceived: Math.round(this.systemState.networkBytesReceived * 0.3),
         bytesSent: Math.round(this.systemState.networkBytesSent * 0.3),
-        packetsReceived: Math.round((this.systemState.networkBytesReceived * 0.3) / 1500),
-        packetsSent: Math.round((this.systemState.networkBytesSent * 0.3) / 1500),
+        packetsReceived: Math.round(this.systemState.networkBytesReceived * 0.3 / 1500),
+        packetsSent: Math.round(this.systemState.networkBytesSent * 0.3 / 1500),
         errors: 0,
         isUp: true,
         ipAddress: '10.0.0.50',
@@ -651,21 +636,14 @@ export class SystemMonitorAgentService extends BaseAgentService {
     if (interfaceName) {
       filteredInterfaces = interfaces.filter((iface) => iface.name === interfaceName);
       if (filteredInterfaces.length === 0) {
-        throw new Error(
-          `Network interface not found: ${interfaceName}. Available: ${interfaces.map((i) => i.name).join(', ')}`,
-        );
+        throw new Error(`Network interface not found: ${interfaceName}. Available: ${interfaces.map((i) => i.name).join(', ')}`);
       }
     }
 
-    const totalBytesReceived = filteredInterfaces.reduce(
-      (sum, iface) => sum + iface.bytesReceived,
-      0,
-    );
+    const totalBytesReceived = filteredInterfaces.reduce((sum, iface) => sum + iface.bytesReceived, 0);
     const totalBytesSent = filteredInterfaces.reduce((sum, iface) => sum + iface.bytesSent, 0);
 
-    this.logger.log(
-      `Network stats: ${filteredInterfaces.length} interfaces, ${(totalBytesReceived / 1024 / 1024).toFixed(1)}MB in, ${(totalBytesSent / 1024 / 1024).toFixed(1)}MB out`,
-    );
+    this.logger.log(`Network stats: ${filteredInterfaces.length} interfaces, ${(totalBytesReceived / 1024 / 1024).toFixed(1)}MB in, ${(totalBytesSent / 1024 / 1024).toFixed(1)}MB out`);
     return { interfaces: filteredInterfaces, totalBytesReceived, totalBytesSent };
   }
 
@@ -695,14 +673,9 @@ export class SystemMonitorAgentService extends BaseAgentService {
       totalMemory: this.systemState.totalMemoryMb,
       uptime: uptimeSec,
       loadAverage: [
-        Math.round((this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 100) /
-          100,
-        Math.round(
-          (this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 0.9 * 100,
-        ) / 100,
-        Math.round(
-          (this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 0.8 * 100,
-        ) / 100,
+        Math.round((this.systemState.currentCpuUsage / 100 * this.systemState.cpuCores) * 100) / 100,
+        Math.round((this.systemState.currentCpuUsage / 100 * this.systemState.cpuCores * 0.9) * 100) / 100,
+        Math.round((this.systemState.currentCpuUsage / 100 * this.systemState.cpuCores * 0.8) * 100) / 100,
       ],
       systemTime: new Date().toISOString(),
     };
@@ -724,9 +697,7 @@ export class SystemMonitorAgentService extends BaseAgentService {
   }> {
     const validResources = ['cpu', 'memory', 'disk', 'network', 'all'];
     if (!validResources.includes(resource)) {
-      throw new Error(
-        `Invalid resource: ${resource}. Must be one of: ${validResources.join(', ')}`,
-      );
+      throw new Error(`Invalid resource: ${resource}. Must be one of: ${validResources.join(', ')}`);
     }
 
     if (duration < 1000 || duration > 300000) {
@@ -765,10 +736,9 @@ export class SystemMonitorAgentService extends BaseAgentService {
 
       if (resource === 'memory' || resource === 'all') {
         this.fluctuateMemory();
-        const memPercent =
-          Math.round(
-            (this.systemState.currentMemoryUsedMb / this.systemState.totalMemoryMb) * 10000,
-          ) / 100;
+        const memPercent = Math.round(
+          (this.systemState.currentMemoryUsedMb / this.systemState.totalMemoryMb) * 10000,
+        ) / 100;
         sample.memory = memPercent;
 
         if (alertThreshold && memPercent > alertThreshold) {
@@ -802,31 +772,26 @@ export class SystemMonitorAgentService extends BaseAgentService {
     const monitoredDuration = Date.now() - monitorStart;
 
     // Calculate statistics for the primary resource
-    const values = samples.map((s) => s.cpu ?? s.memory ?? s.disk ?? 0).filter((v) => v > 0);
+    const values = samples
+      .map((s) => s.cpu ?? s.memory ?? s.disk ?? 0)
+      .filter((v) => v > 0);
 
-    const avgUsage =
-      values.length > 0
-        ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
-        : 0;
+    const avgUsage = values.length > 0
+      ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
+      : 0;
     const maxUsage = values.length > 0 ? Math.round(Math.max(...values) * 100) / 100 : 0;
     const minUsage = values.length > 0 ? Math.round(Math.min(...values) * 100) / 100 : 0;
 
     // Store monitoring result
     await this.storeInWorkingMemory(
       `sysmon:last:${resource}`,
-      {
-        avgUsage,
-        maxUsage,
-        minUsage,
-        alertCount: alerts.length,
-        sampledAt: new Date().toISOString(),
-      },
+      { avgUsage, maxUsage, minUsage, alertCount: alerts.length, sampledAt: new Date().toISOString() },
       300000,
     );
 
     this.logger.log(
       `Monitored ${resource}: ${samples.length} samples over ${monitoredDuration}ms, ` +
-        `avg: ${avgUsage}%, max: ${maxUsage}%, alerts: ${alerts.length}`,
+      `avg: ${avgUsage}%, max: ${maxUsage}%, alerts: ${alerts.length}`,
     );
 
     return {
@@ -844,10 +809,7 @@ export class SystemMonitorAgentService extends BaseAgentService {
 
   private fluctuateCpu(): void {
     const delta = (Math.random() - 0.5) * 10;
-    this.systemState.currentCpuUsage = Math.max(
-      1,
-      Math.min(95, this.systemState.currentCpuUsage + delta),
-    );
+    this.systemState.currentCpuUsage = Math.max(1, Math.min(95, this.systemState.currentCpuUsage + delta));
   }
 
   private fluctuateMemory(): void {

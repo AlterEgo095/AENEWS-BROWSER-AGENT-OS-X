@@ -31,11 +31,7 @@ export const DEPENDENCY_AGENT_CONFIG: AgentConfig = {
         properties: {
           packageJson: { type: 'object', description: 'Parsed package.json contents' },
           includeDev: { type: 'boolean', default: true, description: 'Include devDependencies' },
-          includeTransitive: {
-            type: 'boolean',
-            default: false,
-            description: 'Include transitive dependencies',
-          },
+          includeTransitive: { type: 'boolean', default: false, description: 'Include transitive dependencies' },
           filter: { type: 'string', description: 'Filter pattern for dependency names' },
         },
         required: ['packageJson'],
@@ -56,11 +52,7 @@ export const DEPENDENCY_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           packageJson: { type: 'object', description: 'Parsed package.json contents' },
-          severityThreshold: {
-            type: 'string',
-            enum: ['low', 'moderate', 'high', 'critical'],
-            default: 'low',
-          },
+          severityThreshold: { type: 'string', enum: ['low', 'moderate', 'high', 'critical'], default: 'low' },
           includeDev: { type: 'boolean', default: true },
         },
         required: ['packageJson'],
@@ -129,16 +121,9 @@ export const DEPENDENCY_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          conflicts: {
-            type: 'array',
-            items: { type: 'object', description: 'Version conflict descriptions' },
-          },
+          conflicts: { type: 'array', items: { type: 'object', description: 'Version conflict descriptions' } },
           packageJson: { type: 'object', description: 'Current package.json' },
-          strategy: {
-            type: 'string',
-            enum: ['newest', 'oldest', 'semver-compatible', 'manual'],
-            default: 'semver-compatible',
-          },
+          strategy: { type: 'string', enum: ['newest', 'oldest', 'semver-compatible', 'manual'], default: 'semver-compatible' },
         },
         required: ['conflicts', 'packageJson'],
       },
@@ -225,70 +210,14 @@ const KNOWN_VULNERABILITIES: Array<{
   cve: string;
   patched: string;
 }> = [
-  {
-    package: 'lodash',
-    versions: '<4.17.21',
-    severity: 'high',
-    title: 'Prototype Pollution',
-    cve: 'CVE-2020-8203',
-    patched: '>=4.17.21',
-  },
-  {
-    package: 'express',
-    versions: '<4.17.3',
-    severity: 'moderate',
-    title: 'Open Redirect',
-    cve: 'CVE-2021-44906',
-    patched: '>=4.17.3',
-  },
-  {
-    package: 'axios',
-    versions: '<0.21.1',
-    severity: 'high',
-    title: 'Server-Side Request Forgery',
-    cve: 'CVE-2021-3749',
-    patched: '>=0.21.1',
-  },
-  {
-    package: 'node-fetch',
-    versions: '<2.6.7',
-    severity: 'high',
-    title: 'ReDoS via Content-Length Header',
-    cve: 'CVE-2022-0235',
-    patched: '>=2.6.7',
-  },
-  {
-    package: 'jsonwebtoken',
-    versions: '<9.0.0',
-    severity: 'moderate',
-    title: 'Insecure default algorithm',
-    cve: 'CVE-2022-23529',
-    patched: '>=9.0.0',
-  },
-  {
-    package: 'debug',
-    versions: '<2.6.9',
-    severity: 'moderate',
-    title: 'Regular Expression Denial of Service',
-    cve: 'CVE-2017-16119',
-    patched: '>=2.6.9',
-  },
-  {
-    package: 'minimist',
-    versions: '<0.2.1',
-    severity: 'low',
-    title: 'Prototype Pollution',
-    cve: 'CVE-2020-7598',
-    patched: '>=0.2.1',
-  },
-  {
-    package: 'yargs-parser',
-    versions: '<5.0.1',
-    severity: 'low',
-    title: 'Prototype Pollution',
-    cve: 'CVE-2020-7608',
-    patched: '>=5.0.1',
-  },
+  { package: 'lodash', versions: '<4.17.21', severity: 'high', title: 'Prototype Pollution', cve: 'CVE-2020-8203', patched: '>=4.17.21' },
+  { package: 'express', versions: '<4.17.3', severity: 'moderate', title: 'Open Redirect', cve: 'CVE-2021-44906', patched: '>=4.17.3' },
+  { package: 'axios', versions: '<0.21.1', severity: 'high', title: 'Server-Side Request Forgery', cve: 'CVE-2021-3749', patched: '>=0.21.1' },
+  { package: 'node-fetch', versions: '<2.6.7', severity: 'high', title: 'ReDoS via Content-Length Header', cve: 'CVE-2022-0235', patched: '>=2.6.7' },
+  { package: 'jsonwebtoken', versions: '<9.0.0', severity: 'moderate', title: 'Insecure default algorithm', cve: 'CVE-2022-23529', patched: '>=9.0.0' },
+  { package: 'debug', versions: '<2.6.9', severity: 'moderate', title: 'Regular Expression Denial of Service', cve: 'CVE-2017-16119', patched: '>=2.6.9' },
+  { package: 'minimist', versions: '<0.2.1', severity: 'low', title: 'Prototype Pollution', cve: 'CVE-2020-7598', patched: '>=0.2.1' },
+  { package: 'yargs-parser', versions: '<5.0.1', severity: 'low', title: 'Prototype Pollution', cve: 'CVE-2020-7608', patched: '>=5.0.1' },
 ];
 
 // ─── Agent Service ────────────────────────────────────────────────
@@ -365,13 +294,7 @@ export class DependencyAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        'Missing required parameter: action',
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
     }
 
     const supportedActions = [
@@ -395,13 +318,7 @@ export class DependencyAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -477,7 +394,9 @@ export class DependencyAgentService extends BaseAgentService {
 
     const outdatedCount = dependencies.filter((d) => d.outdated).length;
 
-    this.logger.log(`Listed dependencies: ${dependencies.length} total, ${outdatedCount} outdated`);
+    this.logger.log(
+      `Listed dependencies: ${dependencies.length} total, ${outdatedCount} outdated`,
+    );
 
     return { dependencies, totalCount: dependencies.length, outdatedCount };
   }
@@ -543,14 +462,11 @@ export class DependencyAgentService extends BaseAgentService {
     const moderate = vulnerabilities.filter((v) => v.severity === 'moderate').length;
     const low = vulnerabilities.filter((v) => v.severity === 'low').length;
 
-    const summary =
-      `Found ${vulnerabilities.length} vulnerabilities: ` +
+    const summary = `Found ${vulnerabilities.length} vulnerabilities: ` +
       `${critical} critical, ${high} high, ${moderate} moderate, ${low} low. ` +
       `Risk score: ${riskScore}/100.`;
 
-    this.logger.log(
-      `Vulnerability check: ${vulnerabilities.length} found, risk score=${riskScore}`,
-    );
+    this.logger.log(`Vulnerability check: ${vulnerabilities.length} found, risk score=${riskScore}`);
 
     return { vulnerabilities, totalVulnerabilities: vulnerabilities.length, riskScore, summary };
   }
@@ -567,13 +483,7 @@ export class DependencyAgentService extends BaseAgentService {
     breakingChanges: string[];
     migrationSteps: string[];
   }> {
-    const {
-      packageName,
-      targetVersion,
-      packageJson,
-      currentVersion,
-      isDevDependency = false,
-    } = params;
+    const { packageName, targetVersion, packageJson, currentVersion, isDevDependency = false } = params;
 
     if (!packageName || typeof packageName !== 'string') {
       throw new Error('Package name is required');
@@ -586,8 +496,7 @@ export class DependencyAgentService extends BaseAgentService {
     }
 
     // Find the current version
-    const resolvedCurrentVersion =
-      currentVersion ||
+    const resolvedCurrentVersion = currentVersion ||
       packageJson.dependencies?.[packageName] ||
       packageJson.devDependencies?.[packageName];
 
@@ -596,8 +505,9 @@ export class DependencyAgentService extends BaseAgentService {
     }
 
     // Determine the target version
-    const resolvedTarget =
-      targetVersion === 'latest' ? this.simulateLatestVersion(packageName) : targetVersion;
+    const resolvedTarget = targetVersion === 'latest'
+      ? this.simulateLatestVersion(packageName)
+      : targetVersion;
 
     // Create updated package.json
     const updatedPackageJson = { ...packageJson };
@@ -752,15 +662,12 @@ export class DependencyAgentService extends BaseAgentService {
       unusedDependencies.length,
       outdatedDependencies.length,
       licenseIssues.length,
-      Object.keys({ ...(packageJson.dependencies || {}), ...(packageJson.devDependencies || {}) })
-        .length,
+      Object.keys({ ...(packageJson.dependencies || {}), ...(packageJson.devDependencies || {}) }).length,
     );
 
     // General recommendations
     if (Object.keys(packageJson.dependencies || {}).length > 30) {
-      recommendations.push(
-        'Project has many production dependencies. Consider reducing dependency count for better maintainability.',
-      );
+      recommendations.push('Project has many production dependencies. Consider reducing dependency count for better maintainability.');
     }
 
     this.auditHistory.push({ timestamp: new Date(), healthScore });
@@ -843,11 +750,7 @@ export class DependencyAgentService extends BaseAgentService {
 
   // ─── Helper Methods ───────────────────────────────────────────
 
-  private createDependencyInfo(
-    name: string,
-    version: string,
-    type: DependencyInfo['type'],
-  ): DependencyInfo {
+  private createDependencyInfo(name: string, version: string, type: DependencyInfo['type']): DependencyInfo {
     const cleanVer = this.cleanVersion(version);
     const latest = this.simulateLatestVersion(name);
     const currentMajor = parseInt(cleanVer.split('.')[0], 10) || 0;
@@ -894,28 +797,28 @@ export class DependencyAgentService extends BaseAgentService {
   private simulateLatestVersion(packageName: string): string {
     // Simulate latest version based on known packages
     const knownLatest: Record<string, string> = {
-      express: '4.18.2',
-      lodash: '4.17.21',
-      axios: '1.6.0',
-      react: '18.2.0',
-      next: '14.0.0',
-      typescript: '5.3.3',
+      'express': '4.18.2',
+      'lodash': '4.17.21',
+      'axios': '1.6.0',
+      'react': '18.2.0',
+      'next': '14.0.0',
+      'typescript': '5.3.3',
       '@nestjs/common': '10.3.0',
       '@nestjs/core': '10.3.0',
-      jest: '29.7.0',
-      eslint: '8.56.0',
-      prettier: '3.2.0',
+      'jest': '29.7.0',
+      'eslint': '8.56.0',
+      'prettier': '3.2.0',
       'node-fetch': '2.7.0',
-      jsonwebtoken: '9.0.2',
-      debug: '4.3.4',
-      minimist: '1.2.8',
+      'jsonwebtoken': '9.0.2',
+      'debug': '4.3.4',
+      'minimist': '1.2.8',
     };
 
     if (knownLatest[packageName]) return knownLatest[packageName];
 
     // Generate a plausible version
     const hash = packageName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    return `${(hash % 10) + 1}.${hash % 20}.${hash % 30}`;
+    return `${(hash % 10) + 1}.${(hash % 20)}.${(hash % 30)}`;
   }
 
   private simulateMinorVersion(): string {
@@ -924,27 +827,18 @@ export class DependencyAgentService extends BaseAgentService {
 
   private simulateLicense(packageName: string): string {
     const knownLicenses: Record<string, string> = {
-      express: 'MIT',
-      lodash: 'MIT',
-      axios: 'MIT',
-      react: 'MIT',
-      typescript: 'Apache-2.0',
+      'express': 'MIT',
+      'lodash': 'MIT',
+      'axios': 'MIT',
+      'react': 'MIT',
+      'typescript': 'Apache-2.0',
       '@nestjs/common': 'MIT',
-      jest: 'MIT',
+      'jest': 'MIT',
     };
 
     if (knownLicenses[packageName]) return knownLicenses[packageName];
 
-    const licenses = [
-      'MIT',
-      'MIT',
-      'MIT',
-      'Apache-2.0',
-      'BSD-3-Clause',
-      'ISC',
-      'GPL-3.0',
-      'UNLICENSED',
-    ];
+    const licenses = ['MIT', 'MIT', 'MIT', 'Apache-2.0', 'BSD-3-Clause', 'ISC', 'GPL-3.0', 'UNLICENSED'];
     const hash = packageName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
     return licenses[hash % licenses.length];
   }
@@ -981,18 +875,10 @@ export class DependencyAgentService extends BaseAgentService {
     let score = 0;
     for (const vuln of vulnerabilities) {
       switch (vuln.severity) {
-        case 'critical':
-          score += 25;
-          break;
-        case 'high':
-          score += 15;
-          break;
-        case 'moderate':
-          score += 8;
-          break;
-        case 'low':
-          score += 3;
-          break;
+        case 'critical': score += 25; break;
+        case 'high': score += 15; break;
+        case 'moderate': score += 8; break;
+        case 'low': score += 3; break;
       }
     }
     return Math.min(100, score);
@@ -1018,9 +904,7 @@ export class DependencyAgentService extends BaseAgentService {
     const targetMajor = parseInt(targetVersion.split('.')[0], 10) || 0;
 
     if (targetMajor > currentMajor) {
-      breakingChanges.push(
-        `Major version upgrade from v${currentMajor} to v${targetMajor} may contain breaking API changes`,
-      );
+      breakingChanges.push(`Major version upgrade from v${currentMajor} to v${targetMajor} may contain breaking API changes`);
       breakingChanges.push(`Review the migration guide for ${packageName} v${targetMajor}`);
       breakingChanges.push(`Some APIs may have been removed or renamed`);
     }
@@ -1030,14 +914,10 @@ export class DependencyAgentService extends BaseAgentService {
       breakingChanges.push('Express v5 removes deprecated methods: app.del(), app.param() changes');
     }
     if (packageName === 'react' && targetMajor >= 18) {
-      breakingChanges.push(
-        'React 18 introduces automatic batching; use flushSync for synchronous updates',
-      );
+      breakingChanges.push('React 18 introduces automatic batching; use flushSync for synchronous updates');
     }
     if (packageName === 'typescript' && targetMajor >= 5) {
-      breakingChanges.push(
-        'TypeScript 5 has stricter type checks; some previously compiling code may error',
-      );
+      breakingChanges.push('TypeScript 5 has stricter type checks; some previously compiling code may error');
     }
 
     return breakingChanges;
@@ -1060,9 +940,7 @@ export class DependencyAgentService extends BaseAgentService {
       for (const change of breakingChanges) {
         steps.push(`   - ${change}`);
       }
-      steps.push(
-        `5. Check the official migration guide: https://github.com/${packageName}/${packageName}/blob/main/MIGRATION.md`,
-      );
+      steps.push(`5. Check the official migration guide: https://github.com/${packageName}/${packageName}/blob/main/MIGRATION.md`);
       steps.push(`6. Update any related type definitions if using TypeScript`);
       steps.push(`7. Verify all integration tests pass`);
     }
@@ -1120,9 +998,7 @@ export class DependencyAgentService extends BaseAgentService {
         break;
       }
       case 'manual': {
-        throw new Error(
-          `Manual resolution required for ${conflict.package}. Provide explicit version.`,
-        );
+        throw new Error(`Manual resolution required for ${conflict.package}. Provide explicit version.`);
       }
       default: {
         resolvedVersion = this.findSemverCompatibleVersion(versions);

@@ -113,26 +113,26 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
     // Update name index
     this.nameIndex.set(config.name, config.id);
 
-    this.logger.log(`Registered agent: ${config.id} (${config.name}) in cluster ${config.cluster}`);
+    this.logger.log(
+      `Registered agent: ${config.id} (${config.name}) in cluster ${config.cluster}`,
+    );
 
-    this.eventBusService
-      .publish({
-        type: AgentEventType.AGENT_INITIALIZED,
-        sourceAgentId: config.id,
+    this.eventBusService.publish({
+      type: AgentEventType.AGENT_INITIALIZED,
+      sourceAgentId: config.id,
+      cluster: config.cluster,
+      payload: {
+        agentId: config.id,
+        name: config.name,
         cluster: config.cluster,
-        payload: {
-          agentId: config.id,
-          name: config.name,
-          cluster: config.cluster,
-          capabilities: config.capabilities.map((c) => c.name),
-        },
-        priority: 1,
-        correlationId: uuidv4(),
-        metadata: {},
-      })
-      .catch((err: Error) => {
-        this.logger.warn(`Failed to publish registration event: ${err.message}`);
-      });
+        capabilities: config.capabilities.map((c) => c.name),
+      },
+      priority: 1,
+      correlationId: uuidv4(),
+      metadata: {},
+    }).catch((err: Error) => {
+      this.logger.warn(`Failed to publish registration event: ${err.message}`);
+    });
   }
 
   /**
@@ -247,7 +247,8 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
    * Primary method matching the task spec.
    */
   getAll(): BaseAgentService[] {
-    return Array.from(this.registry.values()).map((entry) => entry.agentInstance);
+    return Array.from(this.registry.values())
+      .map((entry) => entry.agentInstance);
   }
 
   /**
@@ -262,7 +263,8 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
    * Primary method matching the task spec.
    */
   getAllStates(): AgentState[] {
-    return Array.from(this.registry.values()).map((entry) => entry.agentInstance.getState());
+    return Array.from(this.registry.values())
+      .map((entry) => entry.agentInstance.getState());
   }
 
   /**
@@ -276,7 +278,9 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
    * Get agents that can accept new tasks.
    */
   getAvailableAgents(cluster?: AgentCluster): BaseAgentService[] {
-    const agents = cluster ? this.getByCluster(cluster) : this.getAll();
+    const agents = cluster
+      ? this.getByCluster(cluster)
+      : this.getAll();
 
     return agents.filter((agent) => agent.canAcceptTask());
   }
@@ -300,7 +304,7 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Filter to agents that can accept tasks
-    const availableAgents = capableAgents.filter((agent) => agent.canAcceptTask());
+    let availableAgents = capableAgents.filter((agent) => agent.canAcceptTask());
 
     if (availableAgents.length === 0) {
       this.logger.warn(
@@ -373,8 +377,8 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
       case RoutingStrategy.CAPABILITY_BASED: {
         const requiredCapability = input.context?.requiredCapability;
         if (requiredCapability) {
-          const capableAgents = availableAgents.filter((agent) =>
-            agent.hasCapability(requiredCapability),
+          const capableAgents = availableAgents.filter(
+            (agent) => agent.hasCapability(requiredCapability),
           );
           if (capableAgents.length > 0) {
             selectedAgent = capableAgents.reduce((best, agent) => {
@@ -470,15 +474,19 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
   async healthCheckAll(): Promise<Map<string, boolean>> {
     const healthResults = new Map<string, boolean>();
 
-    const checkPromises = Array.from(this.registry.entries()).map(async ([agentId, entry]) => {
-      try {
-        const isHealthy = await entry.agentInstance.healthCheck();
-        healthResults.set(agentId, isHealthy);
-      } catch (error) {
-        this.logger.error(`Health check failed for agent ${agentId}: ${(error as Error).message}`);
-        healthResults.set(agentId, false);
-      }
-    });
+    const checkPromises = Array.from(this.registry.entries()).map(
+      async ([agentId, entry]) => {
+        try {
+          const isHealthy = await entry.agentInstance.healthCheck();
+          healthResults.set(agentId, isHealthy);
+        } catch (error) {
+          this.logger.error(
+            `Health check failed for agent ${agentId}: ${(error as Error).message}`,
+          );
+          healthResults.set(agentId, false);
+        }
+      },
+    );
 
     await Promise.allSettled(checkPromises);
 
@@ -494,15 +502,12 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
   /**
    * Get health status of all agents.
    */
-  getHealthStatus(): Record<
-    string,
-    {
-      isHealthy: boolean;
-      status: AgentStatus;
-      consecutiveFailures: number;
-      uptimeMs: number;
-    }
-  > {
+  getHealthStatus(): Record<string, {
+    isHealthy: boolean;
+    status: AgentStatus;
+    consecutiveFailures: number;
+    uptimeMs: number;
+  }> {
     const status: Record<string, any> = {};
     for (const [agentId, entry] of this.registry) {
       const state = entry.agentInstance.getState();
@@ -563,10 +568,14 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
         return true;
       }
 
-      this.logger.warn(`Agent ${agentId} is in ${state.status} state, not recoverable`);
+      this.logger.warn(
+        `Agent ${agentId} is in ${state.status} state, not recoverable`,
+      );
       return false;
     } catch (error) {
-      this.logger.error(`Failed to recover agent ${agentId}: ${(error as Error).message}`);
+      this.logger.error(
+        `Failed to recover agent ${agentId}: ${(error as Error).message}`,
+      );
       return false;
     }
   }
@@ -594,7 +603,10 @@ export class AgentRegistryService implements OnModuleInit, OnModuleDestroy {
 
         // Check for stale agents (no activity in 5 minutes while running)
         const timeSinceActivity = Date.now() - state.lastActivity.getTime();
-        if (state.status === AgentStatus.RUNNING && timeSinceActivity > 300000) {
+        if (
+          state.status === AgentStatus.RUNNING &&
+          timeSinceActivity > 300000
+        ) {
           this.logger.warn(
             `Agent ${agentId} has been idle for ${Math.round(timeSinceActivity / 1000)}s while in RUNNING state`,
           );

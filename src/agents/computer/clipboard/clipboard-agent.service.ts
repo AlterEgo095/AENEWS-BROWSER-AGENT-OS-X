@@ -60,11 +60,7 @@ export const CLIPBOARD_AGENT_CONFIG: AgentConfig = {
             default: 'text',
             description: 'Content format',
           },
-          clearBefore: {
-            type: 'boolean',
-            default: true,
-            description: 'Clear clipboard before writing',
-          },
+          clearBefore: { type: 'boolean', default: true, description: 'Clear clipboard before writing' },
         },
         required: ['content'],
       },
@@ -187,11 +183,7 @@ export class ClipboardAgentService extends BaseAgentService {
     this.registerTool({
       name: 'writeClipboard',
       description: 'Write content to the clipboard',
-      execute: async (params: {
-        content: string;
-        format?: ClipboardFormat;
-        clearBefore?: boolean;
-      }) =>
+      execute: async (params: { content: string; format?: ClipboardFormat; clearBefore?: boolean }) =>
         this.writeClipboard(params.content, params.format || 'text', params.clearBefore !== false),
     });
 
@@ -227,10 +219,7 @@ export class ClipboardAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'readClipboard',
-      'writeClipboard',
-      'clearClipboard',
-      'watchClipboard',
+      'readClipboard', 'writeClipboard', 'clearClipboard', 'watchClipboard',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -246,13 +235,7 @@ export class ClipboardAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);

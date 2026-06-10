@@ -55,11 +55,7 @@ export const PROCESS_MANAGER_AGENT_CONFIG: AgentConfig = {
         properties: {
           pid: { type: 'number', description: 'Process ID to stop' },
           signal: { type: 'string', default: 'SIGTERM', description: 'Signal to send' },
-          timeout: {
-            type: 'number',
-            default: 5000,
-            description: 'Grace period in ms before SIGKILL',
-          },
+          timeout: { type: 'number', default: 5000, description: 'Grace period in ms before SIGKILL' },
         },
         required: ['pid'],
       },
@@ -224,13 +220,8 @@ export class ProcessManagerAgentService extends BaseAgentService {
     this.registerTool({
       name: 'startProcess',
       description: 'Start a new process',
-      execute: async (params: {
-        command: string;
-        args?: string[];
-        cwd?: string;
-        env?: Record<string, string>;
-        detached?: boolean;
-      }) => this.startProcess(params.command, params.args, params.cwd, params.env, params.detached),
+      execute: async (params: { command: string; args?: string[]; cwd?: string; env?: Record<string, string>; detached?: boolean }) =>
+        this.startProcess(params.command, params.args, params.cwd, params.env, params.detached),
     });
 
     this.registerTool({
@@ -286,12 +277,8 @@ export class ProcessManagerAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'startProcess',
-      'stopProcess',
-      'listProcesses',
-      'getProcessInfo',
-      'monitorProcess',
-      'killProcess',
+      'startProcess', 'stopProcess', 'listProcesses',
+      'getProcessInfo', 'monitorProcess', 'killProcess',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -307,13 +294,7 @@ export class ProcessManagerAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -377,11 +358,7 @@ export class ProcessManagerAgentService extends BaseAgentService {
       process.stdout.push(`Simulated output for: ${command} ${args.join(' ')}`);
     }
 
-    await this.storeInWorkingMemory(
-      `process:${pid}`,
-      { pid, command, startedAt: process.startedAt },
-      3600000,
-    );
+    await this.storeInWorkingMemory(`process:${pid}`, { pid, command, startedAt: process.startedAt }, 3600000);
 
     this.logger.log(`Started process: PID ${pid} - ${command} ${args.join(' ')}`);
     return {
@@ -466,7 +443,8 @@ export class ProcessManagerAgentService extends BaseAgentService {
       const filterLower = filter.toLowerCase();
       processList = processList.filter(
         (p) =>
-          p.command.toLowerCase().includes(filterLower) || p.pid.toString().includes(filterLower),
+          p.command.toLowerCase().includes(filterLower) ||
+          p.pid.toString().includes(filterLower),
       );
     }
 
@@ -598,9 +576,7 @@ export class ProcessManagerAgentService extends BaseAgentService {
     };
 
     this.monitorResults.set(pid, samples);
-    this.logger.log(
-      `Monitored process: PID ${pid} (${samples.length} samples, avg CPU: ${result.avgCpu}%)`,
-    );
+    this.logger.log(`Monitored process: PID ${pid} (${samples.length} samples, avg CPU: ${result.avgCpu}%)`);
     return result;
   }
 

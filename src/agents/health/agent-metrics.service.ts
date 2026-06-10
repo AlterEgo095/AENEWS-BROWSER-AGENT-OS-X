@@ -7,7 +7,11 @@
  */
 
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { AgentMetrics, AgentStatus, AgentCluster } from '../interfaces/agent.interface';
+import {
+  AgentMetrics,
+  AgentStatus,
+  AgentCluster,
+} from '../interfaces/agent.interface';
 import { AgentRegistryService } from '../registry/agent-registry.service';
 
 // ─── Metric Types ─────────────────────────────────────────────────
@@ -154,17 +158,26 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Record time series
-    this.addTimeSeriesPoint(`agent:${agentId}:execution_time`, executionTimeMs, {
-      agentId,
-      status: success ? 'success' : 'failure',
-    });
+    this.addTimeSeriesPoint(
+      `agent:${agentId}:execution_time`,
+      executionTimeMs,
+      { agentId, status: success ? 'success' : 'failure' },
+    );
 
     if (metrics?.memoryUsedMb) {
-      this.addTimeSeriesPoint(`agent:${agentId}:memory_usage`, metrics.memoryUsedMb, { agentId });
+      this.addTimeSeriesPoint(
+        `agent:${agentId}:memory_usage`,
+        metrics.memoryUsedMb,
+        { agentId },
+      );
     }
 
     if (metrics?.cpuUsagePercent) {
-      this.addTimeSeriesPoint(`agent:${agentId}:cpu_usage`, metrics.cpuUsagePercent, { agentId });
+      this.addTimeSeriesPoint(
+        `agent:${agentId}:cpu_usage`,
+        metrics.cpuUsagePercent,
+        { agentId },
+      );
     }
   }
 
@@ -183,18 +196,21 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
     const memoryUsage = this.agentMemoryUsage.get(agentId) || [];
     const cpuUsage = this.agentCpuUsage.get(agentId) || [];
 
-    const avgExecTime =
-      executionTimes.length > 0
-        ? executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length
-        : 0;
+    const avgExecTime = executionTimes.length > 0
+      ? executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length
+      : 0;
 
     const sortedTimes = [...executionTimes].sort((a, b) => a - b);
 
     // Calculate CPU usage estimate
-    const totalCpuUsage = cpuUsage.length > 0 ? cpuUsage.reduce((a, b) => a + b, 0) : 0;
+    const totalCpuUsage = cpuUsage.length > 0
+      ? cpuUsage.reduce((a, b) => a + b, 0)
+      : 0;
 
     // Calculate error rate
-    const errorRate = totalExecutions > 0 ? failedExecutions / totalExecutions : 0;
+    const errorRate = totalExecutions > 0
+      ? failedExecutions / totalExecutions
+      : 0;
 
     return {
       agentId,
@@ -205,10 +221,9 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
       averageExecutionTimeMs: Math.round(avgExecTime),
       maxExecutionTimeMs: sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : 0,
       minExecutionTimeMs: sortedTimes.length > 0 ? sortedTimes[0] : 0,
-      averageMemoryUsedMb:
-        memoryUsage.length > 0
-          ? Math.round((memoryUsage.reduce((a, b) => a + b, 0) / memoryUsage.length) * 100) / 100
-          : 0,
+      averageMemoryUsedMb: memoryUsage.length > 0
+        ? Math.round((memoryUsage.reduce((a, b) => a + b, 0) / memoryUsage.length) * 100) / 100
+        : 0,
       peakMemoryUsedMb: memoryUsage.length > 0 ? Math.max(...memoryUsage) : 0,
       totalCpuUsage: Math.round(totalCpuUsage * 100) / 100,
       uptimeMs: state?.health.uptimeMs || 0,
@@ -252,7 +267,9 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const errorRate = totalExecutions > 0 ? failedExecutions / totalExecutions : 0;
+    const errorRate = totalExecutions > 0
+      ? failedExecutions / totalExecutions
+      : 0;
 
     return {
       cluster,
@@ -275,9 +292,15 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
     const agents = this.agentRegistry.getAllAgents();
     const states = agents.map((a) => a.getState());
 
-    const activeAgents = states.filter((s) => s.status === AgentStatus.RUNNING).length;
-    const idleAgents = states.filter((s) => s.status === AgentStatus.IDLE).length;
-    const errorAgents = states.filter((s) => s.status === AgentStatus.ERROR).length;
+    const activeAgents = states.filter(
+      (s) => s.status === AgentStatus.RUNNING,
+    ).length;
+    const idleAgents = states.filter(
+      (s) => s.status === AgentStatus.IDLE,
+    ).length;
+    const errorAgents = states.filter(
+      (s) => s.status === AgentStatus.ERROR,
+    ).length;
 
     let totalExecutions = 0;
     let totalSuccessful = 0;
@@ -389,7 +412,11 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
 
   // ─── Private Methods ─────────────────────────────────────────────
 
-  private addTimeSeriesPoint(name: string, value: number, labels: Record<string, string>): void {
+  private addTimeSeriesPoint(
+    name: string,
+    value: number,
+    labels: Record<string, string>,
+  ): void {
     if (!this.timeSeries.has(name)) {
       this.timeSeries.set(name, []);
     }
@@ -418,7 +445,9 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
     if (!series || series.length < 2) return 0;
 
     const oneMinuteAgo = Date.now() - 60000;
-    const recentPoints = series.filter((p) => p.timestamp.getTime() > oneMinuteAgo);
+    const recentPoints = series.filter(
+      (p) => p.timestamp.getTime() > oneMinuteAgo,
+    );
 
     return recentPoints.length;
   }
@@ -446,29 +475,35 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
       const state = agent.getState();
 
       // Record status as gauge
-      const statusValue =
-        {
-          [AgentStatus.IDLE]: 0,
-          [AgentStatus.INITIALIZING]: 1,
-          [AgentStatus.RUNNING]: 2,
-          [AgentStatus.PAUSED]: 3,
-          [AgentStatus.ERROR]: 4,
-          [AgentStatus.STOPPED]: 5,
-          [AgentStatus.MAINTENANCE]: 6,
-        }[state.status] ?? -1;
+      const statusValue = {
+        [AgentStatus.IDLE]: 0,
+        [AgentStatus.INITIALIZING]: 1,
+        [AgentStatus.RUNNING]: 2,
+        [AgentStatus.PAUSED]: 3,
+        [AgentStatus.ERROR]: 4,
+        [AgentStatus.STOPPED]: 5,
+        [AgentStatus.MAINTENANCE]: 6,
+      }[state.status] ?? -1;
 
-      this.setGauge(`agent:${config.id}:status`, statusValue, {
-        agentId: config.id,
-        cluster: config.cluster,
-      });
+      this.setGauge(
+        `agent:${config.id}:status`,
+        statusValue,
+        { agentId: config.id, cluster: config.cluster },
+      );
 
       // Record current task count
-      this.setGauge(`agent:${config.id}:current_tasks`, state.currentTasks.length, {
-        agentId: config.id,
-      });
+      this.setGauge(
+        `agent:${config.id}:current_tasks`,
+        state.currentTasks.length,
+        { agentId: config.id },
+      );
 
       // Record uptime
-      this.setGauge(`agent:${config.id}:uptime_ms`, state.health.uptimeMs, { agentId: config.id });
+      this.setGauge(
+        `agent:${config.id}:uptime_ms`,
+        state.health.uptimeMs,
+        { agentId: config.id },
+      );
 
       // Estimate memory usage from process
       const processMemory = process.memoryUsage();
@@ -481,9 +516,11 @@ export class AgentMetricsService implements OnModuleInit, OnModuleDestroy {
       // Estimate CPU usage
       const processCpu = process.cpuUsage();
       const cpuPercent = (processCpu.user + processCpu.system) / 1000;
-      this.setGauge(`agent:${config.id}:cpu_estimate_ms`, Math.round(cpuPercent * 100) / 100, {
-        agentId: config.id,
-      });
+      this.setGauge(
+        `agent:${config.id}:cpu_estimate_ms`,
+        Math.round(cpuPercent * 100) / 100,
+        { agentId: config.id },
+      );
     }
   }
 

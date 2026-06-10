@@ -9,7 +9,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HealthModule } from './health/health.module';
 import { AgentsModule } from './agents/agents.module';
-import { CertificationModule } from './certification/certification.module';
 
 import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
 
@@ -91,9 +90,6 @@ import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
 
     // ─── Agents Framework ────────────────────────────────────
     AgentsModule,
-
-    // ─── Certification Framework ─────────────────────────────
-    CertificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

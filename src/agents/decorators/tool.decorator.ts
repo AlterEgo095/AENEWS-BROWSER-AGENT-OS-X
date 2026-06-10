@@ -5,7 +5,11 @@
  */
 
 import { SetMetadata } from '@nestjs/common';
-import { ToolCategory, ToolSchema, ToolSchemaProperty } from '../interfaces/agent-tool.interface';
+import {
+  ToolCategory,
+  ToolSchema,
+  ToolSchemaProperty,
+} from '../interfaces/agent-tool.interface';
 
 // ─── Tool Metadata Key ────────────────────────────────────────────
 export const TOOL_METADATA_KEY = 'agent:tool';
@@ -130,11 +134,12 @@ function buildToolMetadata(options: ToolDecoratorOptions, methodName: string): T
  */
 export function Tool(options: ToolDecoratorOptions): MethodDecorator;
 export function Tool(name: string, description: string): MethodDecorator;
-export function Tool(
-  optionsOrName: ToolDecoratorOptions | string,
-  description?: string,
-): MethodDecorator {
-  return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
+export function Tool(optionsOrName: ToolDecoratorOptions | string, description?: string): MethodDecorator {
+  return (
+    target: any,
+    propertyKey: string | symbol,
+    descriptor: PropertyDescriptor,
+  ) => {
     const methodName = typeof propertyKey === 'symbol' ? propertyKey.toString() : propertyKey;
 
     let metadata: ToolMetadata;

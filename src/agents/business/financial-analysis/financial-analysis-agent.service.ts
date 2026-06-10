@@ -30,11 +30,7 @@ export const FINANCIAL_ANALYSIS_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           modelName: { type: 'string', description: 'Name of the financial model' },
-          modelType: {
-            type: 'string',
-            enum: ['dcf', 'comparable', 'precedent', 'lbo'],
-            description: 'Type of financial model',
-          },
+          modelType: { type: 'string', enum: ['dcf', 'comparable', 'precedent', 'lbo'], description: 'Type of financial model' },
           projectionYears: { type: 'number', description: 'Number of years to project' },
           assumptions: { type: 'object', description: 'Key financial assumptions' },
         },
@@ -90,11 +86,7 @@ export const FINANCIAL_ANALYSIS_AGENT_CONFIG: AgentConfig = {
           currentRevenue: { type: 'number', description: 'Current annual revenue' },
           growthRate: { type: 'number', description: 'Expected annual growth rate (percentage)' },
           projectionYears: { type: 'number', description: 'Number of years to project' },
-          method: {
-            type: 'string',
-            enum: ['linear', 'exponential', 'logarithmic'],
-            description: 'Forecast method',
-          },
+          method: { type: 'string', enum: ['linear', 'exponential', 'logarithmic'], description: 'Forecast method' },
           seasonality: { type: 'boolean', description: 'Whether to include seasonality' },
         },
         required: ['currentRevenue', 'growthRate'],
@@ -119,11 +111,7 @@ export const FINANCIAL_ANALYSIS_AGENT_CONFIG: AgentConfig = {
           revenue: { type: 'number', description: 'Annual revenue' },
           ebitda: { type: 'number', description: 'Annual EBITDA' },
           netIncome: { type: 'number', description: 'Annual net income' },
-          method: {
-            type: 'string',
-            enum: ['dcf', 'comparable', 'asset-based', 'multiple'],
-            description: 'Valuation method',
-          },
+          method: { type: 'string', enum: ['dcf', 'comparable', 'asset-based', 'multiple'], description: 'Valuation method' },
           discountRate: { type: 'number', description: 'Discount rate for DCF (percentage)' },
           growthRate: { type: 'number', description: 'Expected growth rate (percentage)' },
         },
@@ -143,8 +131,7 @@ export const FINANCIAL_ANALYSIS_AGENT_CONFIG: AgentConfig = {
     },
     {
       name: 'analyzeCashFlow',
-      description:
-        'Analyze cash flow patterns including operating, investing, and financing activities',
+      description: 'Analyze cash flow patterns including operating, investing, and financing activities',
       inputSchema: {
         type: 'object',
         properties: {
@@ -178,17 +165,10 @@ export const FINANCIAL_ANALYSIS_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          reportType: {
-            type: 'string',
-            enum: ['summary', 'detailed', 'board', 'investor'],
-            description: 'Type of financial report',
-          },
+          reportType: { type: 'string', enum: ['summary', 'detailed', 'board', 'investor'], description: 'Type of financial report' },
           period: { type: 'string', description: 'Reporting period' },
           includeCharts: { type: 'boolean', description: 'Whether to include chart data' },
-          compareToPrior: {
-            type: 'boolean',
-            description: 'Whether to include prior period comparison',
-          },
+          compareToPrior: { type: 'boolean', description: 'Whether to include prior period comparison' },
         },
         required: ['reportType', 'period'],
       },
@@ -339,11 +319,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
       }) => this.generateFinancialReport(params),
     });
 
-    await this.storeInWorkingMemory(
-      'financial-analysis:initializedAt',
-      new Date().toISOString(),
-      600000,
-    );
+    await this.storeInWorkingMemory('financial-analysis:initializedAt', new Date().toISOString(), 600000);
     this.logger.log('FinancialAnalysis agent initialized with 6 tools');
   }
 
@@ -352,13 +328,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        'Missing required parameter: action',
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
     }
 
     const supportedActions = [
@@ -383,13 +353,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -442,7 +406,12 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
     };
     builtAt: string;
   }> {
-    const { modelName, modelType = 'dcf', projectionYears = 5, assumptions = {} } = params;
+    const {
+      modelName,
+      modelType = 'dcf',
+      projectionYears = 5,
+      assumptions = {},
+    } = params;
 
     if (!modelName || typeof modelName !== 'string') {
       throw new Error('A valid model name is required');
@@ -579,24 +548,17 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
 
     const insights: string[] = [];
 
-    if (grossMargin > 60)
-      insights.push('Strong gross margins indicate healthy pricing power and cost control');
-    else if (grossMargin < 30)
-      insights.push('Low gross margins suggest pricing pressure or high input costs');
+    if (grossMargin > 60) insights.push('Strong gross margins indicate healthy pricing power and cost control');
+    else if (grossMargin < 30) insights.push('Low gross margins suggest pricing pressure or high input costs');
 
-    if (operatingMargin > 20)
-      insights.push('Excellent operating efficiency with above-industry margins');
-    else if (operatingMargin < 5)
-      insights.push('Operating margins are thin; consider cost optimization initiatives');
+    if (operatingMargin > 20) insights.push('Excellent operating efficiency with above-industry margins');
+    else if (operatingMargin < 5) insights.push('Operating margins are thin; consider cost optimization initiatives');
 
-    if (netMargin > 15)
-      insights.push('Strong bottom-line performance with effective tax management');
-    else if (netMargin < 0)
-      insights.push('Net loss detected; review cost structure and revenue strategy');
+    if (netMargin > 15) insights.push('Strong bottom-line performance with effective tax management');
+    else if (netMargin < 0) insights.push('Net loss detected; review cost structure and revenue strategy');
 
     const opexRatio = revenue > 0 ? +((opex / revenue) * 100).toFixed(2) : 0;
-    if (opexRatio > 40)
-      insights.push(`Operating expenses at ${opexRatio}% of revenue may require optimization`);
+    if (opexRatio > 40) insights.push(`Operating expenses at ${opexRatio}% of revenue may require optimization`);
 
     const analysis: PnLAnalysis = {
       id: analysisId,
@@ -658,11 +620,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
       seasonality = false,
     } = params;
 
-    if (
-      currentRevenue === undefined ||
-      currentRevenue === null ||
-      typeof currentRevenue !== 'number'
-    ) {
+    if (currentRevenue === undefined || currentRevenue === null || typeof currentRevenue !== 'number') {
       throw new Error('Current revenue must be a valid number');
     }
 
@@ -694,7 +652,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
 
       switch (method) {
         case 'linear':
-          projectedRevenue = currentRevenue + currentRevenue * (growthRate / 100) * i;
+          projectedRevenue = currentRevenue + (currentRevenue * (growthRate / 100)) * i;
           break;
         case 'logarithmic':
           projectedRevenue = currentRevenue * (1 + (growthRate / 100) * Math.log(i + 1));
@@ -705,8 +663,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
           break;
       }
 
-      const growth =
-        prevRevenue > 0 ? +(((projectedRevenue - prevRevenue) / prevRevenue) * 100).toFixed(2) : 0;
+      const growth = prevRevenue > 0 ? +(((projectedRevenue - prevRevenue) / prevRevenue) * 100).toFixed(2) : 0;
 
       // Seasonal distribution
       const seasonalFactors = seasonality
@@ -728,10 +685,9 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
 
     const totalProjectedRevenue = projections.reduce((s, p) => s + p.revenue, 0);
     const finalRevenue = projections[projections.length - 1].revenue;
-    const compoundGrowthRate =
-      projectionYears > 0
-        ? +((Math.pow(finalRevenue / currentRevenue, 1 / projectionYears) - 1) * 100).toFixed(2)
-        : 0;
+    const compoundGrowthRate = projectionYears > 0
+      ? +((Math.pow(finalRevenue / currentRevenue, 1 / projectionYears) - 1) * 100).toFixed(2)
+      : 0;
 
     // Confidence decreases with longer projections
     const confidence = +Math.max(0.4, 0.9 - projectionYears * 0.06).toFixed(2);
@@ -807,9 +763,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
           pvCashFlows += lastCashFlow / discountFactor;
         }
 
-        const terminalValue =
-          (lastCashFlow * (1 + terminalGrowthRate / 100)) /
-          ((discountRate - terminalGrowthRate) / 100);
+        const terminalValue = lastCashFlow * (1 + terminalGrowthRate / 100) / ((discountRate - terminalGrowthRate) / 100);
         const pvTerminalValue = terminalValue / Math.pow(1 + discountRate / 100, projectionYears);
 
         valuation = pvCashFlows + pvTerminalValue;
@@ -898,11 +852,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
       throw new Error('A valid period is required');
     }
 
-    if (
-      operatingCashFlow === undefined ||
-      operatingCashFlow === null ||
-      typeof operatingCashFlow !== 'number'
-    ) {
+    if (operatingCashFlow === undefined || operatingCashFlow === null || typeof operatingCashFlow !== 'number') {
       throw new Error('Operating cash flow must be a valid number');
     }
 
@@ -920,8 +870,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
     if (operatingCashFlow > 0 && netCashFlow > 0) {
       healthAssessment = 'Healthy — positive operating cash flow and net cash generation';
     } else if (operatingCashFlow > 0 && netCashFlow < 0) {
-      healthAssessment =
-        'Moderate — positive operations but negative overall cash flow due to investing/financing';
+      healthAssessment = 'Moderate — positive operations but negative overall cash flow due to investing/financing';
     } else if (operatingCashFlow < 0 && endingCash > 0) {
       healthAssessment = 'Caution — negative operating cash flow but cash reserves available';
     } else {
@@ -967,9 +916,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
 
     const validReportTypes = ['summary', 'detailed', 'board', 'investor'];
     if (!validReportTypes.includes(reportType)) {
-      throw new Error(
-        `Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`,
-      );
+      throw new Error(`Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`);
     }
 
     if (!period || typeof period !== 'string') {
@@ -984,8 +931,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
     const operatingMargin = 10 + Math.random() * 25;
     const netMargin = 5 + Math.random() * 20;
 
-    const executiveSummary =
-      `Financial performance for ${period}: Revenue of $${(revenue / 1000000).toFixed(1)}M ` +
+    const executiveSummary = `Financial performance for ${period}: Revenue of $${(revenue / 1000000).toFixed(1)}M ` +
       `with gross margin of ${grossMargin.toFixed(1)}%, operating margin of ${operatingMargin.toFixed(1)}%, ` +
       `and net margin of ${netMargin.toFixed(1)}%. ` +
       `${netMargin > 15 ? 'Strong profitability with room for strategic reinvestment.' : 'Focus on margin improvement opportunities.'}`;
@@ -1000,9 +946,9 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
             content: 'Overview of revenue and profitability metrics for the reporting period.',
             metrics: {
               revenue: Math.round(revenue),
-              grossProfit: Math.round((revenue * grossMargin) / 100),
-              operatingIncome: Math.round((revenue * operatingMargin) / 100),
-              netIncome: Math.round((revenue * netMargin) / 100),
+              grossProfit: Math.round(revenue * grossMargin / 100),
+              operatingIncome: Math.round(revenue * operatingMargin / 100),
+              netIncome: Math.round(revenue * netMargin / 100),
             },
           },
           {
@@ -1026,10 +972,10 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
             metrics: {
               revenue: Math.round(revenue),
               costOfGoods: Math.round(revenue * (1 - grossMargin / 100)),
-              grossProfit: Math.round((revenue * grossMargin) / 100),
-              operatingExpenses: Math.round((revenue * (grossMargin - operatingMargin)) / 100),
-              operatingIncome: Math.round((revenue * operatingMargin) / 100),
-              netIncome: Math.round((revenue * netMargin) / 100),
+              grossProfit: Math.round(revenue * grossMargin / 100),
+              operatingExpenses: Math.round(revenue * (grossMargin - operatingMargin) / 100),
+              operatingIncome: Math.round(revenue * operatingMargin / 100),
+              netIncome: Math.round(revenue * netMargin / 100),
             },
           },
           {
@@ -1047,10 +993,10 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
             title: 'Cash Flow Overview',
             content: 'Cash flow analysis across operating, investing, and financing activities.',
             metrics: {
-              operatingCashFlow: Math.round(((revenue * netMargin) / 100) * 1.2),
+              operatingCashFlow: Math.round(revenue * netMargin / 100 * 1.2),
               investingCashFlow: Math.round(-revenue * 0.08),
               financingCashFlow: Math.round(-revenue * 0.03),
-              freeCashFlow: Math.round(revenue * ((netMargin / 100) * 1.2 - 0.08)),
+              freeCashFlow: Math.round(revenue * (netMargin / 100 * 1.2 - 0.08)),
             },
           },
         );
@@ -1063,9 +1009,9 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
             metrics: {
               revenue: Math.round(revenue),
               revenueGrowth: +(5 + Math.random() * 20).toFixed(2),
-              ebitda: Math.round((revenue * (operatingMargin + 5)) / 100),
+              ebitda: Math.round(revenue * (operatingMargin + 5) / 100),
               ebitdaMargin: +(operatingMargin + 5).toFixed(2),
-              netIncome: Math.round((revenue * netMargin) / 100),
+              netIncome: Math.round(revenue * netMargin / 100),
               cashPosition: Math.round(revenue * (0.5 + Math.random() * 0.5)),
             },
           },
@@ -1076,7 +1022,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
               customerAcquisitionCost: Math.round(100 + Math.random() * 400),
               lifetimeValue: Math.round(500 + Math.random() * 3000),
               ltvToCacRatio: +(2 + Math.random() * 5).toFixed(2),
-              monthlyRecurringRevenue: Math.round((revenue * (0.6 + Math.random() * 0.3)) / 12),
+              monthlyRecurringRevenue: Math.round(revenue * (0.6 + Math.random() * 0.3) / 12),
               churnRate: +(1 + Math.random() * 5).toFixed(2),
             },
           },
@@ -1093,7 +1039,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
               grossMargin: +grossMargin.toFixed(2),
               operatingMargin: +operatingMargin.toFixed(2),
               netMargin: +netMargin.toFixed(2),
-              freeCashFlow: Math.round(revenue * ((netMargin / 100) * 1.1 - 0.06)),
+              freeCashFlow: Math.round(revenue * (netMargin / 100 * 1.1 - 0.06)),
             },
           },
           {
@@ -1130,14 +1076,12 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
         metrics: {
           revenueByMonth: Math.round(revenue),
           expensesByMonth: Math.round(revenue * (1 - netMargin / 100)),
-          profitByMonth: Math.round((revenue * netMargin) / 100),
+          profitByMonth: Math.round(revenue * netMargin / 100),
         },
       });
     }
 
-    this.logger.log(
-      `Generated financial report: ${reportId}, type=${reportType}, period=${period}`,
-    );
+    this.logger.log(`Generated financial report: ${reportId}, type=${reportType}, period=${period}`);
 
     return {
       reportId,

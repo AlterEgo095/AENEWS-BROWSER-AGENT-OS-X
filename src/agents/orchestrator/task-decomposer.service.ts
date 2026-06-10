@@ -95,7 +95,9 @@ export class TaskDecomposerService {
         const historicalDecomposition = await this.findHistoricalDecomposition(input);
 
         if (historicalDecomposition) {
-          this.logger.log(`Found historical decomposition for task similar to ${input.taskId}`);
+          this.logger.log(
+            `Found historical decomposition for task similar to ${input.taskId}`,
+          );
           subtasks = this.adaptHistoricalDecomposition(input, historicalDecomposition);
         } else {
           // Analyze the task and create decomposition
@@ -130,12 +132,14 @@ export class TaskDecomposerService {
 
       this.logger.log(
         `Decomposed task ${input.taskId} into ${limitedSubtasks.length} subtasks ` +
-          `in ${Date.now() - startTime}ms`,
+        `in ${Date.now() - startTime}ms`,
       );
 
       return limitedSubtasks;
     } catch (error) {
-      this.logger.error(`Failed to decompose task ${input.taskId}: ${(error as Error).message}`);
+      this.logger.error(
+        `Failed to decompose task ${input.taskId}: ${(error as Error).message}`,
+      );
       // Return single subtask as fallback
       return [this.createSingleSubtask(input)];
     }
@@ -160,10 +164,7 @@ export class TaskDecomposerService {
     const complexity = this.assessComplexity(input);
 
     // Only decompose if the subtask is complex enough
-    if (
-      this.getComplexityScore(complexity) <
-      this.getComplexityScore(this.config.minSubtaskComplexity)
-    ) {
+    if (this.getComplexityScore(complexity) < this.getComplexityScore(this.config.minSubtaskComplexity)) {
       return [subtask];
     }
 
@@ -339,10 +340,7 @@ export class TaskDecomposerService {
     for (const subtask of subtasks) {
       const complexity = this.assessComplexity(subtask.input);
 
-      if (
-        this.getComplexityScore(complexity) >=
-        this.getComplexityScore(this.config.minSubtaskComplexity)
-      ) {
+      if (this.getComplexityScore(complexity) >= this.getComplexityScore(this.config.minSubtaskComplexity)) {
         const childSubtasks = await this.decomposeSubtask(subtask, depth);
         result.push(...childSubtasks);
       } else {
@@ -355,18 +353,12 @@ export class TaskDecomposerService {
 
   private getComplexityScore(complexity: TaskComplexity): number {
     switch (complexity) {
-      case TaskComplexity.TRIVIAL:
-        return 0;
-      case TaskComplexity.SIMPLE:
-        return 1;
-      case TaskComplexity.MODERATE:
-        return 2;
-      case TaskComplexity.COMPLEX:
-        return 3;
-      case TaskComplexity.HIGHLY_COMPLEX:
-        return 4;
-      default:
-        return 0;
+      case TaskComplexity.TRIVIAL: return 0;
+      case TaskComplexity.SIMPLE: return 1;
+      case TaskComplexity.MODERATE: return 2;
+      case TaskComplexity.COMPLEX: return 3;
+      case TaskComplexity.HIGHLY_COMPLEX: return 4;
+      default: return 0;
     }
   }
 
@@ -410,7 +402,11 @@ export class TaskDecomposerService {
     return subtasks;
   }
 
-  private createSubtaskFromStep(parentInput: AgentInput, step: any, index: number): TaskDefinition {
+  private createSubtaskFromStep(
+    parentInput: AgentInput,
+    step: any,
+    index: number,
+  ): TaskDefinition {
     return {
       id: uuidv4(),
       parentId: parentInput.taskId,
@@ -601,8 +597,12 @@ export class TaskDecomposerService {
     const browserKeys = keys.filter((k) =>
       /url|page|browser|navigate|click|type|screenshot/i.test(k),
     );
-    const dataKeys = keys.filter((k) => /data|result|output|content|text|value/i.test(k));
-    const configKeys = keys.filter((k) => /config|option|setting|param|option/i.test(k));
+    const dataKeys = keys.filter((k) =>
+      /data|result|output|content|text|value/i.test(k),
+    );
+    const configKeys = keys.filter((k) =>
+      /config|option|setting|param|option/i.test(k),
+    );
     const otherKeys = keys.filter(
       (k) => !browserKeys.includes(k) && !dataKeys.includes(k) && !configKeys.includes(k),
     );
@@ -687,7 +687,9 @@ export class TaskDecomposerService {
     return false;
   }
 
-  private async findHistoricalDecomposition(input: AgentInput): Promise<TaskDefinition[] | null> {
+  private async findHistoricalDecomposition(
+    input: AgentInput,
+  ): Promise<TaskDefinition[] | null> {
     try {
       const payloadHash = this.hashPayload(input.payload);
       const result = await this.memoryService.retrieve(
@@ -723,7 +725,10 @@ export class TaskDecomposerService {
     }));
   }
 
-  private async storeDecomposition(input: AgentInput, subtasks: TaskDefinition[]): Promise<void> {
+  private async storeDecomposition(
+    input: AgentInput,
+    subtasks: TaskDefinition[],
+  ): Promise<void> {
     try {
       const payloadHash = this.hashPayload(input.payload);
       await this.memoryService.store(

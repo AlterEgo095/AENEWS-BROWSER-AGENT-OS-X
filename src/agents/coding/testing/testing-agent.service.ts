@@ -55,11 +55,7 @@ export const TESTING_AGENT_CONFIG: AgentConfig = {
           code: { type: 'string', description: 'Source code to test' },
           language: { type: 'string', description: 'Programming language' },
           framework: { type: 'string', description: 'Test framework' },
-          endpoints: {
-            type: 'array',
-            items: { type: 'object' },
-            description: 'API endpoints to test',
-          },
+          endpoints: { type: 'array', items: { type: 'object' }, description: 'API endpoints to test' },
         },
         required: ['code', 'language'],
       },
@@ -142,7 +138,13 @@ export const TESTING_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:code', 'write:test', 'execute:test', 'read:coverage'],
+  permissions: [
+    'execute:task',
+    'read:code',
+    'write:test',
+    'execute:test',
+    'read:coverage',
+  ],
   maxConcurrentTasks: 4,
   timeout: 120000,
   retryPolicy: {
@@ -269,13 +271,7 @@ export class TestingAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        'Missing required parameter: action',
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
     }
 
     const supportedActions = [
@@ -299,13 +295,7 @@ export class TestingAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -374,10 +364,7 @@ export class TestingAgentService extends BaseAgentService {
       : `generated.spec.${this.getExtension(language)}`;
 
     // Estimate coverage
-    const estimatedCoverage = Math.min(
-      100,
-      Math.round((testCases.length / (functions.length * 3)) * 80),
-    );
+    const estimatedCoverage = Math.min(100, Math.round((testCases.length / (functions.length * 3)) * 80));
 
     this.logger.log(
       `Generated ${testCases.length} unit test(s) for ${functions.length} function(s), estimated coverage: ${estimatedCoverage}%`,
@@ -511,20 +498,13 @@ export class TestingAgentService extends BaseAgentService {
 
     if (sourceCode) {
       const lines = sourceCode.split('\n');
-      this.identifyUncoveredPaths(
-        lines,
-        lineCoverage,
-        branchCoverage,
-        functionCoverage,
-        uncoveredPaths,
-      );
+      this.identifyUncoveredPaths(lines, lineCoverage, branchCoverage, functionCoverage, uncoveredPaths);
     } else {
       // Generate generic uncovered paths from coverage data
       this.generateGenericUncoveredPaths(coverageData, uncoveredPaths);
     }
 
-    const meetsThreshold =
-      lineCoverage >= threshold && branchCoverage >= threshold && functionCoverage >= threshold;
+    const meetsThreshold = lineCoverage >= threshold && branchCoverage >= threshold && functionCoverage >= threshold;
 
     this.logger.log(
       `Coverage analysis: lines=${lineCoverage}%, branches=${branchCoverage}%, functions=${functionCoverage}%, meets ${threshold}% threshold: ${meetsThreshold}`,
@@ -598,8 +578,7 @@ export class TestingAgentService extends BaseAgentService {
 
     if (language === 'typescript' || language === 'javascript') {
       // Named function declarations
-      const funcDeclRegex =
-        /(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?/g;
+      const funcDeclRegex = /(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?/g;
       let match: RegExpExecArray | null;
       while ((match = funcDeclRegex.exec(code)) !== null) {
         functions.push({
@@ -612,8 +591,7 @@ export class TestingAgentService extends BaseAgentService {
       }
 
       // Arrow functions / const declarations
-      const arrowRegex =
-        /(?:export\s+)?(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|(\w+))\s*(?::\s*(\w+))?\s*=>/g;
+      const arrowRegex = /(?:export\s+)?(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:\(([^)]*)\)|(\w+))\s*(?::\s*(\w+))?\s*=>/g;
       while ((match = arrowRegex.exec(code)) !== null) {
         functions.push({
           name: match[1],
@@ -625,8 +603,7 @@ export class TestingAgentService extends BaseAgentService {
       }
 
       // Class methods
-      const methodRegex =
-        /(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?\s*{/g;
+      const methodRegex = /(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?\s*{/g;
       while ((match = methodRegex.exec(code)) !== null) {
         if (!['constructor', 'if', 'for', 'while', 'switch', 'catch'].includes(match[1])) {
           functions.push({
@@ -660,34 +637,28 @@ export class TestingAgentService extends BaseAgentService {
   private parseParams(paramStr: string): Array<{ name: string; type: string }> {
     if (!paramStr.trim()) return [];
 
-    return paramStr
-      .split(',')
-      .map((param) => {
-        const trimmed = param.trim();
-        const parts = trimmed.split(':');
-        const name = parts[0].replace(/\?.*$/, '').trim();
-        const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'any';
-        return { name, type };
-      })
-      .filter((p) => p.name.length > 0);
+    return paramStr.split(',').map((param) => {
+      const trimmed = param.trim();
+      const parts = trimmed.split(':');
+      const name = parts[0].replace(/\?.*$/, '').trim();
+      const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'any';
+      return { name, type };
+    }).filter((p) => p.name.length > 0);
   }
 
   private parsePythonParams(paramStr: string): Array<{ name: string; type: string }> {
     if (!paramStr.trim()) return [];
 
-    return paramStr
-      .split(',')
-      .map((param) => {
-        const trimmed = param.trim();
-        if (trimmed.startsWith('self') || trimmed.startsWith('cls')) {
-          return { name: trimmed, type: 'self' };
-        }
-        const parts = trimmed.split(':');
-        const name = parts[0].replace(/\s*=\s*.*$/, '').trim();
-        const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'Any';
-        return { name, type };
-      })
-      .filter((p) => p.name.length > 0 && p.type !== 'self');
+    return paramStr.split(',').map((param) => {
+      const trimmed = param.trim();
+      if (trimmed.startsWith('self') || trimmed.startsWith('cls')) {
+        return { name: trimmed, type: 'self' };
+      }
+      const parts = trimmed.split(':');
+      const name = parts[0].replace(/\s*=\s*.*$/, '').trim();
+      const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'Any';
+      return { name, type };
+    }).filter((p) => p.name.length > 0 && p.type !== 'self');
   }
 
   // ─── Test Case Generation ──────────────────────────────────────
@@ -804,75 +775,40 @@ export class TestingAgentService extends BaseAgentService {
   private getMockValueForType(type: string): any {
     const lower = type.toLowerCase().replace(/\[\]/g, '');
     switch (lower) {
-      case 'string':
-        return 'test-string';
-      case 'number':
-      case 'int':
-      case 'float':
-      case 'double':
-        return 42;
-      case 'boolean':
-        return true;
-      case 'date':
-        return new Date().toISOString();
-      case 'array':
-      case 'any[]':
-        return [];
-      case 'object':
-      case 'record':
-        return {};
-      case 'promise':
-      case 'promise<void>':
-        return undefined;
-      case 'void':
-      case 'undefined':
-        return undefined;
-      case 'null':
-        return null;
-      default:
-        return { mock: true };
+      case 'string': return 'test-string';
+      case 'number': case 'int': case 'float': case 'double': return 42;
+      case 'boolean': return true;
+      case 'date': return new Date().toISOString();
+      case 'array': case 'any[]': return [];
+      case 'object': case 'record': return {};
+      case 'promise': case 'promise<void>': return undefined;
+      case 'void': case 'undefined': return undefined;
+      case 'null': return null;
+      default: return { mock: true };
     }
   }
 
   private getInvalidMockValueForType(type: string): any {
     const lower = type.toLowerCase();
     switch (lower) {
-      case 'string':
-        return 12345;
-      case 'number':
-      case 'int':
-      case 'float':
-        return 'not-a-number';
-      case 'boolean':
-        return 'not-a-boolean';
-      case 'array':
-        return 'not-an-array';
-      case 'object':
-      case 'record':
-        return 'not-an-object';
-      default:
-        return null;
+      case 'string': return 12345;
+      case 'number': case 'int': case 'float': return 'not-a-number';
+      case 'boolean': return 'not-a-boolean';
+      case 'array': return 'not-an-array';
+      case 'object': case 'record': return 'not-an-object';
+      default: return null;
     }
   }
 
   private getEdgeCaseValueForType(type: string): any {
     const lower = type.toLowerCase();
     switch (lower) {
-      case 'string':
-        return '';
-      case 'number':
-      case 'int':
-      case 'float':
-        return Number.MAX_SAFE_INTEGER;
-      case 'boolean':
-        return false;
-      case 'array':
-        return [];
-      case 'object':
-      case 'record':
-        return {};
-      default:
-        return null;
+      case 'string': return '';
+      case 'number': case 'int': case 'float': return Number.MAX_SAFE_INTEGER;
+      case 'boolean': return false;
+      case 'array': return [];
+      case 'object': case 'record': return {};
+      default: return null;
     }
   }
 
@@ -910,28 +846,23 @@ export class TestingAgentService extends BaseAgentService {
     const importPath = filePath ? filePath.replace(/\.\w+$/, '') : './module';
     const imports = [...new Set(functions.filter((f) => f.isExported).map((f) => f.name))];
 
-    const importStatement =
-      imports.length > 0
-        ? `import { ${imports.join(', ')} } from '${importPath}';`
-        : `import * as module from '${importPath}';`;
+    const importStatement = imports.length > 0
+      ? `import { ${imports.join(', ')} } from '${importPath}';`
+      : `import * as module from '${importPath}';`;
 
-    const testBlocks = testCases
-      .map((tc) => {
-        const inputStr = JSON.stringify(tc.input, null, 4);
-        const expectedStr =
-          tc.expectedOutput !== null ? JSON.stringify(tc.expectedOutput) : 'undefined';
+    const testBlocks = testCases.map((tc) => {
+      const inputStr = JSON.stringify(tc.input, null, 4);
+      const expectedStr = tc.expectedOutput !== null ? JSON.stringify(tc.expectedOutput) : 'undefined';
 
-        return `  test('${tc.name}', async () => {
+      return `  test('${tc.name}', async () => {
     const input = ${inputStr};
-    ${
-      tc.type === 'negative'
-        ? `await expect(${tc.name.split(' - ')[0].split('.').pop()}(input)).rejects.toThrow();`
-        : `const result = await ${tc.name.split(' - ')[0].split('.').pop()}(input);
+    ${tc.type === 'negative'
+      ? `await expect(${tc.name.split(' - ')[0].split('.').pop()}(input)).rejects.toThrow();`
+      : `const result = await ${tc.name.split(' - ')[0].split('.').pop()}(input);
     expect(result).toBeDefined();`
     }
   });`;
-      })
-      .join('\n\n');
+    }).join('\n\n');
 
     return `${importStatement}
 
@@ -941,22 +872,22 @@ ${testBlocks}
 `;
   }
 
-  private renderMochaUnitTests(testCases: TestCase[], functions: FunctionSignature[]): string {
-    const testBlocks = testCases
-      .map((tc) => {
-        const inputStr = JSON.stringify(tc.input, null, 4);
+  private renderMochaUnitTests(
+    testCases: TestCase[],
+    functions: FunctionSignature[],
+  ): string {
+    const testBlocks = testCases.map((tc) => {
+      const inputStr = JSON.stringify(tc.input, null, 4);
 
-        return `  it('${tc.name}', async () => {
+      return `  it('${tc.name}', async () => {
     const input = ${inputStr};
-    ${
-      tc.type === 'negative'
-        ? `await expect(${tc.name.split(' - ')[0].split('.').pop()}(input)).to.be.rejected;`
-        : `const result = await ${tc.name.split(' - ')[0].split('.').pop()}(input);
+    ${tc.type === 'negative'
+      ? `await expect(${tc.name.split(' - ')[0].split('.').pop()}(input)).to.be.rejected;`
+      : `const result = await ${tc.name.split(' - ')[0].split('.').pop()}(input);
     expect(result).to.not.be.undefined;`
     }
   });`;
-      })
-      .join('\n\n');
+    }).join('\n\n');
 
     return `import { expect } from 'chai';
 
@@ -966,23 +897,23 @@ ${testBlocks}
 `;
   }
 
-  private renderPytestUnitTests(testCases: TestCase[], functions: FunctionSignature[]): string {
-    const testBlocks = testCases
-      .map((tc) => {
-        const inputStr = JSON.stringify(tc.input);
-        const funcName = tc.name.split(' - ')[0].split('.').pop();
-        const pytestName = `test_${funcName}_${tc.type}`;
+  private renderPytestUnitTests(
+    testCases: TestCase[],
+    functions: FunctionSignature[],
+  ): string {
+    const testBlocks = testCases.map((tc) => {
+      const inputStr = JSON.stringify(tc.input);
+      const funcName = tc.name.split(' - ')[0].split('.').pop();
+      const pytestName = `test_${funcName}_${tc.type}`;
 
-        return `def ${pytestName}():
+      return `def ${pytestName}():
     """${tc.description}"""
     input_data = ${inputStr}
-    ${
-      tc.type === 'negative'
-        ? `with pytest.raises(Exception):\n        ${funcName}(**input_data)`
-        : `result = ${funcName}(**input_data)\n    assert result is not None`
+    ${tc.type === 'negative'
+      ? `with pytest.raises(Exception):\n        ${funcName}(**input_data)`
+      : `result = ${funcName}(**input_data)\n    assert result is not None`
     }`;
-      })
-      .join('\n\n');
+    }).join('\n\n');
 
     return `import pytest
 
@@ -992,10 +923,7 @@ ${testBlocks}
 
   // ─── Integration Test Rendering ────────────────────────────────
 
-  private extractEndpoints(
-    code: string,
-    language: string,
-  ): Array<{ method: string; path: string; body?: any }> {
+  private extractEndpoints(code: string, language: string): Array<{ method: string; path: string; body?: any }> {
     const endpoints: Array<{ method: string; path: string; body?: any }> = [];
 
     if (language === 'typescript' || language === 'javascript') {
@@ -1033,9 +961,7 @@ ${testBlocks}
     // Error tests
     if (['POST', 'PUT', 'PATCH'].includes(methodName)) {
       tests.push(`should return 400 for ${methodName} ${endpoint.path} with invalid body`);
-      tests.push(
-        `should return 422 for ${methodName} ${endpoint.path} with missing required fields`,
-      );
+      tests.push(`should return 422 for ${methodName} ${endpoint.path} with missing required fields`);
     }
 
     // Auth test
@@ -1054,23 +980,18 @@ ${testBlocks}
     framework: string,
     language: string,
   ): string {
-    const suiteBlocks = testSuites
-      .map((suite) => {
-        const testBlocks = suite.tests
-          .map(
-            (test, index) =>
-              `  test('${test}', async () => {
+    const suiteBlocks = testSuites.map((suite) => {
+      const testBlocks = suite.tests.map((test, index) =>
+        `  test('${test}', async () => {
     const response = await request(app).${suite.name.split(' ')[0].toLowerCase()}('${suite.name.split(' ')[1]}');
     expect(response.status).toBeDefined();
   });`,
-          )
-          .join('\n\n');
+      ).join('\n\n');
 
-        return `describe('${suite.name}', () => {
+      return `describe('${suite.name}', () => {
 ${testBlocks}
 });`;
-      })
-      .join('\n\n');
+    }).join('\n\n');
 
     return `import request from 'supertest';
 import { app } from './app';
@@ -1088,8 +1009,7 @@ ${suiteBlocks}
 
     for (let i = 0; i < count; i++) {
       const rand = Math.random();
-      const status: TestResult['status'] =
-        rand < 0.8 ? 'passed' : rand < 0.95 ? 'failed' : 'skipped';
+      const status: TestResult['status'] = rand < 0.8 ? 'passed' : rand < 0.95 ? 'failed' : 'skipped';
 
       results.push({
         name: `${testPath}::test_${i + 1}`,
@@ -1183,10 +1103,7 @@ ${suiteBlocks}
 
   // ─── Fixture Generation Helpers ────────────────────────────────
 
-  private generateFixtureFromSchema(
-    schema: Record<string, any>,
-    index: number,
-  ): Record<string, any> {
+  private generateFixtureFromSchema(schema: Record<string, any>, index: number): Record<string, any> {
     const fixture: Record<string, any> = {};
 
     if (schema.properties) {
@@ -1208,11 +1125,7 @@ ${suiteBlocks}
     return fixture;
   }
 
-  private generateValueFromSchema(
-    propSchema: Record<string, any>,
-    key: string,
-    index: number,
-  ): any {
+  private generateValueFromSchema(propSchema: Record<string, any>, key: string, index: number): any {
     if (propSchema.enum) {
       return propSchema.enum[index % propSchema.enum.length];
     }
@@ -1221,16 +1134,12 @@ ${suiteBlocks}
       case 'string':
         if (key.toLowerCase().includes('email')) return `user${index}@example.com`;
         if (key.toLowerCase().includes('name')) return `Test Name ${index}`;
-        if (key.toLowerCase().includes('url') || key.toLowerCase().includes('link'))
-          return `https://example.com/${index}`;
+        if (key.toLowerCase().includes('url') || key.toLowerCase().includes('link')) return `https://example.com/${index}`;
         if (key.toLowerCase().includes('id')) return `${1000 + index}`;
-        if (key.toLowerCase().includes('date') || key.toLowerCase().includes('at'))
-          return new Date(Date.now() + index * 86400000).toISOString();
+        if (key.toLowerCase().includes('date') || key.toLowerCase().includes('at')) return new Date(Date.now() + index * 86400000).toISOString();
         return `test-${key}-${index}`;
-      case 'number':
-      case 'integer':
-        if (key.toLowerCase().includes('price') || key.toLowerCase().includes('amount'))
-          return Math.round((10 + index * 5.99) * 100) / 100;
+      case 'number': case 'integer':
+        if (key.toLowerCase().includes('price') || key.toLowerCase().includes('amount')) return Math.round((10 + index * 5.99) * 100) / 100;
         if (key.toLowerCase().includes('age')) return 20 + (index % 60);
         return index + 1;
       case 'boolean':
@@ -1253,36 +1162,22 @@ ${suiteBlocks}
     return `fixture-${key}-${index}`;
   }
 
-  private renderTypeScriptFixtures(
-    fixtures: Record<string, any>[],
-    schema: Record<string, any>,
-  ): string {
+  private renderTypeScriptFixtures(fixtures: Record<string, any>[], schema: Record<string, any>): string {
     const interfaceName = 'FixtureData';
     const properties = schema.properties || schema;
 
-    const interfaceProps = Object.entries(properties)
-      .map(([key, value]) => {
-        const prop = value as Record<string, any>;
-        const type =
-          prop.type === 'string'
-            ? 'string'
-            : prop.type === 'number' || prop.type === 'integer'
-              ? 'number'
-              : prop.type === 'boolean'
-                ? 'boolean'
-                : prop.type === 'array'
-                  ? 'any[]'
-                  : 'any';
-        return `  ${key}: ${type};`;
-      })
-      .join('\n');
+    const interfaceProps = Object.entries(properties).map(([key, value]) => {
+      const prop = value as Record<string, any>;
+      const type = prop.type === 'string' ? 'string' :
+                   prop.type === 'number' || prop.type === 'integer' ? 'number' :
+                   prop.type === 'boolean' ? 'boolean' :
+                   prop.type === 'array' ? 'any[]' : 'any';
+      return `  ${key}: ${type};`;
+    }).join('\n');
 
-    const fixtureData = fixtures
-      .map(
-        (f, i) =>
-          `  const fixture${i + 1}: ${interfaceName} = ${JSON.stringify(f, null, 4).replace(/\n/g, '\n  ')};`,
-      )
-      .join('\n\n');
+    const fixtureData = fixtures.map((f, i) =>
+      `  const fixture${i + 1}: ${interfaceName} = ${JSON.stringify(f, null, 4).replace(/\n/g, '\n  ')};`,
+    ).join('\n\n');
 
     return `export interface ${interfaceName} {
 ${interfaceProps}
@@ -1301,13 +1196,9 @@ ${fixtures.map((f) => JSON.stringify(f, null, 2)).join(',\n')}
 def fixture_data():
     return ${JSON.stringify(fixtures[0], null, 4)}
 
-${fixtures
-  .map(
-    (f, i) => `def fixture_${i + 1}():
+${fixtures.map((f, i) => `def fixture_${i + 1}():
     """Test fixture ${i + 1}"""
-    return ${JSON.stringify(f, null, 4)}`,
-  )
-  .join('\n\n')}
+    return ${JSON.stringify(f, null, 4)}`).join('\n\n')}
 `;
   }
 

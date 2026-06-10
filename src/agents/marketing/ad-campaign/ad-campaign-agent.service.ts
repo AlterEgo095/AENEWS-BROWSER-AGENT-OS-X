@@ -31,18 +31,10 @@ export const AD_CAMPAIGN_AGENT_CONFIG: AgentConfig = {
         properties: {
           name: { type: 'string', description: 'Campaign name' },
           platform: { type: 'string', description: 'Ad platform' },
-          objective: {
-            type: 'string',
-            enum: ['awareness', 'traffic', 'engagement', 'leads', 'conversions', 'sales'],
-            description: 'Campaign objective',
-          },
+          objective: { type: 'string', enum: ['awareness', 'traffic', 'engagement', 'leads', 'conversions', 'sales'], description: 'Campaign objective' },
           startDate: { type: 'string', description: 'Start date (ISO string)' },
           endDate: { type: 'string', description: 'End date (ISO string)' },
-          adSets: {
-            type: 'array',
-            items: { type: 'object' },
-            description: 'Ad sets configuration',
-          },
+          adSets: { type: 'array', items: { type: 'object' }, description: 'Ad sets configuration' },
         },
         required: ['name', 'platform', 'objective'],
       },
@@ -66,11 +58,7 @@ export const AD_CAMPAIGN_AGENT_CONFIG: AgentConfig = {
           campaignId: { type: 'string', description: 'Campaign ID' },
           totalBudget: { type: 'number', description: 'Total campaign budget' },
           dailyBudget: { type: 'number', description: 'Daily budget cap' },
-          allocation: {
-            type: 'string',
-            enum: ['even', 'performance-based', 'manual', 'ai-optimized'],
-            description: 'Budget allocation strategy',
-          },
+          allocation: { type: 'string', enum: ['even', 'performance-based', 'manual', 'ai-optimized'], description: 'Budget allocation strategy' },
           adSetBudgets: { type: 'object', description: 'Per ad set budget overrides' },
         },
         required: ['campaignId', 'totalBudget'],
@@ -94,31 +82,11 @@ export const AD_CAMPAIGN_AGENT_CONFIG: AgentConfig = {
         properties: {
           campaignId: { type: 'string', description: 'Campaign ID' },
           demographics: { type: 'object', description: 'Demographic targeting' },
-          interests: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Interest targeting',
-          },
-          behaviors: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Behavioral targeting',
-          },
-          locations: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Geographic targeting',
-          },
-          customAudiences: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Custom audience IDs',
-          },
-          lookalikeAudiences: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Lookalike audience seeds',
-          },
+          interests: { type: 'array', items: { type: 'string' }, description: 'Interest targeting' },
+          behaviors: { type: 'array', items: { type: 'string' }, description: 'Behavioral targeting' },
+          locations: { type: 'array', items: { type: 'string' }, description: 'Geographic targeting' },
+          customAudiences: { type: 'array', items: { type: 'string' }, description: 'Custom audience IDs' },
+          lookalikeAudiences: { type: 'array', items: { type: 'string' }, description: 'Lookalike audience seeds' },
         },
         required: ['campaignId'],
       },
@@ -138,15 +106,8 @@ export const AD_CAMPAIGN_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           campaignId: { type: 'string', description: 'Campaign ID' },
-          action: {
-            type: 'string',
-            enum: ['launch', 'pause', 'resume', 'stop'],
-            description: 'Action to perform',
-          },
-          reviewFirst: {
-            type: 'boolean',
-            description: 'Whether to review settings before launching',
-          },
+          action: { type: 'string', enum: ['launch', 'pause', 'resume', 'stop'], description: 'Action to perform' },
+          reviewFirst: { type: 'boolean', description: 'Whether to review settings before launching' },
         },
         required: ['campaignId', 'action'],
       },
@@ -167,11 +128,7 @@ export const AD_CAMPAIGN_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           campaignId: { type: 'string', description: 'Campaign ID' },
-          optimizationGoal: {
-            type: 'string',
-            enum: ['cpa', 'roas', 'conversions', 'reach', 'engagement'],
-            description: 'Optimization goal',
-          },
+          optimizationGoal: { type: 'string', enum: ['cpa', 'roas', 'conversions', 'reach', 'engagement'], description: 'Optimization goal' },
           autoApply: { type: 'boolean', description: 'Whether to auto-apply optimizations' },
           maxBudgetChange: { type: 'number', description: 'Maximum budget change percentage' },
         },
@@ -196,11 +153,7 @@ export const AD_CAMPAIGN_AGENT_CONFIG: AgentConfig = {
           campaignId: { type: 'string', description: 'Campaign ID' },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
-          granularity: {
-            type: 'string',
-            enum: ['hourly', 'daily', 'weekly', 'total'],
-            description: 'Report granularity',
-          },
+          granularity: { type: 'string', enum: ['hourly', 'daily', 'weekly', 'total'], description: 'Report granularity' },
           compareWith: { type: 'string', description: 'Another campaign ID for comparison' },
         },
         required: ['campaignId'],
@@ -354,8 +307,11 @@ export class AdCampaignAgentService extends BaseAgentService {
     this.registerTool({
       name: 'launchCampaign',
       description: 'Launch or pause an ad campaign',
-      execute: async (params: { campaignId: string; action: string; reviewFirst?: boolean }) =>
-        this.launchCampaign(params),
+      execute: async (params: {
+        campaignId: string;
+        action: string;
+        reviewFirst?: boolean;
+      }) => this.launchCampaign(params),
     });
 
     this.registerTool({
@@ -468,7 +424,14 @@ export class AdCampaignAgentService extends BaseAgentService {
     status: string;
     createdAt: string;
   }> {
-    const { name, platform, objective, startDate, endDate, adSets: adSetConfigs = [] } = params;
+    const {
+      name,
+      platform,
+      objective,
+      startDate,
+      endDate,
+      adSets: adSetConfigs = [],
+    } = params;
 
     if (!name || typeof name !== 'string') {
       throw new Error('A valid campaign name is required');
@@ -477,15 +440,7 @@ export class AdCampaignAgentService extends BaseAgentService {
       throw new Error('A valid platform is required');
     }
 
-    const validPlatforms = [
-      'google-ads',
-      'facebook',
-      'instagram',
-      'linkedin',
-      'twitter',
-      'tiktok',
-      'programmatic',
-    ];
+    const validPlatforms = ['google-ads', 'facebook', 'instagram', 'linkedin', 'twitter', 'tiktok', 'programmatic'];
     if (!validPlatforms.includes(platform)) {
       throw new Error(`Invalid platform: ${platform}. Valid: ${validPlatforms.join(', ')}`);
     }
@@ -498,40 +453,21 @@ export class AdCampaignAgentService extends BaseAgentService {
     const campaignId = this.generateCampaignId();
 
     // Create ad sets
-    const adSets: AdSet[] =
-      adSetConfigs.length > 0
-        ? adSetConfigs.map((as, i) => ({
-            id: `adset-${i + 1}`,
-            name: as.name || `Ad Set ${i + 1}`,
-            budget: as.budget || 0,
-            status: 'active' as const,
-            performance: {
-              impressions: 0,
-              clicks: 0,
-              conversions: 0,
-              spend: 0,
-              ctr: 0,
-              cpc: 0,
-              cpa: 0,
-            },
-          }))
-        : [
-            {
-              id: 'adset-1',
-              name: 'Default Ad Set',
-              budget: 0,
-              status: 'active',
-              performance: {
-                impressions: 0,
-                clicks: 0,
-                conversions: 0,
-                spend: 0,
-                ctr: 0,
-                cpc: 0,
-                cpa: 0,
-              },
-            },
-          ];
+    const adSets: AdSet[] = adSetConfigs.length > 0
+      ? adSetConfigs.map((as, i) => ({
+          id: `adset-${i + 1}`,
+          name: as.name || `Ad Set ${i + 1}`,
+          budget: as.budget || 0,
+          status: 'active' as const,
+          performance: { impressions: 0, clicks: 0, conversions: 0, spend: 0, ctr: 0, cpc: 0, cpa: 0 },
+        }))
+      : [{
+          id: 'adset-1',
+          name: 'Default Ad Set',
+          budget: 0,
+          status: 'active',
+          performance: { impressions: 0, clicks: 0, conversions: 0, spend: 0, ctr: 0, cpc: 0, cpa: 0 },
+        }];
 
     const campaign: AdCampaign = {
       id: campaignId,
@@ -601,7 +537,13 @@ export class AdCampaignAgentService extends BaseAgentService {
     allocation: string;
     adSetAllocations: Record<string, number>;
   }> {
-    const { campaignId, totalBudget, dailyBudget, allocation = 'even', adSetBudgets = {} } = params;
+    const {
+      campaignId,
+      totalBudget,
+      dailyBudget,
+      allocation = 'even',
+      adSetBudgets = {},
+    } = params;
 
     if (!campaignId || typeof campaignId !== 'string') {
       throw new Error('A valid campaignId is required');
@@ -649,8 +591,7 @@ export class AdCampaignAgentService extends BaseAgentService {
         }
       } else if (allocation === 'performance-based') {
         // Weight by current performance (or equal if no data)
-        const totalConversions =
-          campaign.adSets.reduce((sum, as) => sum + as.performance.conversions, 0) || 1;
+        const totalConversions = campaign.adSets.reduce((sum, as) => sum + as.performance.conversions, 0) || 1;
         for (const as of campaign.adSets) {
           const weight = (as.performance.conversions || 1) / totalConversions;
           adSetAllocations[as.id] = Math.round(totalBudget * weight);
@@ -851,7 +792,9 @@ export class AdCampaignAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(`Campaign ${action}: ${campaignId}, status=${campaign.status}`);
+    this.logger.log(
+      `Campaign ${action}: ${campaignId}, status=${campaign.status}`,
+    );
 
     return {
       campaignId,
@@ -880,9 +823,7 @@ export class AdCampaignAgentService extends BaseAgentService {
 
     const validGoals = ['cpa', 'roas', 'conversions', 'reach', 'engagement'];
     if (!validGoals.includes(optimizationGoal)) {
-      throw new Error(
-        `Invalid optimization goal: ${optimizationGoal}. Valid: ${validGoals.join(', ')}`,
-      );
+      throw new Error(`Invalid optimization goal: ${optimizationGoal}. Valid: ${validGoals.join(', ')}`);
     }
 
     const campaign = this.campaigns.get(campaignId);
@@ -894,12 +835,7 @@ export class AdCampaignAgentService extends BaseAgentService {
       throw new Error(`Cannot optimize campaign in ${campaign.status} state`);
     }
 
-    const optimizations: Array<{
-      type: string;
-      description: string;
-      impact: string;
-      applied: boolean;
-    }> = [];
+    const optimizations: Array<{ type: string; description: string; impact: string; applied: boolean }> = [];
 
     // Generate optimization suggestions based on goal
     switch (optimizationGoal) {
@@ -998,13 +934,16 @@ export class AdCampaignAgentService extends BaseAgentService {
       const budgetShift = Math.min(maxBudgetChange / 100, 0.2);
       const shiftAmount = Math.round(campaign.budget.total * budgetShift);
 
-      this.logger.log(`Auto-applied budget shift: +${shiftAmount} to ${topPerformer.id}`);
+      this.logger.log(
+        `Auto-applied budget shift: +${shiftAmount} to ${topPerformer.id}`,
+      );
     }
 
-    const projectedImprovement =
-      optimizations.filter((o) => o.applied).length > 0
-        ? `Projected ${optimizationGoal.toUpperCase()} improvement of 15-30% based on applied optimizations`
-        : `Review and apply optimizations for projected ${optimizationGoal.toUpperCase()} improvement`;
+    const projectedImprovement = optimizations
+      .filter((o) => o.applied)
+      .length > 0
+      ? `Projected ${optimizationGoal.toUpperCase()} improvement of 15-30% based on applied optimizations`
+      : `Review and apply optimizations for projected ${optimizationGoal.toUpperCase()} improvement`;
 
     this.logger.log(
       `Optimized campaign: ${campaignId}, goal=${optimizationGoal}, optimizations=${optimizations.length}, applied=${autoApply}`,
@@ -1054,10 +993,9 @@ export class AdCampaignAgentService extends BaseAgentService {
       roas: Math.round(perf.roas * 100) / 100,
       reach: perf.reach,
       frequency: Math.round(perf.frequency * 100) / 100,
-      budgetUtilization:
-        campaign.budget.total > 0
-          ? Math.round((campaign.budget.spent / campaign.budget.total) * 100)
-          : 0,
+      budgetUtilization: campaign.budget.total > 0
+        ? Math.round((campaign.budget.spent / campaign.budget.total) * 100)
+        : 0,
     };
 
     // Ad set breakdown
@@ -1084,7 +1022,7 @@ export class AdCampaignAgentService extends BaseAgentService {
       if (compareCampaign) {
         recommendations.push(
           `Compared to "${compareCampaign.name}": CTR ${perf.ctr > compareCampaign.performance.ctr ? 'higher' : 'lower'}, ` +
-            `CPA ${perf.cpa < compareCampaign.performance.cpa ? 'better' : 'higher'}.`,
+          `CPA ${perf.cpa < compareCampaign.performance.cpa ? 'better' : 'higher'}.`,
         );
       }
     }
@@ -1118,7 +1056,7 @@ export class AdCampaignAgentService extends BaseAgentService {
     const conversionRate = +(1 + Math.random() * 5).toFixed(2);
     const conversions = Math.floor(clicks * (conversionRate / 100));
     const cpa = conversions > 0 ? +(budget / conversions).toFixed(2) : 0;
-    const roas = conversions > 0 ? +((conversions * 50) / budget).toFixed(2) : 0;
+    const roas = conversions > 0 ? +(conversions * 50 / budget).toFixed(2) : 0;
     const reach = Math.floor(impressions * 0.7);
     const frequency = reach > 0 ? +(impressions / reach).toFixed(2) : 0;
 
@@ -1154,40 +1092,28 @@ export class AdCampaignAgentService extends BaseAgentService {
     const perf = campaign.performance;
 
     if (perf.ctr < 1) {
-      recommendations.push(
-        'CTR is below 1%. Consider refreshing ad creatives and testing new headline variations.',
-      );
+      recommendations.push('CTR is below 1%. Consider refreshing ad creatives and testing new headline variations.');
     } else if (perf.ctr > 3) {
-      recommendations.push(
-        'CTR is strong. Leverage high-performing creatives across other campaigns.',
-      );
+      recommendations.push('CTR is strong. Leverage high-performing creatives across other campaigns.');
     }
 
     if (perf.cpa > 0 && campaign.budget.total > 0) {
       const cpaToBudgetRatio = perf.cpa / campaign.budget.total;
       if (cpaToBudgetRatio > 0.5) {
-        recommendations.push(
-          'CPA is high relative to budget. Consider narrowing targeting or adjusting bid strategy.',
-        );
+        recommendations.push('CPA is high relative to budget. Consider narrowing targeting or adjusting bid strategy.');
       }
     }
 
     if (perf.frequency > 3) {
-      recommendations.push(
-        'Ad frequency is above 3. Users may experience ad fatigue. Expand audience or refresh creatives.',
-      );
+      recommendations.push('Ad frequency is above 3. Users may experience ad fatigue. Expand audience or refresh creatives.');
     }
 
     if (campaign.budget.total > 0) {
       const utilization = (campaign.budget.spent / campaign.budget.total) * 100;
       if (utilization > 90) {
-        recommendations.push(
-          'Budget utilization is above 90%. Consider increasing budget or pausing low-performing ad sets.',
-        );
+        recommendations.push('Budget utilization is above 90%. Consider increasing budget or pausing low-performing ad sets.');
       } else if (utilization < 30 && campaign.status === 'active') {
-        recommendations.push(
-          'Budget utilization is below 30%. Campaign may not be delivering optimally. Check for approval or targeting issues.',
-        );
+        recommendations.push('Budget utilization is below 30%. Campaign may not be delivering optimally. Check for approval or targeting issues.');
       }
     }
 
@@ -1198,17 +1124,13 @@ export class AdCampaignAgentService extends BaseAgentService {
         const maxCpa = Math.max(...cpas);
         const minCpa = Math.min(...cpas);
         if (maxCpa > minCpa * 3) {
-          recommendations.push(
-            'Significant CPA variance across ad sets. Reallocate budget from high-CPA to low-CPA ad sets.',
-          );
+          recommendations.push('Significant CPA variance across ad sets. Reallocate budget from high-CPA to low-CPA ad sets.');
         }
       }
     }
 
     if (recommendations.length === 0) {
-      recommendations.push(
-        'Campaign is performing within expected parameters. Continue monitoring and consider incremental optimizations.',
-      );
+      recommendations.push('Campaign is performing within expected parameters. Continue monitoring and consider incremental optimizations.');
     }
 
     return recommendations;

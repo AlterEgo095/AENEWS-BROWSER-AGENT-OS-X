@@ -74,17 +74,10 @@ export const CODE_GENERATION_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          description: {
-            type: 'string',
-            description: 'Natural language description of desired code',
-          },
+          description: { type: 'string', description: 'Natural language description of desired code' },
           language: { type: 'string', description: 'Target programming language' },
           context: { type: 'string', description: 'Additional context or existing code' },
-          constraints: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Constraints to follow',
-          },
+          constraints: { type: 'array', items: { type: 'string' }, description: 'Constraints to follow' },
         },
         required: ['description', 'language'],
       },
@@ -144,7 +137,13 @@ export const CODE_GENERATION_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:code', 'write:code', 'read:templates', 'write:generated'],
+  permissions: [
+    'execute:task',
+    'read:code',
+    'write:code',
+    'read:templates',
+    'write:generated',
+  ],
   maxConcurrentTasks: 4,
   timeout: 60000,
   retryPolicy: {
@@ -248,8 +247,12 @@ export class CodeGenerationAgentService extends BaseAgentService {
     this.registerTool({
       name: 'optimizeCode',
       description: 'Optimize code for performance, memory, or other metrics',
-      execute: async (params: { code: string; language: string; target: string; level?: string }) =>
-        this.optimizeCode(params),
+      execute: async (params: {
+        code: string;
+        language: string;
+        target: string;
+        level?: string;
+      }) => this.optimizeCode(params),
     });
 
     await this.storeInWorkingMemory('codegen:initializedAt', new Date().toISOString(), 600000);
@@ -370,9 +373,7 @@ export class CodeGenerationAgentService extends BaseAgentService {
     if (framework) {
       const isCompatible = this.validateFrameworkCompatibility(normalizedLang, framework);
       if (!isCompatible) {
-        warnings.push(
-          `Framework "${framework}" may not be fully compatible with ${normalizedLang}`,
-        );
+        warnings.push(`Framework "${framework}" may not be fully compatible with ${normalizedLang}`);
       }
     }
 
@@ -446,8 +447,7 @@ export class CodeGenerationAgentService extends BaseAgentService {
       );
     }
 
-    const fileName =
-      outputFileName || `${templateId}.generated.${this.getExtension(template.language)}`;
+    const fileName = outputFileName || `${templateId}.generated.${this.getExtension(template.language)}`;
 
     this.logger.log(
       `Generated code from template: ${templateId}, substituted ${substitutedVars.length} variable(s)`,
@@ -541,7 +541,9 @@ export class CodeGenerationAgentService extends BaseAgentService {
       duplicateCodeReduction: this.estimateDuplicateReduction(code, refactoredCode),
     };
 
-    this.logger.log(`Refactored code: ${changes.length} change(s), language=${normalizedLang}`);
+    this.logger.log(
+      `Refactored code: ${changes.length} change(s), language=${normalizedLang}`,
+    );
 
     return { refactoredCode, changes, improvedMetrics };
   }
@@ -742,13 +744,10 @@ export default router;`,
     }
   }
 
-  private parseSpec(
-    spec: string,
-  ): Array<{ name: string; type: string; description: string; methods?: string[] }> {
-    const sections: Array<{ name: string; type: string; description: string; methods?: string[] }> =
-      [];
+  private parseSpec(spec: string): Array<{ name: string; type: string; description: string; methods?: string[] }> {
+    const sections: Array<{ name: string; type: string; description: string; methods?: string[] }> = [];
     const lines = spec.split('\n');
-    let currentSection: (typeof sections)[0] | null = null;
+    let currentSection: typeof sections[0] | null = null;
 
     for (const line of lines) {
       const trimmed = line.trim();
@@ -759,11 +758,7 @@ export default router;`,
         const name = trimmed.replace(/^#+\s*/, '');
         currentSection = {
           name: this.toPascalCase(name),
-          type: name.toLowerCase().includes('service')
-            ? 'service'
-            : name.toLowerCase().includes('controller')
-              ? 'controller'
-              : 'module',
+          type: name.toLowerCase().includes('service') ? 'service' : name.toLowerCase().includes('controller') ? 'controller' : 'module',
           description: name,
         };
       } else if (currentSection && trimmed.length > 0) {
@@ -812,25 +807,23 @@ export default router;`,
     const routePath = this.toKebabCase(name);
     const serviceVar = this.toCamelCase(name);
 
-    const methodImplementations = methods
-      .map((method) => {
-        const httpMethod = this.inferHttpMethod(method);
-        const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) =>
-          method.toLowerCase().includes(m.toLowerCase()),
-        );
+    const methodImplementations = methods.map((method) => {
+      const httpMethod = this.inferHttpMethod(method);
+      const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) =>
+        method.toLowerCase().includes(m.toLowerCase()),
+      );
 
-        if (hasParam) {
-          return `  @${httpMethod}(':id')
+      if (hasParam) {
+        return `  @${httpMethod}(':id')
   ${method}(@Param('id') id: string) {
     return this.${serviceVar}Service.${method}(id);
   }`;
-        }
-        return `  @${httpMethod}()
+      }
+      return `  @${httpMethod}()
   ${method}() {
     return this.${serviceVar}Service.${method}();
   }`;
-      })
-      .join('\n\n');
+    }).join('\n\n');
 
     return `import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { ${name}Service } from './${routePath}.service';
@@ -844,24 +837,22 @@ ${methodImplementations}
   }
 
   private generateNestJSService(name: string, methods: string[]): string {
-    const methodImplementations = methods
-      .map((method) => {
-        const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) =>
-          method.toLowerCase().includes(m.toLowerCase()),
-        );
+    const methodImplementations = methods.map((method) => {
+      const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) =>
+        method.toLowerCase().includes(m.toLowerCase()),
+      );
 
-        if (hasParam) {
-          return `  async ${method}(id: string): Promise<any> {
+      if (hasParam) {
+        return `  async ${method}(id: string): Promise<any> {
     // TODO: Implement ${method} logic
     return { id, message: '${method} executed' };
   }`;
-        }
-        return `  async ${method}(): Promise<any> {
+      }
+      return `  async ${method}(): Promise<any> {
     // TODO: Implement ${method} logic
     return { message: '${method} executed' };
   }`;
-      })
-      .join('\n\n');
+    }).join('\n\n');
 
     return `import { Injectable } from '@nestjs/common';
 
@@ -873,11 +864,9 @@ ${methodImplementations}
   }
 
   private generateGenericModule(name: string, language: string, methods: string[]): string {
-    const methodImplementations = methods
-      .map((method) => {
-        return `  function ${method}() {\n    // TODO: Implement ${method}\n    return null;\n  }`;
-      })
-      .join('\n\n');
+    const methodImplementations = methods.map((method) => {
+      return `  function ${method}() {\n    // TODO: Implement ${method}\n    return null;\n  }`;
+    }).join('\n\n');
 
     if (language === 'python') {
       return `"""${name} module generated from specification"""\n\nclass ${name}:\n${methods.map((m) => `    def ${m}(self):\n        """TODO: Implement ${m}"""\n        pass`).join('\n\n')}`;
@@ -941,7 +930,9 @@ ${methodImplementations}`;
       ? `\n// Constraints: ${constraints.join(', ')}`
       : '';
 
-    const contextComment = context ? `\n// Context: ${context.substring(0, 200)}` : '';
+    const contextComment = context
+      ? `\n// Context: ${context.substring(0, 200)}`
+      : '';
 
     if (language === 'typescript') {
       if (intent.type === 'class') {
@@ -1046,12 +1037,7 @@ def generated_function():
     goals: string[],
     language: string,
   ): Array<{ type: string; description: string; pattern: RegExp; replacement: string }> {
-    const patterns: Array<{
-      type: string;
-      description: string;
-      pattern: RegExp;
-      replacement: string;
-    }> = [];
+    const patterns: Array<{ type: string; description: string; pattern: RegExp; replacement: string }> = [];
 
     const allGoals = goals.length > 0 ? goals : ['readability', 'dry', 'simplification'];
 
@@ -1083,10 +1069,7 @@ def generated_function():
       });
     }
 
-    if (
-      allGoals.includes('modernization') &&
-      (language === 'typescript' || language === 'javascript')
-    ) {
+    if (allGoals.includes('modernization') && (language === 'typescript' || language === 'javascript')) {
       // Convert var to const/let
       patterns.push({
         type: 'modernization',
@@ -1142,94 +1125,44 @@ def generated_function():
 
     if (target === 'performance') {
       strategies.push(
-        {
-          type: 'loop-optimization',
-          description: 'Optimize loop patterns for performance',
-          target: 'performance',
-        },
-        {
-          type: 'caching',
-          description: 'Add memoization/caching for expensive computations',
-          target: 'performance',
-        },
-        {
-          type: 'async-optimization',
-          description: 'Convert synchronous operations to async where beneficial',
-          target: 'performance',
-        },
+        { type: 'loop-optimization', description: 'Optimize loop patterns for performance', target: 'performance' },
+        { type: 'caching', description: 'Add memoization/caching for expensive computations', target: 'performance' },
+        { type: 'async-optimization', description: 'Convert synchronous operations to async where beneficial', target: 'performance' },
       );
 
       if (level === 'aggressive') {
         strategies.push(
-          {
-            type: 'inline-functions',
-            description: 'Inline small functions to reduce call overhead',
-            target: 'performance',
-          },
-          {
-            type: 'early-return',
-            description: 'Add early returns to avoid unnecessary computation',
-            target: 'performance',
-          },
+          { type: 'inline-functions', description: 'Inline small functions to reduce call overhead', target: 'performance' },
+          { type: 'early-return', description: 'Add early returns to avoid unnecessary computation', target: 'performance' },
         );
       }
     }
 
     if (target === 'memory') {
       strategies.push(
-        {
-          type: 'object-pooling',
-          description: 'Suggest object pooling for frequently created objects',
-          target: 'memory',
-        },
-        {
-          type: 'stream-processing',
-          description: 'Convert bulk data processing to streaming',
-          target: 'memory',
-        },
+        { type: 'object-pooling', description: 'Suggest object pooling for frequently created objects', target: 'memory' },
+        { type: 'stream-processing', description: 'Convert bulk data processing to streaming', target: 'memory' },
       );
     }
 
     if (target === 'readability') {
       strategies.push(
-        {
-          type: 'extract-method',
-          description: 'Extract complex logic into named methods',
-          target: 'readability',
-        },
-        {
-          type: 'meaningful-names',
-          description: 'Suggest more descriptive variable names',
-          target: 'readability',
-        },
-        {
-          type: 'add-comments',
-          description: 'Add inline comments for complex logic',
-          target: 'readability',
-        },
+        { type: 'extract-method', description: 'Extract complex logic into named methods', target: 'readability' },
+        { type: 'meaningful-names', description: 'Suggest more descriptive variable names', target: 'readability' },
+        { type: 'add-comments', description: 'Add inline comments for complex logic', target: 'readability' },
       );
     }
 
     if (target === 'bundle-size') {
       strategies.push(
-        {
-          type: 'tree-shaking',
-          description: 'Mark unused exports for tree-shaking',
-          target: 'bundle-size',
-        },
-        {
-          type: 'lazy-loading',
-          description: 'Suggest dynamic imports for lazy loading',
-          target: 'bundle-size',
-        },
+        { type: 'tree-shaking', description: 'Mark unused exports for tree-shaking', target: 'bundle-size' },
+        { type: 'lazy-loading', description: 'Suggest dynamic imports for lazy loading', target: 'bundle-size' },
       );
 
       if (level !== 'safe') {
-        strategies.push({
-          type: 'minification-safe',
-          description: 'Ensure code is minification-safe',
-          target: 'bundle-size',
-        });
+        strategies.push(
+          { type: 'minification-safe', description: 'Ensure code is minification-safe', target: 'bundle-size' },
+        );
       }
     }
 
@@ -1316,10 +1249,7 @@ def generated_function():
   private estimateDuplicateReduction(originalCode: string, refactoredCode: string): number {
     // Simplified duplicate estimation by comparing line frequencies
     const countLineFrequencies = (code: string): number => {
-      const lines = code
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
+      const lines = code.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
       const freq = new Map<string, number>();
       for (const line of lines) {
         freq.set(line, (freq.get(line) || 0) + 1);
@@ -1348,8 +1278,7 @@ def generated_function():
     const highImpact = improvements.filter((i) => i.impact === 'high').length;
     const mediumImpact = improvements.filter((i) => i.impact === 'medium').length;
 
-    const baseGain =
-      highImpact * 20 + mediumImpact * 10 + (improvements.length - highImpact - mediumImpact) * 5;
+    const baseGain = highImpact * 20 + mediumImpact * 10 + (improvements.length - highImpact - mediumImpact) * 5;
     const levelMultiplier = level === 'aggressive' ? 1.5 : level === 'moderate' ? 1.2 : 1.0;
 
     const estimatedPercent = Math.min(90, Math.round(baseGain * levelMultiplier));
@@ -1409,21 +1338,8 @@ def generated_function():
 
   private inferHttpMethod(methodName: string): string {
     const lower = methodName.toLowerCase();
-    if (
-      lower.includes('create') ||
-      lower.includes('add') ||
-      lower.includes('insert') ||
-      lower.includes('post')
-    )
-      return 'Post';
-    if (
-      lower.includes('update') ||
-      lower.includes('edit') ||
-      lower.includes('modify') ||
-      lower.includes('put') ||
-      lower.includes('patch')
-    )
-      return 'Put';
+    if (lower.includes('create') || lower.includes('add') || lower.includes('insert') || lower.includes('post')) return 'Post';
+    if (lower.includes('update') || lower.includes('edit') || lower.includes('modify') || lower.includes('put') || lower.includes('patch')) return 'Put';
     if (lower.includes('delete') || lower.includes('remove')) return 'Delete';
     return 'Get';
   }

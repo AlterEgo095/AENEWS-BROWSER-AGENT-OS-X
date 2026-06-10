@@ -5,12 +5,7 @@
  */
 
 import { SetMetadata } from '@nestjs/common';
-import {
-  AgentCluster,
-  AgentCapability,
-  AgentConfig,
-  AgentRetryPolicy,
-} from '../interfaces/agent.interface';
+import { AgentCluster, AgentCapability, AgentConfig, AgentRetryPolicy } from '../interfaces/agent.interface';
 
 // ─── Agent Metadata Key ───────────────────────────────────────────
 export const AGENT_METADATA_KEY = 'agent:metadata';
@@ -145,13 +140,10 @@ export function Agent(optionsOrConfig: AgentDecoratorOptions | AgentConfig): Cla
   let metadata: AgentMetadata;
 
   // Check if it's a full AgentConfig (has retryPolicy with all required fields)
-  if (
-    'retryPolicy' in optionsOrConfig &&
-    optionsOrConfig.retryPolicy &&
-    'maxRetries' in optionsOrConfig.retryPolicy &&
-    'backoffMs' in optionsOrConfig.retryPolicy &&
-    'exponentialBackoff' in optionsOrConfig.retryPolicy
-  ) {
+  if ('retryPolicy' in optionsOrConfig && optionsOrConfig.retryPolicy &&
+      'maxRetries' in optionsOrConfig.retryPolicy &&
+      'backoffMs' in optionsOrConfig.retryPolicy &&
+      'exponentialBackoff' in optionsOrConfig.retryPolicy) {
     // Treat as full AgentConfig
     const config = optionsOrConfig as AgentConfig;
     metadata = {

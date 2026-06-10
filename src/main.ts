@@ -54,8 +54,12 @@ async function bootstrap() {
           maxFiles: 10,
         }),
       ],
-      exceptionHandlers: [new winston.transports.File({ filename: `${logDir}/exceptions.log` })],
-      rejectionHandlers: [new winston.transports.File({ filename: `${logDir}/rejections.log` })],
+      exceptionHandlers: [
+        new winston.transports.File({ filename: `${logDir}/exceptions.log` }),
+      ],
+      rejectionHandlers: [
+        new winston.transports.File({ filename: `${logDir}/rejections.log` }),
+      ],
     }),
   );
 
@@ -97,7 +101,10 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // ─── Global Interceptors ─────────────────────────────────
-  app.useGlobalInterceptors(new TransformInterceptor(), new LoggingInterceptor());
+  app.useGlobalInterceptors(
+    new TransformInterceptor(),
+    new LoggingInterceptor(),
+  );
 
   // ─── API Versioning ──────────────────────────────────────
   app.enableVersioning({
@@ -116,7 +123,8 @@ async function bootstrap() {
     const config = new DocumentBuilder()
       .setTitle(process.env.SWAGGER_TITLE || 'AENEWS Agent OS X API')
       .setDescription(
-        process.env.SWAGGER_DESCRIPTION || 'Enterprise Autonomous Browser Platform API',
+        process.env.SWAGGER_DESCRIPTION ||
+          'Enterprise Autonomous Browser Platform API',
       )
       .setVersion(process.env.SWAGGER_VERSION || '0.0.1')
       .addBearerAuth()

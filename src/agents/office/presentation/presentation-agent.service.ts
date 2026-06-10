@@ -32,16 +32,8 @@ export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
           title: { type: 'string', description: 'Presentation title' },
           author: { type: 'string', description: 'Presentation author' },
           theme: { type: 'string', description: 'Theme to apply' },
-          slides: {
-            type: 'array',
-            items: { type: 'object' },
-            description: 'Initial slide definitions',
-          },
-          format: {
-            type: 'string',
-            enum: ['pptx', 'pdf', 'odp'],
-            description: 'Presentation format',
-          },
+          slides: { type: 'array', items: { type: 'object' }, description: 'Initial slide definitions' },
+          format: { type: 'string', enum: ['pptx', 'pdf', 'odp'], description: 'Presentation format' },
         },
         required: ['title'],
       },
@@ -62,18 +54,7 @@ export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           presentationId: { type: 'string', description: 'ID of the presentation' },
-          layout: {
-            type: 'string',
-            enum: [
-              'title',
-              'titleAndContent',
-              'twoContent',
-              'blank',
-              'sectionHeader',
-              'comparison',
-            ],
-            description: 'Slide layout',
-          },
+          layout: { type: 'string', enum: ['title', 'titleAndContent', 'twoContent', 'blank', 'sectionHeader', 'comparison'], description: 'Slide layout' },
           position: { type: 'number', description: 'Position to insert slide (1-based index)' },
           title: { type: 'string', description: 'Slide title' },
           subtitle: { type: 'string', description: 'Slide subtitle' },
@@ -99,11 +80,7 @@ export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
         properties: {
           presentationId: { type: 'string', description: 'ID of the presentation' },
           slideId: { type: 'string', description: 'ID of the slide' },
-          contentType: {
-            type: 'string',
-            enum: ['text', 'image', 'table', 'chart', 'shape', 'bulletList'],
-            description: 'Type of content to add',
-          },
+          contentType: { type: 'string', enum: ['text', 'image', 'table', 'chart', 'shape', 'bulletList'], description: 'Type of content to add' },
           content: { type: 'object', description: 'Content data (varies by type)' },
           position: { type: 'object', description: 'Position and size on the slide' },
           style: { type: 'object', description: 'Content styling' },
@@ -128,10 +105,7 @@ export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
         properties: {
           presentationId: { type: 'string', description: 'ID of the presentation' },
           themeId: { type: 'string', description: 'Theme identifier to apply' },
-          slideId: {
-            type: 'string',
-            description: 'Specific slide ID (optional, applies to all if omitted)',
-          },
+          slideId: { type: 'string', description: 'Specific slide ID (optional, applies to all if omitted)' },
           overrideColors: { type: 'object', description: 'Custom color overrides for the theme' },
         },
         required: ['presentationId', 'themeId'],
@@ -153,17 +127,9 @@ export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           presentationId: { type: 'string', description: 'ID of the presentation' },
-          format: {
-            type: 'string',
-            enum: ['pptx', 'pdf', 'odp', 'images'],
-            description: 'Export format',
-          },
+          format: { type: 'string', enum: ['pptx', 'pdf', 'odp', 'images'], description: 'Export format' },
           slideRange: { type: 'object', description: 'Specific slide range to export' },
-          quality: {
-            type: 'string',
-            enum: ['low', 'medium', 'high'],
-            description: 'Export quality',
-          },
+          quality: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Export quality' },
         },
         required: ['presentationId', 'format'],
       },
@@ -186,16 +152,9 @@ export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
         properties: {
           presentationId: { type: 'string', description: 'ID of the presentation' },
           slideId: { type: 'string', description: 'ID of the slide to add transition to' },
-          type: {
-            type: 'string',
-            enum: ['fade', 'slide', 'push', 'wipe', 'split', 'reveal', 'dissolve', 'none'],
-            description: 'Transition type',
-          },
+          type: { type: 'string', enum: ['fade', 'slide', 'push', 'wipe', 'split', 'reveal', 'dissolve', 'none'], description: 'Transition type' },
           duration: { type: 'number', description: 'Transition duration in milliseconds' },
-          advanceAfter: {
-            type: 'number',
-            description: 'Auto-advance after milliseconds (0 for manual)',
-          },
+          advanceAfter: { type: 'number', description: 'Auto-advance after milliseconds (0 for manual)' },
         },
         required: ['presentationId', 'slideId', 'type'],
       },
@@ -210,7 +169,12 @@ export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:presentation', 'write:presentation', 'export:presentation'],
+  permissions: [
+    'execute:task',
+    'read:presentation',
+    'write:presentation',
+    'export:presentation',
+  ],
   maxConcurrentTasks: 3,
   timeout: 60000,
   retryPolicy: {
@@ -244,13 +208,7 @@ interface Slide {
   backgroundColor?: string;
 }
 
-type SlideLayout =
-  | 'title'
-  | 'titleAndContent'
-  | 'twoContent'
-  | 'blank'
-  | 'sectionHeader'
-  | 'comparison';
+type SlideLayout = 'title' | 'titleAndContent' | 'twoContent' | 'blank' | 'sectionHeader' | 'comparison';
 
 interface SlideContent {
   id: string;
@@ -475,13 +433,7 @@ export class PresentationAgentService extends BaseAgentService {
     slideCount: number;
     createdAt: string;
   }> {
-    const {
-      title,
-      author = 'agent@aenews.system',
-      theme = 'professional',
-      slides = [],
-      format = 'pptx',
-    } = params;
+    const { title, author = 'agent@aenews.system', theme = 'professional', slides = [], format = 'pptx' } = params;
 
     if (!title || typeof title !== 'string') {
       throw new Error('A valid presentation title is required');
@@ -555,14 +507,7 @@ export class PresentationAgentService extends BaseAgentService {
       throw new Error('A valid presentationId is required');
     }
 
-    const validLayouts = [
-      'title',
-      'titleAndContent',
-      'twoContent',
-      'blank',
-      'sectionHeader',
-      'comparison',
-    ];
+    const validLayouts = ['title', 'titleAndContent', 'twoContent', 'blank', 'sectionHeader', 'comparison'];
     if (!validLayouts.includes(layout)) {
       throw new Error(`Invalid layout: ${layout}. Supported: ${validLayouts.join(', ')}`);
     }
@@ -573,10 +518,7 @@ export class PresentationAgentService extends BaseAgentService {
     }
 
     const slide = this.createSlideObject(layout as SlideLayout, title, subtitle, notes);
-    const insertPosition =
-      position !== undefined
-        ? Math.min(position - 1, presentation.slides.length)
-        : presentation.slides.length;
+    const insertPosition = position !== undefined ? Math.min(position - 1, presentation.slides.length) : presentation.slides.length;
 
     presentation.slides.splice(insertPosition, 0, slide);
     presentation.updatedAt = new Date();
@@ -624,9 +566,7 @@ export class PresentationAgentService extends BaseAgentService {
 
     const validContentTypes = ['text', 'image', 'table', 'chart', 'shape', 'bulletList'];
     if (!validContentTypes.includes(contentType)) {
-      throw new Error(
-        `Invalid contentType: ${contentType}. Supported: ${validContentTypes.join(', ')}`,
-      );
+      throw new Error(`Invalid contentType: ${contentType}. Supported: ${validContentTypes.join(', ')}`);
     }
 
     if (!content) {
@@ -660,7 +600,9 @@ export class PresentationAgentService extends BaseAgentService {
     slide.content.push(slideContent);
     presentation.updatedAt = new Date();
 
-    this.logger.log(`Added ${contentType} content to slide: ${slideId}, contentId=${contentId}`);
+    this.logger.log(
+      `Added ${contentType} content to slide: ${slideId}, contentId=${contentId}`,
+    );
 
     return {
       presentationId,
@@ -792,10 +734,9 @@ export class PresentationAgentService extends BaseAgentService {
     // Estimate export size based on quality and slide count
     const baseSizeKB = quality === 'high' ? 500 : quality === 'medium' ? 250 : 100;
     const estimatedSizeKB = slides.length * baseSizeKB;
-    const exportSize =
-      estimatedSizeKB > 1024
-        ? `${(estimatedSizeKB / 1024).toFixed(1)} MB`
-        : `${estimatedSizeKB} KB`;
+    const exportSize = estimatedSizeKB > 1024
+      ? `${(estimatedSizeKB / 1024).toFixed(1)} MB`
+      : `${estimatedSizeKB} KB`;
 
     this.logger.log(
       `Exported presentation: ${presentationId}, format=${format}, slides=${slides.length}, size=${exportSize}`,
@@ -831,20 +772,9 @@ export class PresentationAgentService extends BaseAgentService {
       throw new Error('A valid slideId is required');
     }
 
-    const validTransitionTypes = [
-      'fade',
-      'slide',
-      'push',
-      'wipe',
-      'split',
-      'reveal',
-      'dissolve',
-      'none',
-    ];
+    const validTransitionTypes = ['fade', 'slide', 'push', 'wipe', 'split', 'reveal', 'dissolve', 'none'];
     if (!validTransitionTypes.includes(type)) {
-      throw new Error(
-        `Invalid transition type: ${type}. Supported: ${validTransitionTypes.join(', ')}`,
-      );
+      throw new Error(`Invalid transition type: ${type}. Supported: ${validTransitionTypes.join(', ')}`);
     }
 
     const presentation = this.presentations.get(presentationId);
@@ -865,7 +795,9 @@ export class PresentationAgentService extends BaseAgentService {
 
     presentation.updatedAt = new Date();
 
-    this.logger.log(`Added transition: ${type} to slide: ${slideId}, duration=${duration}ms`);
+    this.logger.log(
+      `Added transition: ${type} to slide: ${slideId}, duration=${duration}ms`,
+    );
 
     return {
       presentationId,

@@ -30,11 +30,7 @@ export const BUILD_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           projectPath: { type: 'string', description: 'Path to the project root' },
-          environment: {
-            type: 'string',
-            enum: ['development', 'staging', 'production'],
-            default: 'production',
-          },
+          environment: { type: 'string', enum: ['development', 'staging', 'production'], default: 'production' },
           target: { type: 'string', description: 'Build target (e.g., "node", "browser")' },
           watch: { type: 'boolean', default: false },
           verbose: { type: 'boolean', default: false },
@@ -109,16 +105,8 @@ export const BUILD_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           projectPath: { type: 'string', description: 'Path to project root' },
-          cleanTargets: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Directories to clean',
-          },
-          environment: {
-            type: 'string',
-            enum: ['development', 'staging', 'production'],
-            default: 'production',
-          },
+          cleanTargets: { type: 'array', items: { type: 'string' }, description: 'Directories to clean' },
+          environment: { type: 'string', enum: ['development', 'staging', 'production'], default: 'production' },
         },
         required: ['projectPath'],
       },
@@ -322,22 +310,11 @@ export class BuildAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        'Missing required parameter: action',
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
     }
 
     const supportedActions = [
-      'build',
-      'compile',
-      'bundle',
-      'cleanBuild',
-      'configureBuild',
-      'getBuildInfo',
+      'build', 'compile', 'bundle', 'cleanBuild', 'configureBuild', 'getBuildInfo',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -353,13 +330,7 @@ export class BuildAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -400,13 +371,7 @@ export class BuildAgentService extends BaseAgentService {
     warnings: string[];
     environment: string;
   }> {
-    const {
-      projectPath,
-      environment = 'production',
-      target = 'node',
-      watch = false,
-      verbose = false,
-    } = params;
+    const { projectPath, environment = 'production', target = 'node', watch = false, verbose = false } = params;
 
     if (!projectPath || typeof projectPath !== 'string') {
       throw new Error('Project path is required');
@@ -631,11 +596,7 @@ export class BuildAgentService extends BaseAgentService {
     buildResult: Record<string, any>;
     totalDuration: number;
   }> {
-    const {
-      projectPath,
-      cleanTargets = ['dist', 'build', '.cache', '.tmp'],
-      environment = 'production',
-    } = params;
+    const { projectPath, cleanTargets = ['dist', 'build', '.cache', '.tmp'], environment = 'production' } = params;
 
     if (!projectPath || typeof projectPath !== 'string') {
       throw new Error('Project path is required');
@@ -722,9 +683,7 @@ export class BuildAgentService extends BaseAgentService {
     }
 
     if (!overwrite) {
-      warnings.push(
-        'If the config file already exists, it will not be overwritten. Set overwrite: true to replace.',
-      );
+      warnings.push('If the config file already exists, it will not be overwritten. Set overwrite: true to replace.');
     }
 
     this.logger.log(`Configured build: ${buildTool}, config at ${configPath}`);
@@ -755,35 +714,13 @@ export class BuildAgentService extends BaseAgentService {
     const buildTool = this.detectBuildTool();
     const nodeVersion = process.version;
     const lastBuildTime = this.lastBuildInfo.timestamp?.toISOString() || null;
-    const buildStatus = this.lastBuildInfo.success
-      ? 'success'
-      : this.lastBuildInfo.success === false
-        ? 'failed'
-        : 'never_built';
+    const buildStatus = this.lastBuildInfo.success ? 'success' : this.lastBuildInfo.success === false ? 'failed' : 'never_built';
 
     // Simulated build artifacts
     const buildArtifacts: BuildArtifact[] = [
-      {
-        name: 'main.js',
-        path: `${projectPath}/dist/main.js`,
-        size: 245760,
-        lastModified: new Date(),
-        type: 'js',
-      },
-      {
-        name: 'main.js.map',
-        path: `${projectPath}/dist/main.js.map`,
-        size: 512000,
-        lastModified: new Date(),
-        type: 'map',
-      },
-      {
-        name: 'chunk-vendor.js',
-        path: `${projectPath}/dist/chunk-vendor.js`,
-        size: 1048576,
-        lastModified: new Date(),
-        type: 'js',
-      },
+      { name: 'main.js', path: `${projectPath}/dist/main.js`, size: 245760, lastModified: new Date(), type: 'js' },
+      { name: 'main.js.map', path: `${projectPath}/dist/main.js.map`, size: 512000, lastModified: new Date(), type: 'map' },
+      { name: 'chunk-vendor.js', path: `${projectPath}/dist/chunk-vendor.js`, size: 1048576, lastModified: new Date(), type: 'js' },
     ];
 
     const result: any = {
@@ -976,7 +913,7 @@ module.exports = {
       },
     },
   },
-  devtool: '${mode === 'production' ? 'source-map' : 'eval-source-map'}',
+  devtool: '${mode === "production" ? "source-map" : "eval-source-map"}',
 };`;
   }
 

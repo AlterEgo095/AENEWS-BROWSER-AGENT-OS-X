@@ -147,7 +147,9 @@ export class EventReplayService implements IEventReplayService {
           state.progress = Math.round(((i + 1) / totalEvents) * 100);
         } catch (error) {
           failedCount++;
-          this.logger.warn(`Failed to replay event ${entry.event.id}: ${(error as Error).message}`);
+          this.logger.warn(
+            `Failed to replay event ${entry.event.id}: ${(error as Error).message}`,
+          );
           await this.eventStore.markFailed(entry.id, (error as Error).message);
         }
       }
@@ -166,7 +168,7 @@ export class EventReplayService implements IEventReplayService {
 
       this.logger.log(
         `Event replay ${replayId} completed: ${replayedCount} replayed, ` +
-          `${failedCount} failed, ${skippedCount} skipped in ${result.durationMs}ms`,
+        `${failedCount} failed, ${skippedCount} skipped in ${result.durationMs}ms`,
       );
 
       return result;
@@ -183,7 +185,9 @@ export class EventReplayService implements IEventReplayService {
 
       state.result = result;
 
-      this.logger.error(`Event replay ${replayId} failed: ${(error as Error).message}`);
+      this.logger.error(
+        `Event replay ${replayId} failed: ${(error as Error).message}`,
+      );
 
       return result;
     } finally {
@@ -402,7 +406,7 @@ export class EventReplayService implements IEventReplayService {
     }
     this.logger.log(
       `Rate limiter configured: ${this.rateLimiterConfig.eventsPerSecond} events/sec, ` +
-        `burst: ${this.rateLimiterConfig.burstSize}`,
+      `burst: ${this.rateLimiterConfig.burstSize}`,
     );
   }
 
@@ -418,9 +422,14 @@ export class EventReplayService implements IEventReplayService {
     const intervalMs = 1000 / this.rateLimiterConfig.eventsPerSecond;
 
     // Refill tokens based on elapsed time
-    const tokensToAdd = Math.floor(timeSinceLastEvent / intervalMs);
+    const tokensToAdd = Math.floor(
+      timeSinceLastEvent / intervalMs,
+    );
     if (tokensToAdd > 0) {
-      this.tokenBucket = Math.min(this.tokenBucket + tokensToAdd, this.rateLimiterConfig.burstSize);
+      this.tokenBucket = Math.min(
+        this.tokenBucket + tokensToAdd,
+        this.rateLimiterConfig.burstSize,
+      );
       this.lastReplayTimestamp = now;
     }
 

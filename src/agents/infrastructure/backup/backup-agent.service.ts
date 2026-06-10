@@ -29,16 +29,10 @@ export const BACKUP_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          resource: {
-            type: 'string',
-            description: 'Resource to back up (e.g., "database", "files", "config")',
-          },
+          resource: { type: 'string', description: 'Resource to back up (e.g., "database", "files", "config")' },
           serviceName: { type: 'string', description: 'Service name' },
           type: { type: 'string', enum: ['full', 'incremental', 'snapshot'], default: 'full' },
-          destination: {
-            type: 'string',
-            description: 'Backup destination (e.g., "s3", "local", "gcs")',
-          },
+          destination: { type: 'string', description: 'Backup destination (e.g., "s3", "local", "gcs")' },
           compression: { type: 'boolean', default: true },
           encryption: { type: 'boolean', default: true },
           tags: { type: 'object', description: 'Tags for the backup' },
@@ -86,11 +80,7 @@ export const BACKUP_AGENT_CONFIG: AgentConfig = {
           resource: { type: 'string' },
           serviceName: { type: 'string' },
           cronExpression: { type: 'string', description: 'Cron expression for schedule' },
-          type: {
-            type: 'string',
-            enum: ['full', 'incremental', 'snapshot'],
-            default: 'incremental',
-          },
+          type: { type: 'string', enum: ['full', 'incremental', 'snapshot'], default: 'incremental' },
           retention: { type: 'number', description: 'Number of backups to retain' },
           destination: { type: 'string', default: 's3' },
         },
@@ -111,11 +101,7 @@ export const BACKUP_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           backupId: { type: 'string' },
-          verificationType: {
-            type: 'string',
-            enum: ['checksum', 'restore_test', 'metadata', 'full'],
-            default: 'checksum',
-          },
+          verificationType: { type: 'string', enum: ['checksum', 'restore_test', 'metadata', 'full'], default: 'checksum' },
         },
         required: ['backupId'],
       },
@@ -135,11 +121,7 @@ export const BACKUP_AGENT_CONFIG: AgentConfig = {
         properties: {
           serviceName: { type: 'string' },
           resource: { type: 'string' },
-          status: {
-            type: 'string',
-            enum: ['completed', 'in_progress', 'failed', 'all'],
-            default: 'all',
-          },
+          status: { type: 'string', enum: ['completed', 'in_progress', 'failed', 'all'], default: 'all' },
           limit: { type: 'number', default: 50 },
         },
       },
@@ -280,8 +262,10 @@ export class BackupAgentService extends BaseAgentService {
     this.registerTool({
       name: 'verifyBackup',
       description: 'Verify backup integrity',
-      execute: async (params: { backupId: string; verificationType?: string }) =>
-        this.verifyBackup(params),
+      execute: async (params: {
+        backupId: string;
+        verificationType?: string;
+      }) => this.verifyBackup(params),
     });
 
     this.registerTool({
@@ -298,8 +282,11 @@ export class BackupAgentService extends BaseAgentService {
     this.registerTool({
       name: 'deleteBackup',
       description: 'Delete a backup',
-      execute: async (params: { backupId: string; reason?: string; force?: boolean }) =>
-        this.deleteBackup(params),
+      execute: async (params: {
+        backupId: string;
+        reason?: string;
+        force?: boolean;
+      }) => this.deleteBackup(params),
     });
 
     // Seed some initial backup data
@@ -314,22 +301,12 @@ export class BackupAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        'Missing required parameter: action',
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
     }
 
     const supportedActions = [
-      'createBackup',
-      'restoreBackup',
-      'scheduleBackup',
-      'verifyBackup',
-      'listBackups',
-      'deleteBackup',
+      'createBackup', 'restoreBackup', 'scheduleBackup',
+      'verifyBackup', 'listBackups', 'deleteBackup',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -345,13 +322,7 @@ export class BackupAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -423,26 +394,18 @@ export class BackupAgentService extends BaseAgentService {
 
     const validDestinations = ['s3', 'local', 'gcs', 'azure'];
     if (!validDestinations.includes(destination)) {
-      throw new Error(
-        `Invalid destination: ${destination}. Valid: ${validDestinations.join(', ')}`,
-      );
+      throw new Error(`Invalid destination: ${destination}. Valid: ${validDestinations.join(', ')}`);
     }
 
     this.backupCounter++;
     const backupId = `backup-${this.backupCounter}-${Date.now()}`;
-    const durationMs =
-      type === 'full'
-        ? Math.floor(Math.random() * 300000) + 60000
-        : type === 'incremental'
-          ? Math.floor(Math.random() * 120000) + 15000
-          : Math.floor(Math.random() * 60000) + 5000;
+    const durationMs = type === 'full' ? Math.floor(Math.random() * 300000) + 60000
+      : type === 'incremental' ? Math.floor(Math.random() * 120000) + 15000
+        : Math.floor(Math.random() * 60000) + 5000;
 
-    const baseSize =
-      type === 'full'
-        ? Math.floor(Math.random() * 10737418240) + 1073741824
-        : type === 'incremental'
-          ? Math.floor(Math.random() * 107374182) + 10485760
-          : Math.floor(Math.random() * 5368709120) + 536870912;
+    const baseSize = type === 'full' ? Math.floor(Math.random() * 10737418240) + 1073741824
+      : type === 'incremental' ? Math.floor(Math.random() * 107374182) + 10485760
+        : Math.floor(Math.random() * 5368709120) + 536870912;
 
     const sizeBytes = compression ? Math.round(baseSize * 0.6) : baseSize;
     const checksum = this.generateChecksum();
@@ -525,9 +488,7 @@ export class BackupAgentService extends BaseAgentService {
       ? `Dry run: Would restore ${backup.serviceName}/${backup.resource} to ${effectiveTargetService}/${effectiveTargetResource}${pointInTime ? ` at ${pointInTime}` : ''}`
       : `Restored ${backup.serviceName}/${backup.resource} to ${effectiveTargetService}/${effectiveTargetResource}${pointInTime ? ` at ${pointInTime}` : ''} successfully`;
 
-    this.logger.log(
-      `Restore ${dryRun ? '(dry run) ' : ''}: ${backupId} → ${effectiveTargetService}/${effectiveTargetResource}, ${durationMs}ms`,
-    );
+    this.logger.log(`Restore ${dryRun ? '(dry run) ' : ''}: ${backupId} → ${effectiveTargetService}/${effectiveTargetResource}, ${durationMs}ms`);
 
     return {
       restoreId,
@@ -619,7 +580,10 @@ export class BackupAgentService extends BaseAgentService {
     };
   }
 
-  private async verifyBackup(params: { backupId: string; verificationType?: string }): Promise<{
+  private async verifyBackup(params: {
+    backupId: string;
+    verificationType?: string;
+  }): Promise<{
     backupId: string;
     verificationType: string;
     valid: boolean;
@@ -639,9 +603,7 @@ export class BackupAgentService extends BaseAgentService {
 
     const validTypes = ['checksum', 'restore_test', 'metadata', 'full'];
     if (!validTypes.includes(verificationType)) {
-      throw new Error(
-        `Invalid verification type: ${verificationType}. Valid: ${validTypes.join(', ')}`,
-      );
+      throw new Error(`Invalid verification type: ${verificationType}. Valid: ${validTypes.join(', ')}`);
     }
 
     const checks: Array<{ name: string; passed: boolean; details: string }> = [];
@@ -689,9 +651,7 @@ export class BackupAgentService extends BaseAgentService {
       backup.status = 'completed';
     }
 
-    this.logger.log(
-      `Verified backup ${backupId} (${verificationType}): ${valid ? 'PASSED' : 'FAILED'}`,
-    );
+    this.logger.log(`Verified backup ${backupId} (${verificationType}): ${valid ? 'PASSED' : 'FAILED'}`);
 
     return {
       backupId,
@@ -821,39 +781,18 @@ export class BackupAgentService extends BaseAgentService {
 
   private seedInitialBackups(): void {
     const seedData = [
-      {
-        resource: 'database',
-        serviceName: 'user-service',
-        type: 'full' as const,
-        destination: 's3',
-      },
-      {
-        resource: 'database',
-        serviceName: 'payment-service',
-        type: 'full' as const,
-        destination: 's3',
-      },
-      {
-        resource: 'files',
-        serviceName: 'media-service',
-        type: 'incremental' as const,
-        destination: 'gcs',
-      },
-      {
-        resource: 'config',
-        serviceName: 'api-gateway',
-        type: 'snapshot' as const,
-        destination: 'local',
-      },
+      { resource: 'database', serviceName: 'user-service', type: 'full' as const, destination: 's3' },
+      { resource: 'database', serviceName: 'payment-service', type: 'full' as const, destination: 's3' },
+      { resource: 'files', serviceName: 'media-service', type: 'incremental' as const, destination: 'gcs' },
+      { resource: 'config', serviceName: 'api-gateway', type: 'snapshot' as const, destination: 'local' },
     ];
 
     for (const data of seedData) {
       this.backupCounter++;
       const backupId = `backup-seed-${this.backupCounter}`;
-      const sizeBytes =
-        data.type === 'full'
-          ? Math.floor(Math.random() * 5368709120) + 1073741824
-          : Math.floor(Math.random() * 536870912) + 10485760;
+      const sizeBytes = data.type === 'full'
+        ? Math.floor(Math.random() * 5368709120) + 1073741824
+        : Math.floor(Math.random() * 536870912) + 10485760;
 
       this.backups.set(backupId, {
         id: backupId,

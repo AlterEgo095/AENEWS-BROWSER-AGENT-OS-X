@@ -30,11 +30,7 @@ export const SCALING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           service: { type: 'string' },
-          resource: {
-            type: 'string',
-            enum: ['cpu', 'memory', 'instances', 'storage'],
-            default: 'instances',
-          },
+          resource: { type: 'string', enum: ['cpu', 'memory', 'instances', 'storage'], default: 'instances' },
           amount: { type: 'number', description: 'Amount to scale up by' },
           reason: { type: 'string' },
         },
@@ -56,11 +52,7 @@ export const SCALING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           service: { type: 'string' },
-          resource: {
-            type: 'string',
-            enum: ['cpu', 'memory', 'instances', 'storage'],
-            default: 'instances',
-          },
+          resource: { type: 'string', enum: ['cpu', 'memory', 'instances', 'storage'], default: 'instances' },
           amount: { type: 'number', description: 'Amount to scale down by' },
           reason: { type: 'string' },
           force: { type: 'boolean', default: false },
@@ -89,10 +81,7 @@ export const SCALING_AGENT_CONFIG: AgentConfig = {
           targetCpuPercent: { type: 'number' },
           targetMemoryPercent: { type: 'number' },
           scaleUpCooldown: { type: 'number', description: 'Cooldown in seconds after scale-up' },
-          scaleDownCooldown: {
-            type: 'number',
-            description: 'Cooldown in seconds after scale-down',
-          },
+          scaleDownCooldown: { type: 'number', description: 'Cooldown in seconds after scale-down' },
         },
         required: ['service', 'minSize', 'maxSize'],
       },
@@ -132,11 +121,7 @@ export const SCALING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           service: { type: 'string' },
-          strategy: {
-            type: 'string',
-            enum: ['cost', 'performance', 'balanced'],
-            default: 'balanced',
-          },
+          strategy: { type: 'string', enum: ['cost', 'performance', 'balanced'], default: 'balanced' },
           dryRun: { type: 'boolean', default: true },
         },
         required: ['service'],
@@ -298,8 +283,11 @@ export class ScalingAgentService extends BaseAgentService {
     this.registerTool({
       name: 'optimizeResources',
       description: 'Optimize resource allocation',
-      execute: async (params: { service: string; strategy?: string; dryRun?: boolean }) =>
-        this.optimizeResources(params),
+      execute: async (params: {
+        service: string;
+        strategy?: string;
+        dryRun?: boolean;
+      }) => this.optimizeResources(params),
     });
 
     this.registerTool({
@@ -325,22 +313,12 @@ export class ScalingAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        'Missing required parameter: action',
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
     }
 
     const supportedActions = [
-      'scaleUp',
-      'scaleDown',
-      'setAutoScaling',
-      'analyzeCapacity',
-      'optimizeResources',
-      'planCapacity',
+      'scaleUp', 'scaleDown', 'setAutoScaling',
+      'analyzeCapacity', 'optimizeResources', 'planCapacity',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -356,13 +334,7 @@ export class ScalingAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(
-          input.taskId,
-          false,
-          null,
-          `Tool not found: ${action}`,
-          startTime,
-        );
+        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
       }
 
       const result = await tool.execute(params);
@@ -419,8 +391,8 @@ export class ScalingAgentService extends BaseAgentService {
     }
 
     const resources = this.getOrCreateServiceResources(service);
-    let previousValue: number = 0;
-    let newValue: number = 0;
+    let previousValue: number;
+    let newValue: number;
 
     switch (resource) {
       case 'cpu':
@@ -445,9 +417,7 @@ export class ScalingAgentService extends BaseAgentService {
         break;
     }
 
-    this.logger.log(
-      `Scaled up ${service}.${resource}: ${previousValue} → ${newValue}, reason: ${reason || 'N/A'}`,
-    );
+    this.logger.log(`Scaled up ${service}.${resource}: ${previousValue} → ${newValue}, reason: ${reason || 'N/A'}`);
 
     return { service, resource, previousValue, newValue, amount, success: true, reason };
   }
@@ -483,8 +453,8 @@ export class ScalingAgentService extends BaseAgentService {
     }
 
     const resources = this.getOrCreateServiceResources(service);
-    let previousValue: number = 0;
-    let newValue: number = 0;
+    let previousValue: number;
+    let newValue: number;
     let warning: string | undefined;
 
     switch (resource) {
@@ -519,25 +489,15 @@ export class ScalingAgentService extends BaseAgentService {
     if (warning && !force) {
       // Revert the change
       switch (resource) {
-        case 'cpu':
-          resources.cpuCores = previousValue;
-          break;
-        case 'memory':
-          resources.memoryMb = previousValue;
-          break;
-        case 'instances':
-          resources.instances = previousValue;
-          break;
-        case 'storage':
-          resources.storageGb = previousValue;
-          break;
+        case 'cpu': resources.cpuCores = previousValue; break;
+        case 'memory': resources.memoryMb = previousValue; break;
+        case 'instances': resources.instances = previousValue; break;
+        case 'storage': resources.storageGb = previousValue; break;
       }
       newValue = previousValue;
     }
 
-    this.logger.log(
-      `Scaled down ${service}.${resource}: ${previousValue} → ${newValue}, reason: ${reason || 'N/A'}`,
-    );
+    this.logger.log(`Scaled down ${service}.${resource}: ${previousValue} → ${newValue}, reason: ${reason || 'N/A'}`);
 
     return { service, resource, previousValue, newValue, amount, success: true, reason, warning };
   }
@@ -660,35 +620,23 @@ export class ScalingAgentService extends BaseAgentService {
     const recommendations: string[] = [];
     if (includeRecommendations) {
       if (cpuPercent > 75) {
-        recommendations.push(
-          `CPU utilization is high (${cpuPercent}%). Consider scaling up CPU or adding instances.`,
-        );
+        recommendations.push(`CPU utilization is high (${cpuPercent}%). Consider scaling up CPU or adding instances.`);
       }
       if (memoryPercent > 80) {
-        recommendations.push(
-          `Memory utilization is high (${memoryPercent}%). Consider increasing memory allocation.`,
-        );
+        recommendations.push(`Memory utilization is high (${memoryPercent}%). Consider increasing memory allocation.`);
       }
       if (storagePercent > 70) {
-        recommendations.push(
-          `Storage utilization is ${storagePercent}%. Plan for storage expansion within 30 days.`,
-        );
+        recommendations.push(`Storage utilization is ${storagePercent}%. Plan for storage expansion within 30 days.`);
       }
       if (instanceLoad < 0.5 && resources.instances > 2) {
-        recommendations.push(
-          `Instance load is low (${instanceLoad}). Consider scaling down to save costs.`,
-        );
+        recommendations.push(`Instance load is low (${instanceLoad}). Consider scaling down to save costs.`);
       }
       if (recommendations.length === 0) {
-        recommendations.push(
-          'Resource utilization is within healthy ranges. No immediate action required.',
-        );
+        recommendations.push('Resource utilization is within healthy ranges. No immediate action required.');
       }
     }
 
-    this.logger.log(
-      `analyzeCapacity: ${service}, CPU=${cpuPercent}%, Mem=${memoryPercent}%, Storage=${storagePercent}%`,
-    );
+    this.logger.log(`analyzeCapacity: ${service}, CPU=${cpuPercent}%, Mem=${memoryPercent}%, Storage=${storagePercent}%`);
 
     return {
       service,
@@ -740,7 +688,7 @@ export class ScalingAgentService extends BaseAgentService {
     const currentCopy = { ...current };
 
     // Calculate optimized allocation based on strategy
-    const optimized: ServiceResources = { ...currentCopy, service };
+    const optimized: ServiceResources = { service, ...currentCopy };
 
     const changes: string[] = [];
 
@@ -749,30 +697,22 @@ export class ScalingAgentService extends BaseAgentService {
       if (current.cpuCores > 4) {
         const reduction = Math.floor(current.cpuCores * 0.25);
         optimized.cpuCores = current.cpuCores - reduction;
-        changes.push(
-          `Reduced CPU from ${current.cpuCores} to ${optimized.cpuCores} cores (over-provisioned)`,
-        );
+        changes.push(`Reduced CPU from ${current.cpuCores} to ${optimized.cpuCores} cores (over-provisioned)`);
       }
       if (current.memoryMb > 8192) {
         const reduction = Math.floor(current.memoryMb * 0.2);
         optimized.memoryMb = current.memoryMb - reduction;
-        changes.push(
-          `Reduced memory from ${current.memoryMb}MB to ${optimized.memoryMb}MB (over-provisioned)`,
-        );
+        changes.push(`Reduced memory from ${current.memoryMb}MB to ${optimized.memoryMb}MB (over-provisioned)`);
       }
     }
 
     if (strategy === 'performance') {
       if (current.instances < 5) {
         optimized.instances = current.instances + 2;
-        changes.push(
-          `Increased instances from ${current.instances} to ${optimized.instances} for better performance`,
-        );
+        changes.push(`Increased instances from ${current.instances} to ${optimized.instances} for better performance`);
       }
       optimized.cpuCores = current.cpuCores + Math.max(2, Math.floor(current.cpuCores * 0.3));
-      changes.push(
-        `Increased CPU from ${current.cpuCores} to ${optimized.cpuCores} cores for headroom`,
-      );
+      changes.push(`Increased CPU from ${current.cpuCores} to ${optimized.cpuCores} cores for headroom`);
     }
 
     if (changes.length === 0) {
@@ -788,15 +728,12 @@ export class ScalingAgentService extends BaseAgentService {
     };
 
     // Estimate cost: $50/instance, $10/CPU core, $0.05/GB storage, $0.02/MB memory
-    savings.monthlyCostSavings = Math.max(
-      0,
-      Math.round(
-        savings.instancesReduced * 50 +
-          savings.cpuCoresSaved * 10 +
-          savings.storageGbSaved * 0.05 +
-          savings.memoryMbSaved * 0.02,
-      ),
-    );
+    savings.monthlyCostSavings = Math.max(0, Math.round(
+      savings.instancesReduced * 50 +
+      savings.cpuCoresSaved * 10 +
+      savings.storageGbSaved * 0.05 +
+      savings.memoryMbSaved * 0.02,
+    ));
 
     // Apply if not dry run
     if (!dryRun) {
@@ -839,12 +776,7 @@ export class ScalingAgentService extends BaseAgentService {
     totalEstimatedCost: number;
     createdAt: string;
   }> {
-    const {
-      services,
-      growthRate = 10,
-      planningHorizonDays = 90,
-      includeCostEstimate = true,
-    } = params;
+    const { services, growthRate = 10, planningHorizonDays = 90, includeCostEstimate = true } = params;
 
     if (!services || !Array.isArray(services) || services.length === 0) {
       throw new Error('At least one service is required');
@@ -883,7 +815,9 @@ export class ScalingAgentService extends BaseAgentService {
     for (let i = 1; i <= milestoneCount; i++) {
       const milestoneDate = new Date(Date.now() + i * 30 * 86400000);
       const periodGrowth = 1 + (growthRate / 100) * i;
-      const estimatedCost = Math.round(services.length * periodGrowth * (50 + 20 * periodGrowth));
+      const estimatedCost = Math.round(
+        services.length * periodGrowth * (50 + 20 * periodGrowth),
+      );
 
       milestones.push({
         date: milestoneDate.toISOString().split('T')[0],
@@ -930,13 +864,8 @@ export class ScalingAgentService extends BaseAgentService {
 
   private seedInitialResources(): void {
     const services = [
-      'api-gateway',
-      'auth-service',
-      'user-service',
-      'payment-service',
-      'notification-service',
-      'search-service',
-      'worker-service',
+      'api-gateway', 'auth-service', 'user-service', 'payment-service',
+      'notification-service', 'search-service', 'worker-service',
     ];
 
     for (const service of services) {

@@ -87,7 +87,9 @@ export class TaskRepairService {
     request: OrchestrationRequest,
   ): Promise<RepairResult> {
     const startTime = Date.now();
-    this.logger.log(`Repairing ${critique.issues.length} issues from ${results.length} results`);
+    this.logger.log(
+      `Repairing ${critique.issues.length} issues from ${results.length} results`,
+    );
 
     const repairedSteps: string[] = [];
     const failedRepairs: string[] = [];
@@ -145,7 +147,9 @@ export class TaskRepairService {
           if (repairedStep) {
             repairedPlanSteps.push(repairedStep);
             repairedSteps.push(issue.stepId);
-            this.logger.log(`Repaired step ${issue.stepId} using ${strategy} strategy`);
+            this.logger.log(
+              `Repaired step ${issue.stepId} using ${strategy} strategy`,
+            );
 
             // Record success
             const historyEntry: RepairHistoryEntry = {
@@ -159,7 +163,9 @@ export class TaskRepairService {
             historyEntries.push(historyEntry);
           } else {
             failedRepairs.push(issue.stepId);
-            this.logger.warn(`Failed to repair step ${issue.stepId} using ${strategy} strategy`);
+            this.logger.warn(
+              `Failed to repair step ${issue.stepId} using ${strategy} strategy`,
+            );
 
             // Record failure
             const historyEntry: RepairHistoryEntry = {
@@ -175,7 +181,9 @@ export class TaskRepairService {
           }
         } catch (error) {
           failedRepairs.push(issue.stepId);
-          this.logger.error(`Error repairing step ${issue.stepId}: ${(error as Error).message}`);
+          this.logger.error(
+            `Error repairing step ${issue.stepId}: ${(error as Error).message}`,
+          );
 
           // Record error
           const historyEntry: RepairHistoryEntry = {
@@ -216,17 +224,16 @@ export class TaskRepairService {
 
     this.logger.log(
       `Repair completed: ${repairedSteps.length} repaired, ` +
-        `${failedRepairs.length} failed in ${Date.now() - startTime}ms`,
+      `${failedRepairs.length} failed in ${Date.now() - startTime}ms`,
     );
 
     return {
       repairedPlan,
       repairedSteps,
       failedRepairs,
-      error:
-        failedRepairs.length > 0
-          ? `${failedRepairs.length} step(s) could not be repaired`
-          : undefined,
+      error: failedRepairs.length > 0
+        ? `${failedRepairs.length} step(s) could not be repaired`
+        : undefined,
       history: historyEntries,
     };
   }
@@ -255,7 +262,9 @@ export class TaskRepairService {
   /**
    * Categorize issues by the best repair strategy.
    */
-  private categorizeIssues(issues: CritiqueIssue[]): Map<RepairStrategy, CritiqueIssue[]> {
+  private categorizeIssues(
+    issues: CritiqueIssue[],
+  ): Map<RepairStrategy, CritiqueIssue[]> {
     const categorized = new Map<RepairStrategy, CritiqueIssue[]>();
 
     for (const issue of issues) {
@@ -292,9 +301,7 @@ export class TaskRepairService {
         return this.config.enableSimplification ? RepairStrategy.SIMPLIFY : RepairStrategy.RETRY;
 
       case CritiqueCategory.COMPLETENESS:
-        return this.config.enableDecomposition
-          ? RepairStrategy.DECOMPOSE_FURTHER
-          : RepairStrategy.RETRY;
+        return this.config.enableDecomposition ? RepairStrategy.DECOMPOSE_FURTHER : RepairStrategy.RETRY;
 
       case CritiqueCategory.CONSISTENCY:
         return RepairStrategy.RETRY;
@@ -548,7 +555,9 @@ export class TaskRepairService {
 
     const simplified: Record<string, any> = {};
     const keys = Object.keys(payload);
-    const importantKeys = keys.filter((k) => !/optional|extra|metadata|debug/i.test(k));
+    const importantKeys = keys.filter((k) =>
+      !/optional|extra|metadata|debug/i.test(k),
+    );
 
     for (const key of importantKeys.slice(0, 10)) {
       simplified[key] = payload[key];

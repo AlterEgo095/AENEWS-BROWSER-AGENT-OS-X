@@ -71,7 +71,9 @@ export class TaskDeliveryService {
     const shouldNotify = options?.notify !== false;
     const shouldCleanup = options?.cleanup !== false;
 
-    this.logger.log(`Delivering task ${taskId} in ${format} format`);
+    this.logger.log(
+      `Delivering task ${taskId} in ${format} format`,
+    );
 
     // Step 1: Format the output
     const deliveredOutput = this.formatOutput(results, validation, format, options);
@@ -123,7 +125,9 @@ export class TaskDeliveryService {
       );
     }
 
-    this.logger.log(`Task ${taskId} delivered successfully in ${Date.now() - startTime}ms`);
+    this.logger.log(
+      `Task ${taskId} delivered successfully in ${Date.now() - startTime}ms`,
+    );
 
     return deliveryResult;
   }
@@ -173,7 +177,10 @@ export class TaskDeliveryService {
   /**
    * Summary format: high-level overview.
    */
-  private formatSummary(results: StepExecutionResult[], validation: ValidationResult): any {
+  private formatSummary(
+    results: StepExecutionResult[],
+    validation: ValidationResult,
+  ): any {
     const successfulResults = results.filter((r) => r.success);
     const mainResult = this.extractMainResult(successfulResults);
 
@@ -208,21 +215,20 @@ export class TaskDeliveryService {
         warnings: validation.warnings,
         details: validation.details,
       },
-      steps:
-        options?.includeSteps !== false
-          ? results.map((r) => ({
-              stepId: r.stepId,
-              stepOrder: r.stepOrder,
-              agentId: r.agentId,
-              success: r.success,
-              result: r.output.result,
-              error: r.output.error,
-              executionTimeMs: r.executionTimeMs,
-              retryCount: r.retryCount,
-              timedOut: r.timedOut,
-              ...(options?.includeMetrics ? { metrics: r.output.metrics } : {}),
-            }))
-          : undefined,
+      steps: options?.includeSteps !== false
+        ? results.map((r) => ({
+            stepId: r.stepId,
+            stepOrder: r.stepOrder,
+            agentId: r.agentId,
+            success: r.success,
+            result: r.output.result,
+            error: r.output.error,
+            executionTimeMs: r.executionTimeMs,
+            retryCount: r.retryCount,
+            timedOut: r.timedOut,
+            ...(options?.includeMetrics ? { metrics: r.output.metrics } : {}),
+          }))
+        : undefined,
       metadata: options?.metadata,
     };
   }
@@ -280,16 +286,15 @@ export class TaskDeliveryService {
               result: r.output.result,
               timeMs: r.executionTimeMs,
             })),
-            failed:
-              failedResults.length > 0
-                ? failedResults.map((r) => ({
-                    stepId: r.stepId,
-                    order: r.stepOrder,
-                    error: r.output.error,
-                    timeMs: r.executionTimeMs,
-                    timedOut: r.timedOut,
-                  }))
-                : undefined,
+            failed: failedResults.length > 0
+              ? failedResults.map((r) => ({
+                  stepId: r.stepId,
+                  order: r.stepOrder,
+                  error: r.output.error,
+                  timeMs: r.executionTimeMs,
+                  timedOut: r.timedOut,
+                }))
+              : undefined,
           }
         : undefined,
 
@@ -301,7 +306,10 @@ export class TaskDeliveryService {
   /**
    * Compact format: minimal output.
    */
-  private formatCompact(results: StepExecutionResult[], validation: ValidationResult): any {
+  private formatCompact(
+    results: StepExecutionResult[],
+    validation: ValidationResult,
+  ): any {
     const mainResult = this.extractMainResult(results.filter((r) => r.success));
     return {
       ok: validation.isValid,

@@ -120,12 +120,18 @@ export interface IPermissionEvaluator {
   /**
    * Grant a permission to an agent.
    */
-  grantPermission(agentId: string, permission: PermissionDefinition): Promise<void>;
+  grantPermission(
+    agentId: string,
+    permission: PermissionDefinition,
+  ): Promise<void>;
 
   /**
    * Revoke a permission from an agent.
    */
-  revokePermission(agentId: string, permissionId: string): Promise<void>;
+  revokePermission(
+    agentId: string,
+    permissionId: string,
+  ): Promise<void>;
 
   /**
    * Check permissions in bulk.
@@ -305,52 +311,6 @@ export const DEFAULT_CLUSTER_PERMISSIONS: Record<AgentCluster, PermissionDefinit
       resource: PermissionResource.TASK,
       scope: PermissionScope.GLOBAL,
       description: 'Manage all tasks across clusters',
-    },
-  ],
-  [AgentCluster.CERTIFICATION]: [
-    {
-      id: 'certification:execute:task',
-      action: PermissionAction.EXECUTE,
-      resource: PermissionResource.TASK,
-      scope: PermissionScope.GLOBAL,
-      description: 'Execute certification audit tasks',
-    },
-    {
-      id: 'certification:read:agent',
-      action: PermissionAction.READ,
-      resource: PermissionResource.AGENT,
-      scope: PermissionScope.GLOBAL,
-      description: 'Read agent information for auditing',
-    },
-    {
-      id: 'certification:read:metrics',
-      action: PermissionAction.READ,
-      resource: PermissionResource.METRICS,
-      scope: PermissionScope.GLOBAL,
-      description: 'Read system metrics for certification',
-    },
-  ],
-  [AgentCluster.SELF_EVOLUTION]: [
-    {
-      id: 'self-evolution:execute:task',
-      action: PermissionAction.EXECUTE,
-      resource: PermissionResource.TASK,
-      scope: PermissionScope.GLOBAL,
-      description: 'Execute self-evolution tasks',
-    },
-    {
-      id: 'self-evolution:write:file_system',
-      action: PermissionAction.WRITE,
-      resource: PermissionResource.FILE_SYSTEM,
-      scope: PermissionScope.CLUSTER,
-      description: 'Write patches and refactoring code',
-    },
-    {
-      id: 'self-evolution:read:agent',
-      action: PermissionAction.READ,
-      resource: PermissionResource.AGENT,
-      scope: PermissionScope.GLOBAL,
-      description: 'Read agent metrics and status',
     },
   ],
 };

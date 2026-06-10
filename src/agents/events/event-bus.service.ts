@@ -54,9 +54,7 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
    * Publish an event to all subscribers.
    * Also persists the event to the event store.
    */
-  async publish<T>(
-    eventData: Omit<AgentEvent<T>, 'id' | 'timestamp' | 'version'>,
-  ): Promise<AgentEvent<T>> {
+  async publish<T>(eventData: Omit<AgentEvent<T>, 'id' | 'timestamp' | 'version'>): Promise<AgentEvent<T>> {
     const event: AgentEvent<T> = {
       ...eventData,
       id: uuidv4(),
@@ -64,13 +62,17 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
       version: this.eventVersion,
     };
 
-    this.logger.debug?.(`Publishing event ${event.type} from ${event.sourceAgentId}`);
+    this.logger.debug?.(
+      `Publishing event ${event.type} from ${event.sourceAgentId}`,
+    );
 
     // Persist event to the event store
     try {
       await this.eventStore.store(event);
     } catch (error) {
-      this.logger.warn(`Failed to store event ${event.id}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to store event ${event.id}: ${(error as Error).message}`,
+      );
     }
 
     // Emit via NestJS EventEmitter2
@@ -85,7 +87,9 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
         await this.eventEmitter.emitAsync(`cluster:${event.cluster}`, event);
       }
     } catch (error) {
-      this.logger.error(`Error emitting event ${event.type}: ${(error as Error).message}`);
+      this.logger.error(
+        `Error emitting event ${event.type}: ${(error as Error).message}`,
+      );
     }
 
     // Deliver to matching subscriptions
@@ -97,7 +101,9 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
   /**
    * Subscribe to events of a specific type (IEventBusService interface).
    */
-  async subscribe(subscription: Omit<EventSubscription, 'id' | 'createdAt'>): Promise<string> {
+  async subscribe(
+    subscription: Omit<EventSubscription, 'id' | 'createdAt'>,
+  ): Promise<string> {
     const id = uuidv4();
     const fullSubscription: EventSubscription = {
       ...subscription,
@@ -132,7 +138,9 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
       });
     }
 
-    this.logger.debug?.(`Subscription ${id} created for ${eventType} by ${subscriberId}`);
+    this.logger.debug?.(
+      `Subscription ${id} created for ${eventType} by ${subscriberId}`,
+    );
 
     return id;
   }
@@ -205,13 +213,17 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
       (event as any).version = this.eventVersion;
     }
 
-    this.logger.debug?.(`Publishing event ${event.type} from ${event.sourceAgentId}`);
+    this.logger.debug?.(
+      `Publishing event ${event.type} from ${event.sourceAgentId}`,
+    );
 
     // Persist to event store
     try {
       await this.eventStore.store(event);
     } catch (error) {
-      this.logger.warn(`Failed to store event ${event.id}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to store event ${event.id}: ${(error as Error).message}`,
+      );
     }
 
     // Emit via EventEmitter2
@@ -222,7 +234,9 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
         await this.eventEmitter.emitAsync(`cluster:${event.cluster}`, event);
       }
     } catch (error) {
-      this.logger.error(`Error emitting event ${event.type}: ${(error as Error).message}`);
+      this.logger.error(
+        `Error emitting event ${event.type}: ${(error as Error).message}`,
+      );
     }
 
     // Deliver to matching subscriptions
@@ -262,7 +276,9 @@ export class EventBusService implements IEventBusService, OnModuleInit, OnModule
       this.handleEvent(subscription, event);
     });
 
-    this.logger.debug?.(`Simple subscription ${id} created for ${eventType}`);
+    this.logger.debug?.(
+      `Simple subscription ${id} created for ${eventType}`,
+    );
 
     return id;
   }

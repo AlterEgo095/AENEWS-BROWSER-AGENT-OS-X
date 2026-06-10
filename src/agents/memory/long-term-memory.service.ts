@@ -176,7 +176,9 @@ export class LongTermMemoryService implements ILongTermMemoryService, OnModuleIn
 
     // Filter by tags
     if (query.tags && query.tags.length > 0) {
-      results = results.filter((r) => query.tags!.some((tag) => r.tags.includes(tag)));
+      results = results.filter((r) =>
+        query.tags!.some((tag) => r.tags.includes(tag)),
+      );
     }
 
     // Filter by min confidence
@@ -298,10 +300,7 @@ export class LongTermMemoryService implements ILongTermMemoryService, OnModuleIn
       offset?: number;
     },
   ): Promise<MemoryQueryResult<LongTermMemoryEntry<T>>> {
-    const terms = searchTerm
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((t) => t.length > 1);
+    const terms = searchTerm.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
     const matchedKeys = new Set<string>();
 
     for (const term of terms) {

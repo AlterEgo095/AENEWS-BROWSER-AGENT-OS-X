@@ -25,9 +25,7 @@ interface GraphSchema {
 }
 
 @Injectable()
-export class KnowledgeGraphService
-  implements IKnowledgeGraphService, OnModuleInit, OnModuleDestroy
-{
+export class KnowledgeGraphService implements IKnowledgeGraphService, OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(KnowledgeGraphService.name);
   private neo4jDriver: any = null;
   private readonly nodes: Map<string, KnowledgeNode> = new Map();
@@ -209,7 +207,10 @@ export class KnowledgeGraphService
 
     if (this.neo4jDriver) {
       try {
-        await this.executeNeo4jQuery(`MATCH (n {id: $id}) DETACH DELETE n`, { id });
+        await this.executeNeo4jQuery(
+          `MATCH (n {id: $id}) DETACH DELETE n`,
+          { id },
+        );
       } catch (error) {
         this.logger.warn(`Neo4j delete failed: ${(error as Error).message}`);
       }
@@ -302,7 +303,10 @@ export class KnowledgeGraphService
 
     if (this.neo4jDriver) {
       try {
-        await this.executeNeo4jQuery(`MATCH ()-[r {id: $id}]->() DELETE r`, { id });
+        await this.executeNeo4jQuery(
+          `MATCH ()-[r {id: $id}]->() DELETE r`,
+          { id },
+        );
       } catch (error) {
         this.logger.warn(`Neo4j relationship delete failed: ${(error as Error).message}`);
       }
@@ -365,7 +369,10 @@ export class KnowledgeGraphService
     const resultRels: KnowledgeRelationship[] = [];
     for (const relId of matchedRelIds) {
       const rel = this.relationships.get(relId);
-      if (rel && (matchedNodeIds.has(rel.sourceId) || matchedNodeIds.has(rel.targetId))) {
+      if (
+        rel &&
+        (matchedNodeIds.has(rel.sourceId) || matchedNodeIds.has(rel.targetId))
+      ) {
         resultRels.push({ ...rel, properties: { ...rel.properties } });
       }
     }
@@ -583,7 +590,10 @@ export class KnowledgeGraphService
    * Execute a raw Cypher query against Neo4j.
    * Falls back to limited in-memory query support.
    */
-  async executeCypher(query: string, params?: Record<string, any>): Promise<any[]> {
+  async executeCypher(
+    query: string,
+    params?: Record<string, any>,
+  ): Promise<any[]> {
     if (this.neo4jDriver) {
       try {
         const result = await this.executeNeo4jQuery(query, params || {});
@@ -664,7 +674,10 @@ export class KnowledgeGraphService
     }
   }
 
-  private async executeNeo4jQuery(query: string, params: Record<string, any>): Promise<any> {
+  private async executeNeo4jQuery(
+    query: string,
+    params: Record<string, any>,
+  ): Promise<any> {
     if (!this.neo4jDriver) return null;
 
     const session = this.neo4jDriver.session();

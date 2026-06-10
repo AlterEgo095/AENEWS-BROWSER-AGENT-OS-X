@@ -141,8 +141,8 @@ export class TaskPlannerService {
 
     this.logger.log(
       `Plan created: ${plan.steps.length} steps, ` +
-        `estimated ${estimatedDurationMs}ms, ` +
-        `took ${Date.now() - startTime}ms to plan`,
+      `estimated ${estimatedDurationMs}ms, ` +
+      `took ${Date.now() - startTime}ms to plan`,
     );
 
     return plan;
@@ -412,27 +412,25 @@ export class TaskPlannerService {
       if (est.estimatedMemoryMb > constraints.maxMemoryPerStepMb) {
         warnings.push(
           `Step ${step.id} estimated memory (${est.estimatedMemoryMb}MB) exceeds ` +
-            `limit (${constraints.maxMemoryPerStepMb}MB)`,
+          `limit (${constraints.maxMemoryPerStepMb}MB)`,
         );
       }
 
       if (est.estimatedCpuPercent > constraints.maxCpuPerStepPercent) {
         warnings.push(
           `Step ${step.id} estimated CPU (${est.estimatedCpuPercent}%) exceeds ` +
-            `limit (${constraints.maxCpuPerStepPercent}%)`,
+          `limit (${constraints.maxCpuPerStepPercent}%)`,
         );
       }
     }
 
     // Check total duration
-    const totalEstimatedDuration = Array.from(estimations.values()).reduce(
-      (sum, est) => sum + est.estimatedDurationMs,
-      0,
-    );
+    const totalEstimatedDuration = Array.from(estimations.values())
+      .reduce((sum, est) => sum + est.estimatedDurationMs, 0);
     if (totalEstimatedDuration > constraints.maxTotalDurationMs) {
       warnings.push(
         `Total estimated duration (${totalEstimatedDuration}ms) exceeds ` +
-          `limit (${constraints.maxTotalDurationMs}ms)`,
+        `limit (${constraints.maxTotalDurationMs}ms)`,
       );
     }
 
@@ -441,7 +439,10 @@ export class TaskPlannerService {
 
   // ─── Duration Estimation ─────────────────────────────────────────
 
-  private estimateDuration(steps: OrchestrationStep[], dependencies: StepDependency[]): number {
+  private estimateDuration(
+    steps: OrchestrationStep[],
+    dependencies: StepDependency[],
+  ): number {
     const depMap = new Map<string, Set<string>>();
     for (const dep of dependencies) {
       depMap.set(dep.stepId, new Set(dep.dependsOnStepIds));

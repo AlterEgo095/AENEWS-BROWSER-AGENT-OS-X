@@ -72,7 +72,10 @@ export class RAGService implements IRAGService {
 
     // ─── Working Memory ──────────────────────────────────────────
     if (tiers.includes(MemoryTier.WORKING) && request.agentId) {
-      const workingResults = this.searchWorkingMemory(request.agentId, request.query);
+      const workingResults = this.searchWorkingMemory(
+        request.agentId,
+        request.query,
+      );
       sources.push(...workingResults);
       for (const entry of workingResults) {
         contextParts.push(`[Working Memory] ${entry.key}: ${JSON.stringify(entry.value)}`);
@@ -128,7 +131,9 @@ export class RAGService implements IRAGService {
       for (const node of kgResults.nodes) {
         const entry = this.nodeToMemoryEntry(node);
         sources.push(entry);
-        contextParts.push(`[Knowledge Graph:${node.label}] ${JSON.stringify(node.properties)}`);
+        contextParts.push(
+          `[Knowledge Graph:${node.label}] ${JSON.stringify(node.properties)}`,
+        );
         totalTokensEstimate += this.estimateTokens(JSON.stringify(node.properties));
       }
     }
@@ -137,11 +142,7 @@ export class RAGService implements IRAGService {
     const topK = request.topK || 5;
     const topSources = this.rankAndSelectSources(sources, topK);
     const context = contextParts.join('\n\n');
-    const answer = this.composeAnswer(
-      request.query,
-      topSources,
-      request.includeContext ? context : undefined,
-    );
+    const answer = this.composeAnswer(request.query, topSources, request.includeContext ? context : undefined);
     const confidence = this.calculateConfidence(topSources);
 
     this.logger.log(
@@ -194,20 +195,15 @@ export class RAGService implements IRAGService {
     }
 
     // Store document metadata in long-term memory
-    await this.longTermMemory.store(
-      agentId,
-      `document:${docId}`,
-      {
-        content: document.substring(0, 1000), // Store first 1000 chars as summary
-        docId,
-        totalChunks: chunks.length,
-        chunkSize: RAGService.DEFAULT_CHUNK_SIZE,
-        metadata,
-      },
-      {
-        tags: ['document', 'indexed', 'rag'],
-      },
-    );
+    await this.longTermMemory.store(agentId, `document:${docId}`, {
+      content: document.substring(0, 1000), // Store first 1000 chars as summary
+      docId,
+      totalChunks: chunks.length,
+      chunkSize: RAGService.DEFAULT_CHUNK_SIZE,
+      metadata,
+    }, {
+      tags: ['document', 'indexed', 'rag'],
+    });
 
     this.logger.log(`Indexed document ${docId} for agent ${agentId}: ${chunks.length} chunks`);
   }
@@ -216,7 +212,9 @@ export class RAGService implements IRAGService {
    * Index a memory entry into the vector store.
    */
   async indexMemoryEntry(entry: MemoryEntry): Promise<void> {
-    const text = typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value);
+    const text = typeof entry.value === 'string'
+      ? entry.value
+      : JSON.stringify(entry.value);
 
     const vector = this.vectorSearch.generateSimpleEmbedding(text);
 
@@ -487,9 +485,7 @@ export class RAGService implements IRAGService {
     }));
   }
 
-  private async searchKnowledgeGraph(
-    query: string,
-  ): Promise<{ nodes: any[]; relationships: any[] }> {
+  private async searchKnowledgeGraph(query: string): Promise<{ nodes: any[]; relationships: any[] }> {
     // Extract potential entity names from the query
     const words = query.split(/\s+/).filter((w) => w.length > 3);
 
@@ -516,7 +512,9 @@ export class RAGService implements IRAGService {
     }
 
     // Deduplicate
-    const uniqueNodes = Array.from(new Map(allNodes.map((n) => [n.id, n])).values());
+    const uniqueNodes = Array.from(
+      new Map(allNodes.map((n) => [n.id, n])).values(),
+    );
 
     return { nodes: uniqueNodes, relationships: [] };
   }
@@ -567,7 +565,11 @@ export class RAGService implements IRAGService {
       .slice(0, topK);
   }
 
-  private composeAnswer(query: string, sources: MemoryEntry[], context?: string): string {
+  private composeAnswer(
+    query: string,
+    sources: MemoryEntry[],
+    context?: string,
+  ): string {
     if (sources.length === 0) {
       return `No relevant information found for query: "${query}"`;
     }
@@ -578,8 +580,9 @@ export class RAGService implements IRAGService {
 
     for (let i = 0; i < sources.length; i++) {
       const source = sources[i];
-      const valueStr =
-        typeof source.value === 'string' ? source.value : JSON.stringify(source.value, null, 2);
+      const valueStr = typeof source.value === 'string'
+        ? source.value
+        : JSON.stringify(source.value, null, 2);
 
       parts.push(
         `\n[Source ${i + 1} - ${source.tier}] ${source.key}: ${valueStr.substring(0, 500)}`,
