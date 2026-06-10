@@ -25,6 +25,7 @@ import { PluginModule } from './modules/plugin/plugin.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
+import { ComputerClusterModule } from './clusters/computer/computer-cluster.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -129,6 +130,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     TenantModule,
     AuthModule,
     UserModule,
+    ComputerClusterModule,
   ],
   controllers: [AppController],
   providers: [
