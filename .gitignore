@@ -1,12 +1,2 @@
+skills/
 node_modules/
-dist/
-build/
-.next/
-.env
-*.log
-.DS_Store
-coverage/
-.idea/
-.vscode/
-*.swp
-*.swo

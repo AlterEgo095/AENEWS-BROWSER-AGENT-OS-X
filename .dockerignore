@@ -1,15 +1,46 @@
-node_modules
-dist
-.git
-.gitignore
+# Dependencies
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
 .env
-.env.*
-*.md
-test
-tests
-coverage
-.nyc_output
-.vscode
-.idea
+.env.local
+.env.*.local
+
+# Logs
 *.log
-tmp
+logs/
+
+# Coverage
+coverage/
+
+# Test
+test/
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Misc
+*.md
+.eslintrc.js
+.prettierrc
+tsconfig*.json
+nest-cli.json
+jest.config.js
