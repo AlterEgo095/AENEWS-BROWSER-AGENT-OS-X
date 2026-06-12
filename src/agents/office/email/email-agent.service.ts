@@ -29,13 +29,25 @@ export const EMAIL_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          to: { type: 'array', items: { type: 'string' }, description: 'List of recipient email addresses' },
+          to: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'List of recipient email addresses',
+          },
           cc: { type: 'array', items: { type: 'string' }, description: 'CC recipients' },
           bcc: { type: 'array', items: { type: 'string' }, description: 'BCC recipients' },
           subject: { type: 'string', description: 'Email subject line' },
           body: { type: 'string', description: 'Email body content (plain text or HTML)' },
-          attachments: { type: 'array', items: { type: 'object' }, description: 'List of attachments' },
-          priority: { type: 'string', enum: ['low', 'normal', 'high'], description: 'Email priority' },
+          attachments: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'List of attachments',
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'normal', 'high'],
+            description: 'Email priority',
+          },
         },
         required: ['to', 'subject', 'body'],
       },
@@ -75,7 +87,11 @@ export const EMAIL_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           emailId: { type: 'string', description: 'ID of the email to read' },
-          markAsRead: { type: 'boolean', default: true, description: 'Whether to mark the email as read' },
+          markAsRead: {
+            type: 'boolean',
+            default: true,
+            description: 'Whether to mark the email as read',
+          },
         },
         required: ['emailId'],
       },
@@ -95,8 +111,16 @@ export const EMAIL_AGENT_CONFIG: AgentConfig = {
         properties: {
           emailId: { type: 'string', description: 'ID of the email to reply to' },
           body: { type: 'string', description: 'Reply body content' },
-          replyAll: { type: 'boolean', default: false, description: 'Whether to reply to all recipients' },
-          attachments: { type: 'array', items: { type: 'object' }, description: 'Attachments for the reply' },
+          replyAll: {
+            type: 'boolean',
+            default: false,
+            description: 'Whether to reply to all recipients',
+          },
+          attachments: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Attachments for the reply',
+          },
         },
         required: ['emailId', 'body'],
       },
@@ -162,7 +186,11 @@ export const EMAIL_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           emailId: { type: 'string', description: 'ID of the email to delete' },
-          permanent: { type: 'boolean', default: false, description: 'Whether to permanently delete (bypass trash)' },
+          permanent: {
+            type: 'boolean',
+            default: false,
+            description: 'Whether to permanently delete (bypass trash)',
+          },
         },
         required: ['emailId'],
       },
@@ -289,19 +317,13 @@ export class EmailAgentService extends BaseAgentService {
     this.registerTool({
       name: 'send',
       description: 'Send a composed or draft email',
-      execute: async (params: {
-        emailId: string;
-        scheduleAt?: string;
-      }) => this.send(params),
+      execute: async (params: { emailId: string; scheduleAt?: string }) => this.send(params),
     });
 
     this.registerTool({
       name: 'read',
       description: 'Read an email by ID, marking it as read',
-      execute: async (params: {
-        emailId: string;
-        markAsRead?: boolean;
-      }) => this.read(params),
+      execute: async (params: { emailId: string; markAsRead?: boolean }) => this.read(params),
     });
 
     this.registerTool({
@@ -318,11 +340,8 @@ export class EmailAgentService extends BaseAgentService {
     this.registerTool({
       name: 'forward',
       description: 'Forward an email to other recipients',
-      execute: async (params: {
-        emailId: string;
-        to: string[];
-        message?: string;
-      }) => this.forward(params),
+      execute: async (params: { emailId: string; to: string[]; message?: string }) =>
+        this.forward(params),
     });
 
     this.registerTool({
@@ -344,10 +363,7 @@ export class EmailAgentService extends BaseAgentService {
     this.registerTool({
       name: 'deleteEmail',
       description: 'Delete or trash an email',
-      execute: async (params: {
-        emailId: string;
-        permanent?: boolean;
-      }) => this.deleteEmail(params),
+      execute: async (params: { emailId: string; permanent?: boolean }) => this.deleteEmail(params),
     });
 
     this.registerTool({
@@ -506,10 +522,7 @@ export class EmailAgentService extends BaseAgentService {
     };
   }
 
-  private async send(params: {
-    emailId: string;
-    scheduleAt?: string;
-  }): Promise<{
+  private async send(params: { emailId: string; scheduleAt?: string }): Promise<{
     emailId: string;
     sentAt: string;
     status: string;
@@ -559,10 +572,7 @@ export class EmailAgentService extends BaseAgentService {
     };
   }
 
-  private async read(params: {
-    emailId: string;
-    markAsRead?: boolean;
-  }): Promise<{
+  private async read(params: { emailId: string; markAsRead?: boolean }): Promise<{
     email: EmailMessage;
     readAt: string;
   }> {
@@ -654,9 +664,7 @@ export class EmailAgentService extends BaseAgentService {
     this.emails.set(replyId, reply);
     this.addEmailToFolder(replyId, 'sent');
 
-    this.logger.log(
-      `Replied to email: ${emailId}, replyId=${replyId}, replyAll=${replyAll}`,
-    );
+    this.logger.log(`Replied to email: ${emailId}, replyId=${replyId}, replyAll=${replyAll}`);
 
     return {
       replyId,
@@ -664,11 +672,7 @@ export class EmailAgentService extends BaseAgentService {
     };
   }
 
-  private async forward(params: {
-    emailId: string;
-    to: string[];
-    message?: string;
-  }): Promise<{
+  private async forward(params: { emailId: string; to: string[]; message?: string }): Promise<{
     forwardedId: string;
     status: string;
   }> {
@@ -725,9 +729,7 @@ export class EmailAgentService extends BaseAgentService {
     this.emails.set(forwardedId, forwarded);
     this.addEmailToFolder(forwardedId, 'sent');
 
-    this.logger.log(
-      `Forwarded email: ${emailId}, forwardedId=${forwardedId}, to=${to.join(',')}`,
-    );
+    this.logger.log(`Forwarded email: ${emailId}, forwardedId=${forwardedId}, to=${to.join(',')}`);
 
     return {
       forwardedId,
@@ -750,17 +752,7 @@ export class EmailAgentService extends BaseAgentService {
     total: number;
     hasMore: boolean;
   }> {
-    const {
-      query,
-      from,
-      to,
-      subject,
-      folder,
-      dateFrom,
-      dateTo,
-      limit = 20,
-      offset = 0,
-    } = params;
+    const { query, from, to, subject, folder, dateFrom, dateTo, limit = 20, offset = 0 } = params;
 
     if (!query || typeof query !== 'string') {
       throw new Error('A valid search query is required');
@@ -785,7 +777,8 @@ export class EmailAgentService extends BaseAgentService {
       const matchesTo = !to || email.to.some((r) => r.toLowerCase().includes(to!.toLowerCase()));
 
       // Filter by subject
-      const matchesSubject = !subject || email.subject.toLowerCase().includes(subject.toLowerCase());
+      const matchesSubject =
+        !subject || email.subject.toLowerCase().includes(subject.toLowerCase());
 
       // Filter by folder
       const matchesFolder = !folder || email.folder === folder;
@@ -805,7 +798,9 @@ export class EmailAgentService extends BaseAgentService {
         }
       }
 
-      return matchesQuery && matchesFrom && matchesTo && matchesSubject && matchesFolder && matchesDate;
+      return (
+        matchesQuery && matchesFrom && matchesTo && matchesSubject && matchesFolder && matchesDate
+      );
     });
 
     // Sort by date, newest first
@@ -815,17 +810,12 @@ export class EmailAgentService extends BaseAgentService {
     const hasMore = offset + limit < total;
     results = results.slice(offset, offset + limit);
 
-    this.logger.log(
-      `Email search: query="${query}", results=${total}, returned=${results.length}`,
-    );
+    this.logger.log(`Email search: query="${query}", results=${total}, returned=${results.length}`);
 
     return { results, total, hasMore };
   }
 
-  private async deleteEmail(params: {
-    emailId: string;
-    permanent?: boolean;
-  }): Promise<{
+  private async deleteEmail(params: { emailId: string; permanent?: boolean }): Promise<{
     emailId: string;
     status: string;
   }> {

@@ -5,11 +5,7 @@
  */
 
 import { SetMetadata } from '@nestjs/common';
-import {
-  AgentEventType,
-  EventFilter,
-  AgentEvent,
-} from '../interfaces/agent-event.interface';
+import { AgentEventType, EventFilter, AgentEvent } from '../interfaces/agent-event.interface';
 
 // ─── Event Handler Metadata Key ───────────────────────────────────
 export const EVENT_HANDLER_METADATA_KEY = 'agent:event_handler';
@@ -79,11 +75,7 @@ export function OnAgentEvent(eventType: AgentEventType | string): MethodDecorato
 export function OnAgentEvent(
   optionsOrEventType: OnAgentEventOptions | AgentEventType | string,
 ): MethodDecorator {
-  return (
-    target: any,
-    propertyKey: string | symbol,
-    descriptor: PropertyDescriptor,
-  ) => {
+  return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
     const methodName = typeof propertyKey === 'symbol' ? propertyKey.toString() : propertyKey;
 
     let metadata: EventHandlerMetadata;
@@ -113,11 +105,7 @@ export function OnAgentEvent(
       Reflect.getMetadata(EVENT_HANDLERS_METADATA_KEY, target.constructor) || [];
 
     existingHandlers.push(metadata);
-    Reflect.defineMetadata(
-      EVENT_HANDLERS_METADATA_KEY,
-      existingHandlers,
-      target.constructor,
-    );
+    Reflect.defineMetadata(EVENT_HANDLERS_METADATA_KEY, existingHandlers, target.constructor);
 
     // Also store on constructor for easy access
     if (!(target.constructor as any).__eventHandlers) {
@@ -144,9 +132,7 @@ export function getEventHandlerMetadata(target: Function): EventHandlerMetadata[
  * @OnAgentStarted() shorthand decorator
  * Subscribes to agent started events.
  */
-export function OnAgentStarted(
-  filter?: EventFilter,
-): MethodDecorator {
+export function OnAgentStarted(filter?: EventFilter): MethodDecorator {
   return OnAgentEvent({
     eventType: AgentEventType.AGENT_STARTED,
     filter,
@@ -157,9 +143,7 @@ export function OnAgentStarted(
  * @OnTaskCompleted() shorthand decorator
  * Subscribes to task completed events.
  */
-export function OnTaskCompleted(
-  filter?: EventFilter,
-): MethodDecorator {
+export function OnTaskCompleted(filter?: EventFilter): MethodDecorator {
   return OnAgentEvent({
     eventType: AgentEventType.TASK_COMPLETED,
     filter,
@@ -170,9 +154,7 @@ export function OnTaskCompleted(
  * @OnTaskFailed() shorthand decorator
  * Subscribes to task failed events.
  */
-export function OnTaskFailed(
-  filter?: EventFilter,
-): MethodDecorator {
+export function OnTaskFailed(filter?: EventFilter): MethodDecorator {
   return OnAgentEvent({
     eventType: AgentEventType.TASK_FAILED,
     filter,
@@ -183,9 +165,7 @@ export function OnTaskFailed(
  * @OnAgentError() shorthand decorator
  * Subscribes to agent error events.
  */
-export function OnAgentError(
-  filter?: EventFilter,
-): MethodDecorator {
+export function OnAgentError(filter?: EventFilter): MethodDecorator {
   return OnAgentEvent({
     eventType: AgentEventType.AGENT_ERROR,
     filter,
@@ -196,9 +176,7 @@ export function OnAgentError(
  * @OnSystemAlert() shorthand decorator
  * Subscribes to system alert events.
  */
-export function OnSystemAlert(
-  filter?: EventFilter,
-): MethodDecorator {
+export function OnSystemAlert(filter?: EventFilter): MethodDecorator {
   return OnAgentEvent({
     eventType: AgentEventType.SYSTEM_ALERT,
     filter,
@@ -209,9 +187,7 @@ export function OnSystemAlert(
  * @OnOrchestrationCompleted() shorthand decorator
  * Subscribes to orchestration completed events.
  */
-export function OnOrchestrationCompleted(
-  filter?: EventFilter,
-): MethodDecorator {
+export function OnOrchestrationCompleted(filter?: EventFilter): MethodDecorator {
   return OnAgentEvent({
     eventType: AgentEventType.ORCHESTRATION_COMPLETED,
     filter,
@@ -222,9 +198,7 @@ export function OnOrchestrationCompleted(
  * @OnCircuitBreakerOpened() shorthand decorator
  * Subscribes to circuit breaker opened events.
  */
-export function OnCircuitBreakerOpened(
-  filter?: EventFilter,
-): MethodDecorator {
+export function OnCircuitBreakerOpened(filter?: EventFilter): MethodDecorator {
   return OnAgentEvent({
     eventType: AgentEventType.CIRCUIT_BREAKER_OPENED,
     filter,

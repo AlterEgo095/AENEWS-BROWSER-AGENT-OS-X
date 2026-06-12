@@ -31,7 +31,10 @@ export const META_REPAIR_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           failedOutput: { type: 'object', description: 'The failed output to diagnose' },
-          errorMessage: { type: 'string', description: 'Error message associated with the failure' },
+          errorMessage: {
+            type: 'string',
+            description: 'Error message associated with the failure',
+          },
           context: { type: 'object', description: 'Context in which the failure occurred' },
         },
         required: ['failedOutput'],
@@ -54,7 +57,11 @@ export const META_REPAIR_AGENT_CONFIG: AgentConfig = {
         properties: {
           output: { type: 'any', description: 'Output to repair' },
           diagnosis: { type: 'object', description: 'Diagnosis from diagnoseFailure' },
-          strategy: { type: 'string', enum: ['conservative', 'moderate', 'aggressive'], description: 'Repair strategy' },
+          strategy: {
+            type: 'string',
+            enum: ['conservative', 'moderate', 'aggressive'],
+            description: 'Repair strategy',
+          },
         },
         required: ['output'],
       },
@@ -119,7 +126,11 @@ export const META_REPAIR_AGENT_CONFIG: AgentConfig = {
         properties: {
           originalOutput: { type: 'any', description: 'Original failed output' },
           repairedOutput: { type: 'any', description: 'Repaired output to verify' },
-          criteria: { type: 'array', items: { type: 'string' }, description: 'Verification criteria' },
+          criteria: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Verification criteria',
+          },
         },
         required: ['originalOutput', 'repairedOutput'],
       },
@@ -155,13 +166,7 @@ export const META_REPAIR_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:output',
-    'write:repair',
-    'read:diagnosis',
-    'write:patch',
-  ],
+  permissions: ['execute:task', 'read:output', 'write:repair', 'read:diagnosis', 'write:patch'],
   maxConcurrentTasks: 4,
   timeout: 90000,
   retryPolicy: {
@@ -222,11 +227,8 @@ export class RepairAgentService extends BaseAgentService {
     this.registerTool({
       name: 'repairOutput',
       description: 'Repair a failed or suboptimal output',
-      execute: async (params: {
-        output: any;
-        diagnosis?: any;
-        strategy?: string;
-      }) => this.repairOutput(params),
+      execute: async (params: { output: any; diagnosis?: any; strategy?: string }) =>
+        this.repairOutput(params),
     });
 
     this.registerTool({
@@ -252,11 +254,8 @@ export class RepairAgentService extends BaseAgentService {
     this.registerTool({
       name: 'verifyRepair',
       description: 'Verify that a repair was successful',
-      execute: async (params: {
-        originalOutput: any;
-        repairedOutput: any;
-        criteria?: string[];
-      }) => this.verifyRepair(params),
+      execute: async (params: { originalOutput: any; repairedOutput: any; criteria?: string[] }) =>
+        this.verifyRepair(params),
     });
 
     this.registerTool({
@@ -277,17 +276,29 @@ export class RepairAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'diagnoseFailure', 'repairOutput', 'retryWithModifications',
-      'applyPatch', 'verifyRepair', 'learnFromFailure',
+      'diagnoseFailure',
+      'repairOutput',
+      'retryWithModifications',
+      'applyPatch',
+      'verifyRepair',
+      'learnFromFailure',
     ];
 
     if (!supportedActions.includes(action)) {
       return this.createAgentOutput(
-        input.taskId, false, null,
+        input.taskId,
+        false,
+        null,
         `Unknown repair action: ${action}. Supported: ${supportedActions.join(', ')}`,
         startTime,
       );
@@ -296,11 +307,21 @@ export class RepairAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
-      await this.storeInWorkingMemory(`repair:last:${action}`, { params, result, timestamp: new Date() }, 300000);
+      await this.storeInWorkingMemory(
+        `repair:last:${action}`,
+        { params, result, timestamp: new Date() },
+        300000,
+      );
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
       const msg = (error as Error).message;
@@ -364,7 +385,9 @@ export class RepairAgentService extends BaseAgentService {
       }
 
       const keys = Object.keys(failedOutput);
-      const nullFields = keys.filter((k) => failedOutput[k] === null || failedOutput[k] === undefined);
+      const nullFields = keys.filter(
+        (k) => failedOutput[k] === null || failedOutput[k] === undefined,
+      );
       if (nullFields.length > 0) {
         rootCauses.push({
           cause: `Missing or null fields: ${nullFields.join(', ')}`,
@@ -400,8 +423,12 @@ export class RepairAgentService extends BaseAgentService {
     }
 
     // Determine severity
-    const hasExplicitError = rootCauses.some((c) => c.category === 'explicit-error' || c.category === 'error-field');
-    const hasMissingData = rootCauses.some((c) => c.category === 'incomplete-data' || c.category === 'empty-output');
+    const hasExplicitError = rootCauses.some(
+      (c) => c.category === 'explicit-error' || c.category === 'error-field',
+    );
+    const hasMissingData = rootCauses.some(
+      (c) => c.category === 'incomplete-data' || c.category === 'empty-output',
+    );
     const severity = hasExplicitError ? 'high' : hasMissingData ? 'medium' : 'low';
 
     const repairable = !rootCauses.some((c) => c.cause.includes('irrecoverable'));
@@ -413,11 +440,7 @@ export class RepairAgentService extends BaseAgentService {
     return { diagnosisId, rootCauses, severity, repairable };
   }
 
-  private async repairOutput(params: {
-    output: any;
-    diagnosis?: any;
-    strategy?: string;
-  }): Promise<{
+  private async repairOutput(params: { output: any; diagnosis?: any; strategy?: string }): Promise<{
     repairedOutput: any;
     repairId: string;
     changesApplied: Array<{ field: string; type: string; description: string }>;
@@ -484,7 +507,8 @@ export class RepairAgentService extends BaseAgentService {
     }
 
     if (typeof repairedOutput === 'string' && repairedOutput.trim().length === 0) {
-      repairedOutput = 'Output has been repaired: placeholder content generated for empty string output.';
+      repairedOutput =
+        'Output has been repaired: placeholder content generated for empty string output.';
       changesApplied.push({
         field: 'content',
         type: 'content-generation',
@@ -544,7 +568,12 @@ export class RepairAgentService extends BaseAgentService {
 
     const retryId = this.generateId();
     const modifiedInput = JSON.parse(JSON.stringify(originalInput));
-    const appliedModifications: Array<{ field: string; original: any; modified: any; reason: string }> = [];
+    const appliedModifications: Array<{
+      field: string;
+      original: any;
+      modified: any;
+      reason: string;
+    }> = [];
 
     // Apply modifications
     for (const [field, value] of Object.entries(modifications)) {
@@ -639,7 +668,9 @@ export class RepairAgentService extends BaseAgentService {
         }
         break;
       default:
-        throw new Error(`Unknown patch operation: ${patch.operation}. Supported: replace, add, remove, merge`);
+        throw new Error(
+          `Unknown patch operation: ${patch.operation}. Supported: replace, add, remove, merge`,
+        );
     }
 
     let validationResult: { valid: boolean; issues: string[] } | undefined;
@@ -658,7 +689,9 @@ export class RepairAgentService extends BaseAgentService {
       validationResult = { valid: issues.length === 0, issues };
     }
 
-    this.logger.log(`Patch applied: field=${patch.field}, operation=${patch.operation}, success=${patchApplied}`);
+    this.logger.log(
+      `Patch applied: field=${patch.field}, operation=${patch.operation}, success=${patchApplied}`,
+    );
 
     return { patchedOutput, patchApplied, validationResult };
   }
@@ -673,7 +706,11 @@ export class RepairAgentService extends BaseAgentService {
     remainingIssues: string[];
     improvements: string[];
   }> {
-    const { originalOutput, repairedOutput, criteria = ['completeness', 'correctness', 'consistency'] } = params;
+    const {
+      originalOutput,
+      repairedOutput,
+      criteria = ['completeness', 'correctness', 'consistency'],
+    } = params;
 
     if (originalOutput === null || originalOutput === undefined) {
       throw new Error('Original output cannot be null or undefined');
@@ -693,11 +730,17 @@ export class RepairAgentService extends BaseAgentService {
       if (typeof repairedOutput === 'object' && repairedOutput !== null) {
         const origKeys = Object.keys(originalOutput || {});
         const repairedKeys = Object.keys(repairedOutput);
-        const nullInOriginal = origKeys.filter((k) => originalOutput[k] === null || originalOutput[k] === undefined);
-        const nullInRepaired = repairedKeys.filter((k) => repairedOutput[k] === null || repairedOutput[k] === undefined);
+        const nullInOriginal = origKeys.filter(
+          (k) => originalOutput[k] === null || originalOutput[k] === undefined,
+        );
+        const nullInRepaired = repairedKeys.filter(
+          (k) => repairedOutput[k] === null || repairedOutput[k] === undefined,
+        );
 
         if (nullInOriginal.length > nullInRepaired.length) {
-          improvements.push(`Reduced null/undefined fields from ${nullInOriginal.length} to ${nullInRepaired.length}`);
+          improvements.push(
+            `Reduced null/undefined fields from ${nullInOriginal.length} to ${nullInRepaired.length}`,
+          );
           score += 25;
         } else if (nullInRepaired.length === 0) {
           improvements.push('All fields are populated in repaired output');
@@ -734,7 +777,9 @@ export class RepairAgentService extends BaseAgentService {
       if (typeof repairedOutput === 'object' && typeof originalOutput === 'object') {
         const origKeys = Object.keys(originalOutput || {});
         const repairedKeys = Object.keys(repairedOutput);
-        const addedKeys = repairedKeys.filter((k) => !origKeys.includes(k)).filter((k) => !k.startsWith('_'));
+        const addedKeys = repairedKeys
+          .filter((k) => !origKeys.includes(k))
+          .filter((k) => !k.startsWith('_'));
         if (addedKeys.length > 0) {
           improvements.push(`Added fields: ${addedKeys.join(', ')}`);
         }
@@ -842,7 +887,9 @@ export class RepairAgentService extends BaseAgentService {
 
     await this.storeInLongTermMemory(`lesson:${lessonId}`, knowledgeUpdate);
 
-    this.logger.log(`Lessons learned: id=${lessonId}, patterns=${patterns.length}, preventions=${preventions.length}`);
+    this.logger.log(
+      `Lessons learned: id=${lessonId}, patterns=${patterns.length}, preventions=${preventions.length}`,
+    );
 
     return { lessonId, patterns, preventions, knowledgeUpdate };
   }
@@ -854,14 +901,20 @@ export class RepairAgentService extends BaseAgentService {
 
     // Type-based defaults
     if (keyLower.includes('id') || keyLower.includes('uuid')) return this.generateId();
-    if (keyLower.includes('name') || keyLower.includes('title')) return strategy === 'aggressive' ? 'Generated Value' : '';
-    if (keyLower.includes('count') || keyLower.includes('number') || keyLower.includes('size')) return 0;
-    if (keyLower.includes('success') || keyLower.includes('valid') || keyLower.includes('active')) return true;
-    if (keyLower.includes('date') || keyLower.includes('time') || keyLower.includes('timestamp')) return new Date().toISOString();
-    if (keyLower.includes('list') || keyLower.includes('items') || keyLower.includes('array')) return [];
+    if (keyLower.includes('name') || keyLower.includes('title'))
+      return strategy === 'aggressive' ? 'Generated Value' : '';
+    if (keyLower.includes('count') || keyLower.includes('number') || keyLower.includes('size'))
+      return 0;
+    if (keyLower.includes('success') || keyLower.includes('valid') || keyLower.includes('active'))
+      return true;
+    if (keyLower.includes('date') || keyLower.includes('time') || keyLower.includes('timestamp'))
+      return new Date().toISOString();
+    if (keyLower.includes('list') || keyLower.includes('items') || keyLower.includes('array'))
+      return [];
     if (keyLower.includes('score') || keyLower.includes('rating')) return 0;
     if (keyLower.includes('status')) return 'repaired';
-    if (keyLower.includes('message') || keyLower.includes('description')) return 'Auto-generated placeholder';
+    if (keyLower.includes('message') || keyLower.includes('description'))
+      return 'Auto-generated placeholder';
 
     return strategy === 'aggressive' ? {} : null;
   }

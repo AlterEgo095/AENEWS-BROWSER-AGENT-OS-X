@@ -54,7 +54,11 @@ export const META_PLANNER_AGENT_CONFIG: AgentConfig = {
         properties: {
           goal: { type: 'string', description: 'Goal to decompose' },
           maxDepth: { type: 'number', description: 'Maximum decomposition depth' },
-          strategy: { type: 'string', enum: ['sequential', 'parallel', 'hybrid'], description: 'Decomposition strategy' },
+          strategy: {
+            type: 'string',
+            enum: ['sequential', 'parallel', 'hybrid'],
+            description: 'Decomposition strategy',
+          },
         },
         required: ['goal'],
       },
@@ -74,7 +78,11 @@ export const META_PLANNER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           tasks: { type: 'array', items: { type: 'object' }, description: 'Tasks to prioritize' },
-          criteria: { type: 'array', items: { type: 'string' }, description: 'Prioritization criteria' },
+          criteria: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Prioritization criteria',
+          },
           weights: { type: 'object', description: 'Weights for each criterion' },
         },
         required: ['tasks'],
@@ -95,7 +103,11 @@ export const META_PLANNER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           taskDescription: { type: 'string', description: 'Task description' },
-          complexity: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Task complexity' },
+          complexity: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'critical'],
+            description: 'Task complexity',
+          },
           resources: { type: 'object', description: 'Available resources' },
         },
         required: ['taskDescription'],
@@ -116,7 +128,11 @@ export const META_PLANNER_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          tasks: { type: 'array', items: { type: 'object' }, description: 'Tasks to analyze for dependencies' },
+          tasks: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Tasks to analyze for dependencies',
+          },
           context: { type: 'object', description: 'Planning context' },
         },
         required: ['tasks'],
@@ -137,7 +153,11 @@ export const META_PLANNER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           planId: { type: 'string', description: 'Plan ID to optimize' },
-          optimizationGoal: { type: 'string', enum: ['speed', 'cost', 'quality', 'balanced'], description: 'Optimization goal' },
+          optimizationGoal: {
+            type: 'string',
+            enum: ['speed', 'cost', 'quality', 'balanced'],
+            description: 'Optimization goal',
+          },
           constraints: { type: 'object', description: 'Optimization constraints' },
         },
         required: ['planId', 'optimizationGoal'],
@@ -153,13 +173,7 @@ export const META_PLANNER_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:plan',
-    'write:plan',
-    'read:task',
-    'write:task',
-  ],
+  permissions: ['execute:task', 'read:plan', 'write:plan', 'read:task', 'write:task'],
   maxConcurrentTasks: 4,
   timeout: 90000,
   retryPolicy: {
@@ -215,11 +229,8 @@ export class PlannerAgentService extends BaseAgentService {
     this.registerTool({
       name: 'decomposeGoal',
       description: 'Decompose a high-level goal into actionable subtasks',
-      execute: async (params: {
-        goal: string;
-        maxDepth?: number;
-        strategy?: string;
-      }) => this.decomposeGoal(params),
+      execute: async (params: { goal: string; maxDepth?: number; strategy?: string }) =>
+        this.decomposeGoal(params),
     });
 
     this.registerTool({
@@ -270,12 +281,22 @@ export class PlannerAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'createPlan', 'decomposeGoal', 'prioritizeTasks',
-      'estimateEffort', 'identifyDependencies', 'optimizePlan',
+      'createPlan',
+      'decomposeGoal',
+      'prioritizeTasks',
+      'estimateEffort',
+      'identifyDependencies',
+      'optimizePlan',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -291,11 +312,21 @@ export class PlannerAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
-      await this.storeInWorkingMemory(`planner:last:${action}`, { params, result, timestamp: new Date() }, 300000);
+      await this.storeInWorkingMemory(
+        `planner:last:${action}`,
+        { params, result, timestamp: new Date() },
+        300000,
+      );
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
       const msg = (error as Error).message;
@@ -399,10 +430,15 @@ export class PlannerAgentService extends BaseAgentService {
     };
 
     if (constraints.maxAgents) {
-      resourceRequirements.executor = Math.min(resourceRequirements.executor, constraints.maxAgents);
+      resourceRequirements.executor = Math.min(
+        resourceRequirements.executor,
+        constraints.maxAgents,
+      );
     }
 
-    this.logger.log(`Plan created: planId=${planId}, steps=${steps.length}, duration=${estimatedDurationMs}ms`);
+    this.logger.log(
+      `Plan created: planId=${planId}, steps=${steps.length}, duration=${estimatedDurationMs}ms`,
+    );
 
     return {
       planId,
@@ -432,7 +468,12 @@ export class PlannerAgentService extends BaseAgentService {
       throw new Error('Valid goal string is required for decomposition');
     }
 
-    const subtasks: Array<{ id: string; description: string; depth: number; parentTaskId?: string }> = [];
+    const subtasks: Array<{
+      id: string;
+      description: string;
+      depth: number;
+      parentTaskId?: string;
+    }> = [];
     const dependencyGraph: Record<string, string[]> = {};
 
     // Level 0: Main goal decomposition
@@ -507,7 +548,11 @@ export class PlannerAgentService extends BaseAgentService {
     ranking: Array<{ id: string; score: number; factors: Record<string, number> }>;
     rationale: string;
   }> {
-    const { tasks, criteria = ['urgency', 'impact', 'effort', 'dependencies'], weights = {} } = params;
+    const {
+      tasks,
+      criteria = ['urgency', 'impact', 'effort', 'dependencies'],
+      weights = {},
+    } = params;
 
     if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
       throw new Error('Non-empty tasks array is required for prioritization');
@@ -620,7 +665,9 @@ export class PlannerAgentService extends BaseAgentService {
 
     const riskFactors = this.identifyEffortRiskFactors(taskDescription, complexity, resources);
 
-    this.logger.log(`Effort estimated: hours=${estimatedHours}, complexity=${complexity}, confidence=${confidence}`);
+    this.logger.log(
+      `Effort estimated: hours=${estimatedHours}, complexity=${complexity}, confidence=${confidence}`,
+    );
 
     return { estimatedHours, confidence, breakdown, riskFactors };
   }
@@ -649,7 +696,8 @@ export class PlannerAgentService extends BaseAgentService {
       const implicitDeps = this.inferImplicitDependencies(task, tasks);
 
       const allDeps = [...new Set([...explicitDeps, ...implicitDeps])];
-      const depType = allDeps.length === 0 ? 'independent' : allDeps.length <= 2 ? 'sequential' : 'complex';
+      const depType =
+        allDeps.length === 0 ? 'independent' : allDeps.length <= 2 ? 'sequential' : 'complex';
 
       dependencies.push({
         taskId: task.id,
@@ -687,7 +735,9 @@ export class PlannerAgentService extends BaseAgentService {
       throw new Error('Valid planId string is required');
     }
     if (!['speed', 'cost', 'quality', 'balanced'].includes(optimizationGoal)) {
-      throw new Error(`Invalid optimization goal: ${optimizationGoal}. Must be one of: speed, cost, quality, balanced`);
+      throw new Error(
+        `Invalid optimization goal: ${optimizationGoal}. Must be one of: speed, cost, quality, balanced`,
+      );
     }
 
     const plan = this.plans.get(planId);
@@ -766,7 +816,10 @@ export class PlannerAgentService extends BaseAgentService {
     const words = goal.split(/\s+/);
 
     // Split by common separators
-    const parts = goal.split(/[;,]/).map((p) => p.trim()).filter((p) => p.length > 0);
+    const parts = goal
+      .split(/[;,]/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
 
     if (parts.length > 1) {
       components.push(...parts);
@@ -917,11 +970,11 @@ export class PlannerAgentService extends BaseAgentService {
     ranked: Array<{ id: string; score: number }>,
   ): string {
     const topTask = ranked[0];
-    const criteriaStr = criteria
-      .map((c) => `${c} (${(weights[c] * 100).toFixed(0)}%)`)
-      .join(', ');
-    return `Tasks were ranked using weighted criteria: ${criteriaStr}. ` +
+    const criteriaStr = criteria.map((c) => `${c} (${(weights[c] * 100).toFixed(0)}%)`).join(', ');
+    return (
+      `Tasks were ranked using weighted criteria: ${criteriaStr}. ` +
       `Top priority goes to task "${topTask.id}" with a composite score of ${topTask.score.toFixed(2)}. ` +
-      `Higher-scoring tasks should be addressed first to maximize overall outcome quality.`;
+      `Higher-scoring tasks should be addressed first to maximize overall outcome quality.`
+    );
   }
 }

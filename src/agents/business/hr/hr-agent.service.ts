@@ -32,9 +32,17 @@ export const HR_AGENT_CONFIG: AgentConfig = {
           title: { type: 'string', description: 'Job title' },
           department: { type: 'string', description: 'Department' },
           location: { type: 'string', description: 'Job location' },
-          type: { type: 'string', enum: ['full-time', 'part-time', 'contract', 'internship'], description: 'Employment type' },
+          type: {
+            type: 'string',
+            enum: ['full-time', 'part-time', 'contract', 'internship'],
+            description: 'Employment type',
+          },
           salaryRange: { type: 'object', description: 'Salary range with min and max' },
-          requirements: { type: 'array', items: { type: 'string' }, description: 'Job requirements' },
+          requirements: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Job requirements',
+          },
           description: { type: 'string', description: 'Job description' },
         },
         required: ['title', 'department'],
@@ -56,7 +64,11 @@ export const HR_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           postingId: { type: 'string', description: 'Job posting ID' },
-          candidates: { type: 'array', items: { type: 'object' }, description: 'Candidate profiles to screen' },
+          candidates: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Candidate profiles to screen',
+          },
           criteria: { type: 'object', description: 'Screening criteria and weights' },
         },
         required: ['postingId'],
@@ -78,7 +90,11 @@ export const HR_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['start', 'update', 'complete', 'status'], description: 'Onboarding action' },
+          action: {
+            type: 'string',
+            enum: ['start', 'update', 'complete', 'status'],
+            description: 'Onboarding action',
+          },
           employeeId: { type: 'string', description: 'Employee ID' },
           employeeName: { type: 'string', description: 'Employee name' },
           department: { type: 'string', description: 'Department' },
@@ -129,7 +145,11 @@ export const HR_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          reportType: { type: 'string', enum: ['headcount', 'turnover', 'diversity', 'recruitment', 'performance'], description: 'Type of HR report' },
+          reportType: {
+            type: 'string',
+            enum: ['headcount', 'turnover', 'diversity', 'recruitment', 'performance'],
+            description: 'Type of HR report',
+          },
           period: { type: 'string', description: 'Report period' },
           department: { type: 'string', description: 'Filter by department' },
         },
@@ -152,7 +172,11 @@ export const HR_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['request', 'approve', 'reject', 'balance'], description: 'Leave action' },
+          action: {
+            type: 'string',
+            enum: ['request', 'approve', 'reject', 'balance'],
+            description: 'Leave action',
+          },
           employeeId: { type: 'string', description: 'Employee ID' },
           leaveType: { type: 'string', description: 'Type of leave' },
           startDate: { type: 'string', description: 'Leave start date' },
@@ -273,7 +297,12 @@ export class HRAgentService extends BaseAgentService {
       description: 'Screen candidates for a position',
       execute: async (params: {
         postingId: string;
-        candidates?: Array<{ name: string; experience: number; skills: string[]; education: string }>;
+        candidates?: Array<{
+          name: string;
+          experience: number;
+          skills: string[];
+          education: string;
+        }>;
         criteria?: Record<string, number>;
       }) => this.screenCandidates(params),
     });
@@ -305,11 +334,8 @@ export class HRAgentService extends BaseAgentService {
     this.registerTool({
       name: 'generateHRReport',
       description: 'Generate an HR report',
-      execute: async (params: {
-        reportType: string;
-        period?: string;
-        department?: string;
-      }) => this.generateHRReport(params),
+      execute: async (params: { reportType: string; period?: string; department?: string }) =>
+        this.generateHRReport(params),
     });
 
     this.registerTool({
@@ -338,7 +364,13 @@ export class HRAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
@@ -363,7 +395,13 @@ export class HRAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -439,7 +477,7 @@ export class HRAgentService extends BaseAgentService {
     const postingId = `job-${Date.now()}-${this.counter}`;
 
     const defaultRequirements = [
-      'Bachelor\'s degree or equivalent experience',
+      "Bachelor's degree or equivalent experience",
       'Strong communication skills',
       'Team collaboration ability',
       'Problem-solving mindset',
@@ -454,7 +492,8 @@ export class HRAgentService extends BaseAgentService {
       salaryMin: salaryRange.min,
       salaryMax: salaryRange.max,
       requirements: requirements.length > 0 ? requirements : defaultRequirements,
-      description: description || `We are looking for a talented ${title} to join our ${department} team.`,
+      description:
+        description || `We are looking for a talented ${title} to join our ${department} team.`,
       status: 'open',
       applicants: 0,
       createdAt: new Date(),
@@ -511,11 +550,36 @@ export class HRAgentService extends BaseAgentService {
 
     // Generate default candidates if none provided
     const defaultCandidates = [
-      { name: 'Alice Johnson', experience: 5, skills: ['JavaScript', 'TypeScript', 'React'], education: 'BS Computer Science' },
-      { name: 'Bob Smith', experience: 3, skills: ['Python', 'Django', 'SQL'], education: 'MS Software Engineering' },
-      { name: 'Carol Davis', experience: 7, skills: ['Java', 'Spring', 'AWS'], education: 'BS Information Technology' },
-      { name: 'David Wilson', experience: 2, skills: ['React', 'Node.js', 'MongoDB'], education: 'BS Computer Science' },
-      { name: 'Eva Martinez', experience: 4, skills: ['Python', 'ML', 'Data Analysis'], education: 'MS Data Science' },
+      {
+        name: 'Alice Johnson',
+        experience: 5,
+        skills: ['JavaScript', 'TypeScript', 'React'],
+        education: 'BS Computer Science',
+      },
+      {
+        name: 'Bob Smith',
+        experience: 3,
+        skills: ['Python', 'Django', 'SQL'],
+        education: 'MS Software Engineering',
+      },
+      {
+        name: 'Carol Davis',
+        experience: 7,
+        skills: ['Java', 'Spring', 'AWS'],
+        education: 'BS Information Technology',
+      },
+      {
+        name: 'David Wilson',
+        experience: 2,
+        skills: ['React', 'Node.js', 'MongoDB'],
+        education: 'BS Computer Science',
+      },
+      {
+        name: 'Eva Martinez',
+        experience: 4,
+        skills: ['Python', 'ML', 'Data Analysis'],
+        education: 'MS Data Science',
+      },
     ];
 
     const candidatesToScreen = candidates.length > 0 ? candidates : defaultCandidates;
@@ -531,7 +595,11 @@ export class HRAgentService extends BaseAgentService {
     const results = candidatesToScreen.map((candidate) => {
       const experienceScore = Math.min(candidate.experience / 7, 1) * 100;
       const skillMatch = 50 + Math.random() * 50;
-      const educationScore = candidate.education.includes('MS') ? 85 : candidate.education.includes('BS') ? 70 : 50;
+      const educationScore = candidate.education.includes('MS')
+        ? 85
+        : candidate.education.includes('BS')
+          ? 70
+          : 50;
       const culturalFitScore = 60 + Math.random() * 35;
 
       const totalScore =
@@ -563,7 +631,9 @@ export class HRAgentService extends BaseAgentService {
     // Update posting applicant count
     posting.applicants += candidatesToScreen.length;
 
-    this.logger.log(`Screened candidates: ${screeningId}, postingId=${postingId}, total=${candidatesToScreen.length}, qualified=${qualified}`);
+    this.logger.log(
+      `Screened candidates: ${screeningId}, postingId=${postingId}, total=${candidatesToScreen.length}, qualified=${qualified}`,
+    );
 
     return {
       screeningId,
@@ -591,11 +661,20 @@ export class HRAgentService extends BaseAgentService {
     tasks: Array<{ name: string; status: string }>;
     updatedAt: string;
   }> {
-    const { action, employeeId, employeeName, department = 'General', startDate, tasks = [] } = params;
+    const {
+      action,
+      employeeId,
+      employeeName,
+      department = 'General',
+      startDate,
+      tasks = [],
+    } = params;
 
     const validActions = ['start', 'update', 'complete', 'status'];
     if (!validActions.includes(action)) {
-      throw new Error(`Invalid onboarding action: ${action}. Supported: ${validActions.join(', ')}`);
+      throw new Error(
+        `Invalid onboarding action: ${action}. Supported: ${validActions.join(', ')}`,
+      );
     }
 
     switch (action) {
@@ -653,7 +732,9 @@ export class HRAgentService extends BaseAgentService {
       case 'update': {
         if (!employeeId) throw new Error('employeeId is required for update');
 
-        const process = Array.from(this.onboardingProcesses.values()).find((p) => p.employeeId === employeeId);
+        const process = Array.from(this.onboardingProcesses.values()).find(
+          (p) => p.employeeId === employeeId,
+        );
         if (!process) throw new Error(`Onboarding process not found for employee: ${employeeId}`);
 
         // Complete random tasks
@@ -682,10 +763,14 @@ export class HRAgentService extends BaseAgentService {
       case 'complete': {
         if (!employeeId) throw new Error('employeeId is required for complete');
 
-        const process = Array.from(this.onboardingProcesses.values()).find((p) => p.employeeId === employeeId);
+        const process = Array.from(this.onboardingProcesses.values()).find(
+          (p) => p.employeeId === employeeId,
+        );
         if (!process) throw new Error(`Onboarding process not found for employee: ${employeeId}`);
 
-        process.tasks.forEach((t) => { t.status = 'completed'; });
+        process.tasks.forEach((t) => {
+          t.status = 'completed';
+        });
         process.progress = 100;
         process.status = 'completed';
 
@@ -704,7 +789,9 @@ export class HRAgentService extends BaseAgentService {
       case 'status': {
         if (!employeeId) throw new Error('employeeId is required for status');
 
-        const process = Array.from(this.onboardingProcesses.values()).find((p) => p.employeeId === employeeId);
+        const process = Array.from(this.onboardingProcesses.values()).find(
+          (p) => p.employeeId === employeeId,
+        );
         if (!process) throw new Error(`Onboarding process not found for employee: ${employeeId}`);
 
         return {
@@ -799,16 +886,18 @@ export class HRAgentService extends BaseAgentService {
 
     for (let i = metricEntries.length - 1; i >= Math.max(0, metricEntries.length - 2); i--) {
       if (metricEntries[i][1] < 75) {
-        areasForImprovement.push(improvementPool[metricEntries.length - 1 - i] || `Improve ${metricEntries[i][0]}`);
+        areasForImprovement.push(
+          improvementPool[metricEntries.length - 1 - i] || `Improve ${metricEntries[i][0]}`,
+        );
       }
     }
 
     if (strengths.length === 0) strengths.push('Reliable and consistent contributor');
-    if (areasForImprovement.length === 0) areasForImprovement.push('Continue developing leadership skills');
+    if (areasForImprovement.length === 0)
+      areasForImprovement.push('Continue developing leadership skills');
 
-    const goalsProgress = goals.length > 0
-      ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length)
-      : 0;
+    const goalsProgress =
+      goals.length > 0 ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0;
 
     // Update employee performance score
     const employee = this.employees.get(employeeId);
@@ -816,7 +905,9 @@ export class HRAgentService extends BaseAgentService {
       employee.performanceScore = overallScore;
     }
 
-    this.logger.log(`Performance review: ${reviewId}, employee=${employeeId}, score=${overallScore}, rating=${rating}`);
+    this.logger.log(
+      `Performance review: ${reviewId}, employee=${employeeId}, score=${overallScore}, rating=${rating}`,
+    );
 
     return {
       reviewId,
@@ -847,7 +938,9 @@ export class HRAgentService extends BaseAgentService {
 
     const validReportTypes = ['headcount', 'turnover', 'diversity', 'recruitment', 'performance'];
     if (!validReportTypes.includes(reportType)) {
-      throw new Error(`Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`);
+      throw new Error(
+        `Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`,
+      );
     }
 
     this.counter++;
@@ -864,7 +957,11 @@ export class HRAgentService extends BaseAgentService {
         for (const dept of departments) {
           headcountByDept[dept] = 10 + Math.floor(Math.random() * 40);
         }
-        summary = { totalEmployees, departments: departments.length, avgTeamSize: Math.round(totalEmployees / departments.length) };
+        summary = {
+          totalEmployees,
+          departments: departments.length,
+          avgTeamSize: Math.round(totalEmployees / departments.length),
+        };
         data = { headcountByDept, trend: 'growing' };
         break;
       }
@@ -962,14 +1059,29 @@ export class HRAgentService extends BaseAgentService {
     balance: Record<string, number>;
     updatedAt: string;
   }> {
-    const { action, employeeId, leaveType = 'vacation', startDate, endDate, reason = '', requestId } = params;
+    const {
+      action,
+      employeeId,
+      leaveType = 'vacation',
+      startDate,
+      endDate,
+      reason = '',
+      requestId,
+    } = params;
 
     const validActions = ['request', 'approve', 'reject', 'balance'];
     if (!validActions.includes(action)) {
       throw new Error(`Invalid leave action: ${action}. Supported: ${validActions.join(', ')}`);
     }
 
-    const validLeaveTypes = ['vacation', 'sick', 'personal', 'maternity', 'paternity', 'bereavement'];
+    const validLeaveTypes = [
+      'vacation',
+      'sick',
+      'personal',
+      'maternity',
+      'paternity',
+      'bereavement',
+    ];
     if (!validLeaveTypes.includes(leaveType)) {
       throw new Error(`Invalid leave type: ${leaveType}. Supported: ${validLeaveTypes.join(', ')}`);
     }
@@ -986,7 +1098,8 @@ export class HRAgentService extends BaseAgentService {
     switch (action) {
       case 'request': {
         if (!employeeId) throw new Error('employeeId is required for leave request');
-        if (!startDate || !endDate) throw new Error('startDate and endDate are required for leave request');
+        if (!startDate || !endDate)
+          throw new Error('startDate and endDate are required for leave request');
 
         const start = new Date(startDate);
         const end = new Date(endDate);
@@ -997,7 +1110,8 @@ export class HRAgentService extends BaseAgentService {
           throw new Error('endDate must be after startDate');
         }
 
-        const daysRequested = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const daysRequested =
+          Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
         this.counter++;
         const leaveRequestId = `leave-${Date.now()}-${this.counter}`;
@@ -1018,7 +1132,9 @@ export class HRAgentService extends BaseAgentService {
         const employee = this.employees.get(employeeId);
         const balance = employee?.leaveBalance || { ...defaultBalance };
 
-        this.logger.log(`Leave request: ${leaveRequestId}, employee=${employeeId}, type=${leaveType}, days=${daysRequested}`);
+        this.logger.log(
+          `Leave request: ${leaveRequestId}, employee=${employeeId}, type=${leaveType}, days=${daysRequested}`,
+        );
 
         return {
           requestId: leaveRequestId,
@@ -1035,14 +1151,18 @@ export class HRAgentService extends BaseAgentService {
 
         const request = this.leaveRequests.get(requestId);
         if (!request) throw new Error(`Leave request not found: ${requestId}`);
-        if (request.status !== 'pending') throw new Error(`Leave request already ${request.status}`);
+        if (request.status !== 'pending')
+          throw new Error(`Leave request already ${request.status}`);
 
         request.status = 'approved';
 
         // Update employee balance
         const employee = this.employees.get(request.employeeId);
         if (employee && employee.leaveBalance[request.leaveType] !== undefined) {
-          employee.leaveBalance[request.leaveType] = Math.max(0, employee.leaveBalance[request.leaveType] - request.daysRequested);
+          employee.leaveBalance[request.leaveType] = Math.max(
+            0,
+            employee.leaveBalance[request.leaveType] - request.daysRequested,
+          );
         }
 
         this.logger.log(`Approved leave: ${requestId}, employee=${request.employeeId}`);
@@ -1062,7 +1182,8 @@ export class HRAgentService extends BaseAgentService {
 
         const request = this.leaveRequests.get(requestId);
         if (!request) throw new Error(`Leave request not found: ${requestId}`);
-        if (request.status !== 'pending') throw new Error(`Leave request already ${request.status}`);
+        if (request.status !== 'pending')
+          throw new Error(`Leave request already ${request.status}`);
 
         request.status = 'rejected';
 

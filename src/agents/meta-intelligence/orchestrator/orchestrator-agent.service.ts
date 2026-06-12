@@ -32,7 +32,11 @@ export const META_ORCHESTRATOR_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           taskDescription: { type: 'string', description: 'High-level task description' },
-          priority: { type: 'string', enum: ['low', 'normal', 'high', 'critical'], description: 'Task priority' },
+          priority: {
+            type: 'string',
+            enum: ['low', 'normal', 'high', 'critical'],
+            description: 'Task priority',
+          },
           constraints: { type: 'object', description: 'Constraints for orchestration' },
         },
         required: ['taskDescription'],
@@ -96,8 +100,16 @@ export const META_ORCHESTRATOR_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          strategy: { type: 'string', enum: ['even', 'priority-based', 'capability-based'], description: 'Rebalancing strategy' },
-          agentIds: { type: 'array', items: { type: 'string' }, description: 'Specific agents to rebalance' },
+          strategy: {
+            type: 'string',
+            enum: ['even', 'priority-based', 'capability-based'],
+            description: 'Rebalancing strategy',
+          },
+          agentIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Specific agents to rebalance',
+          },
         },
       },
       outputSchema: {
@@ -117,8 +129,16 @@ export const META_ORCHESTRATOR_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           workflowDescription: { type: 'string', description: 'Description of the workflow' },
-          availableAgents: { type: 'array', items: { type: 'string' }, description: 'Available agent IDs' },
-          objectives: { type: 'array', items: { type: 'string' }, description: 'Workflow objectives' },
+          availableAgents: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Available agent IDs',
+          },
+          objectives: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Workflow objectives',
+          },
           deadline: { type: 'string', description: 'Optional deadline ISO string' },
         },
         required: ['workflowDescription'],
@@ -232,29 +252,22 @@ export class OrchestratorAgentService extends BaseAgentService {
     this.registerTool({
       name: 'assignAgent',
       description: 'Assign a specific agent to a task based on capability matching',
-      execute: async (params: {
-        taskId: string;
-        agentId: string;
-        subtaskDescription?: string;
-      }) => this.assignAgent(params),
+      execute: async (params: { taskId: string; agentId: string; subtaskDescription?: string }) =>
+        this.assignAgent(params),
     });
 
     this.registerTool({
       name: 'monitorProgress',
       description: 'Monitor the progress of all ongoing orchestrated tasks',
-      execute: async (params: {
-        orchestrationId: string;
-        includeDetails?: boolean;
-      }) => this.monitorProgress(params),
+      execute: async (params: { orchestrationId: string; includeDetails?: boolean }) =>
+        this.monitorProgress(params),
     });
 
     this.registerTool({
       name: 'rebalanceWorkload',
       description: 'Rebalance workload across agents when imbalances are detected',
-      execute: async (params: {
-        strategy?: string;
-        agentIds?: string[];
-      }) => this.rebalanceWorkload(params),
+      execute: async (params: { strategy?: string; agentIds?: string[] }) =>
+        this.rebalanceWorkload(params),
     });
 
     this.registerTool({
@@ -473,7 +486,10 @@ export class OrchestratorAgentService extends BaseAgentService {
     // Simulate some steps progressing
     const progressPerStep = totalSteps > 0 ? elapsedMs / record.estimatedDurationMs : 0;
     const stepStatuses = record.steps.map((step) => {
-      const stepProgress = Math.min(100, Math.round(progressPerStep * 100 / totalSteps * (step.order + 1)));
+      const stepProgress = Math.min(
+        100,
+        Math.round(((progressPerStep * 100) / totalSteps) * (step.order + 1)),
+      );
       return {
         stepId: step.id,
         order: step.order,
@@ -482,9 +498,10 @@ export class OrchestratorAgentService extends BaseAgentService {
       };
     });
 
-    const overallProgress = totalSteps > 0
-      ? Math.min(100, Math.round((completedSteps / totalSteps) * 100 + progressPerStep * 10))
-      : 0;
+    const overallProgress =
+      totalSteps > 0
+        ? Math.min(100, Math.round((completedSteps / totalSteps) * 100 + progressPerStep * 10))
+        : 0;
 
     const bottlenecks = this.identifyBottlenecks(record);
 
@@ -500,10 +517,7 @@ export class OrchestratorAgentService extends BaseAgentService {
     };
   }
 
-  private async rebalanceWorkload(params: {
-    strategy?: string;
-    agentIds?: string[];
-  }): Promise<{
+  private async rebalanceWorkload(params: { strategy?: string; agentIds?: string[] }): Promise<{
     rebalanced: boolean;
     redistributions: Array<{ from: string; to: string; taskCount: number }>;
     loadBefore: Record<string, number>;
@@ -511,9 +525,10 @@ export class OrchestratorAgentService extends BaseAgentService {
   }> {
     const { strategy = 'even', agentIds = [] } = params;
 
-    const targetAgents = agentIds.length > 0
-      ? agentIds
-      : ['meta-planner', 'meta-critic', 'meta-repair', 'meta-learning', 'meta-task-router'];
+    const targetAgents =
+      agentIds.length > 0
+        ? agentIds
+        : ['meta-planner', 'meta-critic', 'meta-repair', 'meta-learning', 'meta-task-router'];
 
     // Simulate current workload
     const loadBefore: Record<string, number> = {};
@@ -560,9 +575,7 @@ export class OrchestratorAgentService extends BaseAgentService {
       // Capability-based: assign based on agent type
       for (const agentId of targetAgents) {
         const isSpecialized = agentId.includes('repair') || agentId.includes('critic');
-        loadAfter[agentId] = isSpecialized
-          ? Math.max(1, Math.floor(targetLoad * 0.8))
-          : targetLoad;
+        loadAfter[agentId] = isSpecialized ? Math.max(1, Math.floor(targetLoad * 0.8)) : targetLoad;
       }
     }
 
@@ -592,8 +605,13 @@ export class OrchestratorAgentService extends BaseAgentService {
     const {
       workflowDescription,
       availableAgents = [
-        'meta-planner', 'meta-critic', 'meta-repair', 'meta-judge',
-        'meta-learning', 'meta-task-router', 'meta-knowledge-synthesis',
+        'meta-planner',
+        'meta-critic',
+        'meta-repair',
+        'meta-judge',
+        'meta-learning',
+        'meta-task-router',
+        'meta-knowledge-synthesis',
       ],
       objectives = [],
       deadline,
@@ -610,32 +628,64 @@ export class OrchestratorAgentService extends BaseAgentService {
       {
         name: 'Analysis & Planning',
         steps: [
-          { agentId: 'meta-planner', action: 'createPlan', description: `Create execution plan for: ${workflowDescription}` },
-          { agentId: 'meta-knowledge-synthesis', action: 'synthesizeKnowledge', description: 'Gather and synthesize relevant knowledge' },
+          {
+            agentId: 'meta-planner',
+            action: 'createPlan',
+            description: `Create execution plan for: ${workflowDescription}`,
+          },
+          {
+            agentId: 'meta-knowledge-synthesis',
+            action: 'synthesizeKnowledge',
+            description: 'Gather and synthesize relevant knowledge',
+          },
         ],
         estimatedDurationMs: 15000,
       },
       {
         name: 'Execution',
         steps: [
-          { agentId: 'meta-task-router', action: 'routeTask', description: 'Route subtasks to specialized agents' },
-          { agentId: 'meta-planner', action: 'decomposeGoal', description: 'Decompose workflow into executable subtasks' },
+          {
+            agentId: 'meta-task-router',
+            action: 'routeTask',
+            description: 'Route subtasks to specialized agents',
+          },
+          {
+            agentId: 'meta-planner',
+            action: 'decomposeGoal',
+            description: 'Decompose workflow into executable subtasks',
+          },
         ],
         estimatedDurationMs: 30000,
       },
       {
         name: 'Quality Assurance',
         steps: [
-          { agentId: 'meta-critic', action: 'evaluateOutput', description: 'Evaluate outputs from execution phase' },
-          { agentId: 'meta-repair', action: 'diagnoseFailure', description: 'Diagnose and repair any failures' },
+          {
+            agentId: 'meta-critic',
+            action: 'evaluateOutput',
+            description: 'Evaluate outputs from execution phase',
+          },
+          {
+            agentId: 'meta-repair',
+            action: 'diagnoseFailure',
+            description: 'Diagnose and repair any failures',
+          },
         ],
         estimatedDurationMs: 20000,
       },
       {
         name: 'Validation & Decision',
         steps: [
-          { agentId: 'meta-judge', action: 'arbitrate', description: 'Final arbitration of results' },
-          { agentId: 'meta-learning', action: 'learnFromExperience', description: 'Extract lessons from orchestration' },
+          {
+            agentId: 'meta-judge',
+            action: 'arbitrate',
+            description: 'Final arbitration of results',
+          },
+          {
+            agentId: 'meta-learning',
+            action: 'learnFromExperience',
+            description: 'Extract lessons from orchestration',
+          },
         ],
         estimatedDurationMs: 10000,
       },
@@ -724,7 +774,13 @@ export class OrchestratorAgentService extends BaseAgentService {
       {
         criterion: 'Time Efficiency',
         score: record
-          ? Math.max(40, 100 - Math.floor((Date.now() - record.createdAt.getTime()) / record.estimatedDurationMs * 20))
+          ? Math.max(
+              40,
+              100 -
+                Math.floor(
+                  ((Date.now() - record.createdAt.getTime()) / record.estimatedDurationMs) * 20,
+                ),
+            )
           : 65 + Math.floor(Math.random() * 25),
         passed: true,
         notes: 'Execution completed within reasonable time bounds',
@@ -811,7 +867,9 @@ export class OrchestratorAgentService extends BaseAgentService {
         estimatedDurationMs: 5000 + complexity * 2000,
       });
       // Re-number
-      steps.forEach((s, i) => { s.order = i; });
+      steps.forEach((s, i) => {
+        s.order = i;
+      });
     }
 
     return steps;
@@ -832,7 +890,9 @@ export class OrchestratorAgentService extends BaseAgentService {
     });
 
     for (const step of longRunningSteps) {
-      bottlenecks.push(`Step ${step.order} (${step.agentId}) has been running for an extended period`);
+      bottlenecks.push(
+        `Step ${step.order} (${step.agentId}) has been running for an extended period`,
+      );
     }
 
     if (pendingSteps.length > runningSteps.length && runningSteps.length > 0) {
@@ -864,9 +924,7 @@ export class OrchestratorAgentService extends BaseAgentService {
 
     const highScores = criteriaResults.filter((c) => c.score >= 85);
     if (highScores.length > 0) {
-      lessons.push(
-        `Strengths to maintain: ${highScores.map((c) => c.criterion).join(', ')}`,
-      );
+      lessons.push(`Strengths to maintain: ${highScores.map((c) => c.criterion).join(', ')}`);
     }
 
     lessons.push('Regular monitoring during execution helps identify issues early');
@@ -893,7 +951,9 @@ export class OrchestratorAgentService extends BaseAgentService {
     }
 
     if (overallScore >= 80) {
-      recommendations.push('Current orchestration approach is effective; consider using it as a template');
+      recommendations.push(
+        'Current orchestration approach is effective; consider using it as a template',
+      );
     }
 
     recommendations.push('Document successful patterns for reuse in future orchestrations');

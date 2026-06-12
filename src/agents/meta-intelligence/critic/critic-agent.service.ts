@@ -31,7 +31,11 @@ export const META_CRITIC_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           output: { type: 'object', description: 'Output to evaluate' },
-          criteria: { type: 'array', items: { type: 'string' }, description: 'Evaluation criteria' },
+          criteria: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Evaluation criteria',
+          },
           context: { type: 'object', description: 'Evaluation context' },
         },
         required: ['output'],
@@ -52,7 +56,11 @@ export const META_CRITIC_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           content: { type: 'any', description: 'Content to score' },
-          dimensions: { type: 'array', items: { type: 'string' }, description: 'Quality dimensions' },
+          dimensions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Quality dimensions',
+          },
         },
         required: ['content'],
       },
@@ -73,7 +81,11 @@ export const META_CRITIC_AGENT_CONFIG: AgentConfig = {
         properties: {
           output: { type: 'any', description: 'Output to analyze' },
           expectedFormat: { type: 'object', description: 'Expected output format' },
-          severity: { type: 'string', enum: ['all', 'critical', 'warning'], description: 'Minimum severity filter' },
+          severity: {
+            type: 'string',
+            enum: ['all', 'critical', 'warning'],
+            description: 'Minimum severity filter',
+          },
         },
         required: ['output'],
       },
@@ -114,7 +126,11 @@ export const META_CRITIC_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           outputs: { type: 'array', items: { type: 'object' }, description: 'Outputs to compare' },
-          criteria: { type: 'array', items: { type: 'string' }, description: 'Comparison criteria' },
+          criteria: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Comparison criteria',
+          },
         },
         required: ['outputs'],
       },
@@ -133,7 +149,11 @@ export const META_CRITIC_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          outputs: { type: 'array', items: { type: 'any' }, description: 'Outputs to check for consistency' },
+          outputs: {
+            type: 'array',
+            items: { type: 'any' },
+            description: 'Outputs to check for consistency',
+          },
           rules: { type: 'array', items: { type: 'object' }, description: 'Consistency rules' },
         },
         required: ['outputs'],
@@ -148,12 +168,7 @@ export const META_CRITIC_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:output',
-    'write:critique',
-    'read:quality',
-  ],
+  permissions: ['execute:task', 'read:output', 'write:critique', 'read:quality'],
   maxConcurrentTasks: 4,
   timeout: 60000,
   retryPolicy: {
@@ -211,10 +226,7 @@ export class CriticAgentService extends BaseAgentService {
     this.registerTool({
       name: 'scoreQuality',
       description: 'Score the quality of an output on multiple dimensions',
-      execute: async (params: {
-        content: any;
-        dimensions?: string[];
-      }) => this.scoreQuality(params),
+      execute: async (params: { content: any; dimensions?: string[] }) => this.scoreQuality(params),
     });
 
     this.registerTool({
@@ -249,10 +261,8 @@ export class CriticAgentService extends BaseAgentService {
     this.registerTool({
       name: 'validateConsistency',
       description: 'Validate consistency across multiple outputs or data points',
-      execute: async (params: {
-        outputs: any[];
-        rules?: Array<{ field: string; type: string }>;
-      }) => this.validateConsistency(params),
+      execute: async (params: { outputs: any[]; rules?: Array<{ field: string; type: string }> }) =>
+        this.validateConsistency(params),
     });
 
     await this.storeInWorkingMemory('critic:initializedAt', new Date().toISOString(), 600000);
@@ -264,17 +274,29 @@ export class CriticAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'evaluateOutput', 'scoreQuality', 'identifyIssues',
-      'suggestImprovements', 'compareOutputs', 'validateConsistency',
+      'evaluateOutput',
+      'scoreQuality',
+      'identifyIssues',
+      'suggestImprovements',
+      'compareOutputs',
+      'validateConsistency',
     ];
 
     if (!supportedActions.includes(action)) {
       return this.createAgentOutput(
-        input.taskId, false, null,
+        input.taskId,
+        false,
+        null,
         `Unknown critic action: ${action}. Supported: ${supportedActions.join(', ')}`,
         startTime,
       );
@@ -283,11 +305,21 @@ export class CriticAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
-      await this.storeInWorkingMemory(`critic:last:${action}`, { params, result, timestamp: new Date() }, 300000);
+      await this.storeInWorkingMemory(
+        `critic:last:${action}`,
+        { params, result, timestamp: new Date() },
+        300000,
+      );
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
       const msg = (error as Error).message;
@@ -313,7 +345,11 @@ export class CriticAgentService extends BaseAgentService {
     passed: boolean;
     summary: string;
   }> {
-    const { output, criteria = ['completeness', 'accuracy', 'relevance', 'clarity'], context = {} } = params;
+    const {
+      output,
+      criteria = ['completeness', 'accuracy', 'relevance', 'clarity'],
+      context = {},
+    } = params;
 
     if (output === null || output === undefined) {
       throw new Error('Output cannot be null or undefined for evaluation');
@@ -336,20 +372,22 @@ export class CriticAgentService extends BaseAgentService {
     const outputId = this.generateId();
     this.evaluationHistory.push({ outputId, score: overallScore, timestamp: new Date() });
 
-    this.logger.log(`Output evaluated: score=${overallScore}, passed=${passed}, criteria=${criteria.length}`);
+    this.logger.log(
+      `Output evaluated: score=${overallScore}, passed=${passed}, criteria=${criteria.length}`,
+    );
 
     return { overallScore, criteriaScores, passed, summary };
   }
 
-  private async scoreQuality(params: {
-    content: any;
-    dimensions?: string[];
-  }): Promise<{
+  private async scoreQuality(params: { content: any; dimensions?: string[] }): Promise<{
     scores: Record<string, number>;
     overallScore: number;
     grade: string;
   }> {
-    const { content, dimensions = ['correctness', 'completeness', 'consistency', 'efficiency', 'readability'] } = params;
+    const {
+      content,
+      dimensions = ['correctness', 'completeness', 'consistency', 'efficiency', 'readability'],
+    } = params;
 
     if (content === null || content === undefined) {
       throw new Error('Content cannot be null or undefined for quality scoring');
@@ -367,7 +405,9 @@ export class CriticAgentService extends BaseAgentService {
 
     const grade = this.scoreToGrade(overallScore);
 
-    this.logger.log(`Quality scored: overall=${overallScore}, grade=${grade}, dimensions=${dimensions.length}`);
+    this.logger.log(
+      `Quality scored: overall=${overallScore}, grade=${grade}, dimensions=${dimensions.length}`,
+    );
 
     return { scores, overallScore, grade };
   }
@@ -454,13 +494,15 @@ export class CriticAgentService extends BaseAgentService {
     }
 
     // Filter by severity
-    const filteredIssues = severity === 'all'
-      ? issues
-      : issues.filter((i) => {
-          if (severity === 'critical') return i.severity === 'critical';
-          if (severity === 'warning') return i.severity === 'critical' || i.severity === 'warning';
-          return true;
-        });
+    const filteredIssues =
+      severity === 'all'
+        ? issues
+        : issues.filter((i) => {
+            if (severity === 'critical') return i.severity === 'critical';
+            if (severity === 'warning')
+              return i.severity === 'critical' || i.severity === 'warning';
+            return true;
+          });
 
     const criticalCount = filteredIssues.filter((i) => i.severity === 'critical').length;
 
@@ -572,7 +614,9 @@ export class CriticAgentService extends BaseAgentService {
         ? 'moderate'
         : 'minimal';
 
-    this.logger.log(`Improvements suggested: count=${suggestions.length}, impact=${estimatedImpact}`);
+    this.logger.log(
+      `Improvements suggested: count=${suggestions.length}, impact=${estimatedImpact}`,
+    );
 
     return { suggestions, priorityOrder, estimatedImpact };
   }
@@ -602,7 +646,8 @@ export class CriticAgentService extends BaseAgentService {
       }
 
       comparison[output.id] = criteriaScores;
-      const avgScore = Object.values(criteriaScores).reduce((sum, s) => sum + s, 0) / criteria.length;
+      const avgScore =
+        Object.values(criteriaScores).reduce((sum, s) => sum + s, 0) / criteria.length;
       scored.push({ id: output.id, score: Math.round(avgScore) });
     }
 
@@ -626,7 +671,13 @@ export class CriticAgentService extends BaseAgentService {
     rules?: Array<{ field: string; type: string }>;
   }): Promise<{
     consistent: boolean;
-    inconsistencies: Array<{ outputIndex: number; field: string; issue: string; expected: string; actual: string }>;
+    inconsistencies: Array<{
+      outputIndex: number;
+      field: string;
+      issue: string;
+      expected: string;
+      actual: string;
+    }>;
     consistencyScore: number;
   }> {
     const { outputs, rules = [] } = params;
@@ -681,7 +732,8 @@ export class CriticAgentService extends BaseAgentService {
     if (outputs.length > 1) {
       const firstKeys = typeof outputs[0] === 'object' ? Object.keys(outputs[0] || {}).sort() : [];
       for (let i = 1; i < outputs.length; i++) {
-        const currentKeys = typeof outputs[i] === 'object' ? Object.keys(outputs[i] || {}).sort() : [];
+        const currentKeys =
+          typeof outputs[i] === 'object' ? Object.keys(outputs[i] || {}).sort() : [];
         if (JSON.stringify(firstKeys) !== JSON.stringify(currentKeys)) {
           inconsistencies.push({
             outputIndex: i,
@@ -695,9 +747,10 @@ export class CriticAgentService extends BaseAgentService {
     }
 
     const consistent = inconsistencies.length === 0;
-    const consistencyScore = outputs.length > 0
-      ? Math.round(Math.max(0, 100 - (inconsistencies.length / outputs.length) * 50))
-      : 100;
+    const consistencyScore =
+      outputs.length > 0
+        ? Math.round(Math.max(0, 100 - (inconsistencies.length / outputs.length) * 50))
+        : 100;
 
     this.logger.log(
       `Consistency validated: outputs=${outputs.length}, consistent=${consistent}, score=${consistencyScore}`,
@@ -714,7 +767,9 @@ export class CriticAgentService extends BaseAgentService {
         if (typeof output === 'object' && output !== null) {
           const keys = Object.keys(output);
           const nullValues = keys.filter((k) => output[k] === null || output[k] === undefined);
-          return keys.length > 0 ? Math.round(((keys.length - nullValues.length) / keys.length) * 100) : 50;
+          return keys.length > 0
+            ? Math.round(((keys.length - nullValues.length) / keys.length) * 100)
+            : 50;
         }
         return typeof output === 'string' && output.length > 0 ? 80 : 40;
       }
@@ -731,7 +786,9 @@ export class CriticAgentService extends BaseAgentService {
       }
       case 'clarity': {
         if (typeof output === 'string') {
-          const avgWordLength = output.split(/\s+/).reduce((sum, w) => sum + w.length, 0) / (output.split(/\s+/).length || 1);
+          const avgWordLength =
+            output.split(/\s+/).reduce((sum, w) => sum + w.length, 0) /
+            (output.split(/\s+/).length || 1);
           return avgWordLength < 8 ? 85 : avgWordLength < 12 ? 70 : 55;
         }
         return 75;
@@ -749,9 +806,10 @@ export class CriticAgentService extends BaseAgentService {
       case 'readability': {
         if (typeof output === 'string') {
           const sentences = output.split(/[.!?]+/).filter((s) => s.trim().length > 0);
-          const avgLen = sentences.length > 0
-            ? sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) / sentences.length
-            : 0;
+          const avgLen =
+            sentences.length > 0
+              ? sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) / sentences.length
+              : 0;
           return avgLen > 0 && avgLen < 20 ? 85 : avgLen < 30 ? 70 : 55;
         }
         return 75;
@@ -767,7 +825,11 @@ export class CriticAgentService extends BaseAgentService {
   private scoreDimension(content: any, dimension: string): number {
     switch (dimension) {
       case 'correctness':
-        return content?.success === true ? 90 : content?.error ? 35 : 65 + Math.floor(Math.random() * 20);
+        return content?.success === true
+          ? 90
+          : content?.error
+            ? 35
+            : 65 + Math.floor(Math.random() * 20);
       case 'completeness':
         if (typeof content === 'object' && content !== null) {
           const keys = Object.keys(content);

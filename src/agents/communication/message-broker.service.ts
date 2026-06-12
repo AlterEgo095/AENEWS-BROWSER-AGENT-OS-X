@@ -77,7 +77,8 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
   private maxReconnectAttempts = 10;
   private reconnectTimer: NodeJS.Timeout | null = null;
 
-  private readonly consumers: Map<string, { consumer: BrokerConsumer; queueName: string }> = new Map();
+  private readonly consumers: Map<string, { consumer: BrokerConsumer; queueName: string }> =
+    new Map();
   private readonly queues: Map<string, BrokerQueue> = new Map();
   private readonly retryConfig: RetryConfig = { ...DEFAULT_RETRY_CONFIG };
 
@@ -103,10 +104,7 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
     try {
       this.connectionState = ConnectionState.CONNECTING;
       const amqp = await import('amqp-connection-manager');
-      const url = this.configService.get<string>(
-        'RABBITMQ_URL',
-        'amqp://localhost:5672',
-      );
+      const url = this.configService.get<string>('RABBITMQ_URL', 'amqp://localhost:5672');
 
       this.connection = amqp.default.connect([url]);
 
@@ -166,10 +164,7 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
 
     if (this.reconnectTimer) return;
 
-    const delay = Math.min(
-      1000 * Math.pow(2, this.reconnectAttempts),
-      30000,
-    );
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
 
     this.reconnectAttempts++;
     this.connectionState = ConnectionState.RECONNECTING;
@@ -205,7 +200,9 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
           messageTtl: queue.messageTtl,
         });
       } catch (error) {
-        this.logger.warn(`Failed to assert queue ${queue.name} on channel setup: ${(error as Error).message}`);
+        this.logger.warn(
+          `Failed to assert queue ${queue.name} on channel setup: ${(error as Error).message}`,
+        );
       }
     }
 
@@ -217,7 +214,9 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
           await this.handleConsumedMessage(msg, consumer, queueName, channel);
         });
       } catch (error) {
-        this.logger.warn(`Failed to re-register consumer ${consumerId}: ${(error as Error).message}`);
+        this.logger.warn(
+          `Failed to re-register consumer ${consumerId}: ${(error as Error).message}`,
+        );
       }
     }
   }
@@ -288,18 +287,14 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
 
     if (this.channelWrapper && this.connectionState === ConnectionState.CONNECTED) {
       try {
-        const sent = this.channelWrapper.sendToQueue(
-          message.queue,
-          fullMessage.payload,
-          {
-            persistent: message.persistent,
-            priority: message.priority,
-            headers: message.headers,
-            expiration: message.ttl,
-            messageId: fullMessage.id,
-            timestamp: fullMessage.timestamp.getTime(),
-          },
-        );
+        const sent = this.channelWrapper.sendToQueue(message.queue, fullMessage.payload, {
+          persistent: message.persistent,
+          priority: message.priority,
+          headers: message.headers,
+          expiration: message.ttl,
+          messageId: fullMessage.id,
+          timestamp: fullMessage.timestamp.getTime(),
+        });
 
         if (!sent) {
           this.logger.warn(`Failed to send message to RabbitMQ queue ${message.queue}`);
@@ -341,9 +336,7 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
           });
         });
       } catch (error) {
-        this.logger.warn(
-          `RabbitMQ consume failed for ${queueName}: ${(error as Error).message}`,
-        );
+        this.logger.warn(`RabbitMQ consume failed for ${queueName}: ${(error as Error).message}`);
       }
     }
 
@@ -368,7 +361,8 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
       priority: msg.properties.priority || 0,
       persistent: msg.properties.persistent || false,
       retryCount: (msg.properties.headers?.['x-retry-count'] as number) || 0,
-      maxRetries: (msg.properties.headers?.['x-max-retries'] as number) || this.retryConfig.maxRetries,
+      maxRetries:
+        (msg.properties.headers?.['x-max-retries'] as number) || this.retryConfig.maxRetries,
     };
 
     try {
@@ -396,9 +390,7 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
     const maxRetries = message.maxRetries || this.retryConfig.maxRetries;
 
     if (error) {
-      this.logger.error(
-        `Consumer error for queue ${message.queue}: ${error.message}`,
-      );
+      this.logger.error(`Consumer error for queue ${message.queue}: ${error.message}`);
     }
 
     if (retryCount < maxRetries) {
@@ -464,11 +456,10 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
 
     // In-memory fallback
     const queue = this.inMemoryQueues.get(queueName);
-    const consumerCount = Array.from(this.consumers.values())
-      .filter((c) => c.queueName === queueName).length;
-    return queue
-      ? { messageCount: queue.length, consumerCount }
-      : null;
+    const consumerCount = Array.from(this.consumers.values()).filter(
+      (c) => c.queueName === queueName,
+    ).length;
+    return queue ? { messageCount: queue.length, consumerCount } : null;
   }
 
   /**
@@ -551,8 +542,9 @@ export class MessageBrokerService implements OnModuleInit, OnModuleDestroy {
       if (!message) continue;
 
       // Find consumers for this queue
-      const queueConsumers = Array.from(this.consumers.values())
-        .filter((c) => c.queueName === queueName);
+      const queueConsumers = Array.from(this.consumers.values()).filter(
+        (c) => c.queueName === queueName,
+      );
 
       for (const { consumer } of queueConsumers) {
         try {

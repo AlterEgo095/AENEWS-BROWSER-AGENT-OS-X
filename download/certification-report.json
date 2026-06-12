@@ -1,0 +1,142 @@
+{
+  "timestamp": "2026-06-12T15:31:59.483Z",
+  "eqi": 64.5,
+  "level": "REJECTED",
+  "approved": false,
+  "domains": [
+    {
+      "domain": "architecture",
+      "weight": 0.1,
+      "score": 79,
+      "passed": false,
+      "testCount": 7,
+      "passedTests": 4,
+      "failedTests": 3,
+      "criticalFailures": [
+        "No Circular Dependencies: Score 25/100"
+      ]
+    },
+    {
+      "domain": "tests",
+      "weight": 0.1,
+      "score": 33,
+      "passed": false,
+      "testCount": 0,
+      "passedTests": 0,
+      "failedTests": 0,
+      "criticalFailures": [
+        "Test infrastructure incomplete"
+      ]
+    },
+    {
+      "domain": "orchestration",
+      "weight": 0.15,
+      "score": 99,
+      "passed": true,
+      "testCount": 10,
+      "passedTests": 10,
+      "failedTests": 0,
+      "criticalFailures": []
+    },
+    {
+      "domain": "agents",
+      "weight": 0.15,
+      "score": 94,
+      "passed": false,
+      "testCount": 10,
+      "passedTests": 9,
+      "failedTests": 1,
+      "criticalFailures": [
+        "Memory Integration: Score 45/100"
+      ]
+    },
+    {
+      "domain": "browser",
+      "weight": 0.1,
+      "score": 98,
+      "passed": true,
+      "testCount": 10,
+      "passedTests": 9,
+      "failedTests": 1,
+      "criticalFailures": []
+    },
+    {
+      "domain": "memory",
+      "weight": 0.1,
+      "score": 72,
+      "passed": false,
+      "testCount": 10,
+      "passedTests": 5,
+      "failedTests": 5,
+      "criticalFailures": [
+        "Unified Memory: Score 28/100",
+        "Cross-tier Retrieval: Score 5/100"
+      ]
+    },
+    {
+      "domain": "security",
+      "weight": 0.15,
+      "score": 83,
+      "passed": false,
+      "testCount": 10,
+      "passedTests": 5,
+      "failedTests": 5,
+      "criticalFailures": [
+        "No Injection Vulnerabilities: Score 0/100"
+      ]
+    },
+    {
+      "domain": "performance",
+      "weight": 0.1,
+      "score": 86,
+      "passed": false,
+      "testCount": 10,
+      "passedTests": 3,
+      "failedTests": 7,
+      "criticalFailures": []
+    },
+    {
+      "domain": "documentation",
+      "weight": 0.05,
+      "score": 5,
+      "passed": false,
+      "testCount": 0,
+      "passedTests": 0,
+      "failedTests": 0,
+      "criticalFailures": [
+        "Documentation insufficient"
+      ]
+    }
+  ],
+  "criticalIssues": [
+    "[architecture] No Circular Dependencies: Score 25/100",
+    "[tests] Test infrastructure incomplete",
+    "[agents] Memory Integration: Score 45/100",
+    "[memory] Unified Memory: Score 28/100",
+    "[memory] Cross-tier Retrieval: Score 5/100",
+    "[security] No Injection Vulnerabilities: Score 0/100",
+    "[documentation] Documentation insufficient"
+  ],
+  "recommendations": [
+    "[CRITICAL] architecture: No Circular Dependencies: Score 25/100 — Must be resolved before certification",
+    "[CRITICAL] tests: Test infrastructure incomplete — Must be resolved before certification",
+    "[CRITICAL] agents: Memory Integration: Score 45/100 — Must be resolved before certification",
+    "[CRITICAL] memory: Unified Memory: Score 28/100 — Must be resolved before certification",
+    "[CRITICAL] memory: Cross-tier Retrieval: Score 5/100 — Must be resolved before certification",
+    "[CRITICAL] security: No Injection Vulnerabilities: Score 0/100 — Must be resolved before certification",
+    "[CRITICAL] documentation: Documentation insufficient — Must be resolved before certification",
+    "architecture: Score of 79/100 is close to passing. Focus on: No Circular Dependencies, Clean Architecture Compliance, Interface Compliance",
+    "Architecture: Review circular dependencies, cross-cluster imports, and naming conventions. Run architect-certification for details.",
+    "tests: Score of 33/100 is critically low. Major refactoring required in this area.",
+    "Tests: Increase test coverage, especially for agent lifecycle methods and error handling paths.",
+    "memory: Score of 72/100 is close to passing. Focus on: Long-term Memory, Unified Memory, Cross-tier Retrieval, Persistence, Memory Cleanup",
+    "Memory: Check working, session, and long-term memory tiers. Verify RAG, knowledge graph, and vector search services.",
+    "security: Score of 83/100 is close to passing. Focus on: No Injection Vulnerabilities, Permission Model, RBAC Enforcement, Audit Logging, Token Management",
+    "Security: Review authentication, authorization, encryption, audit logging, and threat detection capabilities.",
+    "performance: Score of 86/100 is close to passing. Focus on: Agent Initialization Latency, Memory Footprint, CPU Efficiency, Database Query Optimization, Queue Processing Throughput, Memory Leak Prevention, Startup Time",
+    "Performance: Profile agent execution times, memory consumption, and concurrent task handling.",
+    "documentation: Score of 5/100 is critically low. Major refactoring required in this area.",
+    "Documentation: Ensure all agents have JSDoc comments, interfaces are documented, and API docs are up to date."
+  ],
+  "durationMs": 681
+}

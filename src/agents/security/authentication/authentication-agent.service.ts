@@ -31,7 +31,11 @@ export const AUTHENTICATION_AGENT_CONFIG: AgentConfig = {
         properties: {
           userId: { type: 'string', description: 'User identifier' },
           credentials: { type: 'object', description: 'Authentication credentials' },
-          method: { type: 'string', enum: ['password', 'mfa', 'sso', 'api_key', 'certificate'], description: 'Authentication method' },
+          method: {
+            type: 'string',
+            enum: ['password', 'mfa', 'sso', 'api_key', 'certificate'],
+            description: 'Authentication method',
+          },
         },
         required: ['userId', 'credentials', 'method'],
       },
@@ -73,8 +77,16 @@ export const AUTHENTICATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           userId: { type: 'string', description: 'User identifier' },
-          operation: { type: 'string', enum: ['enable', 'disable', 'verify', 'reset'], description: 'MFA operation' },
-          method: { type: 'string', enum: ['totp', 'sms', 'email', 'hardware'], description: 'MFA method' },
+          operation: {
+            type: 'string',
+            enum: ['enable', 'disable', 'verify', 'reset'],
+            description: 'MFA operation',
+          },
+          method: {
+            type: 'string',
+            enum: ['totp', 'sms', 'email', 'hardware'],
+            description: 'MFA method',
+          },
         },
         required: ['userId', 'operation'],
       },
@@ -95,7 +107,11 @@ export const AUTHENTICATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           provider: { type: 'string', description: 'SSO provider (e.g., Okta, Azure AD, Google)' },
-          operation: { type: 'string', enum: ['setup', 'update', 'test', 'disable'], description: 'SSO operation' },
+          operation: {
+            type: 'string',
+            enum: ['setup', 'update', 'test', 'disable'],
+            description: 'SSO operation',
+          },
           config: { type: 'object', description: 'SSO configuration parameters' },
         },
         required: ['provider', 'operation'],
@@ -116,7 +132,11 @@ export const AUTHENTICATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           userId: { type: 'string', description: 'User whose access to revoke' },
-          scope: { type: 'string', enum: ['session', 'all_tokens', 'full'], description: 'Revocation scope' },
+          scope: {
+            type: 'string',
+            enum: ['session', 'all_tokens', 'full'],
+            description: 'Revocation scope',
+          },
           reason: { type: 'string', description: 'Reason for revocation' },
         },
         required: ['userId'],
@@ -137,7 +157,11 @@ export const AUTHENTICATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           userId: { type: 'string', description: 'Filter by user ID' },
-          eventType: { type: 'string', enum: ['login', 'logout', 'mfa_challenge', 'token_refresh', 'failed_attempt'], description: 'Event type filter' },
+          eventType: {
+            type: 'string',
+            enum: ['login', 'logout', 'mfa_challenge', 'token_refresh', 'failed_attempt'],
+            description: 'Event type filter',
+          },
           timeRange: { type: 'string', description: 'Time range for audit' },
         },
       },
@@ -151,7 +175,15 @@ export const AUTHENTICATION_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:auth', 'write:auth', 'manage:mfa', 'manage:sso', 'revoke:access', 'audit:auth'],
+  permissions: [
+    'execute:task',
+    'read:auth',
+    'write:auth',
+    'manage:mfa',
+    'manage:sso',
+    'revoke:access',
+    'audit:auth',
+  ],
   maxConcurrentTasks: 10,
   timeout: 15000,
   retryPolicy: {
@@ -316,7 +348,12 @@ export class AuthenticationAgentService extends BaseAgentService {
     userId: string;
     credentials: any;
     method: string;
-  }): Promise<{ authenticated: boolean; token?: string; expiresAt?: string; mfaRequired: boolean }> {
+  }): Promise<{
+    authenticated: boolean;
+    token?: string;
+    expiresAt?: string;
+    mfaRequired: boolean;
+  }> {
     const { userId, credentials, method } = params;
 
     if (!userId || !credentials || !method) {
@@ -363,7 +400,9 @@ export class AuthenticationAgentService extends BaseAgentService {
       };
     }
 
-    this.logger.warn(`Authentication ${authenticated ? 'succeeded' : 'failed'} for user ${userId} via ${method}`);
+    this.logger.warn(
+      `Authentication ${authenticated ? 'succeeded' : 'failed'} for user ${userId} via ${method}`,
+    );
 
     return {
       authenticated,
@@ -538,7 +577,9 @@ export class AuthenticationAgentService extends BaseAgentService {
     };
     this.authEvents.push(event);
 
-    this.logger.log(`Access revoked for user ${userId}: ${tokensInvalidated} tokens invalidated (reason: ${reason || 'N/A'})`);
+    this.logger.log(
+      `Access revoked for user ${userId}: ${tokensInvalidated} tokens invalidated (reason: ${reason || 'N/A'})`,
+    );
 
     return { revoked: true, tokensInvalidated, sessionsTerminated };
   }

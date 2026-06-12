@@ -30,8 +30,15 @@ export const THREAT_DETECTION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Target system or network to scan' },
-          scanType: { type: 'string', enum: ['quick', 'full', 'targeted'], description: 'Type of scan to perform' },
-          includeFalsePositives: { type: 'boolean', description: 'Whether to include potential false positives' },
+          scanType: {
+            type: 'string',
+            enum: ['quick', 'full', 'targeted'],
+            description: 'Type of scan to perform',
+          },
+          includeFalsePositives: {
+            type: 'boolean',
+            description: 'Whether to include potential false positives',
+          },
         },
         required: ['target'],
       },
@@ -72,8 +79,15 @@ export const THREAT_DETECTION_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          scope: { type: 'string', description: 'Scope of intrusion detection (network, host, application)' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'forensic'], description: 'Depth of detection analysis' },
+          scope: {
+            type: 'string',
+            description: 'Scope of intrusion detection (network, host, application)',
+          },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'forensic'],
+            description: 'Depth of detection analysis',
+          },
           timeframe: { type: 'string', description: 'Time window to analyze' },
         },
         required: ['scope'],
@@ -117,7 +131,10 @@ export const THREAT_DETECTION_AGENT_CONFIG: AgentConfig = {
         properties: {
           asset: { type: 'string', description: 'Asset to assess' },
           framework: { type: 'string', description: 'Assessment framework (CVSS, NIST, CIS)' },
-          includeRemediation: { type: 'boolean', description: 'Whether to include remediation steps' },
+          includeRemediation: {
+            type: 'boolean',
+            description: 'Whether to include remediation steps',
+          },
         },
         required: ['asset'],
       },
@@ -136,9 +153,16 @@ export const THREAT_DETECTION_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          reportType: { type: 'string', enum: ['executive', 'technical', 'compliance'], description: 'Type of report' },
+          reportType: {
+            type: 'string',
+            enum: ['executive', 'technical', 'compliance'],
+            description: 'Type of report',
+          },
           period: { type: 'string', description: 'Reporting period' },
-          includeRecommendations: { type: 'boolean', description: 'Whether to include recommendations' },
+          includeRecommendations: {
+            type: 'boolean',
+            description: 'Whether to include recommendations',
+          },
         },
         required: ['reportType'],
       },
@@ -153,7 +177,13 @@ export const THREAT_DETECTION_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:security', 'write:security', 'scan:network', 'access:threat-intel'],
+  permissions: [
+    'execute:task',
+    'read:security',
+    'write:security',
+    'scan:network',
+    'access:threat-intel',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: {
@@ -201,8 +231,11 @@ export class ThreatDetectionAgentService extends BaseAgentService {
     this.registerTool({
       name: 'scanForThreats',
       description: 'Scan systems and network for known and emerging threats',
-      execute: async (params: { target: string; scanType?: string; includeFalsePositives?: boolean }) =>
-        this.scanForThreats(params),
+      execute: async (params: {
+        target: string;
+        scanType?: string;
+        includeFalsePositives?: boolean;
+      }) => this.scanForThreats(params),
     });
 
     this.registerTool({
@@ -229,15 +262,21 @@ export class ThreatDetectionAgentService extends BaseAgentService {
     this.registerTool({
       name: 'assessVulnerability',
       description: 'Assess system vulnerability posture and exposure',
-      execute: async (params: { asset: string; framework?: string; includeRemediation?: boolean }) =>
-        this.assessVulnerability(params),
+      execute: async (params: {
+        asset: string;
+        framework?: string;
+        includeRemediation?: boolean;
+      }) => this.assessVulnerability(params),
     });
 
     this.registerTool({
       name: 'generateThreatReport',
       description: 'Generate a comprehensive threat intelligence report',
-      execute: async (params: { reportType: string; period?: string; includeRecommendations?: boolean }) =>
-        this.generateThreatReport(params),
+      execute: async (params: {
+        reportType: string;
+        period?: string;
+        includeRecommendations?: boolean;
+      }) => this.generateThreatReport(params),
     });
 
     this.logger.log('ThreatDetection agent initialized with 6 tools');
@@ -324,10 +363,19 @@ export class ThreatDetectionAgentService extends BaseAgentService {
     const scanDepth = scanType === 'full' ? 10 : scanType === 'targeted' ? 5 : 3;
 
     for (let i = 0; i < scanDepth; i++) {
-      const severity = (['low', 'medium', 'high', 'critical'] as const)[Math.floor(Math.random() * 4)];
+      const severity = (['low', 'medium', 'high', 'critical'] as const)[
+        Math.floor(Math.random() * 4)
+      ];
       const threat: ThreatEntry = {
         id: this.generateId(),
-        type: ['malware', 'phishing', 'ddos', 'unauthorized_access', 'data_exfiltration', 'privilege_escalation'][i % 6],
+        type: [
+          'malware',
+          'phishing',
+          'ddos',
+          'unauthorized_access',
+          'data_exfiltration',
+          'privilege_escalation',
+        ][i % 6],
         severity,
         description: `Detected ${severity} severity threat on ${target}`,
         source: target,
@@ -352,9 +400,15 @@ export class ThreatDetectionAgentService extends BaseAgentService {
           ? 'medium'
           : 'low';
 
-    this.logger.log(`Threat scan completed on ${target}: ${threats.length} threats found (risk: ${riskLevel})`);
+    this.logger.log(
+      `Threat scan completed on ${target}: ${threats.length} threats found (risk: ${riskLevel})`,
+    );
 
-    await this.storeInWorkingMemory('lastScanResult', { target, threatCount: threats.length, riskLevel }, 300000);
+    await this.storeInWorkingMemory(
+      'lastScanResult',
+      { target, threatCount: threats.length, riskLevel },
+      300000,
+    );
 
     return {
       threats,
@@ -393,17 +447,22 @@ export class ThreatDetectionAgentService extends BaseAgentService {
       this.anomalyLog.push(anomaly);
     }
 
-    const anomalyScore = anomalies.length > 0
-      ? Math.round(anomalies.reduce((sum, a) => sum + a.score, 0) / anomalies.length * 100) / 100
-      : 0;
+    const anomalyScore =
+      anomalies.length > 0
+        ? Math.round((anomalies.reduce((sum, a) => sum + a.score, 0) / anomalies.length) * 100) /
+          100
+        : 0;
 
-    const recommendation = anomalyScore > 0.8
-      ? 'Immediate investigation required — anomaly score exceeds critical threshold'
-      : anomalyScore > 0.5
-        ? 'Review anomalies and consider escalating to incident response'
-        : 'Monitor situation — anomalies within acceptable range';
+    const recommendation =
+      anomalyScore > 0.8
+        ? 'Immediate investigation required — anomaly score exceeds critical threshold'
+        : anomalyScore > 0.5
+          ? 'Review anomalies and consider escalating to incident response'
+          : 'Monitor situation — anomalies within acceptable range';
 
-    this.logger.log(`Anomaly analysis for ${entity}: score ${anomalyScore}, ${anomalies.length} anomalies`);
+    this.logger.log(
+      `Anomaly analysis for ${entity}: score ${anomalyScore}, ${anomalies.length} anomalies`,
+    );
 
     return { anomalies, anomalyScore, recommendation };
   }
@@ -420,7 +479,13 @@ export class ThreatDetectionAgentService extends BaseAgentService {
     }
 
     // Simulate intrusion detection
-    const intrusionTypes = ['brute_force', 'sql_injection', 'xss_attempt', 'lateral_movement', 'c2_communication'];
+    const intrusionTypes = [
+      'brute_force',
+      'sql_injection',
+      'xss_attempt',
+      'lateral_movement',
+      'c2_communication',
+    ];
     const intrusions = [];
 
     const maxIntrusions = depth === 'forensic' ? 5 : depth === 'deep' ? 3 : 1;
@@ -438,10 +503,16 @@ export class ThreatDetectionAgentService extends BaseAgentService {
       });
     }
 
-    const severity = intrusions.some((i) => !i.blocked) ? 'high' : intrusions.length > 2 ? 'medium' : 'low';
+    const severity = intrusions.some((i) => !i.blocked)
+      ? 'high'
+      : intrusions.length > 2
+        ? 'medium'
+        : 'low';
     const affectedSystems = intrusions.filter((i) => !i.blocked).length;
 
-    this.logger.log(`Intrusion detection for scope "${scope}": ${intrusions.length} intrusions, severity ${severity}`);
+    this.logger.log(
+      `Intrusion detection for scope "${scope}": ${intrusions.length} intrusions, severity ${severity}`,
+    );
 
     return { intrusions, severity, affectedSystems };
   }
@@ -450,7 +521,12 @@ export class ThreatDetectionAgentService extends BaseAgentService {
     interface: string;
     filter?: string;
     duration?: number;
-  }): Promise<{ packetsAnalyzed: number; suspiciousFlows: any[]; topTalkers: any[]; bandwidthUsage: any }> {
+  }): Promise<{
+    packetsAnalyzed: number;
+    suspiciousFlows: any[];
+    topTalkers: any[];
+    bandwidthUsage: any;
+  }> {
     const { interface: iface, filter, duration = 60 } = params;
 
     if (!iface) {
@@ -468,15 +544,29 @@ export class ThreatDetectionAgentService extends BaseAgentService {
         dstIp: `203.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
         dstPort: [4444, 8888, 9999, 31337][i % 4],
         protocol: 'TCP',
-        reason: ['unusual port', 'high frequency', 'known C2 pattern', 'data exfiltration pattern'][i % 4],
+        reason: ['unusual port', 'high frequency', 'known C2 pattern', 'data exfiltration pattern'][
+          i % 4
+        ],
         packetCount: Math.floor(Math.random() * 5000 + 100),
       });
     }
 
     const topTalkers = [
-      { ip: '10.0.1.100', bytes: Math.floor(Math.random() * 1000000000), packets: Math.floor(Math.random() * 1000000) },
-      { ip: '10.0.1.101', bytes: Math.floor(Math.random() * 500000000), packets: Math.floor(Math.random() * 500000) },
-      { ip: '10.0.1.102', bytes: Math.floor(Math.random() * 200000000), packets: Math.floor(Math.random() * 200000) },
+      {
+        ip: '10.0.1.100',
+        bytes: Math.floor(Math.random() * 1000000000),
+        packets: Math.floor(Math.random() * 1000000),
+      },
+      {
+        ip: '10.0.1.101',
+        bytes: Math.floor(Math.random() * 500000000),
+        packets: Math.floor(Math.random() * 500000),
+      },
+      {
+        ip: '10.0.1.102',
+        bytes: Math.floor(Math.random() * 200000000),
+        packets: Math.floor(Math.random() * 200000),
+      },
     ];
 
     const bandwidthUsage = {
@@ -486,7 +576,9 @@ export class ThreatDetectionAgentService extends BaseAgentService {
       peakMbps: Math.round(Math.random() * 10000) / 100,
     };
 
-    this.logger.log(`Traffic monitoring on ${iface}: ${packetsAnalyzed} packets, ${suspiciousFlows.length} suspicious flows`);
+    this.logger.log(
+      `Traffic monitoring on ${iface}: ${packetsAnalyzed} packets, ${suspiciousFlows.length} suspicious flows`,
+    );
 
     return { packetsAnalyzed, suspiciousFlows, topTalkers, bandwidthUsage };
   }
@@ -525,9 +617,10 @@ export class ThreatDetectionAgentService extends BaseAgentService {
       });
     }
 
-    const riskScore = Math.round(
-      vulnerabilities.reduce((sum, v) => sum + v.cvssScore, 0) / vulnerabilities.length * 10,
-    ) / 10;
+    const riskScore =
+      Math.round(
+        (vulnerabilities.reduce((sum, v) => sum + v.cvssScore, 0) / vulnerabilities.length) * 10,
+      ) / 10;
 
     const remediations = includeRemediation
       ? vulnerabilities.map((v) => ({
@@ -538,7 +631,9 @@ export class ThreatDetectionAgentService extends BaseAgentService {
         }))
       : [];
 
-    this.logger.log(`Vulnerability assessment for ${asset}: ${vulnerabilities.length} vulnerabilities, risk score ${riskScore}`);
+    this.logger.log(
+      `Vulnerability assessment for ${asset}: ${vulnerabilities.length} vulnerabilities, risk score ${riskScore}`,
+    );
 
     return { vulnerabilities, riskScore, remediations };
   }

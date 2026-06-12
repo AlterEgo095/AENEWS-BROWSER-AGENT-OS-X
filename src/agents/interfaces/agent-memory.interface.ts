@@ -206,11 +206,7 @@ export interface IMemoryService {
   /**
    * Retrieve a value from memory.
    */
-  retrieve<T>(
-    agentId: string,
-    key: string,
-    tier?: MemoryTier,
-  ): Promise<MemoryEntry<T> | null>;
+  retrieve<T>(agentId: string, key: string, tier?: MemoryTier): Promise<MemoryEntry<T> | null>;
 
   /**
    * Query memory entries.
@@ -236,12 +232,15 @@ export interface IMemoryService {
 // ─── Memory Statistics ───────────────────────────────────────────
 export interface MemoryStats {
   agentId: string;
-  tierStats: Record<MemoryTier, {
-    entryCount: number;
-    totalSizeBytes: number;
-    oldestEntry?: Date;
-    newestEntry?: Date;
-  }>;
+  tierStats: Record<
+    MemoryTier,
+    {
+      entryCount: number;
+      totalSizeBytes: number;
+      oldestEntry?: Date;
+      newestEntry?: Date;
+    }
+  >;
   totalEntries: number;
   totalSizeBytes: number;
 }
@@ -268,11 +267,20 @@ export interface ISessionMemoryService {
 
 // ─── ILongTermMemoryService ──────────────────────────────────────
 export interface ILongTermMemoryService {
-  store<T>(agentId: string, key: string, value: T, options?: MemoryStoreOptions): Promise<LongTermMemoryEntry<T>>;
+  store<T>(
+    agentId: string,
+    key: string,
+    value: T,
+    options?: MemoryStoreOptions,
+  ): Promise<LongTermMemoryEntry<T>>;
   retrieve<T>(agentId: string, key: string): Promise<LongTermMemoryEntry<T> | null>;
   query<T>(query: MemoryQuery): Promise<MemoryQueryResult<LongTermMemoryEntry<T>>>;
   delete(agentId: string, key: string): Promise<boolean>;
-  update<T>(agentId: string, key: string, value: Partial<T>): Promise<LongTermMemoryEntry<T> | null>;
+  update<T>(
+    agentId: string,
+    key: string,
+    value: Partial<T>,
+  ): Promise<LongTermMemoryEntry<T> | null>;
 }
 
 // ─── IKnowledgeGraphService ──────────────────────────────────────
@@ -290,7 +298,11 @@ export interface IKnowledgeGraphService {
   getRelationship(id: string): Promise<KnowledgeRelationship | null>;
   deleteRelationship(id: string): Promise<boolean>;
   query(query: KnowledgeGraphQuery): Promise<KnowledgeGraphResult>;
-  traverse(startNodeId: string, depth: number, relationshipType?: string): Promise<KnowledgeGraphResult>;
+  traverse(
+    startNodeId: string,
+    depth: number,
+    relationshipType?: string,
+  ): Promise<KnowledgeGraphResult>;
 }
 
 // ─── IVectorSearchService ────────────────────────────────────────

@@ -109,7 +109,11 @@ export const CRM_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['overview', 'forecast', 'move-deals'], description: 'Pipeline management action' },
+          action: {
+            type: 'string',
+            enum: ['overview', 'forecast', 'move-deals'],
+            description: 'Pipeline management action',
+          },
           pipelineId: { type: 'string', description: 'Pipeline ID' },
           period: { type: 'string', description: 'Reporting period' },
         },
@@ -154,7 +158,11 @@ export const CRM_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          reportType: { type: 'string', enum: ['summary', 'pipeline', 'activity', 'performance'], description: 'Type of report' },
+          reportType: {
+            type: 'string',
+            enum: ['summary', 'pipeline', 'activity', 'performance'],
+            description: 'Type of report',
+          },
           period: { type: 'string', description: 'Report period' },
           groupBy: { type: 'string', description: 'Group results by (e.g., "source", "owner")' },
         },
@@ -172,13 +180,7 @@ export const CRM_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:business',
-    'write:business',
-    'read:crm',
-    'write:crm',
-  ],
+  permissions: ['execute:task', 'read:business', 'write:business', 'read:crm', 'write:crm'],
   maxConcurrentTasks: 5,
   timeout: 30000,
   retryPolicy: {
@@ -217,7 +219,13 @@ interface Deal {
   updatedAt: Date;
 }
 
-type PipelineStage = 'prospect' | 'qualified' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost';
+type PipelineStage =
+  | 'prospect'
+  | 'qualified'
+  | 'proposal'
+  | 'negotiation'
+  | 'closed_won'
+  | 'closed_lost';
 
 // ─── Agent Service ────────────────────────────────────────────────
 
@@ -279,11 +287,8 @@ export class CRMAgentService extends BaseAgentService {
     this.registerTool({
       name: 'managePipeline',
       description: 'Manage the sales pipeline',
-      execute: async (params: {
-        action: string;
-        pipelineId?: string;
-        period?: string;
-      }) => this.managePipeline(params),
+      execute: async (params: { action: string; pipelineId?: string; period?: string }) =>
+        this.managePipeline(params),
     });
 
     this.registerTool({
@@ -300,11 +305,8 @@ export class CRMAgentService extends BaseAgentService {
     this.registerTool({
       name: 'generateCRMReport',
       description: 'Generate a CRM report',
-      execute: async (params: {
-        reportType: string;
-        period?: string;
-        groupBy?: string;
-      }) => this.generateCRMReport(params),
+      execute: async (params: { reportType: string; period?: string; groupBy?: string }) =>
+        this.generateCRMReport(params),
     });
 
     await this.storeInWorkingMemory('crm:initializedAt', new Date().toISOString(), 600000);
@@ -316,7 +318,13 @@ export class CRMAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
@@ -341,7 +349,13 @@ export class CRMAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -385,7 +399,15 @@ export class CRMAgentService extends BaseAgentService {
     status: string;
     createdAt: string;
   }> {
-    const { name, email = '', phone = '', company = '', title = '', tags = [], source = 'manual' } = params;
+    const {
+      name,
+      email = '',
+      phone = '',
+      company = '',
+      title = '',
+      tags = [],
+      source = 'manual',
+    } = params;
 
     if (!name || typeof name !== 'string') {
       throw new Error('A valid contact name is required');
@@ -449,12 +471,30 @@ export class CRMAgentService extends BaseAgentService {
 
     const updatedFields: string[] = [];
 
-    if (name !== undefined) { contact.name = name; updatedFields.push('name'); }
-    if (email !== undefined) { contact.email = email; updatedFields.push('email'); }
-    if (phone !== undefined) { contact.phone = phone; updatedFields.push('phone'); }
-    if (company !== undefined) { contact.company = company; updatedFields.push('company'); }
-    if (title !== undefined) { contact.title = title; updatedFields.push('title'); }
-    if (tags !== undefined) { contact.tags = tags; updatedFields.push('tags'); }
+    if (name !== undefined) {
+      contact.name = name;
+      updatedFields.push('name');
+    }
+    if (email !== undefined) {
+      contact.email = email;
+      updatedFields.push('email');
+    }
+    if (phone !== undefined) {
+      contact.phone = phone;
+      updatedFields.push('phone');
+    }
+    if (company !== undefined) {
+      contact.company = company;
+      updatedFields.push('company');
+    }
+    if (title !== undefined) {
+      contact.title = title;
+      updatedFields.push('title');
+    }
+    if (tags !== undefined) {
+      contact.tags = tags;
+      updatedFields.push('tags');
+    }
     if (status !== undefined) {
       const validStatuses = ['active', 'inactive', 'churned', 'prospect', 'lead'];
       if (!validStatuses.includes(status)) {
@@ -503,7 +543,14 @@ export class CRMAgentService extends BaseAgentService {
       throw new Error('A valid deal title is required');
     }
 
-    const validStages: PipelineStage[] = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+    const validStages: PipelineStage[] = [
+      'prospect',
+      'qualified',
+      'proposal',
+      'negotiation',
+      'closed_won',
+      'closed_lost',
+    ];
     if (!validStages.includes(stage as PipelineStage)) {
       throw new Error(`Invalid stage: ${stage}. Supported: ${validStages.join(', ')}`);
     }
@@ -556,9 +603,11 @@ export class CRMAgentService extends BaseAgentService {
       this.deals.set(newDealId, deal);
     }
 
-    const weightedValue = Math.round(deal.value * deal.probability / 100);
+    const weightedValue = Math.round((deal.value * deal.probability) / 100);
 
-    this.logger.log(`Tracked deal: ${deal.id}, title=${title}, stage=${stage}, value=${deal.value}`);
+    this.logger.log(
+      `Tracked deal: ${deal.id}, title=${title}, stage=${stage}, value=${deal.value}`,
+    );
 
     return {
       dealId: deal.id,
@@ -592,7 +641,14 @@ export class CRMAgentService extends BaseAgentService {
     const allDeals = Array.from(this.deals.values());
     const activeDeals = allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage));
 
-    const stageNames: PipelineStage[] = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+    const stageNames: PipelineStage[] = [
+      'prospect',
+      'qualified',
+      'proposal',
+      'negotiation',
+      'closed_won',
+      'closed_lost',
+    ];
 
     const stages = stageNames
       .filter((s) => s !== 'closed_lost')
@@ -602,14 +658,18 @@ export class CRMAgentService extends BaseAgentService {
           name,
           dealCount: stageDeals.length,
           totalValue: stageDeals.reduce((s, d) => s + d.value, 0),
-          avgProbability: stageDeals.length > 0
-            ? +(stageDeals.reduce((s, d) => s + d.probability, 0) / stageDeals.length).toFixed(1)
-            : 0,
+          avgProbability:
+            stageDeals.length > 0
+              ? +(stageDeals.reduce((s, d) => s + d.probability, 0) / stageDeals.length).toFixed(1)
+              : 0,
         };
       });
 
     const totalValue = activeDeals.reduce((s, d) => s + d.value, 0);
-    const weightedValue = activeDeals.reduce((s, d) => s + Math.round(d.value * d.probability / 100), 0);
+    const weightedValue = activeDeals.reduce(
+      (s, d) => s + Math.round((d.value * d.probability) / 100),
+      0,
+    );
 
     const forecast = {
       expected: weightedValue,
@@ -617,7 +677,9 @@ export class CRMAgentService extends BaseAgentService {
       worst: Math.round(totalValue * 0.3),
     };
 
-    this.logger.log(`Pipeline ${action}: pipelineId=${pipelineId}, deals=${activeDeals.length}, totalValue=${totalValue}`);
+    this.logger.log(
+      `Pipeline ${action}: pipelineId=${pipelineId}, deals=${activeDeals.length}, totalValue=${totalValue}`,
+    );
 
     return {
       pipelineId,
@@ -648,8 +710,15 @@ export class CRMAgentService extends BaseAgentService {
     const allDeals = Array.from(this.deals.values());
 
     // Calculate stage-to-stage conversion rates
-    const stageOrder: PipelineStage[] = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won'];
-    const stageConversions: Array<{ from: string; to: string; rate: number; dealCount: number }> = [];
+    const stageOrder: PipelineStage[] = [
+      'prospect',
+      'qualified',
+      'proposal',
+      'negotiation',
+      'closed_won',
+    ];
+    const stageConversions: Array<{ from: string; to: string; rate: number; dealCount: number }> =
+      [];
 
     for (let i = 0; i < stageOrder.length - 1; i++) {
       const currentStage = stageOrder[i];
@@ -658,8 +727,12 @@ export class CRMAgentService extends BaseAgentService {
       if (fromStage && currentStage !== fromStage) continue;
       if (toStage && nextStage !== toStage) continue;
 
-      const currentCount = allDeals.filter((d) => d.stage === currentStage || stageOrder.indexOf(d.stage as PipelineStage) > i).length;
-      const nextCount = allDeals.filter((d) => stageOrder.indexOf(d.stage as PipelineStage) >= i + 1).length;
+      const currentCount = allDeals.filter(
+        (d) => d.stage === currentStage || stageOrder.indexOf(d.stage as PipelineStage) > i,
+      ).length;
+      const nextCount = allDeals.filter(
+        (d) => stageOrder.indexOf(d.stage as PipelineStage) >= i + 1,
+      ).length;
 
       const rate = currentCount > 0 ? +((nextCount / currentCount) * 100).toFixed(1) : 0;
 
@@ -682,20 +755,25 @@ export class CRMAgentService extends BaseAgentService {
       stageConversions.push(...benchmarkRates);
     }
 
-    const overallConversionRate = stageConversions.length > 0
-      ? +(stageConversions.reduce((s, c) => s + c.rate, 0) / stageConversions.length).toFixed(1)
-      : 0;
+    const overallConversionRate =
+      stageConversions.length > 0
+        ? +(stageConversions.reduce((s, c) => s + c.rate, 0) / stageConversions.length).toFixed(1)
+        : 0;
 
     const insights: string[] = [];
     const lowConversionStages = stageConversions.filter((c) => c.rate < 40);
     for (const stage of lowConversionStages) {
-      insights.push(`Low conversion from ${stage.from} to ${stage.to} (${stage.rate}%). Review qualification criteria and handoff process.`);
+      insights.push(
+        `Low conversion from ${stage.from} to ${stage.to} (${stage.rate}%). Review qualification criteria and handoff process.`,
+      );
     }
 
     if (overallConversionRate > 50) {
       insights.push('Overall conversion rates are above industry benchmarks.');
     } else {
-      insights.push('Overall conversion rates are below industry benchmarks. Consider pipeline optimization.');
+      insights.push(
+        'Overall conversion rates are below industry benchmarks. Consider pipeline optimization.',
+      );
     }
 
     this.logger.log(`Conversion analysis: ${analysisId}, overallRate=${overallConversionRate}%`);
@@ -724,7 +802,9 @@ export class CRMAgentService extends BaseAgentService {
 
     const validReportTypes = ['summary', 'pipeline', 'activity', 'performance'];
     if (!validReportTypes.includes(reportType)) {
-      throw new Error(`Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`);
+      throw new Error(
+        `Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`,
+      );
     }
 
     this.counter++;
@@ -741,7 +821,8 @@ export class CRMAgentService extends BaseAgentService {
         summary = {
           totalContacts: allContacts.length,
           totalDeals: allDeals.length,
-          activeDeals: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage)).length,
+          activeDeals: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage))
+            .length,
           totalPipelineValue: allDeals.reduce((s, d) => s + d.value, 0),
           wonDeals: allDeals.filter((d) => d.stage === 'closed_won').length,
         };
@@ -752,19 +833,33 @@ export class CRMAgentService extends BaseAgentService {
         break;
       }
       case 'pipeline': {
-        const pipelineStages = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+        const pipelineStages = [
+          'prospect',
+          'qualified',
+          'proposal',
+          'negotiation',
+          'closed_won',
+          'closed_lost',
+        ];
         const pipelineData: Record<string, any> = {};
         for (const stage of pipelineStages) {
           const stageDeals = allDeals.filter((d) => d.stage === stage);
           pipelineData[stage] = {
             count: stageDeals.length,
             totalValue: stageDeals.reduce((s, d) => s + d.value, 0),
-            avgDealSize: stageDeals.length > 0 ? +(stageDeals.reduce((s, d) => s + d.value, 0) / stageDeals.length).toFixed(0) : 0,
+            avgDealSize:
+              stageDeals.length > 0
+                ? +(stageDeals.reduce((s, d) => s + d.value, 0) / stageDeals.length).toFixed(0)
+                : 0,
           };
         }
         summary = {
-          pipelineValue: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage)).reduce((s, d) => s + d.value, 0),
-          weightedPipelineValue: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage)).reduce((s, d) => s + d.value * d.probability / 100, 0),
+          pipelineValue: allDeals
+            .filter((d) => !['closed_won', 'closed_lost'].includes(d.stage))
+            .reduce((s, d) => s + d.value, 0),
+          weightedPipelineValue: allDeals
+            .filter((d) => !['closed_won', 'closed_lost'].includes(d.stage))
+            .reduce((s, d) => s + (d.value * d.probability) / 100, 0),
         };
         data = { stages: pipelineData };
         break;
@@ -777,8 +872,12 @@ export class CRMAgentService extends BaseAgentService {
           averageDealAge: '45 days',
         };
         data = {
-          recentContacts: allContacts.slice(-5).map((c) => ({ id: c.id, name: c.name, company: c.company, source: c.source })),
-          recentDeals: allDeals.slice(-5).map((d) => ({ id: d.id, title: d.title, value: d.value, stage: d.stage })),
+          recentContacts: allContacts
+            .slice(-5)
+            .map((c) => ({ id: c.id, name: c.name, company: c.company, source: c.source })),
+          recentDeals: allDeals
+            .slice(-5)
+            .map((d) => ({ id: d.id, title: d.title, value: d.value, stage: d.stage })),
         };
         break;
       }
@@ -786,13 +885,16 @@ export class CRMAgentService extends BaseAgentService {
         const wonDeals = allDeals.filter((d) => d.stage === 'closed_won');
         const totalWonValue = wonDeals.reduce((s, d) => s + d.value, 0);
         const avgDealSize = wonDeals.length > 0 ? totalWonValue / wonDeals.length : 0;
-        const winRate = allDeals.length > 0 ? +((wonDeals.length / allDeals.length) * 100).toFixed(1) : 0;
+        const winRate =
+          allDeals.length > 0 ? +((wonDeals.length / allDeals.length) * 100).toFixed(1) : 0;
 
         summary = {
           winRate,
           avgDealSize: Math.round(avgDealSize),
           totalWonValue,
-          totalLostValue: allDeals.filter((d) => d.stage === 'closed_lost').reduce((s, d) => s + d.value, 0),
+          totalLostValue: allDeals
+            .filter((d) => d.stage === 'closed_lost')
+            .reduce((s, d) => s + d.value, 0),
         };
         data = {
           performanceBySource: {

@@ -33,10 +33,18 @@ export const TASK_MANAGEMENT_AGENT_CONFIG: AgentConfig = {
           description: { type: 'string', description: 'Task description' },
           projectId: { type: 'string', description: 'Parent project ID' },
           assignee: { type: 'string', description: 'Assignee user ID or email' },
-          priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Task priority' },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'critical'],
+            description: 'Task priority',
+          },
           deadline: { type: 'string', description: 'Task deadline (ISO string)' },
           tags: { type: 'array', items: { type: 'string' }, description: 'Task tags' },
-          subtasks: { type: 'array', items: { type: 'object' }, description: 'Initial subtask definitions' },
+          subtasks: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Initial subtask definitions',
+          },
           estimatedHours: { type: 'number', description: 'Estimated hours to complete' },
         },
         required: ['title'],
@@ -59,9 +67,17 @@ export const TASK_MANAGEMENT_AGENT_CONFIG: AgentConfig = {
           taskId: { type: 'string', description: 'ID of the task to update' },
           title: { type: 'string', description: 'New title' },
           description: { type: 'string', description: 'New description' },
-          status: { type: 'string', enum: ['todo', 'in_progress', 'review', 'done', 'blocked', 'cancelled'], description: 'New status' },
+          status: {
+            type: 'string',
+            enum: ['todo', 'in_progress', 'review', 'done', 'blocked', 'cancelled'],
+            description: 'New status',
+          },
           assignee: { type: 'string', description: 'New assignee' },
-          priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'New priority' },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'critical'],
+            description: 'New priority',
+          },
           progress: { type: 'number', description: 'Progress percentage (0-100)' },
           tags: { type: 'array', items: { type: 'string' }, description: 'New tags' },
           actualHours: { type: 'number', description: 'Actual hours spent' },
@@ -132,7 +148,11 @@ export const TASK_MANAGEMENT_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           projectId: { type: 'string', description: 'Project ID for report' },
-          reportType: { type: 'string', enum: ['summary', 'detailed', 'burndown', 'velocity'], description: 'Type of report' },
+          reportType: {
+            type: 'string',
+            enum: ['summary', 'detailed', 'burndown', 'velocity'],
+            description: 'Type of report',
+          },
           assignee: { type: 'string', description: 'Filter by assignee' },
           dateFrom: { type: 'string', description: 'Report start date (ISO string)' },
           dateTo: { type: 'string', description: 'Report end date (ISO string)' },
@@ -156,7 +176,11 @@ export const TASK_MANAGEMENT_AGENT_CONFIG: AgentConfig = {
         properties: {
           taskId: { type: 'string', description: 'ID of the task' },
           deadline: { type: 'string', description: 'New deadline (ISO string)' },
-          notifyAssignee: { type: 'boolean', default: true, description: 'Whether to notify the assignee' },
+          notifyAssignee: {
+            type: 'boolean',
+            default: true,
+            description: 'Whether to notify the assignee',
+          },
           reason: { type: 'string', description: 'Reason for deadline change' },
         },
         required: ['taskId', 'deadline'],
@@ -178,7 +202,11 @@ export const TASK_MANAGEMENT_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           taskId: { type: 'string', description: 'ID of the task' },
-          priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'New priority level' },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'critical'],
+            description: 'New priority level',
+          },
           reason: { type: 'string', description: 'Reason for priority change' },
         },
         required: ['taskId', 'priority'],
@@ -194,13 +222,7 @@ export const TASK_MANAGEMENT_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:task',
-    'write:task',
-    'assign:task',
-    'report:task',
-  ],
+  permissions: ['execute:task', 'read:task', 'write:task', 'assign:task', 'report:task'],
   maxConcurrentTasks: 5,
   timeout: 30000,
   retryPolicy: {
@@ -351,11 +373,8 @@ export class TaskManagementAgentService extends BaseAgentService {
     this.registerTool({
       name: 'prioritizeTask',
       description: 'Set or update the priority of a task',
-      execute: async (params: {
-        taskId: string;
-        priority: string;
-        reason?: string;
-      }) => this.prioritizeTask(params),
+      execute: async (params: { taskId: string; priority: string; reason?: string }) =>
+        this.prioritizeTask(params),
     });
 
     await this.storeInWorkingMemory('task-mgmt:initializedAt', new Date().toISOString(), 600000);
@@ -523,9 +542,7 @@ export class TaskManagementAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(
-      `Created task: ${taskId}, title="${title}", priority=${priority}`,
-    );
+    this.logger.log(`Created task: ${taskId}, title="${title}", priority=${priority}`);
 
     return {
       taskId,
@@ -549,7 +566,8 @@ export class TaskManagementAgentService extends BaseAgentService {
     updatedFields: string[];
     status: string;
   }> {
-    const { taskId, title, description, status, assignee, priority, progress, tags, actualHours } = params;
+    const { taskId, title, description, status, assignee, priority, progress, tags, actualHours } =
+      params;
 
     if (!taskId || typeof taskId !== 'string') {
       throw new Error('A valid taskId is required');
@@ -571,7 +589,14 @@ export class TaskManagementAgentService extends BaseAgentService {
       updatedFields.push('description');
     }
     if (status !== undefined) {
-      const validStatuses: TaskStatus[] = ['todo', 'in_progress', 'review', 'done', 'blocked', 'cancelled'];
+      const validStatuses: TaskStatus[] = [
+        'todo',
+        'in_progress',
+        'review',
+        'done',
+        'blocked',
+        'cancelled',
+      ];
       if (!validStatuses.includes(status as TaskStatus)) {
         throw new Error(`Invalid status: ${status}. Supported: ${validStatuses.join(', ')}`);
       }
@@ -624,9 +649,7 @@ export class TaskManagementAgentService extends BaseAgentService {
 
     task.updatedAt = new Date();
 
-    this.logger.log(
-      `Updated task: ${taskId}, fields=[${updatedFields.join(',')}]`,
-    );
+    this.logger.log(`Updated task: ${taskId}, fields=[${updatedFields.join(',')}]`);
 
     return {
       taskId,
@@ -682,9 +705,7 @@ export class TaskManagementAgentService extends BaseAgentService {
       });
     }
 
-    this.logger.log(
-      `Assigned task: ${taskId}, from=${previousAssignee || 'none'} to=${assignee}`,
-    );
+    this.logger.log(`Assigned task: ${taskId}, from=${previousAssignee || 'none'} to=${assignee}`);
 
     return {
       taskId,
@@ -757,9 +778,10 @@ export class TaskManagementAgentService extends BaseAgentService {
       (t) => t.deadline && t.deadline < now && t.status !== 'done' && t.status !== 'cancelled',
     ).length;
 
-    const averageProgress = totalTasks > 0
-      ? Math.round(filteredTasks.reduce((sum, t) => sum + t.progress, 0) / totalTasks)
-      : 0;
+    const averageProgress =
+      totalTasks > 0
+        ? Math.round(filteredTasks.reduce((sum, t) => sum + t.progress, 0) / totalTasks)
+        : 0;
 
     this.logger.log(
       `Tracked progress: total=${totalTasks}, done=${completedTasks}, in-progress=${inProgressTasks}, overdue=${overdueTasks}`,
@@ -794,7 +816,9 @@ export class TaskManagementAgentService extends BaseAgentService {
 
     const validReportTypes = ['summary', 'detailed', 'burndown', 'velocity'];
     if (!validReportTypes.includes(reportType)) {
-      throw new Error(`Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`);
+      throw new Error(
+        `Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`,
+      );
     }
 
     // Get filtered tasks
@@ -860,9 +884,10 @@ export class TaskManagementAgentService extends BaseAgentService {
           totalActualHours: totalActual,
           varianceHours: totalActual - totalEstimated,
           overdueTasks: overdue,
-          completionRate: filteredTasks.length > 0
-            ? Math.round((byStatus['done'] || 0) / filteredTasks.length * 100)
-            : 0,
+          completionRate:
+            filteredTasks.length > 0
+              ? Math.round(((byStatus['done'] || 0) / filteredTasks.length) * 100)
+              : 0,
         };
         break;
       }
@@ -876,12 +901,15 @@ export class TaskManagementAgentService extends BaseAgentService {
             assignee: t.assignee,
             progress: t.progress,
             deadline: t.deadline?.toISOString() || null,
-            isOverdue: t.deadline ? t.deadline < now && t.status !== 'done' && t.status !== 'cancelled' : false,
+            isOverdue: t.deadline
+              ? t.deadline < now && t.status !== 'done' && t.status !== 'cancelled'
+              : false,
             estimatedHours: t.estimatedHours,
             actualHours: t.actualHours,
-            subtaskCompletion: t.subtasks.length > 0
-              ? `${t.subtasks.filter((s) => s.completed).length}/${t.subtasks.length}`
-              : 'N/A',
+            subtaskCompletion:
+              t.subtasks.length > 0
+                ? `${t.subtasks.filter((s) => s.completed).length}/${t.subtasks.length}`
+                : 'N/A',
             createdAt: t.createdAt.toISOString(),
             completedAt: t.completedAt?.toISOString() || null,
           })),
@@ -906,12 +934,22 @@ export class TaskManagementAgentService extends BaseAgentService {
         data = {
           totalTasks: filteredTasks.length,
           completedTasks: filteredTasks.filter((t) => t.status === 'done').length,
-          remainingTasks: filteredTasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled').length,
+          remainingTasks: filteredTasks.filter(
+            (t) => t.status !== 'done' && t.status !== 'cancelled',
+          ).length,
           createdTasksByDay,
           completedTasksByDay,
-          idealBurndownRate: filteredTasks.length > 0
-            ? (filteredTasks.length / Math.max(1, Math.ceil((now.getTime() - Math.min(...filteredTasks.map((t) => t.createdAt.getTime()))) / 86400000)))
-            : 0,
+          idealBurndownRate:
+            filteredTasks.length > 0
+              ? filteredTasks.length /
+                Math.max(
+                  1,
+                  Math.ceil(
+                    (now.getTime() - Math.min(...filteredTasks.map((t) => t.createdAt.getTime()))) /
+                      86400000,
+                  ),
+                )
+              : 0,
         };
         break;
       }
@@ -928,9 +966,10 @@ export class TaskManagementAgentService extends BaseAgentService {
         }
 
         const completedCounts = Object.values(weeklyCompleted);
-        const avgVelocity = completedCounts.length > 0
-          ? completedCounts.reduce((a, b) => a + b, 0) / completedCounts.length
-          : 0;
+        const avgVelocity =
+          completedCounts.length > 0
+            ? completedCounts.reduce((a, b) => a + b, 0) / completedCounts.length
+            : 0;
 
         const totalRemaining = filteredTasks.filter(
           (t) => t.status !== 'done' && t.status !== 'cancelled',
@@ -940,17 +979,14 @@ export class TaskManagementAgentService extends BaseAgentService {
           weeklyCompleted,
           averageWeeklyVelocity: Math.round(avgVelocity * 10) / 10,
           totalRemaining,
-          estimatedWeeksToComplete: avgVelocity > 0
-            ? Math.ceil(totalRemaining / avgVelocity)
-            : Infinity,
+          estimatedWeeksToComplete:
+            avgVelocity > 0 ? Math.ceil(totalRemaining / avgVelocity) : Infinity,
         };
         break;
       }
     }
 
-    this.logger.log(
-      `Generated ${reportType} report: ${filteredTasks.length} task(s) analyzed`,
-    );
+    this.logger.log(`Generated ${reportType} report: ${filteredTasks.length} task(s) analyzed`);
 
     return {
       reportType,
@@ -1055,9 +1091,7 @@ export class TaskManagementAgentService extends BaseAgentService {
       });
     }
 
-    this.logger.log(
-      `Prioritized task: ${taskId}, from=${previousPriority} to=${priority}`,
-    );
+    this.logger.log(`Prioritized task: ${taskId}, from=${previousPriority} to=${priority}`);
 
     return {
       taskId,

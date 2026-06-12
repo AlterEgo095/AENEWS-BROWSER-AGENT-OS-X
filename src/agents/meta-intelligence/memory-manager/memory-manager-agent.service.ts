@@ -31,7 +31,11 @@ export const META_MEMORY_MANAGER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           sources: { type: 'array', items: { type: 'string' }, description: 'Memory source IDs' },
-          strategy: { type: 'string', enum: ['merge', 'deduplicate', 'summarize'], description: 'Consolidation strategy' },
+          strategy: {
+            type: 'string',
+            enum: ['merge', 'deduplicate', 'summarize'],
+            description: 'Consolidation strategy',
+          },
         },
         required: ['sources'],
       },
@@ -52,7 +56,11 @@ export const META_MEMORY_MANAGER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           targetTier: { type: 'string', description: 'Memory tier to optimize' },
-          optimizationGoal: { type: 'string', enum: ['speed', 'space', 'balanced'], description: 'Optimization goal' },
+          optimizationGoal: {
+            type: 'string',
+            enum: ['speed', 'space', 'balanced'],
+            description: 'Optimization goal',
+          },
         },
       },
       outputSchema: {
@@ -72,7 +80,10 @@ export const META_MEMORY_MANAGER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           maxAgeDays: { type: 'number', description: 'Maximum age in days before archiving' },
-          minAccessThreshold: { type: 'number', description: 'Minimum access count to keep active' },
+          minAccessThreshold: {
+            type: 'number',
+            description: 'Minimum access count to keep active',
+          },
           dryRun: { type: 'boolean', description: 'Preview without making changes' },
         },
       },
@@ -150,13 +161,7 @@ export const META_MEMORY_MANAGER_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:memory',
-    'write:memory',
-    'delete:memory',
-    'admin:memory',
-  ],
+  permissions: ['execute:task', 'read:memory', 'write:memory', 'delete:memory', 'admin:memory'],
   maxConcurrentTasks: 3,
   timeout: 90000,
   retryPolicy: {
@@ -195,19 +200,15 @@ export class MemoryManagerAgentService extends BaseAgentService {
     this.registerTool({
       name: 'consolidateMemory',
       description: 'Consolidate memories from multiple sources into unified storage',
-      execute: async (params: {
-        sources: string[];
-        strategy?: string;
-      }) => this.consolidateMemory(params),
+      execute: async (params: { sources: string[]; strategy?: string }) =>
+        this.consolidateMemory(params),
     });
 
     this.registerTool({
       name: 'optimizeStorage',
       description: 'Optimize memory storage for better performance',
-      execute: async (params: {
-        targetTier?: string;
-        optimizationGoal?: string;
-      }) => this.optimizeStorage(params),
+      execute: async (params: { targetTier?: string; optimizationGoal?: string }) =>
+        this.optimizeStorage(params),
     });
 
     this.registerTool({
@@ -233,10 +234,8 @@ export class MemoryManagerAgentService extends BaseAgentService {
     this.registerTool({
       name: 'pruneMemories',
       description: 'Prune invalid, corrupted, or irrelevant memories',
-      execute: async (params: {
-        criteria?: Record<string, any>;
-        confirmDeletion?: boolean;
-      }) => this.pruneMemories(params),
+      execute: async (params: { criteria?: Record<string, any>; confirmDeletion?: boolean }) =>
+        this.pruneMemories(params),
     });
 
     this.registerTool({
@@ -252,7 +251,11 @@ export class MemoryManagerAgentService extends BaseAgentService {
     // Seed some initial memory entries
     this.seedMemoryStore();
 
-    await this.storeInWorkingMemory('memory-manager:initializedAt', new Date().toISOString(), 600000);
+    await this.storeInWorkingMemory(
+      'memory-manager:initializedAt',
+      new Date().toISOString(),
+      600000,
+    );
     this.logger.log('MetaMemoryManager agent initialized with 6 tools');
   }
 
@@ -261,17 +264,29 @@ export class MemoryManagerAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'consolidateMemory', 'optimizeStorage', 'archiveOldMemories',
-      'retrieveContext', 'pruneMemories', 'migrateMemory',
+      'consolidateMemory',
+      'optimizeStorage',
+      'archiveOldMemories',
+      'retrieveContext',
+      'pruneMemories',
+      'migrateMemory',
     ];
 
     if (!supportedActions.includes(action)) {
       return this.createAgentOutput(
-        input.taskId, false, null,
+        input.taskId,
+        false,
+        null,
         `Unknown memory action: ${action}. Supported: ${supportedActions.join(', ')}`,
         startTime,
       );
@@ -280,10 +295,20 @@ export class MemoryManagerAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
       const result = await tool.execute(params);
-      await this.storeInWorkingMemory(`memory-manager:last:${action}`, { params, result, timestamp: new Date() }, 300000);
+      await this.storeInWorkingMemory(
+        `memory-manager:last:${action}`,
+        { params, result, timestamp: new Date() },
+        300000,
+      );
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
       const msg = (error as Error).message;
@@ -299,10 +324,7 @@ export class MemoryManagerAgentService extends BaseAgentService {
 
   // ─── Tool Implementations ──────────────────────────────────────
 
-  private async consolidateMemory(params: {
-    sources: string[];
-    strategy?: string;
-  }): Promise<{
+  private async consolidateMemory(params: { sources: string[]; strategy?: string }): Promise<{
     consolidationId: string;
     entriesProcessed: number;
     entriesConsolidated: number;
@@ -344,7 +366,9 @@ export class MemoryManagerAgentService extends BaseAgentService {
               duplicatesRemoved++;
               break;
             case 'summarize':
-              existing.value = { summary: `Consolidated: ${JSON.stringify(existing.value)}, ${JSON.stringify(entry.value)}` };
+              existing.value = {
+                summary: `Consolidated: ${JSON.stringify(existing.value)}, ${JSON.stringify(entry.value)}`,
+              };
               existing.size = Math.round(existing.size * 0.6);
               this.memoryStore.delete(key);
               duplicatesRemoved++;
@@ -421,9 +445,8 @@ export class MemoryManagerAgentService extends BaseAgentService {
       entriesOptimized++;
     }
 
-    const performanceGain = entriesOptimized > 0
-      ? Math.round((spaceSaved / (spaceSaved + 1000)) * 100) / 100
-      : 0;
+    const performanceGain =
+      entriesOptimized > 0 ? Math.round((spaceSaved / (spaceSaved + 1000)) * 100) / 100 : 0;
 
     this.logger.log(
       `Storage optimized: entries=${entriesOptimized}, saved=${spaceSaved} bytes, gain=${(performanceGain * 100).toFixed(1)}%`,
@@ -564,7 +587,7 @@ export class MemoryManagerAgentService extends BaseAgentService {
 
     for (const [key, entry] of this.memoryStore.entries()) {
       const isLowRelevance = entry.relevance < minRelevance;
-      const isOld = (Date.now() - entry.createdAt.getTime()) > maxAge * 24 * 60 * 60 * 1000;
+      const isOld = Date.now() - entry.createdAt.getTime() > maxAge * 24 * 60 * 60 * 1000;
       const isMarked = entry.markedForDeletion;
 
       if (isLowRelevance || isOld || isMarked) {

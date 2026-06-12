@@ -159,7 +159,13 @@ export const CONFIGURATION_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:config', 'write:config', 'manage:feature-flags', 'admin:config'],
+  permissions: [
+    'execute:task',
+    'read:config',
+    'write:config',
+    'manage:feature-flags',
+    'admin:config',
+  ],
   maxConcurrentTasks: 5,
   timeout: 30000,
   retryPolicy: {
@@ -212,22 +218,33 @@ export class ConfigurationAgentService extends BaseAgentService {
     this.registerTool({
       name: 'setConfig',
       description: 'Set or update a configuration value',
-      execute: async (params: { key: string; value: any; environment?: string; overwrite?: boolean }) =>
-        this.setConfig(params),
+      execute: async (params: {
+        key: string;
+        value: any;
+        environment?: string;
+        overwrite?: boolean;
+      }) => this.setConfig(params),
     });
 
     this.registerTool({
       name: 'manageFeatureFlag',
       description: 'Create, toggle, or remove a feature flag',
-      execute: async (params: { name: string; enabled?: boolean; description?: string; rolloutPercentage?: number }) =>
-        this.manageFeatureFlag(params),
+      execute: async (params: {
+        name: string;
+        enabled?: boolean;
+        description?: string;
+        rolloutPercentage?: number;
+      }) => this.manageFeatureFlag(params),
     });
 
     this.registerTool({
       name: 'detectDrift',
       description: 'Detect configuration drift between environments',
-      execute: async (params: { sourceEnvironment: string; targetEnvironment: string; keys?: string[] }) =>
-        this.detectDrift(params),
+      execute: async (params: {
+        sourceEnvironment: string;
+        targetEnvironment: string;
+        keys?: string[];
+      }) => this.detectDrift(params),
     });
 
     this.registerTool({
@@ -355,7 +372,9 @@ export class ConfigurationAgentService extends BaseAgentService {
     const existing = this.configStore.get(compositeKey);
 
     if (existing && !overwrite) {
-      throw new Error(`Configuration key "${key}" already exists in environment "${environment}" and overwrite is false`);
+      throw new Error(
+        `Configuration key "${key}" already exists in environment "${environment}" and overwrite is false`,
+      );
     }
 
     const previousValue = existing?.value ?? null;
@@ -387,7 +406,12 @@ export class ConfigurationAgentService extends BaseAgentService {
     enabled?: boolean;
     description?: string;
     rolloutPercentage?: number;
-  }): Promise<{ name: string; enabled: boolean; previousState: boolean; rolloutPercentage: number }> {
+  }): Promise<{
+    name: string;
+    enabled: boolean;
+    previousState: boolean;
+    rolloutPercentage: number;
+  }> {
     const { name, enabled = true, description, rolloutPercentage = 100 } = params;
 
     const existing = this.featureFlags.get(name);
@@ -418,7 +442,12 @@ export class ConfigurationAgentService extends BaseAgentService {
     sourceEnvironment: string;
     targetEnvironment: string;
     keys?: string[];
-  }): Promise<{ driftDetected: boolean; differences: any[]; totalKeys: number; driftedKeys: number }> {
+  }): Promise<{
+    driftDetected: boolean;
+    differences: any[];
+    totalKeys: number;
+    driftedKeys: number;
+  }> {
     const { sourceEnvironment, targetEnvironment, keys } = params;
 
     const sourcePrefix = `${sourceEnvironment}:`;
@@ -441,11 +470,30 @@ export class ConfigurationAgentService extends BaseAgentService {
       const targetEntry = this.configStore.get(`${targetPrefix}${key}`);
 
       if (sourceEntry && !targetEntry) {
-        differences.push({ key, type: 'missing_in_target', sourceValue: sourceEntry.value, targetValue: null });
+        differences.push({
+          key,
+          type: 'missing_in_target',
+          sourceValue: sourceEntry.value,
+          targetValue: null,
+        });
       } else if (!sourceEntry && targetEntry) {
-        differences.push({ key, type: 'missing_in_source', sourceValue: null, targetValue: targetEntry.value });
-      } else if (sourceEntry && targetEntry && JSON.stringify(sourceEntry.value) !== JSON.stringify(targetEntry.value)) {
-        differences.push({ key, type: 'value_mismatch', sourceValue: sourceEntry.value, targetValue: targetEntry.value });
+        differences.push({
+          key,
+          type: 'missing_in_source',
+          sourceValue: null,
+          targetValue: targetEntry.value,
+        });
+      } else if (
+        sourceEntry &&
+        targetEntry &&
+        JSON.stringify(sourceEntry.value) !== JSON.stringify(targetEntry.value)
+      ) {
+        differences.push({
+          key,
+          type: 'value_mismatch',
+          sourceValue: sourceEntry.value,
+          targetValue: targetEntry.value,
+        });
       }
     }
 
@@ -484,7 +532,9 @@ export class ConfigurationAgentService extends BaseAgentService {
         }
         // Validate version consistency
         if (strict && entry.version > this.configVersion) {
-          errors.push(`Key "${entry.key}" has version ${entry.version} exceeding current ${this.configVersion}`);
+          errors.push(
+            `Key "${entry.key}" has version ${entry.version} exceeding current ${this.configVersion}`,
+          );
         }
         // Warn about very old entries
         const ageMs = Date.now() - entry.lastModified.getTime();
@@ -500,7 +550,9 @@ export class ConfigurationAgentService extends BaseAgentService {
 
     const valid = errors.length === 0;
 
-    this.logger.log(`Config validation for "${environment}" (schema ${schemaVersion}): ${valid ? 'VALID' : 'INVALID'} — ${errors.length} errors, ${warnings.length} warnings`);
+    this.logger.log(
+      `Config validation for "${environment}" (schema ${schemaVersion}): ${valid ? 'VALID' : 'INVALID'} — ${errors.length} errors, ${warnings.length} warnings`,
+    );
 
     return {
       valid,
@@ -514,11 +566,18 @@ export class ConfigurationAgentService extends BaseAgentService {
     targetVersion: number;
     environment?: string;
     dryRun?: boolean;
-  }): Promise<{ rolledBack: boolean; currentVersion: number; previousVersion: number; changesApplied: number }> {
+  }): Promise<{
+    rolledBack: boolean;
+    currentVersion: number;
+    previousVersion: number;
+    changesApplied: number;
+  }> {
     const { targetVersion, environment = 'default', dryRun = false } = params;
 
     if (targetVersion >= this.configVersion) {
-      throw new Error(`Target version ${targetVersion} must be less than current version ${this.configVersion}`);
+      throw new Error(
+        `Target version ${targetVersion} must be less than current version ${this.configVersion}`,
+      );
     }
 
     if (targetVersion < 1) {
@@ -539,9 +598,13 @@ export class ConfigurationAgentService extends BaseAgentService {
 
     if (!dryRun) {
       this.configVersion = targetVersion;
-      this.logger.log(`Rolled back config to version ${targetVersion} (${changesApplied} changes reverted)`);
+      this.logger.log(
+        `Rolled back config to version ${targetVersion} (${changesApplied} changes reverted)`,
+      );
     } else {
-      this.logger.log(`Dry run: would roll back config to version ${targetVersion} (${changesApplied} changes)`);
+      this.logger.log(
+        `Dry run: would roll back config to version ${targetVersion} (${changesApplied} changes)`,
+      );
     }
 
     return {

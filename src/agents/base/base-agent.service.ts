@@ -34,10 +34,7 @@ import {
   AgentStatusChangedPayload,
   AgentErrorPayload,
 } from '../interfaces/agent-event.interface';
-import {
-  PermissionAction,
-  PermissionResource,
-} from '../interfaces/agent-permission.interface';
+import { PermissionAction, PermissionResource } from '../interfaces/agent-permission.interface';
 import { MemoryTier } from '../interfaces/agent-memory.interface';
 
 @Injectable()
@@ -181,7 +178,10 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
         version: this.config.version,
       });
     } catch (error) {
-      this.logger.error(`Agent initialization failed: ${(error as Error).message}`, (error as Error).stack);
+      this.logger.error(
+        `Agent initialization failed: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       await this.transitionTo(AgentStatus.ERROR);
       this.emitEvent(AgentEventType.AGENT_ERROR, {
         errorCode: AgentErrorCode.INITIALIZATION_FAILED,
@@ -304,7 +304,7 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
           const backoffMs = this.calculateBackoff(retryCount);
           this.logger.warn(
             `Task ${input.taskId} failed (attempt ${retryCount}/${this.config.retryPolicy.maxRetries}), ` +
-            `retrying in ${backoffMs}ms: ${lastError.message}`,
+              `retrying in ${backoffMs}ms: ${lastError.message}`,
           );
           await this.sleep(backoffMs);
 
@@ -430,9 +430,7 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
 
     // Force-clear remaining tasks
     if (this.currentTasks.size > 0) {
-      this.logger.warn(
-        `Force-stopping with ${this.currentTasks.size} active tasks`,
-      );
+      this.logger.warn(`Force-stopping with ${this.currentTasks.size} active tasks`);
       this.currentTasks.clear();
     }
 
@@ -595,12 +593,15 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
   ): Promise<boolean> {
     const permissionString = `${action}:${resource}`;
 
-    const hasPermission = this.config.permissions.includes(permissionString) ||
-      this.config.permissions.includes('*');
+    const hasPermission =
+      this.config.permissions.includes(permissionString) || this.config.permissions.includes('*');
 
     if (!hasPermission) {
       // Also check via the permission evaluator if available
-      if (this.permissionEvaluator && typeof this.permissionEvaluator.hasPermission === 'function') {
+      if (
+        this.permissionEvaluator &&
+        typeof this.permissionEvaluator.hasPermission === 'function'
+      ) {
         const evaluated = await this.permissionEvaluator.hasPermission(
           this.config.id,
           action as PermissionAction,
@@ -624,8 +625,10 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
    * Returns boolean without throwing.
    */
   hasPermissionForResource(resource: string, action: string): boolean {
-    return this.config.permissions.includes(`${action}:${resource}`) ||
-      this.config.permissions.includes('*');
+    return (
+      this.config.permissions.includes(`${action}:${resource}`) ||
+      this.config.permissions.includes('*')
+    );
   }
 
   // ─── Timeout Handling ────────────────────────────────────────────
@@ -721,9 +724,7 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
         lastError = error as Error;
 
         if (attempt >= maxRetries) {
-          this.logger.error(
-            `All ${maxRetries} retries exhausted: ${lastError.message}`,
-          );
+          this.logger.error(`All ${maxRetries} retries exhausted: ${lastError.message}`);
           throw new AgentError(
             `Retry exhausted after ${maxRetries} attempts: ${lastError.message}`,
             AgentErrorCode.RETRY_EXHAUSTED,
@@ -843,9 +844,7 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
     const previousStatus = this.status;
 
     if (!this.isValidTransition(previousStatus, newStatus)) {
-      this.logger.warn(
-        `Invalid state transition: ${previousStatus} → ${newStatus}`,
-      );
+      this.logger.warn(`Invalid state transition: ${previousStatus} → ${newStatus}`);
       // Allow some transitions for recovery scenarios
       if (newStatus !== AgentStatus.ERROR && newStatus !== AgentStatus.STOPPED) {
         throw new AgentError(
@@ -895,9 +894,7 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
       };
 
       this.eventBusService.publish(event).catch((error: Error) => {
-        this.logger.error(
-          `Failed to emit event ${type}: ${error.message}`,
-        );
+        this.logger.error(`Failed to emit event ${type}: ${error.message}`);
       });
     }
   }
@@ -906,13 +903,19 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
 
   protected async storeInWorkingMemory<T>(key: string, value: T, ttlMs?: number): Promise<void> {
     if (this.memoryService) {
-      await (this.memoryService as any).store(this.config.id, key, value, MemoryTier.WORKING, { ttlMs });
+      await (this.memoryService as any).store(this.config.id, key, value, MemoryTier.WORKING, {
+        ttlMs,
+      });
     }
   }
 
   protected async retrieveFromWorkingMemory<T>(key: string): Promise<T | null> {
     if (this.memoryService) {
-      const entry = await (this.memoryService as any).retrieve(this.config.id, key, MemoryTier.WORKING);
+      const entry = await (this.memoryService as any).retrieve(
+        this.config.id,
+        key,
+        MemoryTier.WORKING,
+      );
       return entry?.value ?? null;
     }
     return null;
@@ -934,7 +937,11 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
 
   protected async retrieveFromSessionMemory<T>(key: string): Promise<T | null> {
     if (this.memoryService) {
-      const entry = await (this.memoryService as any).retrieve(this.config.id, key, MemoryTier.SESSION);
+      const entry = await (this.memoryService as any).retrieve(
+        this.config.id,
+        key,
+        MemoryTier.SESSION,
+      );
       return entry?.value ?? null;
     }
     return null;
@@ -948,7 +955,11 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
 
   protected async retrieveFromLongTermMemory<T>(key: string): Promise<T | null> {
     if (this.memoryService) {
-      const entry = await (this.memoryService as any).retrieve(this.config.id, key, MemoryTier.LONG_TERM);
+      const entry = await (this.memoryService as any).retrieve(
+        this.config.id,
+        key,
+        MemoryTier.LONG_TERM,
+      );
       return entry?.value ?? null;
     }
     return null;
@@ -963,10 +974,7 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
 
   // ─── Execution Result Storage ────────────────────────────────────
 
-  protected async storeExecutionResult(
-    input: AgentInput,
-    output: AgentOutput,
-  ): Promise<void> {
+  protected async storeExecutionResult(input: AgentInput, output: AgentOutput): Promise<void> {
     try {
       // Store in working memory for quick access
       await this.storeInWorkingMemory(
@@ -977,15 +985,12 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
 
       // Store successful results in long-term memory
       if (output.success) {
-        await this.storeInLongTermMemory(
-          `task:${input.taskId}:completed`,
-          {
-            input: input.payload,
-            result: output.result,
-            metrics: output.metrics,
-            timestamp: output.timestamp,
-          },
-        );
+        await this.storeInLongTermMemory(`task:${input.taskId}:completed`, {
+          input: input.payload,
+          result: output.result,
+          metrics: output.metrics,
+          timestamp: output.timestamp,
+        });
       }
 
       // Store in session memory if session context exists
@@ -1105,9 +1110,7 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
           break;
         }
       } catch (error) {
-        this.logger.error(
-          `Lifecycle hook error for ${phase}: ${(error as Error).message}`,
-        );
+        this.logger.error(`Lifecycle hook error for ${phase}: ${(error as Error).message}`);
       }
     }
   }
@@ -1169,10 +1172,10 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
 
   canAcceptTask(): boolean {
     return (
-      this.status === AgentStatus.RUNNING ||
-      this.status === AgentStatus.IDLE
-    ) && this.currentTasks.size < this.config.maxConcurrentTasks &&
-      this.circuitBreaker.state !== 'open';
+      (this.status === AgentStatus.RUNNING || this.status === AgentStatus.IDLE) &&
+      this.currentTasks.size < this.config.maxConcurrentTasks &&
+      this.circuitBreaker.state !== 'open'
+    );
   }
 
   // ─── Maintenance Mode ────────────────────────────────────────────

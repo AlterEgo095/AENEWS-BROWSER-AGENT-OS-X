@@ -247,11 +247,8 @@ export class DocumentationAgentService extends BaseAgentService {
     this.registerTool({
       name: 'generateTypeDocs',
       description: 'Generate TypeScript type documentation',
-      execute: async (params: {
-        code: string;
-        format?: string;
-        includePrivate?: boolean;
-      }) => this.generateTypeDocs(params),
+      execute: async (params: { code: string; format?: string; includePrivate?: boolean }) =>
+        this.generateTypeDocs(params),
     });
 
     await this.storeInWorkingMemory('docs:initializedAt', new Date().toISOString(), 600000);
@@ -263,7 +260,13 @@ export class DocumentationAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
@@ -287,7 +290,13 @@ export class DocumentationAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -350,13 +359,23 @@ export class DocumentationAgentService extends BaseAgentService {
 
       // Check if this line already has documentation
       const prevLine = i > 0 ? lines[i - 1].trim() : '';
-      const hasExistingDoc = prevLine.endsWith('*/') || prevLine.startsWith('"""') || prevLine.includes("'''");
+      const hasExistingDoc =
+        prevLine.endsWith('*/') || prevLine.startsWith('"""') || prevLine.includes("'''");
 
       // Detect functions
-      const funcMatch = line.match(/(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?/);
+      const funcMatch = line.match(
+        /(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?/,
+      );
       if (funcMatch) {
         totalDocTargets++;
-        const doc = this.generateFunctionDoc(funcMatch[1], funcMatch[2], funcMatch[3], style, language, includeExamples);
+        const doc = this.generateFunctionDoc(
+          funcMatch[1],
+          funcMatch[2],
+          funcMatch[3],
+          style,
+          language,
+          includeExamples,
+        );
 
         if (!hasExistingDoc) {
           resultLines.push(doc);
@@ -391,10 +410,22 @@ export class DocumentationAgentService extends BaseAgentService {
       }
 
       // Detect methods
-      const methodMatch = line.match(/(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?\s*{/);
-      if (methodMatch && !funcMatch && !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])) {
+      const methodMatch = line.match(
+        /(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?\s*{/,
+      );
+      if (
+        methodMatch &&
+        !funcMatch &&
+        !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])
+      ) {
         totalDocTargets++;
-        const doc = this.generateMethodDoc(methodMatch[1], methodMatch[2], methodMatch[3], style, language);
+        const doc = this.generateMethodDoc(
+          methodMatch[1],
+          methodMatch[2],
+          methodMatch[3],
+          style,
+          language,
+        );
 
         if (!hasExistingDoc) {
           resultLines.push(doc);
@@ -431,10 +462,13 @@ export class DocumentationAgentService extends BaseAgentService {
       resultLines.push(line);
     }
 
-    const coverage = totalDocTargets > 0 ? Math.round((documentedTargets / totalDocTargets) * 100) : 100;
+    const coverage =
+      totalDocTargets > 0 ? Math.round((documentedTargets / totalDocTargets) * 100) : 100;
     const documentedCode = resultLines.join('\n');
 
-    this.logger.log(`Generated documentation: ${docBlocks.length} doc block(s), ${coverage}% coverage`);
+    this.logger.log(
+      `Generated documentation: ${docBlocks.length} doc block(s), ${coverage}% coverage`,
+    );
 
     return { documentedCode, docBlocks, coverage };
   }
@@ -563,7 +597,7 @@ export class DocumentationAgentService extends BaseAgentService {
       content += `## Configuration\n\n`;
       content += '| Option | Type | Default | Description |\n';
       content += '|--------|------|---------|-------------|\n';
-      content += '| `option1` | `string` | `\'default\'` | Description for option1 |\n';
+      content += "| `option1` | `string` | `'default'` | Description for option1 |\n";
       content += '| `option2` | `boolean` | `false` | Description for option2 |\n\n';
       sections.push('configuration');
     }
@@ -651,9 +685,10 @@ export class DocumentationAgentService extends BaseAgentService {
       // Insert after the header
       const headerEnd = currentChangelog.indexOf('\n\n');
       if (headerEnd !== -1) {
-        content = currentChangelog.substring(0, headerEnd + 2) +
-                  newEntry +
-                  currentChangelog.substring(headerEnd + 2);
+        content =
+          currentChangelog.substring(0, headerEnd + 2) +
+          newEntry +
+          currentChangelog.substring(headerEnd + 2);
       } else {
         content = currentChangelog + '\n\n' + newEntry;
       }
@@ -735,7 +770,9 @@ export class DocumentationAgentService extends BaseAgentService {
 
     // Parameters
     for (const param of params) {
-      lines.push(` * @param ${param.name} - ${this.generateParamDescription(param.name, param.type)}`);
+      lines.push(
+        ` * @param ${param.name} - ${this.generateParamDescription(param.name, param.type)}`,
+      );
     }
 
     // Return type
@@ -783,7 +820,9 @@ export class DocumentationAgentService extends BaseAgentService {
     lines.push(`   * ${this.generateDescription(name)}`);
 
     for (const param of params) {
-      lines.push(`   * @param ${param.name} - ${this.generateParamDescription(param.name, param.type)}`);
+      lines.push(
+        `   * @param ${param.name} - ${this.generateParamDescription(param.name, param.type)}`,
+      );
     }
 
     if (returnType && returnType !== 'void') {
@@ -822,7 +861,9 @@ export class DocumentationAgentService extends BaseAgentService {
 
     for (const param of params) {
       lines.push(`    Args:`);
-      lines.push(`        ${param.name} (${param.type || 'Any'}): ${this.generateParamDescription(param.name, param.type)}`);
+      lines.push(
+        `        ${param.name} (${param.type || 'Any'}): ${this.generateParamDescription(param.name, param.type)}`,
+      );
     }
 
     if (returnType && returnType !== 'None') {
@@ -848,7 +889,8 @@ export class DocumentationAgentService extends BaseAgentService {
     const endpoints: ApiEndpoint[] = [];
 
     // NestJS decorators
-    const nestjsRegex = /@(Get|Post|Put|Delete|Patch)\(['"]([^'"]+)['"]\)(?:\s*\n\s*@HttpCode\(\d+\))?(?:\s*\n\s*@\w+)*\s*\n\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)/g;
+    const nestjsRegex =
+      /@(Get|Post|Put|Delete|Patch)\(['"]([^'"]+)['"]\)(?:\s*\n\s*@HttpCode\(\d+\))?(?:\s*\n\s*@\w+)*\s*\n\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)/g;
     let match: RegExpExecArray | null;
 
     while ((match = nestjsRegex.exec(code)) !== null) {
@@ -883,8 +925,12 @@ export class DocumentationAgentService extends BaseAgentService {
     return endpoints;
   }
 
-  private parseApiParams(paramsStr: string, path: string): Array<{ name: string; type: string; required: boolean; description: string }> {
-    const params: Array<{ name: string; type: string; required: boolean; description: string }> = [];
+  private parseApiParams(
+    paramsStr: string,
+    path: string,
+  ): Array<{ name: string; type: string; required: boolean; description: string }> {
+    const params: Array<{ name: string; type: string; required: boolean; description: string }> =
+      [];
 
     // Path parameters
     const pathParams = path.match(/:(\w+)/g);
@@ -921,7 +967,9 @@ export class DocumentationAgentService extends BaseAgentService {
     return params;
   }
 
-  private inferResponses(method: string): Array<{ code: number; description: string; type?: string }> {
+  private inferResponses(
+    method: string,
+  ): Array<{ code: number; description: string; type?: string }> {
     const responses: Array<{ code: number; description: string; type?: string }> = [
       { code: 200, description: 'Successful response' },
     ];
@@ -942,7 +990,10 @@ export class DocumentationAgentService extends BaseAgentService {
     const controllerMatch = beforePosition.match(/@Controller\(['"]?([^'")\]]+)/g);
     if (controllerMatch) {
       const lastController = controllerMatch[controllerMatch.length - 1];
-      const tag = lastController.replace("@Controller('", '').replace('@Controller("', '').replace('@Controller(', '');
+      const tag = lastController
+        .replace("@Controller('", '')
+        .replace('@Controller("', '')
+        .replace('@Controller(', '');
       return [tag];
     }
     return ['default'];
@@ -974,10 +1025,13 @@ export class DocumentationAgentService extends BaseAgentService {
           schema: { type: p.type.toLowerCase() === 'string' ? 'string' : p.type },
           description: p.description,
         })),
-        responses: endpoint.responses.reduce((acc, r) => {
-          acc[r.code] = { description: r.description };
-          return acc;
-        }, {} as Record<number, any>),
+        responses: endpoint.responses.reduce(
+          (acc, r) => {
+            acc[r.code] = { description: r.description };
+            return acc;
+          },
+          {} as Record<number, any>,
+        ),
       };
     }
 
@@ -1088,7 +1142,10 @@ export class DocumentationAgentService extends BaseAgentService {
       const body = match[2];
       const isExported = code.substring(match.index - 7, match.index).includes('export');
 
-      const values = body.split(',').map((v) => v.trim().split('=')[0].trim()).filter((v) => v.length > 0);
+      const values = body
+        .split(',')
+        .map((v) => v.trim().split('=')[0].trim())
+        .filter((v) => v.length > 0);
 
       types.push({
         name,
@@ -1100,7 +1157,8 @@ export class DocumentationAgentService extends BaseAgentService {
     }
 
     // Extract classes
-    const classRegex = /(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?(?:\s+implements\s+[\w,\s]+)?\s*\{/g;
+    const classRegex =
+      /(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+\w+)?(?:\s+implements\s+[\w,\s]+)?\s*\{/g;
     while ((match = classRegex.exec(code)) !== null) {
       const name = match[1];
       const isExported = code.substring(match.index - 7, match.index).includes('export');
@@ -1116,9 +1174,19 @@ export class DocumentationAgentService extends BaseAgentService {
     return types;
   }
 
-  private parseTypeProperties(body: string): Array<{ name: string; type: string; optional: boolean; description: string }> {
-    const properties: Array<{ name: string; type: string; optional: boolean; description: string }> = [];
-    const lines = body.split(';').map((l) => l.trim()).filter((l) => l.length > 0);
+  private parseTypeProperties(
+    body: string,
+  ): Array<{ name: string; type: string; optional: boolean; description: string }> {
+    const properties: Array<{
+      name: string;
+      type: string;
+      optional: boolean;
+      description: string;
+    }> = [];
+    const lines = body
+      .split(';')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
 
     for (const line of lines) {
       const propMatch = line.match(/(\w+)(\??):\s*([^;]+)/);
@@ -1243,25 +1311,31 @@ export class DocumentationAgentService extends BaseAgentService {
 
   private parseParamsList(paramsStr: string): Array<{ name: string; type: string }> {
     if (!paramsStr.trim()) return [];
-    return paramsStr.split(',').map((param) => {
-      const trimmed = param.trim();
-      const parts = trimmed.split(':');
-      const name = parts[0].replace(/\?.*$/, '').trim();
-      const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'any';
-      return { name, type };
-    }).filter((p) => p.name.length > 0);
+    return paramsStr
+      .split(',')
+      .map((param) => {
+        const trimmed = param.trim();
+        const parts = trimmed.split(':');
+        const name = parts[0].replace(/\?.*$/, '').trim();
+        const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'any';
+        return { name, type };
+      })
+      .filter((p) => p.name.length > 0);
   }
 
   private parsePythonParamsList(paramsStr: string): Array<{ name: string; type: string }> {
     if (!paramsStr.trim()) return [];
-    return paramsStr.split(',').map((param) => {
-      const trimmed = param.trim();
-      if (trimmed === 'self' || trimmed === 'cls') return { name: trimmed, type: 'self' };
-      const parts = trimmed.split(':');
-      const name = parts[0].replace(/\s*=\s*.*$/, '').trim();
-      const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'Any';
-      return { name, type };
-    }).filter((p) => p.name.length > 0 && p.type !== 'self');
+    return paramsStr
+      .split(',')
+      .map((param) => {
+        const trimmed = param.trim();
+        if (trimmed === 'self' || trimmed === 'cls') return { name: trimmed, type: 'self' };
+        const parts = trimmed.split(':');
+        const name = parts[0].replace(/\s*=\s*.*$/, '').trim();
+        const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'Any';
+        return { name, type };
+      })
+      .filter((p) => p.name.length > 0 && p.type !== 'self');
   }
 
   private generateDescription(name: string): string {
@@ -1270,7 +1344,8 @@ export class DocumentationAgentService extends BaseAgentService {
 
   private generateParamDescription(name: string, type: string): string {
     const lower = name.toLowerCase();
-    if (lower.includes('id')) return `Unique identifier for the ${name.replace(/id/i, '').trim() || 'resource'}`;
+    if (lower.includes('id'))
+      return `Unique identifier for the ${name.replace(/id/i, '').trim() || 'resource'}`;
     if (lower.includes('name')) return 'Name of the item';
     if (lower.includes('type')) return 'Type classification';
     if (lower.includes('limit')) return 'Maximum number of items to return';

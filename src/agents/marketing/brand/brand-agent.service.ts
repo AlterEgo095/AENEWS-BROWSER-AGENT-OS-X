@@ -30,8 +30,16 @@ export const BRAND_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           content: { type: 'string', description: 'Content to check for consistency' },
-          contentType: { type: 'string', enum: ['text', 'visual', 'social', 'email', 'website'], description: 'Type of content' },
-          checkCategories: { type: 'array', items: { type: 'string' }, description: 'Categories to check' },
+          contentType: {
+            type: 'string',
+            enum: ['text', 'visual', 'social', 'email', 'website'],
+            description: 'Type of content',
+          },
+          checkCategories: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Categories to check',
+          },
         },
         required: ['content'],
       },
@@ -50,8 +58,16 @@ export const BRAND_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['add', 'update', 'remove', 'list', 'search'], description: 'Action to perform' },
-          assetType: { type: 'string', enum: ['logo', 'color', 'font', 'icon', 'image', 'template'], description: 'Type of asset' },
+          action: {
+            type: 'string',
+            enum: ['add', 'update', 'remove', 'list', 'search'],
+            description: 'Action to perform',
+          },
+          assetType: {
+            type: 'string',
+            enum: ['logo', 'color', 'font', 'icon', 'image', 'template'],
+            description: 'Type of asset',
+          },
           assetData: { type: 'object', description: 'Asset data' },
           filters: { type: 'object', description: 'Search filters' },
         },
@@ -73,8 +89,16 @@ export const BRAND_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           brandName: { type: 'string', description: 'Brand name' },
-          includeSections: { type: 'array', items: { type: 'string' }, description: 'Sections to include' },
-          format: { type: 'string', enum: ['full', 'summary', 'quick-reference'], description: 'Guide format' },
+          includeSections: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Sections to include',
+          },
+          format: {
+            type: 'string',
+            enum: ['full', 'summary', 'quick-reference'],
+            description: 'Guide format',
+          },
         },
         required: ['brandName'],
       },
@@ -95,7 +119,11 @@ export const BRAND_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           brandName: { type: 'string', description: 'Brand to analyze' },
-          channels: { type: 'array', items: { type: 'string' }, description: 'Channels to analyze' },
+          channels: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Channels to analyze',
+          },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
         },
@@ -122,7 +150,7 @@ export const BRAND_AGENT_CONFIG: AgentConfig = {
           voiceAttributes: { type: 'object', description: 'Voice attributes to update' },
           examples: { type: 'array', items: { type: 'object' }, description: 'Voice examples' },
           doList: { type: 'array', items: { type: 'string' }, description: 'Voice dos' },
-          dontList: { type: 'array', items: { type: 'string' }, description: 'Voice don\'ts' },
+          dontList: { type: 'array', items: { type: 'string' }, description: "Voice don'ts" },
         },
         required: ['brandName', 'voiceAttributes'],
       },
@@ -223,11 +251,8 @@ export class BrandAgentService extends BaseAgentService {
     this.registerTool({
       name: 'generateBrandGuide',
       description: 'Generate a comprehensive brand guidelines document',
-      execute: async (params: {
-        brandName: string;
-        includeSections?: string[];
-        format?: string;
-      }) => this.generateBrandGuide(params),
+      execute: async (params: { brandName: string; includeSections?: string[]; format?: string }) =>
+        this.generateBrandGuide(params),
     });
 
     this.registerTool({
@@ -381,7 +406,9 @@ export class BrandAgentService extends BaseAgentService {
     if (violations.length === 0) {
       suggestions.push('Content is consistent with brand guidelines.');
     } else {
-      suggestions.push(`Found ${violations.length} consistency issue(s). Review and address violations for better brand alignment.`);
+      suggestions.push(
+        `Found ${violations.length} consistency issue(s). Review and address violations for better brand alignment.`,
+      );
     }
 
     if (score >= 90) {
@@ -392,9 +419,7 @@ export class BrandAgentService extends BaseAgentService {
       suggestions.push('Brand consistency score is low. Significant revisions recommended.');
     }
 
-    this.logger.log(
-      `Brand consistency check: score=${score}, violations=${violations.length}`,
-    );
+    this.logger.log(`Brand consistency check: score=${score}, violations=${violations.length}`);
 
     return { score, violations, suggestions };
   }
@@ -494,9 +519,7 @@ export class BrandAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(
-      `Asset ${action}: type=${assetType || 'all'}, affected=${affected}`,
-    );
+    this.logger.log(`Asset ${action}: type=${assetType || 'all'}, affected=${affected}`);
 
     return { action, affected, assets: resultAssets };
   }
@@ -530,11 +553,12 @@ export class BrandAgentService extends BaseAgentService {
       'dos-and-donts',
     ];
 
-    const sections = includeSections.length > 0
-      ? includeSections
-      : format === 'quick-reference'
-        ? ['brand-overview', 'logo-usage', 'color-palette', 'voice-and-tone']
-        : defaultSections;
+    const sections =
+      includeSections.length > 0
+        ? includeSections
+        : format === 'quick-reference'
+          ? ['brand-overview', 'logo-usage', 'color-palette', 'voice-and-tone']
+          : defaultSections;
 
     const guideSections = sections.map((sectionId) => ({
       title: this.formatSectionTitle(sectionId),
@@ -587,7 +611,9 @@ export class BrandAgentService extends BaseAgentService {
     }
 
     // Generate trend data
-    const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const fromDate = dateFrom
+      ? new Date(dateFrom)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const toDate = dateTo ? new Date(dateTo) : new Date();
     const trends: Array<{ date: string; sentiment: number }> = [];
 
@@ -653,13 +679,23 @@ export class BrandAgentService extends BaseAgentService {
       brandName,
       tone: voiceAttributes.tone || existing?.tone || 'professional',
       formality: voiceAttributes.formality || existing?.formality || 'moderate',
-      attributes: voiceAttributes.attributes || existing?.attributes || ['clear', 'confident', 'approachable'],
-      doList: doList.length > 0 ? doList : existing?.doList || ['Use active voice', 'Be concise', 'Stay positive'],
-      dontList: dontList.length > 0 ? dontList : existing?.dontList || ['Use jargon', 'Be condescending', 'Make unsupported claims'],
-      examples: examples.length > 0 ? examples : existing?.examples || [
-        { context: 'customer greeting', text: 'Welcome! We\'re here to help you succeed.' },
-        { context: 'error message', text: 'Something went wrong. Let\'s try that again.' },
-      ],
+      attributes: voiceAttributes.attributes ||
+        existing?.attributes || ['clear', 'confident', 'approachable'],
+      doList:
+        doList.length > 0
+          ? doList
+          : existing?.doList || ['Use active voice', 'Be concise', 'Stay positive'],
+      dontList:
+        dontList.length > 0
+          ? dontList
+          : existing?.dontList || ['Use jargon', 'Be condescending', 'Make unsupported claims'],
+      examples:
+        examples.length > 0
+          ? examples
+          : existing?.examples || [
+              { context: 'customer greeting', text: "Welcome! We're here to help you succeed." },
+              { context: 'error message', text: "Something went wrong. Let's try that again." },
+            ],
       updatedAt: new Date(),
     };
 
@@ -680,13 +716,62 @@ export class BrandAgentService extends BaseAgentService {
 
   private seedDefaultAssets(): void {
     const defaultAssets: BrandAsset[] = [
-      { id: 'asset-logo-primary', type: 'logo', name: 'Primary Logo', value: '/assets/logo-primary.svg', metadata: { format: 'svg', backgroundColor: 'transparent' }, createdAt: new Date() },
-      { id: 'asset-logo-secondary', type: 'logo', name: 'Secondary Logo', value: '/assets/logo-secondary.svg', metadata: { format: 'svg', backgroundColor: 'white' }, createdAt: new Date() },
-      { id: 'asset-color-primary', type: 'color', name: 'Primary Color', value: '#2563EB', metadata: { pantone: 'PMS 2727 C', rgb: '37, 99, 235' }, createdAt: new Date() },
-      { id: 'asset-color-secondary', type: 'color', name: 'Secondary Color', value: '#7C3AED', metadata: { pantone: 'PMS 2685 C', rgb: '124, 58, 237' }, createdAt: new Date() },
-      { id: 'asset-color-accent', type: 'color', name: 'Accent Color', value: '#F59E0B', metadata: { pantone: 'PMS 1235 C', rgb: '245, 158, 11' }, createdAt: new Date() },
-      { id: 'asset-font-heading', type: 'font', name: 'Heading Font', value: 'Inter Bold', metadata: { fallback: 'system-ui, sans-serif', weights: [700, 800] }, createdAt: new Date() },
-      { id: 'asset-font-body', type: 'font', name: 'Body Font', value: 'Inter Regular', metadata: { fallback: 'system-ui, sans-serif', weights: [400, 500] }, createdAt: new Date() },
+      {
+        id: 'asset-logo-primary',
+        type: 'logo',
+        name: 'Primary Logo',
+        value: '/assets/logo-primary.svg',
+        metadata: { format: 'svg', backgroundColor: 'transparent' },
+        createdAt: new Date(),
+      },
+      {
+        id: 'asset-logo-secondary',
+        type: 'logo',
+        name: 'Secondary Logo',
+        value: '/assets/logo-secondary.svg',
+        metadata: { format: 'svg', backgroundColor: 'white' },
+        createdAt: new Date(),
+      },
+      {
+        id: 'asset-color-primary',
+        type: 'color',
+        name: 'Primary Color',
+        value: '#2563EB',
+        metadata: { pantone: 'PMS 2727 C', rgb: '37, 99, 235' },
+        createdAt: new Date(),
+      },
+      {
+        id: 'asset-color-secondary',
+        type: 'color',
+        name: 'Secondary Color',
+        value: '#7C3AED',
+        metadata: { pantone: 'PMS 2685 C', rgb: '124, 58, 237' },
+        createdAt: new Date(),
+      },
+      {
+        id: 'asset-color-accent',
+        type: 'color',
+        name: 'Accent Color',
+        value: '#F59E0B',
+        metadata: { pantone: 'PMS 1235 C', rgb: '245, 158, 11' },
+        createdAt: new Date(),
+      },
+      {
+        id: 'asset-font-heading',
+        type: 'font',
+        name: 'Heading Font',
+        value: 'Inter Bold',
+        metadata: { fallback: 'system-ui, sans-serif', weights: [700, 800] },
+        createdAt: new Date(),
+      },
+      {
+        id: 'asset-font-body',
+        type: 'font',
+        name: 'Body Font',
+        value: 'Inter Regular',
+        metadata: { fallback: 'system-ui, sans-serif', weights: [400, 500] },
+        createdAt: new Date(),
+      },
     ];
 
     for (const asset of defaultAssets) {
@@ -701,10 +786,15 @@ export class BrandAgentService extends BaseAgentService {
       formality: 'moderate',
       attributes: ['clear', 'confident', 'approachable', 'trustworthy'],
       doList: ['Use active voice', 'Be concise', 'Stay positive', 'Be specific'],
-      dontList: ['Use jargon', 'Be condescending', 'Make unsupported claims', 'Use passive voice excessively'],
+      dontList: [
+        'Use jargon',
+        'Be condescending',
+        'Make unsupported claims',
+        'Use passive voice excessively',
+      ],
       examples: [
-        { context: 'customer greeting', text: 'Welcome! We\'re here to help you succeed.' },
-        { context: 'error message', text: 'Something went wrong. Let\'s try that again.' },
+        { context: 'customer greeting', text: "Welcome! We're here to help you succeed." },
+        { context: 'error message', text: "Something went wrong. Let's try that again." },
       ],
       updatedAt: new Date(),
     });
@@ -737,7 +827,8 @@ export class BrandAgentService extends BaseAgentService {
         category: 'tone',
         severity: 'info',
         message: `Excessive exclamation marks (${exclamationCount}). Brand tone guidelines suggest restrained use.`,
-        suggestion: 'Limit exclamation marks to convey genuine enthusiasm without appearing unprofessional.',
+        suggestion:
+          'Limit exclamation marks to convey genuine enthusiasm without appearing unprofessional.',
       });
       penalty += 3;
     }
@@ -757,9 +848,10 @@ export class BrandAgentService extends BaseAgentService {
     return { violations, penalty };
   }
 
-  private checkTerminologyConsistency(
-    content: string,
-  ): { violations: ConsistencyViolation[]; penalty: number } {
+  private checkTerminologyConsistency(content: string): {
+    violations: ConsistencyViolation[];
+    penalty: number;
+  } {
     const violations: ConsistencyViolation[] = [];
     let penalty = 0;
 
@@ -804,7 +896,8 @@ export class BrandAgentService extends BaseAgentService {
           violations.push({
             category: 'formatting',
             severity: 'warning',
-            message: 'Heading hierarchy skip detected. Headings should not skip levels (e.g., H1 to H3).',
+            message:
+              'Heading hierarchy skip detected. Headings should not skip levels (e.g., H1 to H3).',
             suggestion: 'Ensure headings follow a logical hierarchy: H1 > H2 > H3.',
           });
           penalty += 5;
@@ -829,9 +922,10 @@ export class BrandAgentService extends BaseAgentService {
     return { violations, penalty };
   }
 
-  private checkMessagingConsistency(
-    content: string,
-  ): { violations: ConsistencyViolation[]; penalty: number } {
+  private checkMessagingConsistency(content: string): {
+    violations: ConsistencyViolation[];
+    penalty: number;
+  } {
     const violations: ConsistencyViolation[] = [];
     let penalty = 0;
 
@@ -864,17 +958,17 @@ export class BrandAgentService extends BaseAgentService {
       'brand-overview': `${brandName} is committed to delivering exceptional value through innovation and quality. Our brand represents trust, reliability, and forward-thinking solutions. Every interaction with ${brandName} should reflect these core values.`,
       'logo-usage': `The ${brandName} logo is our most recognizable brand asset. Always use approved logo versions, maintain minimum clear space equal to the height of the logo mark, and never modify, rotate, or add effects to the logo. Use the primary logo on light backgrounds and the reversed logo on dark backgrounds.`,
       'color-palette': `${brandName}'s color palette consists of primary, secondary, and accent colors. Primary colors should dominate all materials (60%), secondary colors provide depth (30%), and accent colors draw attention (10%). Always use approved color values — never approximate.`,
-      'typography': `${brandName} uses a carefully selected type system that ensures readability and brand recognition. Headings use bold weights of the primary font family. Body text uses regular weights. Maintain consistent line heights and spacing as specified in the typography scale.`,
+      typography: `${brandName} uses a carefully selected type system that ensures readability and brand recognition. Headings use bold weights of the primary font family. Body text uses regular weights. Maintain consistent line heights and spacing as specified in the typography scale.`,
       'voice-and-tone': `${brandName}'s voice is confident, clear, and approachable. We speak with authority without being condescending. Our tone adapts to context — professional in formal communications, warm and helpful in support interactions, and enthusiastic in marketing materials.`,
-      'imagery': `${brandName} imagery should be authentic, diverse, and aspirational. Avoid stock-photo clichés. Prefer real people in genuine situations. Images should support the accompanying content and align with our brand values of innovation and inclusivity.`,
-      'messaging': `${brandName}'s core messaging framework centers on three pillars: Innovation (we lead with new ideas), Quality (we deliver excellence), and Trust (we build lasting relationships). All communications should reinforce at least one of these pillars.`,
+      imagery: `${brandName} imagery should be authentic, diverse, and aspirational. Avoid stock-photo clichés. Prefer real people in genuine situations. Images should support the accompanying content and align with our brand values of innovation and inclusivity.`,
+      messaging: `${brandName}'s core messaging framework centers on three pillars: Innovation (we lead with new ideas), Quality (we deliver excellence), and Trust (we build lasting relationships). All communications should reinforce at least one of these pillars.`,
       'dos-and-donts': `DO: Use approved brand assets consistently. Speak with our brand voice. Follow the color and typography guidelines. Maintain clear space around the logo.\n\nDON'T: Modify logo colors or proportions. Use unapproved fonts. Mix different brand styles. Use inconsistent terminology.`,
     };
 
-    const content = contentMap[sectionId] || `${brandName} brand guidelines for ${sectionId}. Follow standard brand principles and maintain consistency across all touchpoints.`;
+    const content =
+      contentMap[sectionId] ||
+      `${brandName} brand guidelines for ${sectionId}. Follow standard brand principles and maintain consistency across all touchpoints.`;
 
-    return format === 'quick-reference'
-      ? content.split('.')[0] + '.'
-      : content;
+    return format === 'quick-reference' ? content.split('.')[0] + '.' : content;
   }
 }

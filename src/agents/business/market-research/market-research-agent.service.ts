@@ -32,7 +32,11 @@ export const MARKET_RESEARCH_AGENT_CONFIG: AgentConfig = {
           market: { type: 'string', description: 'Market or industry to analyze' },
           region: { type: 'string', description: 'Geographic region (e.g., "global", "US", "EU")' },
           period: { type: 'string', description: 'Analysis period (e.g., "2020-2024")' },
-          segments: { type: 'array', items: { type: 'string' }, description: 'Market segments to analyze' },
+          segments: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Market segments to analyze',
+          },
         },
         required: ['market'],
       },
@@ -51,13 +55,18 @@ export const MARKET_RESEARCH_AGENT_CONFIG: AgentConfig = {
     },
     {
       name: 'researchCompetitor',
-      description: 'Research a specific competitor including profile, market share, strengths, and weaknesses',
+      description:
+        'Research a specific competitor including profile, market share, strengths, and weaknesses',
       inputSchema: {
         type: 'object',
         properties: {
           competitorName: { type: 'string', description: 'Name of the competitor' },
           industry: { type: 'string', description: 'Industry context' },
-          aspects: { type: 'array', items: { type: 'string' }, description: 'Aspects to research (e.g., "products", "pricing", "strategy")' },
+          aspects: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Aspects to research (e.g., "products", "pricing", "strategy")',
+          },
         },
         required: ['competitorName'],
       },
@@ -81,8 +90,15 @@ export const MARKET_RESEARCH_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           industry: { type: 'string', description: 'Industry to analyze trends for' },
-          timeframe: { type: 'string', enum: ['short-term', 'medium-term', 'long-term'], description: 'Trend timeframe' },
-          category: { type: 'string', description: 'Trend category (e.g., "technology", "consumer", "regulatory")' },
+          timeframe: {
+            type: 'string',
+            enum: ['short-term', 'medium-term', 'long-term'],
+            description: 'Trend timeframe',
+          },
+          category: {
+            type: 'string',
+            description: 'Trend category (e.g., "technology", "consumer", "regulatory")',
+          },
           region: { type: 'string', description: 'Geographic region' },
         },
         required: ['industry'],
@@ -107,7 +123,11 @@ export const MARKET_RESEARCH_AGENT_CONFIG: AgentConfig = {
           product: { type: 'string', description: 'Product or service name' },
           market: { type: 'string', description: 'Target market' },
           period: { type: 'string', description: 'Analysis period' },
-          demographics: { type: 'array', items: { type: 'string' }, description: 'Target demographics' },
+          demographics: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Target demographics',
+          },
         },
         required: ['product'],
       },
@@ -131,7 +151,11 @@ export const MARKET_RESEARCH_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           market: { type: 'string', description: 'Market to report on' },
-          reportType: { type: 'string', enum: ['executive', 'detailed', 'competitive', 'trend'], description: 'Type of report' },
+          reportType: {
+            type: 'string',
+            enum: ['executive', 'detailed', 'competitive', 'trend'],
+            description: 'Type of report',
+          },
           includeForecasts: { type: 'boolean', description: 'Whether to include forecasts' },
           region: { type: 'string', description: 'Geographic region' },
         },
@@ -151,13 +175,18 @@ export const MARKET_RESEARCH_AGENT_CONFIG: AgentConfig = {
     },
     {
       name: 'assessMarketSize',
-      description: 'Assess the total addressable market (TAM), serviceable market (SAM), and obtainable market (SOM)',
+      description:
+        'Assess the total addressable market (TAM), serviceable market (SAM), and obtainable market (SOM)',
       inputSchema: {
         type: 'object',
         properties: {
           market: { type: 'string', description: 'Market to assess' },
           region: { type: 'string', description: 'Geographic region' },
-          methodology: { type: 'string', enum: ['top-down', 'bottom-up', 'value-chain'], description: 'Sizing methodology' },
+          methodology: {
+            type: 'string',
+            enum: ['top-down', 'bottom-up', 'value-chain'],
+            description: 'Sizing methodology',
+          },
           product: { type: 'string', description: 'Specific product or service' },
         },
         required: ['market'],
@@ -176,13 +205,7 @@ export const MARKET_RESEARCH_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:business',
-    'write:business',
-    'read:market',
-    'write:market',
-  ],
+  permissions: ['execute:task', 'read:business', 'write:business', 'read:market', 'write:market'],
   maxConcurrentTasks: 5,
   timeout: 45000,
   retryPolicy: {
@@ -231,7 +254,10 @@ interface MarketTrend {
 export class MarketResearchAgentService extends BaseAgentService {
   private marketAnalyses: Map<string, MarketAnalysis> = new Map();
   private competitors: Map<string, CompetitorProfile> = new Map();
-  private trendReports: Map<string, { industry: string; trends: MarketTrend[]; identifiedAt: Date }> = new Map();
+  private trendReports: Map<
+    string,
+    { industry: string; trends: MarketTrend[]; identifiedAt: Date }
+  > = new Map();
   private analysisCounter: number = 0;
 
   protected defineConfig(): AgentConfig {
@@ -242,8 +268,12 @@ export class MarketResearchAgentService extends BaseAgentService {
     this.registerTool({
       name: 'analyzeMarket',
       description: 'Analyze a specific market',
-      execute: async (params: { market: string; region?: string; period?: string; segments?: string[] }) =>
-        this.analyzeMarket(params),
+      execute: async (params: {
+        market: string;
+        region?: string;
+        period?: string;
+        segments?: string[];
+      }) => this.analyzeMarket(params),
     });
 
     this.registerTool({
@@ -256,32 +286,52 @@ export class MarketResearchAgentService extends BaseAgentService {
     this.registerTool({
       name: 'identifyTrends',
       description: 'Identify market trends',
-      execute: async (params: { industry: string; timeframe?: string; category?: string; region?: string }) =>
-        this.identifyTrends(params),
+      execute: async (params: {
+        industry: string;
+        timeframe?: string;
+        category?: string;
+        region?: string;
+      }) => this.identifyTrends(params),
     });
 
     this.registerTool({
       name: 'analyzeDemand',
       description: 'Analyze demand patterns',
-      execute: async (params: { product: string; market?: string; period?: string; demographics?: string[] }) =>
-        this.analyzeDemand(params),
+      execute: async (params: {
+        product: string;
+        market?: string;
+        period?: string;
+        demographics?: string[];
+      }) => this.analyzeDemand(params),
     });
 
     this.registerTool({
       name: 'generateMarketReport',
       description: 'Generate a comprehensive market research report',
-      execute: async (params: { market: string; reportType: string; includeForecasts?: boolean; region?: string }) =>
-        this.generateMarketReport(params),
+      execute: async (params: {
+        market: string;
+        reportType: string;
+        includeForecasts?: boolean;
+        region?: string;
+      }) => this.generateMarketReport(params),
     });
 
     this.registerTool({
       name: 'assessMarketSize',
       description: 'Assess TAM, SAM, and SOM',
-      execute: async (params: { market: string; region?: string; methodology?: string; product?: string }) =>
-        this.assessMarketSize(params),
+      execute: async (params: {
+        market: string;
+        region?: string;
+        methodology?: string;
+        product?: string;
+      }) => this.assessMarketSize(params),
     });
 
-    await this.storeInWorkingMemory('market-research:initializedAt', new Date().toISOString(), 600000);
+    await this.storeInWorkingMemory(
+      'market-research:initializedAt',
+      new Date().toISOString(),
+      600000,
+    );
     this.logger.log('MarketResearch agent initialized with 6 tools');
   }
 
@@ -290,7 +340,13 @@ export class MarketResearchAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
@@ -315,7 +371,13 @@ export class MarketResearchAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -399,7 +461,11 @@ export class MarketResearchAgentService extends BaseAgentService {
       growthRate,
       segments: segmentData.map((s) => ({ name: s.name, share: s.share, growth: s.growth })),
       dynamics: {
-        drivers: ['Digital transformation', 'Increasing demand for automation', 'Regulatory changes'],
+        drivers: [
+          'Digital transformation',
+          'Increasing demand for automation',
+          'Regulatory changes',
+        ],
         challenges: ['Market saturation', 'Price competition', 'Supply chain disruptions'],
         opportunities: ['Emerging markets', 'New technology adoption', 'Strategic partnerships'],
       },
@@ -408,7 +474,9 @@ export class MarketResearchAgentService extends BaseAgentService {
 
     this.marketAnalyses.set(marketId, analysis);
 
-    this.logger.log(`Analyzed market: ${market} (${region}), size=${totalSize}B, growth=${growthRate}%`);
+    this.logger.log(
+      `Analyzed market: ${market} (${region}), size=${totalSize}B, growth=${growthRate}%`,
+    );
 
     return {
       marketId,
@@ -510,14 +578,26 @@ export class MarketResearchAgentService extends BaseAgentService {
 
     this.competitors.set(competitorId, profile);
 
-    this.logger.log(`Researched competitor: ${competitorName}, marketShare=${marketShare}%, revenue=${revenue}B`);
+    this.logger.log(
+      `Researched competitor: ${competitorName}, marketShare=${marketShare}%, revenue=${revenue}B`,
+    );
 
     return {
       competitorId,
       name: competitorName,
       profile: {
         founded: `${1970 + Math.floor(Math.random() * 50)}`,
-        headquarters: this.pickRandom(['San Francisco, CA', 'New York, NY', 'London, UK', 'Berlin, Germany', 'Tokyo, Japan', 'Shanghai, China'], 1)[0],
+        headquarters: this.pickRandom(
+          [
+            'San Francisco, CA',
+            'New York, NY',
+            'London, UK',
+            'Berlin, Germany',
+            'Tokyo, Japan',
+            'Shanghai, China',
+          ],
+          1,
+        )[0],
         employees: employeeCount,
         revenue,
       },
@@ -548,7 +628,12 @@ export class MarketResearchAgentService extends BaseAgentService {
     summary: string;
     identifiedAt: string;
   }> {
-    const { industry, timeframe = 'medium-term', category = 'technology', region = 'global' } = params;
+    const {
+      industry,
+      timeframe = 'medium-term',
+      category = 'technology',
+      region = 'global',
+    } = params;
 
     if (!industry || typeof industry !== 'string') {
       throw new Error('A valid industry name is required');
@@ -562,26 +647,106 @@ export class MarketResearchAgentService extends BaseAgentService {
     this.analysisCounter++;
     const trendId = `trend-${Date.now()}-${this.analysisCounter}`;
 
-    const trendTemplates: Record<string, Array<{ name: string; impact: MarketTrend['impact']; direction: MarketTrend['direction']; description: string }>> = {
+    const trendTemplates: Record<
+      string,
+      Array<{
+        name: string;
+        impact: MarketTrend['impact'];
+        direction: MarketTrend['direction'];
+        description: string;
+      }>
+    > = {
       technology: [
-        { name: 'AI/ML Adoption', impact: 'high', direction: 'rising', description: 'Accelerating adoption of artificial intelligence and machine learning across industry verticals' },
-        { name: 'Cloud Migration', impact: 'high', direction: 'rising', description: 'Continued shift from on-premise to cloud-based infrastructure and services' },
-        { name: 'Edge Computing', impact: 'medium', direction: 'rising', description: 'Growing demand for edge computing capabilities for real-time processing' },
-        { name: 'IoT Integration', impact: 'medium', direction: 'rising', description: 'Increasing integration of Internet of Things devices in business operations' },
-        { name: 'Cybersecurity Focus', impact: 'high', direction: 'rising', description: 'Heightened focus on cybersecurity measures and zero-trust architectures' },
+        {
+          name: 'AI/ML Adoption',
+          impact: 'high',
+          direction: 'rising',
+          description:
+            'Accelerating adoption of artificial intelligence and machine learning across industry verticals',
+        },
+        {
+          name: 'Cloud Migration',
+          impact: 'high',
+          direction: 'rising',
+          description: 'Continued shift from on-premise to cloud-based infrastructure and services',
+        },
+        {
+          name: 'Edge Computing',
+          impact: 'medium',
+          direction: 'rising',
+          description: 'Growing demand for edge computing capabilities for real-time processing',
+        },
+        {
+          name: 'IoT Integration',
+          impact: 'medium',
+          direction: 'rising',
+          description:
+            'Increasing integration of Internet of Things devices in business operations',
+        },
+        {
+          name: 'Cybersecurity Focus',
+          impact: 'high',
+          direction: 'rising',
+          description: 'Heightened focus on cybersecurity measures and zero-trust architectures',
+        },
       ],
       consumer: [
-        { name: 'Personalization Demand', impact: 'high', direction: 'rising', description: 'Consumers increasingly expect personalized experiences and products' },
-        { name: 'Sustainability Awareness', impact: 'high', direction: 'rising', description: 'Growing consumer preference for sustainable and eco-friendly products' },
-        { name: 'Digital-First Behavior', impact: 'high', direction: 'rising', description: 'Continued shift toward digital-first purchasing and engagement behaviors' },
-        { name: 'Health & Wellness Focus', impact: 'medium', direction: 'rising', description: 'Increasing consumer focus on health, wellness, and preventative care' },
-        { name: 'Experience Economy', impact: 'medium', direction: 'stable', description: 'Shift from product ownership to experience-based consumption' },
+        {
+          name: 'Personalization Demand',
+          impact: 'high',
+          direction: 'rising',
+          description: 'Consumers increasingly expect personalized experiences and products',
+        },
+        {
+          name: 'Sustainability Awareness',
+          impact: 'high',
+          direction: 'rising',
+          description: 'Growing consumer preference for sustainable and eco-friendly products',
+        },
+        {
+          name: 'Digital-First Behavior',
+          impact: 'high',
+          direction: 'rising',
+          description: 'Continued shift toward digital-first purchasing and engagement behaviors',
+        },
+        {
+          name: 'Health & Wellness Focus',
+          impact: 'medium',
+          direction: 'rising',
+          description: 'Increasing consumer focus on health, wellness, and preventative care',
+        },
+        {
+          name: 'Experience Economy',
+          impact: 'medium',
+          direction: 'stable',
+          description: 'Shift from product ownership to experience-based consumption',
+        },
       ],
       regulatory: [
-        { name: 'Data Privacy Regulations', impact: 'high', direction: 'rising', description: 'Tightening data privacy regulations globally (GDPR, CCPA, etc.)' },
-        { name: 'ESG Reporting Mandates', impact: 'medium', direction: 'rising', description: 'Growing mandates for environmental, social, and governance reporting' },
-        { name: 'Antitrust Scrutiny', impact: 'medium', direction: 'stable', description: 'Increased antitrust enforcement on large technology companies' },
-        { name: 'AI Regulation', impact: 'high', direction: 'rising', description: 'Emerging regulatory frameworks for AI governance and accountability' },
+        {
+          name: 'Data Privacy Regulations',
+          impact: 'high',
+          direction: 'rising',
+          description: 'Tightening data privacy regulations globally (GDPR, CCPA, etc.)',
+        },
+        {
+          name: 'ESG Reporting Mandates',
+          impact: 'medium',
+          direction: 'rising',
+          description: 'Growing mandates for environmental, social, and governance reporting',
+        },
+        {
+          name: 'Antitrust Scrutiny',
+          impact: 'medium',
+          direction: 'stable',
+          description: 'Increased antitrust enforcement on large technology companies',
+        },
+        {
+          name: 'AI Regulation',
+          impact: 'high',
+          direction: 'rising',
+          description: 'Emerging regulatory frameworks for AI governance and accountability',
+        },
       ],
     };
 
@@ -600,7 +765,9 @@ export class MarketResearchAgentService extends BaseAgentService {
     const highImpactCount = trends.filter((t) => t.impact === 'high').length;
     const summary = `Identified ${trends.length} trends in the ${industry} industry (${category} category, ${timeframe}). ${highImpactCount} high-impact trends require strategic attention.`;
 
-    this.logger.log(`Identified trends: industry=${industry}, count=${trends.length}, high-impact=${highImpactCount}`);
+    this.logger.log(
+      `Identified trends: industry=${industry}, count=${trends.length}, high-impact=${highImpactCount}`,
+    );
 
     return {
       trendId,
@@ -672,7 +839,9 @@ export class MarketResearchAgentService extends BaseAgentService {
     const nextYear = +(demandScore + (Math.random() - 0.3) * 25).toFixed(1);
     const confidence = +(0.65 + Math.random() * 0.3).toFixed(2);
 
-    this.logger.log(`Analyzed demand: product=${product}, score=${demandScore}, level=${demandLevel}`);
+    this.logger.log(
+      `Analyzed demand: product=${product}, score=${demandScore}, level=${demandLevel}`,
+    );
 
     return {
       demandId,
@@ -712,7 +881,9 @@ export class MarketResearchAgentService extends BaseAgentService {
 
     const validReportTypes = ['executive', 'detailed', 'competitive', 'trend'];
     if (!validReportTypes.includes(reportType)) {
-      throw new Error(`Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`);
+      throw new Error(
+        `Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`,
+      );
     }
 
     this.analysisCounter++;
@@ -721,7 +892,8 @@ export class MarketResearchAgentService extends BaseAgentService {
     const marketSize = +(100 + Math.random() * 9900).toFixed(2);
     const growthRate = +(1 + Math.random() * 20).toFixed(2);
 
-    const executiveSummary = `The ${market} market in ${region} is valued at $${marketSize}B with a CAGR of ${growthRate}%. ` +
+    const executiveSummary =
+      `The ${market} market in ${region} is valued at $${marketSize}B with a CAGR of ${growthRate}%. ` +
       `This report provides a ${reportType} analysis of market dynamics, competitive landscape, and strategic opportunities.`;
 
     const sections: Array<{ title: string; content: string; keyFindings: string[] }> = [];
@@ -756,7 +928,7 @@ export class MarketResearchAgentService extends BaseAgentService {
             content: `Detailed breakdown of the ${market} market across key segments.`,
             keyFindings: [
               `Enterprise segment: $${(marketSize * 0.45).toFixed(2)}B (45%)`,
-              `SMB segment: $${(marketSize * 0.30).toFixed(2)}B (30%)`,
+              `SMB segment: $${(marketSize * 0.3).toFixed(2)}B (30%)`,
               `Consumer segment: $${(marketSize * 0.25).toFixed(2)}B (25%)`,
             ],
           },
@@ -876,7 +1048,9 @@ export class MarketResearchAgentService extends BaseAgentService {
 
     const validMethodologies = ['top-down', 'bottom-up', 'value-chain'];
     if (!validMethodologies.includes(methodology)) {
-      throw new Error(`Invalid methodology: ${methodology}. Supported: ${validMethodologies.join(', ')}`);
+      throw new Error(
+        `Invalid methodology: ${methodology}. Supported: ${validMethodologies.join(', ')}`,
+      );
     }
 
     this.analysisCounter++;

@@ -52,7 +52,11 @@ export const VERSION_CONTROL_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['create', 'list', 'switch', 'delete'], description: 'Branch action' },
+          action: {
+            type: 'string',
+            enum: ['create', 'list', 'switch', 'delete'],
+            description: 'Branch action',
+          },
           name: { type: 'string', description: 'Branch name (for create/switch/delete)' },
           startPoint: { type: 'string', description: 'Starting point for new branch' },
           force: { type: 'boolean', default: false },
@@ -120,7 +124,11 @@ export const VERSION_CONTROL_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           file: { type: 'string', description: 'File with conflict' },
-          resolution: { type: 'string', enum: ['ours', 'theirs', 'manual'], description: 'Resolution strategy' },
+          resolution: {
+            type: 'string',
+            enum: ['ours', 'theirs', 'manual'],
+            description: 'Resolution strategy',
+          },
           manualContent: { type: 'string', description: 'Manual resolution content' },
           conflictMarkers: { type: 'object', description: 'Parsed conflict markers' },
         },
@@ -270,11 +278,8 @@ export class VersionControlAgentService extends BaseAgentService {
     this.registerTool({
       name: 'merge',
       description: 'Merge a branch',
-      execute: async (params: {
-        sourceBranch: string;
-        strategy?: string;
-        message?: string;
-      }) => this.merge(params),
+      execute: async (params: { sourceBranch: string; strategy?: string; message?: string }) =>
+        this.merge(params),
     });
 
     this.registerTool({
@@ -331,11 +336,23 @@ export class VersionControlAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'commit', 'branch', 'merge', 'rebase', 'resolveConflict', 'getDiff', 'getLog',
+      'commit',
+      'branch',
+      'merge',
+      'rebase',
+      'resolveConflict',
+      'getDiff',
+      'getLog',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -351,7 +368,13 @@ export class VersionControlAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -535,7 +558,9 @@ export class VersionControlAgentService extends BaseAgentService {
         }
 
         const headHash = startPoint
-          ? (this.branches.get(startPoint)?.headHash || this.commits.get(startPoint)?.hash || this.headHash)
+          ? this.branches.get(startPoint)?.headHash ||
+            this.commits.get(startPoint)?.hash ||
+            this.headHash
           : this.headHash;
 
         this.branches.set(name, {
@@ -690,7 +715,9 @@ export class VersionControlAgentService extends BaseAgentService {
     }
 
     if (conflicts.length > 0) {
-      this.logger.log(`Merge has ${conflicts.length} conflict(s): ${sourceBranch} -> ${this.currentBranch}`);
+      this.logger.log(
+        `Merge has ${conflicts.length} conflict(s): ${sourceBranch} -> ${this.currentBranch}`,
+      );
 
       return {
         merged: false,
@@ -720,7 +747,9 @@ export class VersionControlAgentService extends BaseAgentService {
     target.headHash = mergeHash;
     this.headHash = mergeHash;
 
-    this.logger.log(`Merge: ${sourceBranch} -> ${this.currentBranch} (${strategy}), hash=${mergeHash.substring(0, 8)}`);
+    this.logger.log(
+      `Merge: ${sourceBranch} -> ${this.currentBranch} (${strategy}), hash=${mergeHash.substring(0, 8)}`,
+    );
 
     return {
       merged: true,
@@ -808,7 +837,9 @@ export class VersionControlAgentService extends BaseAgentService {
     }
     this.headHash = newHash;
 
-    this.logger.log(`Rebase: ${this.currentBranch} onto ${onto}, ${commitsToRebase} commit(s) rebased`);
+    this.logger.log(
+      `Rebase: ${this.currentBranch} onto ${onto}, ${commitsToRebase} commit(s) rebased`,
+    );
 
     return {
       rebased: true,

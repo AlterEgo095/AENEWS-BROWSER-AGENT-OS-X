@@ -56,7 +56,11 @@ export const SCREEN_CAPTURE_AGENT_CONFIG: AgentConfig = {
           windowTitle: { type: 'string', description: 'Window title substring to match' },
           windowId: { type: 'number', description: 'Window ID (alternative to title)' },
           format: { type: 'string', enum: ['png', 'jpg', 'bmp'], default: 'png' },
-          includeDecorations: { type: 'boolean', default: true, description: 'Include window frame/decorations' },
+          includeDecorations: {
+            type: 'boolean',
+            default: true,
+            description: 'Include window frame/decorations',
+          },
         },
       },
       outputSchema: {
@@ -108,7 +112,11 @@ export const SCREEN_CAPTURE_AGENT_CONFIG: AgentConfig = {
           fps: { type: 'number', default: 30, description: 'Frames per second' },
           format: { type: 'string', enum: ['mp4', 'webm', 'gif'], default: 'mp4' },
           region: { type: 'object', description: 'Optional region { x, y, width, height }' },
-          maxDuration: { type: 'number', default: 300, description: 'Max recording duration in seconds' },
+          maxDuration: {
+            type: 'number',
+            default: 300,
+            description: 'Max recording duration in seconds',
+          },
         },
       },
       outputSchema: {
@@ -216,29 +224,75 @@ export class ScreenCaptureAgentService extends BaseAgentService {
     this.registerTool({
       name: 'captureScreen',
       description: 'Capture the entire screen',
-      execute: async (params: { displayIndex?: number; format?: string; quality?: number; cursor?: boolean }) =>
-        this.captureScreen(params.displayIndex || 0, params.format || 'png', params.quality || 95, params.cursor !== false),
+      execute: async (params: {
+        displayIndex?: number;
+        format?: string;
+        quality?: number;
+        cursor?: boolean;
+      }) =>
+        this.captureScreen(
+          params.displayIndex || 0,
+          params.format || 'png',
+          params.quality || 95,
+          params.cursor !== false,
+        ),
     });
 
     this.registerTool({
       name: 'captureWindow',
       description: 'Capture a specific window',
-      execute: async (params: { windowTitle?: string; windowId?: number; format?: string; includeDecorations?: boolean }) =>
-        this.captureWindow(params.windowTitle, params.windowId, params.format || 'png', params.includeDecorations !== false),
+      execute: async (params: {
+        windowTitle?: string;
+        windowId?: number;
+        format?: string;
+        includeDecorations?: boolean;
+      }) =>
+        this.captureWindow(
+          params.windowTitle,
+          params.windowId,
+          params.format || 'png',
+          params.includeDecorations !== false,
+        ),
     });
 
     this.registerTool({
       name: 'captureRegion',
       description: 'Capture a screen region',
-      execute: async (params: { x: number; y: number; width: number; height: number; displayIndex?: number; format?: string }) =>
-        this.captureRegion(params.x, params.y, params.width, params.height, params.displayIndex || 0, params.format || 'png'),
+      execute: async (params: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        displayIndex?: number;
+        format?: string;
+      }) =>
+        this.captureRegion(
+          params.x,
+          params.y,
+          params.width,
+          params.height,
+          params.displayIndex || 0,
+          params.format || 'png',
+        ),
     });
 
     this.registerTool({
       name: 'startRecording',
       description: 'Start screen recording',
-      execute: async (params: { displayIndex?: number; fps?: number; format?: string; region?: any; maxDuration?: number }) =>
-        this.startRecording(params.displayIndex || 0, params.fps || 30, params.format || 'mp4', params.region, params.maxDuration || 300),
+      execute: async (params: {
+        displayIndex?: number;
+        fps?: number;
+        format?: string;
+        region?: any;
+        maxDuration?: number;
+      }) =>
+        this.startRecording(
+          params.displayIndex || 0,
+          params.fps || 30,
+          params.format || 'mp4',
+          params.region,
+          params.maxDuration || 300,
+        ),
     });
 
     this.registerTool({
@@ -267,8 +321,11 @@ export class ScreenCaptureAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'captureScreen', 'captureWindow', 'captureRegion',
-      'startRecording', 'stopRecording',
+      'captureScreen',
+      'captureWindow',
+      'captureRegion',
+      'startRecording',
+      'stopRecording',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -284,7 +341,13 @@ export class ScreenCaptureAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -336,7 +399,7 @@ export class ScreenCaptureAgentService extends BaseAgentService {
     // Simulate file size based on resolution and format
     const baseSize = width * height;
     const formatMultiplier = format === 'png' ? 2.5 : format === 'jpg' ? 0.3 : 3.0;
-    const qualityMultiplier = format === 'jpg' ? (quality / 100) : 1;
+    const qualityMultiplier = format === 'jpg' ? quality / 100 : 1;
     const sizeBytes = Math.round(baseSize * formatMultiplier * qualityMultiplier);
 
     const capture: CaptureEntry = {
@@ -358,7 +421,9 @@ export class ScreenCaptureAgentService extends BaseAgentService {
       300000,
     );
 
-    this.logger.log(`Screen captured: ${captureId} (${width}x${height}, ${format}, ${(sizeBytes / 1024).toFixed(1)}KB)`);
+    this.logger.log(
+      `Screen captured: ${captureId} (${width}x${height}, ${format}, ${(sizeBytes / 1024).toFixed(1)}KB)`,
+    );
     return {
       captureId,
       width,
@@ -392,9 +457,13 @@ export class ScreenCaptureAgentService extends BaseAgentService {
       }
     } else if (windowTitle) {
       const lowerTitle = windowTitle.toLowerCase();
-      targetWindow = SIMULATED_WINDOWS.find((w) => w.title.toLowerCase().includes(lowerTitle)) ?? SIMULATED_WINDOWS[0];
+      targetWindow =
+        SIMULATED_WINDOWS.find((w) => w.title.toLowerCase().includes(lowerTitle)) ??
+        SIMULATED_WINDOWS[0];
       if (!SIMULATED_WINDOWS.find((w) => w.title.toLowerCase().includes(lowerTitle))) {
-        throw new Error(`Window not found matching title: "${windowTitle}". Available: ${SIMULATED_WINDOWS.map((w) => w.title).join(', ')}`);
+        throw new Error(
+          `Window not found matching title: "${windowTitle}". Available: ${SIMULATED_WINDOWS.map((w) => w.title).join(', ')}`,
+        );
       }
     }
 
@@ -420,7 +489,9 @@ export class ScreenCaptureAgentService extends BaseAgentService {
 
     this.captures.set(captureId, capture);
 
-    this.logger.log(`Window captured: ${captureId} ("${targetWindow.title}" ${width}x${height}, ${format})`);
+    this.logger.log(
+      `Window captured: ${captureId} ("${targetWindow.title}" ${width}x${height}, ${format})`,
+    );
     return {
       captureId,
       windowTitle: targetWindow.title,
@@ -506,7 +577,9 @@ export class ScreenCaptureAgentService extends BaseAgentService {
       (r) => r.status === 'recording',
     );
     if (activeRecordings.length >= 2) {
-      throw new Error('Maximum concurrent recordings (2) reached. Stop an existing recording first.');
+      throw new Error(
+        'Maximum concurrent recordings (2) reached. Stop an existing recording first.',
+      );
     }
 
     if (fps < 1 || fps > 60) {
@@ -544,7 +617,9 @@ export class ScreenCaptureAgentService extends BaseAgentService {
       600000,
     );
 
-    this.logger.log(`Recording started: ${recordingId} (${fps}fps, ${format}, max: ${maxDuration}s)`);
+    this.logger.log(
+      `Recording started: ${recordingId} (${fps}fps, ${format}, max: ${maxDuration}s)`,
+    );
     return {
       recordingId,
       status: 'recording',

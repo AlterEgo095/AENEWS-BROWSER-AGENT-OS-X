@@ -30,7 +30,11 @@ export const FILESYSTEM_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'Absolute or relative file path' },
-          encoding: { type: 'string', description: 'File encoding (utf-8, ascii, base64)', default: 'utf-8' },
+          encoding: {
+            type: 'string',
+            description: 'File encoding (utf-8, ascii, base64)',
+            default: 'utf-8',
+          },
         },
         required: ['path'],
       },
@@ -233,7 +237,12 @@ interface VirtualNode {
 @Injectable()
 export class FileSystemAgentService extends BaseAgentService {
   private root!: VirtualNode;
-  private operationLog: Array<{ operation: string; path: string; timestamp: Date; success: boolean }> = [];
+  private operationLog: Array<{
+    operation: string;
+    path: string;
+    timestamp: Date;
+    success: boolean;
+  }> = [];
 
   protected defineConfig(): AgentConfig {
     return FILESYSTEM_AGENT_CONFIG;
@@ -257,14 +266,19 @@ export class FileSystemAgentService extends BaseAgentService {
     this.registerTool({
       name: 'readFile',
       description: 'Read the contents of a file',
-      execute: async (params: { path: string; encoding?: string }) => this.readFile(params.path, params.encoding),
+      execute: async (params: { path: string; encoding?: string }) =>
+        this.readFile(params.path, params.encoding),
     });
 
     this.registerTool({
       name: 'writeFile',
       description: 'Write content to a file',
-      execute: async (params: { path: string; content: string; encoding?: string; overwrite?: boolean }) =>
-        this.writeFile(params.path, params.content, params.encoding, params.overwrite),
+      execute: async (params: {
+        path: string;
+        content: string;
+        encoding?: string;
+        overwrite?: boolean;
+      }) => this.writeFile(params.path, params.content, params.encoding, params.overwrite),
     });
 
     this.registerTool({
@@ -291,15 +305,23 @@ export class FileSystemAgentService extends BaseAgentService {
     this.registerTool({
       name: 'copyFile',
       description: 'Copy a file or directory',
-      execute: async (params: { source: string; destination: string; overwrite?: boolean; recursive?: boolean }) =>
-        this.copyFile(params.source, params.destination, params.overwrite, params.recursive),
+      execute: async (params: {
+        source: string;
+        destination: string;
+        overwrite?: boolean;
+        recursive?: boolean;
+      }) => this.copyFile(params.source, params.destination, params.overwrite, params.recursive),
     });
 
     this.registerTool({
       name: 'listDirectory',
       description: 'List directory contents',
-      execute: async (params: { path: string; recursive?: boolean; includeHidden?: boolean; pattern?: string }) =>
-        this.listDirectory(params.path, params.recursive, params.includeHidden, params.pattern),
+      execute: async (params: {
+        path: string;
+        recursive?: boolean;
+        includeHidden?: boolean;
+        pattern?: string;
+      }) => this.listDirectory(params.path, params.recursive, params.includeHidden, params.pattern),
     });
 
     this.registerTool({
@@ -327,8 +349,14 @@ export class FileSystemAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'readFile', 'writeFile', 'createDirectory', 'deleteFile',
-      'moveFile', 'copyFile', 'listDirectory', 'getFileInfo',
+      'readFile',
+      'writeFile',
+      'createDirectory',
+      'deleteFile',
+      'moveFile',
+      'copyFile',
+      'listDirectory',
+      'getFileInfo',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -487,7 +515,9 @@ export class FileSystemAgentService extends BaseAgentService {
       const parentNode = this.resolveNode(parentPath);
 
       if (!parentNode) {
-        throw new Error(`Parent directory not found: ${parentPath}. Use recursive: true to create parents.`);
+        throw new Error(
+          `Parent directory not found: ${parentPath}. Use recursive: true to create parents.`,
+        );
       }
       if (parentNode.type !== 'directory') {
         throw new Error(`Parent path is not a directory: ${parentPath}`);

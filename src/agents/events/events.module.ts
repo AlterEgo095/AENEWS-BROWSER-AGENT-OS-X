@@ -48,11 +48,6 @@ export class EventsModuleInitializer implements OnModuleInit {
     EventReplayService,
     EventsModuleInitializer,
   ],
-  exports: [
-    EventBusService,
-    EventStoreService,
-    DeadLetterQueueService,
-    EventReplayService,
-  ],
+  exports: [EventBusService, EventStoreService, DeadLetterQueueService, EventReplayService],
 })
 export class EventsModule {}

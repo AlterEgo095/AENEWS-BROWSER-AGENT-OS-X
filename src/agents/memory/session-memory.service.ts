@@ -7,10 +7,7 @@
 
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  ISessionMemoryService,
-  SessionMemoryEntry,
-} from '../interfaces/agent-memory.interface';
+import { ISessionMemoryService, SessionMemoryEntry } from '../interfaces/agent-memory.interface';
 
 @Injectable()
 export class SessionMemoryService implements ISessionMemoryService, OnModuleInit, OnModuleDestroy {
@@ -143,7 +140,9 @@ export class SessionMemoryService implements ISessionMemoryService, OnModuleInit
     // Fallback to Redis
     if (this.redisClient) {
       try {
-        const serialized = await this.redisClient.get(`${SessionMemoryService.KEY_PREFIX}${composedKey}`);
+        const serialized = await this.redisClient.get(
+          `${SessionMemoryService.KEY_PREFIX}${composedKey}`,
+        );
         if (serialized) {
           const redisEntry = JSON.parse(serialized) as SessionMemoryEntry<T>;
           // Cache back to in-memory
@@ -267,10 +266,7 @@ export class SessionMemoryService implements ISessionMemoryService, OnModuleInit
   /**
    * Get the full session context (all key-value pairs for a session).
    */
-  async getSessionContext<T>(
-    agentId: string,
-    sessionId: string,
-  ): Promise<Map<string, T>> {
+  async getSessionContext<T>(agentId: string, sessionId: string): Promise<Map<string, T>> {
     const keys = await this.getSessionKeys(agentId, sessionId);
     const context = new Map<string, T>();
 
@@ -308,7 +304,9 @@ export class SessionMemoryService implements ISessionMemoryService, OnModuleInit
 
     if (this.redisClient) {
       try {
-        const remainingTtl = await this.redisClient.ttl(`${SessionMemoryService.KEY_PREFIX}${composedKey}`);
+        const remainingTtl = await this.redisClient.ttl(
+          `${SessionMemoryService.KEY_PREFIX}${composedKey}`,
+        );
         if (remainingTtl > 0) {
           await this.redisClient.expire(
             `${SessionMemoryService.KEY_PREFIX}${composedKey}`,

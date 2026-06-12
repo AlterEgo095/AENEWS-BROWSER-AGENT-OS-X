@@ -35,7 +35,11 @@ export const CONTAINER_AGENT_CONFIG: AgentConfig = {
           ports: { type: 'array', items: { type: 'object' } },
           env: { type: 'array', items: { type: 'object' } },
           resources: { type: 'object', description: 'CPU/memory limits and requests' },
-          restartPolicy: { type: 'string', enum: ['Always', 'OnFailure', 'Never'], default: 'Always' },
+          restartPolicy: {
+            type: 'string',
+            enum: ['Always', 'OnFailure', 'Never'],
+            default: 'Always',
+          },
           labels: { type: 'object' },
         },
         required: ['name', 'image'],
@@ -123,7 +127,11 @@ export const CONTAINER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           namespace: { type: 'string', description: 'Specific namespace (or all)' },
-          checks: { type: 'array', items: { type: 'string', enum: ['nodes', 'pods', 'services', 'events', 'resources'] }, default: ['nodes', 'pods'] },
+          checks: {
+            type: 'array',
+            items: { type: 'string', enum: ['nodes', 'pods', 'services', 'events', 'resources'] },
+            default: ['nodes', 'pods'],
+          },
         },
       },
       outputSchema: {
@@ -185,7 +193,12 @@ interface ContainerRecord {
   status: 'running' | 'pending' | 'terminated' | 'crash_loop';
   ports: Array<{ containerPort: number; protocol: string }>;
   env: Array<{ name: string; value: string }>;
-  resources: { cpuRequest?: string; cpuLimit?: string; memoryRequest?: string; memoryLimit?: string };
+  resources: {
+    cpuRequest?: string;
+    cpuLimit?: string;
+    memoryRequest?: string;
+    memoryLimit?: string;
+  };
   restartPolicy: string;
   labels: Record<string, string>;
   createdAt: Date;
@@ -291,10 +304,8 @@ export class ContainerAgentService extends BaseAgentService {
     this.registerTool({
       name: 'checkClusterHealth',
       description: 'Check Kubernetes cluster health',
-      execute: async (params: {
-        namespace?: string;
-        checks?: string[];
-      }) => this.checkClusterHealth(params),
+      execute: async (params: { namespace?: string; checks?: string[] }) =>
+        this.checkClusterHealth(params),
     });
 
     this.registerTool({
@@ -320,12 +331,22 @@ export class ContainerAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'createContainer', 'managePod', 'scaleReplicaSet',
-      'configureService', 'checkClusterHealth', 'manageNamespace',
+      'createContainer',
+      'managePod',
+      'scaleReplicaSet',
+      'configureService',
+      'checkClusterHealth',
+      'manageNamespace',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -341,7 +362,13 @@ export class ContainerAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -413,7 +440,9 @@ export class ContainerAgentService extends BaseAgentService {
 
     const validPolicies = ['Always', 'OnFailure', 'Never'];
     if (!validPolicies.includes(restartPolicy)) {
-      throw new Error(`Invalid restart policy: ${restartPolicy}. Valid: ${validPolicies.join(', ')}`);
+      throw new Error(
+        `Invalid restart policy: ${restartPolicy}. Valid: ${validPolicies.join(', ')}`,
+      );
     }
 
     this.containerCounter++;
@@ -501,7 +530,13 @@ export class ContainerAgentService extends BaseAgentService {
     if (action === 'list') {
       const podList = Array.from(this.pods.values())
         .filter((p) => namespace === 'default' || p.namespace === namespace)
-        .map((p) => ({ name: p.name, namespace: p.namespace, status: p.status, containers: p.containers, nodeName: p.nodeName }));
+        .map((p) => ({
+          name: p.name,
+          namespace: p.namespace,
+          status: p.status,
+          containers: p.containers,
+          nodeName: p.nodeName,
+        }));
 
       this.logger.log(`Listed ${podList.length} pods in ${namespace}`);
       return {
@@ -534,7 +569,13 @@ export class ContainerAgentService extends BaseAgentService {
     if (action === 'delete') {
       this.pods.delete(name);
       this.logger.log(`Deleted pod: ${name}`);
-      return { success: true, podName: name, namespace: pod.namespace, action, message: `Pod ${name} deleted` };
+      return {
+        success: true,
+        podName: name,
+        namespace: pod.namespace,
+        action,
+        message: `Pod ${name} deleted`,
+      };
     }
 
     if (action === 'logs') {
@@ -590,7 +631,13 @@ export class ContainerAgentService extends BaseAgentService {
       };
     }
 
-    return { success: true, podName: name, namespace, action, message: `Action ${action} completed` };
+    return {
+      success: true,
+      podName: name,
+      namespace,
+      action,
+      message: `Action ${action} completed`,
+    };
   }
 
   private async scaleReplicaSet(params: {
@@ -617,8 +664,9 @@ export class ContainerAgentService extends BaseAgentService {
     }
 
     // Find related pods to estimate current replicas
-    const relatedPods = Array.from(this.pods.values())
-      .filter((p) => p.name.startsWith(name) && p.namespace === namespace);
+    const relatedPods = Array.from(this.pods.values()).filter(
+      (p) => p.name.startsWith(name) && p.namespace === namespace,
+    );
 
     const previousReplicas = relatedPods.length || 3;
 
@@ -675,7 +723,14 @@ export class ContainerAgentService extends BaseAgentService {
     externalIp?: string;
     message: string;
   }> {
-    const { name, namespace = 'default', action, type = 'ClusterIP', selector = {}, ports = [] } = params;
+    const {
+      name,
+      namespace = 'default',
+      action,
+      type = 'ClusterIP',
+      selector = {},
+      ports = [],
+    } = params;
 
     if (!name || typeof name !== 'string') {
       throw new Error('Service name is required');
@@ -697,7 +752,13 @@ export class ContainerAgentService extends BaseAgentService {
       }
       this.services.delete(name);
       this.logger.log(`Deleted service: ${name}`);
-      return { success: true, serviceName: name, namespace, action, message: `Service "${name}" deleted` };
+      return {
+        success: true,
+        serviceName: name,
+        namespace,
+        action,
+        message: `Service "${name}" deleted`,
+      };
     }
 
     if (action === 'get') {
@@ -718,7 +779,10 @@ export class ContainerAgentService extends BaseAgentService {
     }
 
     const clusterIp = `10.96.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 254) + 1}`;
-    const externalIp = type === 'LoadBalancer' ? `${Math.floor(Math.random() * 255) + 1}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}` : undefined;
+    const externalIp =
+      type === 'LoadBalancer'
+        ? `${Math.floor(Math.random() * 255) + 1}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`
+        : undefined;
 
     const record: ServiceRecord = {
       name,
@@ -749,10 +813,7 @@ export class ContainerAgentService extends BaseAgentService {
     };
   }
 
-  private async checkClusterHealth(params: {
-    namespace?: string;
-    checks?: string[];
-  }): Promise<{
+  private async checkClusterHealth(params: { namespace?: string; checks?: string[] }): Promise<{
     healthy: boolean;
     namespace: string;
     nodes: {
@@ -794,18 +855,34 @@ export class ContainerAgentService extends BaseAgentService {
       });
     }
 
-    const allPods = Array.from(this.pods.values())
-      .filter((p) => namespace === 'all' || p.namespace === namespace);
+    const allPods = Array.from(this.pods.values()).filter(
+      (p) => namespace === 'all' || p.namespace === namespace,
+    );
 
     const runningPods = allPods.filter((p) => p.status === 'Running').length;
 
     const events = [
-      { type: 'Normal', message: 'Pod api-gateway-7d8f9 started', count: 3, lastSeen: new Date(Date.now() - 300000).toISOString() },
-      { type: 'Warning', message: 'Pod worker-service-3a2b failed liveness probe', count: 5, lastSeen: new Date(Date.now() - 600000).toISOString() },
-      { type: 'Normal', message: 'Deployment auth-service scaled to 5 replicas', count: 1, lastSeen: new Date(Date.now() - 900000).toISOString() },
+      {
+        type: 'Normal',
+        message: 'Pod api-gateway-7d8f9 started',
+        count: 3,
+        lastSeen: new Date(Date.now() - 300000).toISOString(),
+      },
+      {
+        type: 'Warning',
+        message: 'Pod worker-service-3a2b failed liveness probe',
+        count: 5,
+        lastSeen: new Date(Date.now() - 600000).toISOString(),
+      },
+      {
+        type: 'Normal',
+        message: 'Deployment auth-service scaled to 5 replicas',
+        count: 1,
+        lastSeen: new Date(Date.now() - 900000).toISOString(),
+      },
     ];
 
-    const healthy = readyNodes === nodeCount && (runningPods / (allPods.length || 1)) > 0.8;
+    const healthy = readyNodes === nodeCount && runningPods / (allPods.length || 1) > 0.8;
 
     const result = {
       healthy,
@@ -828,9 +905,11 @@ export class ContainerAgentService extends BaseAgentService {
       events: checks.includes('events') ? events : [],
       resourceUsage: {
         cpuTotalCores: nodeCount * 8,
-        cpuUsedPercent: Math.round(nodes.reduce((sum, n) => sum + n.cpuPercent, 0) / nodeCount * 100) / 100,
+        cpuUsedPercent:
+          Math.round((nodes.reduce((sum, n) => sum + n.cpuPercent, 0) / nodeCount) * 100) / 100,
         memoryTotalGb: nodeCount * 32,
-        memoryUsedPercent: Math.round(nodes.reduce((sum, n) => sum + n.memoryPercent, 0) / nodeCount * 100) / 100,
+        memoryUsedPercent:
+          Math.round((nodes.reduce((sum, n) => sum + n.memoryPercent, 0) / nodeCount) * 100) / 100,
       },
       checkedAt: new Date().toISOString(),
     };
@@ -871,7 +950,12 @@ export class ContainerAgentService extends BaseAgentService {
         status: ns.status,
       }));
       this.logger.log(`Listed ${nsList.length} namespaces`);
-      return { success: true, name, action, message: `${nsList.length} namespace(s): ${nsList.map((n) => n.name).join(', ')}` };
+      return {
+        success: true,
+        name,
+        action,
+        message: `${nsList.length} namespace(s): ${nsList.map((n) => n.name).join(', ')}`,
+      };
     }
 
     if (action === 'delete') {
@@ -890,7 +974,13 @@ export class ContainerAgentService extends BaseAgentService {
       if (!existing) {
         throw new Error(`Namespace not found: ${name}`);
       }
-      return { success: true, name, action, status: existing.status, message: `Namespace "${name}": status=${existing.status}` };
+      return {
+        success: true,
+        name,
+        action,
+        status: existing.status,
+        message: `Namespace "${name}": status=${existing.status}`,
+      };
     }
 
     // Create
@@ -908,7 +998,13 @@ export class ContainerAgentService extends BaseAgentService {
 
     this.logger.log(`Created namespace: ${name}`);
 
-    return { success: true, name, action, status: 'Active', message: `Namespace "${name}" created successfully` };
+    return {
+      success: true,
+      name,
+      action,
+      status: 'Active',
+      message: `Namespace "${name}" created successfully`,
+    };
   }
 
   // ─── Helpers ────────────────────────────────────────────────────
@@ -936,9 +1032,24 @@ export class ContainerAgentService extends BaseAgentService {
 
     // Seed pods
     const seedPods = [
-      { name: 'api-gateway-7d8f9c', namespace: 'production', containers: ['api-gateway'], node: 'node-1' },
-      { name: 'auth-service-5a2b1d', namespace: 'production', containers: ['auth-service'], node: 'node-2' },
-      { name: 'worker-service-3e4f6g', namespace: 'production', containers: ['worker-service'], node: 'node-3' },
+      {
+        name: 'api-gateway-7d8f9c',
+        namespace: 'production',
+        containers: ['api-gateway'],
+        node: 'node-1',
+      },
+      {
+        name: 'auth-service-5a2b1d',
+        namespace: 'production',
+        containers: ['auth-service'],
+        node: 'node-2',
+      },
+      {
+        name: 'worker-service-3e4f6g',
+        namespace: 'production',
+        containers: ['worker-service'],
+        node: 'node-3',
+      },
       { name: 'coredns-8h9j0k', namespace: 'kube-system', containers: ['coredns'], node: 'node-1' },
     ];
 

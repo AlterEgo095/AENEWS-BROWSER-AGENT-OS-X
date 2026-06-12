@@ -30,8 +30,16 @@ export const META_JUDGE_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          proposals: { type: 'array', items: { type: 'object' }, description: 'Conflicting proposals' },
-          criteria: { type: 'array', items: { type: 'string' }, description: 'Arbitration criteria' },
+          proposals: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Conflicting proposals',
+          },
+          criteria: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Arbitration criteria',
+          },
           context: { type: 'object', description: 'Arbitration context' },
         },
         required: ['proposals'],
@@ -75,7 +83,11 @@ export const META_JUDGE_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           conflict: { type: 'object', description: 'Conflict description and parties' },
-          resolutionStrategy: { type: 'string', enum: ['compromise', 'winner-take-all', 'merge', 'escalate'], description: 'Resolution strategy' },
+          resolutionStrategy: {
+            type: 'string',
+            enum: ['compromise', 'winner-take-all', 'merge', 'escalate'],
+            description: 'Resolution strategy',
+          },
         },
         required: ['conflict'],
       },
@@ -95,8 +107,16 @@ export const META_JUDGE_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          claims: { type: 'array', items: { type: 'object' }, description: 'Claims with supporting evidence' },
-          standards: { type: 'string', enum: ['preponderance', 'clear-and-convincing', 'beyond-reasonable-doubt'], description: 'Evidence standard' },
+          claims: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Claims with supporting evidence',
+          },
+          standards: {
+            type: 'string',
+            enum: ['preponderance', 'clear-and-convincing', 'beyond-reasonable-doubt'],
+            description: 'Evidence standard',
+          },
         },
         required: ['claims'],
       },
@@ -138,8 +158,16 @@ export const META_JUDGE_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           decisionId: { type: 'string', description: 'Decision to explain' },
-          depth: { type: 'string', enum: ['summary', 'detailed', 'comprehensive'], description: 'Explanation depth' },
-          audience: { type: 'string', enum: ['technical', 'business', 'general'], description: 'Target audience' },
+          depth: {
+            type: 'string',
+            enum: ['summary', 'detailed', 'comprehensive'],
+            description: 'Explanation depth',
+          },
+          audience: {
+            type: 'string',
+            enum: ['technical', 'business', 'general'],
+            description: 'Target audience',
+          },
         },
         required: ['decisionId'],
       },
@@ -216,7 +244,11 @@ export class JudgeAgentService extends BaseAgentService {
       name: 'resolveConflict',
       description: 'Resolve a conflict between agents or outputs',
       execute: async (params: {
-        conflict: { description: string; parties: string[]; positions: Array<{ party: string; position: string }> };
+        conflict: {
+          description: string;
+          parties: string[];
+          positions: Array<{ party: string; position: string }>;
+        };
         resolutionStrategy?: string;
       }) => this.resolveConflict(params),
     });
@@ -225,7 +257,11 @@ export class JudgeAgentService extends BaseAgentService {
       name: 'evaluateEvidence',
       description: 'Evaluate evidence supporting different claims',
       execute: async (params: {
-        claims: Array<{ id: string; claim: string; evidence: Array<{ type: string; strength: number; description: string }> }>;
+        claims: Array<{
+          id: string;
+          claim: string;
+          evidence: Array<{ type: string; strength: number; description: string }>;
+        }>;
         standards?: string;
       }) => this.evaluateEvidence(params),
     });
@@ -243,11 +279,8 @@ export class JudgeAgentService extends BaseAgentService {
     this.registerTool({
       name: 'explainReasoning',
       description: 'Explain the reasoning behind a decision or ruling',
-      execute: async (params: {
-        decisionId: string;
-        depth?: string;
-        audience?: string;
-      }) => this.explainReasoning(params),
+      execute: async (params: { decisionId: string; depth?: string; audience?: string }) =>
+        this.explainReasoning(params),
     });
 
     await this.storeInWorkingMemory('judge:initializedAt', new Date().toISOString(), 600000);
@@ -259,17 +292,29 @@ export class JudgeAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'arbitrate', 'makeDecision', 'resolveConflict',
-      'evaluateEvidence', 'generateRuling', 'explainReasoning',
+      'arbitrate',
+      'makeDecision',
+      'resolveConflict',
+      'evaluateEvidence',
+      'generateRuling',
+      'explainReasoning',
     ];
 
     if (!supportedActions.includes(action)) {
       return this.createAgentOutput(
-        input.taskId, false, null,
+        input.taskId,
+        false,
+        null,
         `Unknown judge action: ${action}. Supported: ${supportedActions.join(', ')}`,
         startTime,
       );
@@ -278,10 +323,20 @@ export class JudgeAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
       const result = await tool.execute(params);
-      await this.storeInWorkingMemory(`judge:last:${action}`, { params, result, timestamp: new Date() }, 300000);
+      await this.storeInWorkingMemory(
+        `judge:last:${action}`,
+        { params, result, timestamp: new Date() },
+        300000,
+      );
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
       const msg = (error as Error).message;
@@ -338,13 +393,19 @@ export class JudgeAgentService extends BaseAgentService {
     const sorted = Object.entries(scores).sort(([, a], [, b]) => b - a);
     const winner = sorted[0][0];
 
-    const reasoning = `After evaluating ${proposals.length} proposals against criteria [${criteria.join(', ')}], ` +
+    const reasoning =
+      `After evaluating ${proposals.length} proposals against criteria [${criteria.join(', ')}], ` +
       `proposal "${winner}" scored highest at ${sorted[0][1]} points. ` +
       `The margin of victory was ${sorted[0][1] - (sorted[1]?.[1] || 0)} points.`;
 
     this.logger.log(`Arbitration complete: winner=${winner}, proposals=${proposals.length}`);
 
-    return { ruling: `Proposal "${winner}" is selected as the best option`, winner, scores, reasoning };
+    return {
+      ruling: `Proposal "${winner}" is selected as the best option`,
+      winner,
+      scores,
+      reasoning,
+    };
   }
 
   private async makeDecision(params: {
@@ -378,23 +439,30 @@ export class JudgeAgentService extends BaseAgentService {
       const hasAffirmative = affirmativeWords.some((w) => lower.includes(w));
       const hasNegative = negativeWords.some((w) => lower.includes(w));
 
-      chosenOption = hasAffirmative && !hasNegative ? 'yes' : hasNegative ? 'no' : 'conditional-yes';
+      chosenOption =
+        hasAffirmative && !hasNegative ? 'yes' : hasNegative ? 'no' : 'conditional-yes';
       confidence = 0.6 + Math.random() * 0.3;
-      rationale = `Based on analysis of the question "${question.substring(0, 100)}", ` +
+      rationale =
+        `Based on analysis of the question "${question.substring(0, 100)}", ` +
         `the decision is "${chosenOption}" with moderate confidence. `;
     } else {
       // Multi-option decision
       const weighted = options.map((opt) => {
         const weight = opt.weight || 1;
         const criteriaBoost = decisionCriteria[opt.id] || 0;
-        return { id: opt.id, label: opt.label, score: weight * 50 + criteriaBoost * 10 + Math.random() * 20 };
+        return {
+          id: opt.id,
+          label: opt.label,
+          score: weight * 50 + criteriaBoost * 10 + Math.random() * 20,
+        };
       });
 
       weighted.sort((a, b) => b.score - a.score);
       chosenOption = weighted[0].id;
       confidence = Math.min(0.95, 0.5 + (weighted[0].score - (weighted[1]?.score || 0)) / 100);
 
-      rationale = `Evaluated ${options.length} options. "${weighted[0].label}" scored highest ` +
+      rationale =
+        `Evaluated ${options.length} options. "${weighted[0].label}" scored highest ` +
         `(${Math.round(weighted[0].score)} points) based on weighted criteria analysis.`;
     }
 
@@ -409,13 +477,24 @@ export class JudgeAgentService extends BaseAgentService {
 
     this.decisions.set(decisionId, record);
 
-    this.logger.log(`Decision made: id=${decisionId}, choice=${chosenOption}, confidence=${confidence.toFixed(2)}`);
+    this.logger.log(
+      `Decision made: id=${decisionId}, choice=${chosenOption}, confidence=${confidence.toFixed(2)}`,
+    );
 
-    return { decision: chosenOption, chosenOption, confidence: Math.round(confidence * 100) / 100, rationale };
+    return {
+      decision: chosenOption,
+      chosenOption,
+      confidence: Math.round(confidence * 100) / 100,
+      rationale,
+    };
   }
 
   private async resolveConflict(params: {
-    conflict: { description: string; parties: string[]; positions: Array<{ party: string; position: string }> };
+    conflict: {
+      description: string;
+      parties: string[];
+      positions: Array<{ party: string; position: string }>;
+    };
     resolutionStrategy?: string;
   }): Promise<{
     resolution: string;
@@ -447,7 +526,10 @@ export class JudgeAgentService extends BaseAgentService {
         const winner = parties[Math.floor(Math.random() * parties.length)];
         resolution = `Winner-take-all: "${winner}" position adopted as the final resolution`;
         for (const party of parties) {
-          outcome[party] = { role: party === winner ? 'winner' : 'loser', satisfaction: party === winner ? 1.0 : 0.2 };
+          outcome[party] = {
+            role: party === winner ? 'winner' : 'loser',
+            satisfaction: party === winner ? 1.0 : 0.2,
+          };
           if (outcome[party].satisfaction > 0.5) satisfiedParties.push(party);
         }
         break;
@@ -462,7 +544,8 @@ export class JudgeAgentService extends BaseAgentService {
         break;
 
       case 'escalate':
-        resolution = 'Escalated: conflict requires higher-level review and cannot be resolved at this level';
+        resolution =
+          'Escalated: conflict requires higher-level review and cannot be resolved at this level';
         for (const party of parties) {
           outcome[party] = { role: 'escalated', satisfaction: 0.3 };
         }
@@ -481,10 +564,19 @@ export class JudgeAgentService extends BaseAgentService {
   }
 
   private async evaluateEvidence(params: {
-    claims: Array<{ id: string; claim: string; evidence: Array<{ type: string; strength: number; description: string }> }>;
+    claims: Array<{
+      id: string;
+      claim: string;
+      evidence: Array<{ type: string; strength: number; description: string }>;
+    }>;
     standards?: string;
   }): Promise<{
-    evaluations: Array<{ claimId: string; score: number; evidenceCount: number; meetsStandard: boolean }>;
+    evaluations: Array<{
+      claimId: string;
+      score: number;
+      evidenceCount: number;
+      meetsStandard: boolean;
+    }>;
     strongestClaim: string;
     evidenceScore: number;
   }> {
@@ -495,7 +587,7 @@ export class JudgeAgentService extends BaseAgentService {
     }
 
     const thresholds: Record<string, number> = {
-      'preponderance': 51,
+      preponderance: 51,
       'clear-and-convincing': 75,
       'beyond-reasonable-doubt': 95,
     };
@@ -504,9 +596,10 @@ export class JudgeAgentService extends BaseAgentService {
 
     const evaluations = claims.map((claim) => {
       const evidenceCount = claim.evidence?.length || 0;
-      const avgStrength = evidenceCount > 0
-        ? claim.evidence.reduce((sum, e) => sum + e.strength, 0) / evidenceCount
-        : 0;
+      const avgStrength =
+        evidenceCount > 0
+          ? claim.evidence.reduce((sum, e) => sum + e.strength, 0) / evidenceCount
+          : 0;
 
       // Score based on evidence quantity and quality
       let score = Math.round(avgStrength * 100);
@@ -524,9 +617,10 @@ export class JudgeAgentService extends BaseAgentService {
 
     evaluations.sort((a, b) => b.score - a.score);
     const strongestClaim = evaluations[0]?.claimId || '';
-    const evidenceScore = evaluations.length > 0
-      ? Math.round(evaluations.reduce((sum, e) => sum + e.score, 0) / evaluations.length)
-      : 0;
+    const evidenceScore =
+      evaluations.length > 0
+        ? Math.round(evaluations.reduce((sum, e) => sum + e.score, 0) / evaluations.length)
+        : 0;
 
     this.logger.log(
       `Evidence evaluated: claims=${claims.length}, standard=${standards}, strongest=${strongestClaim}`,
@@ -623,10 +717,22 @@ export class JudgeAgentService extends BaseAgentService {
     const record = this.decisions.get(decisionId);
 
     const keyFactors: Array<{ factor: string; weight: number; description: string }> = [
-      { factor: 'Evidence Quality', weight: 0.35, description: 'Strength and reliability of available evidence' },
-      { factor: 'Consistency', weight: 0.25, description: 'Consistency of evidence with established patterns' },
+      {
+        factor: 'Evidence Quality',
+        weight: 0.35,
+        description: 'Strength and reliability of available evidence',
+      },
+      {
+        factor: 'Consistency',
+        weight: 0.25,
+        description: 'Consistency of evidence with established patterns',
+      },
       { factor: 'Completeness', weight: 0.2, description: 'Completeness of the information base' },
-      { factor: 'Risk Assessment', weight: 0.2, description: 'Potential risks associated with each option' },
+      {
+        factor: 'Risk Assessment',
+        weight: 0.2,
+        description: 'Potential risks associated with each option',
+      },
     ];
 
     const alternatives: Array<{ option: string; reason: string }> = [
@@ -665,7 +771,9 @@ export class JudgeAgentService extends BaseAgentService {
       explanation = explanation.replace(/\d+%/g, 'a portion of');
     }
 
-    this.logger.log(`Reasoning explained: decisionId=${decisionId}, depth=${depth}, audience=${audience}`);
+    this.logger.log(
+      `Reasoning explained: decisionId=${decisionId}, depth=${depth}, audience=${audience}`,
+    );
 
     return { explanation, keyFactors, alternatives, assumptions };
   }

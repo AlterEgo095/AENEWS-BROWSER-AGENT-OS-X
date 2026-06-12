@@ -190,12 +190,17 @@ export class VectorSearchService implements IVectorSearchService, OnModuleInit, 
   /**
    * Batch upsert multiple vectors.
    */
-  async upsertBatch(entries: Array<{ id: string; vector: number[]; payload: Record<string, any> }>): Promise<void> {
+  async upsertBatch(
+    entries: Array<{ id: string; vector: number[]; payload: Record<string, any> }>,
+  ): Promise<void> {
     for (const entry of entries) {
       this.store.set(entry.id, {
         id: entry.id,
         vector: entry.vector,
-        payload: { ...entry.payload, _collection: entry.payload._collection || this.defaultCollection },
+        payload: {
+          ...entry.payload,
+          _collection: entry.payload._collection || this.defaultCollection,
+        },
         createdAt: new Date(),
       });
     }
@@ -203,7 +208,10 @@ export class VectorSearchService implements IVectorSearchService, OnModuleInit, 
     if (this.qdrantClient) {
       try {
         // Group by collection
-        const byCollection = new Map<string, Array<{ id: string; vector: number[]; payload: Record<string, any> }>>();
+        const byCollection = new Map<
+          string,
+          Array<{ id: string; vector: number[]; payload: Record<string, any> }>
+        >();
 
         for (const entry of entries) {
           const collection = entry.payload._collection || this.defaultCollection;

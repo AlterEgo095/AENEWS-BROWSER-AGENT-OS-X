@@ -41,7 +41,10 @@ export class WorkingMemoryService implements IWorkingMemoryService, OnModuleDest
     const agentStore = this.store.get(agentId)!;
 
     // LRU eviction if at capacity
-    if (agentStore.size >= WorkingMemoryService.DEFAULT_MAX_ENTRIES_PER_AGENT && !agentStore.has(key)) {
+    if (
+      agentStore.size >= WorkingMemoryService.DEFAULT_MAX_ENTRIES_PER_AGENT &&
+      !agentStore.has(key)
+    ) {
       this.evictLRU(agentStore);
     }
 
@@ -178,7 +181,9 @@ export class WorkingMemoryService implements IWorkingMemoryService, OnModuleDest
   /**
    * Get all entries for an agent (non-expired only).
    */
-  getAllEntries<T>(agentId: string): Array<{ key: string; value: T; accessCount: number; createdAt: number }> {
+  getAllEntries<T>(
+    agentId: string,
+  ): Array<{ key: string; value: T; accessCount: number; createdAt: number }> {
     const agentStore = this.store.get(agentId);
     if (!agentStore) return [];
 

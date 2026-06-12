@@ -30,7 +30,11 @@ export const ENCRYPTION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           data: { type: 'string', description: 'Data to encrypt' },
-          algorithm: { type: 'string', enum: ['AES-256-GCM', 'AES-128-CBC', 'RSA-2048', 'RSA-4096'], description: 'Encryption algorithm' },
+          algorithm: {
+            type: 'string',
+            enum: ['AES-256-GCM', 'AES-128-CBC', 'RSA-2048', 'RSA-4096'],
+            description: 'Encryption algorithm',
+          },
           keyId: { type: 'string', description: 'ID of encryption key to use' },
         },
         required: ['data', 'algorithm'],
@@ -74,7 +78,11 @@ export const ENCRYPTION_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          type: { type: 'string', enum: ['symmetric', 'asymmetric', 'hmac'], description: 'Key type' },
+          type: {
+            type: 'string',
+            enum: ['symmetric', 'asymmetric', 'hmac'],
+            description: 'Key type',
+          },
           algorithm: { type: 'string', description: 'Algorithm for the key' },
           keySize: { type: 'number', description: 'Key size in bits' },
           purpose: { type: 'string', description: 'Purpose of the key' },
@@ -98,7 +106,11 @@ export const ENCRYPTION_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          operation: { type: 'string', enum: ['create', 'renew', 'revoke', 'list', 'verify'], description: 'Certificate operation' },
+          operation: {
+            type: 'string',
+            enum: ['create', 'renew', 'revoke', 'list', 'verify'],
+            description: 'Certificate operation',
+          },
           domain: { type: 'string', description: 'Domain for the certificate' },
           certificateId: { type: 'string', description: 'Certificate ID for operations' },
         },
@@ -121,8 +133,15 @@ export const ENCRYPTION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           keyId: { type: 'string', description: 'Key to rotate' },
-          strategy: { type: 'string', enum: ['immediate', 'gradual', 'scheduled'], description: 'Rotation strategy' },
-          reEncryptData: { type: 'boolean', description: 'Whether to re-encrypt data with new key' },
+          strategy: {
+            type: 'string',
+            enum: ['immediate', 'gradual', 'scheduled'],
+            description: 'Rotation strategy',
+          },
+          reEncryptData: {
+            type: 'boolean',
+            description: 'Whether to re-encrypt data with new key',
+          },
         },
         required: ['keyId'],
       },
@@ -160,7 +179,14 @@ export const ENCRYPTION_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:encryption', 'write:encryption', 'manage:keys', 'manage:certificates', 'sign:data'],
+  permissions: [
+    'execute:task',
+    'read:encryption',
+    'write:encryption',
+    'manage:keys',
+    'manage:certificates',
+    'sign:data',
+  ],
   maxConcurrentTasks: 5,
   timeout: 30000,
   retryPolicy: {
@@ -198,7 +224,10 @@ interface CertificateRecord {
 export class EncryptionAgentService extends BaseAgentService {
   private keys: Map<string, KeyRecord> = new Map();
   private certificates: Map<string, CertificateRecord> = new Map();
-  private encryptedDataStore: Map<string, { ciphertext: string; keyId: string; algorithm: string; iv?: string; tag?: string }> = new Map();
+  private encryptedDataStore: Map<
+    string,
+    { ciphertext: string; keyId: string; algorithm: string; iv?: string; tag?: string }
+  > = new Map();
 
   protected defineConfig(): AgentConfig {
     return ENCRYPTION_AGENT_CONFIG;
@@ -222,8 +251,12 @@ export class EncryptionAgentService extends BaseAgentService {
     this.registerTool({
       name: 'generateKey',
       description: 'Generate a new cryptographic key',
-      execute: async (params: { type: string; algorithm: string; keySize?: number; purpose?: string }) =>
-        this.generateKey(params),
+      execute: async (params: {
+        type: string;
+        algorithm: string;
+        keySize?: number;
+        purpose?: string;
+      }) => this.generateKey(params),
     });
 
     this.registerTool({
@@ -243,8 +276,12 @@ export class EncryptionAgentService extends BaseAgentService {
     this.registerTool({
       name: 'verifySignature',
       description: 'Verify a digital signature',
-      execute: async (params: { data: string; signature: string; keyId: string; algorithm?: string }) =>
-        this.verifySignature(params),
+      execute: async (params: {
+        data: string;
+        signature: string;
+        keyId: string;
+        algorithm?: string;
+      }) => this.verifySignature(params),
     });
 
     this.logger.log('Encryption agent initialized with 6 tools');
@@ -338,7 +375,8 @@ export class EncryptionAgentService extends BaseAgentService {
     // Simulate encryption
     const iv = this.generateId().substring(0, 16);
     const tag = this.generateId().substring(0, 16);
-    const ciphertext = Buffer.from(data).toString('base64') + '.' + this.generateId().substring(0, 8);
+    const ciphertext =
+      Buffer.from(data).toString('base64') + '.' + this.generateId().substring(0, 8);
     const storeId = this.generateId();
 
     this.encryptedDataStore.set(storeId, {
@@ -392,7 +430,13 @@ export class EncryptionAgentService extends BaseAgentService {
     algorithm: string;
     keySize?: number;
     purpose?: string;
-  }): Promise<{ keyId: string; type: string; algorithm: string; createdAt: string; expiresAt: string }> {
+  }): Promise<{
+    keyId: string;
+    type: string;
+    algorithm: string;
+    createdAt: string;
+    expiresAt: string;
+  }> {
     const { type, algorithm, keySize = 256, purpose = 'general' } = params;
 
     if (!type || !algorithm) {
@@ -450,7 +494,12 @@ export class EncryptionAgentService extends BaseAgentService {
         };
         this.certificates.set(certId, record);
         this.logger.log(`Certificate created: ${certId} for ${domain}`);
-        return { success: true, certificateId: certId, status: 'active', expiresAt: record.expiresAt.toISOString() };
+        return {
+          success: true,
+          certificateId: certId,
+          status: 'active',
+          expiresAt: record.expiresAt.toISOString(),
+        };
       }
       case 'renew': {
         const cert = certificateId ? this.certificates.get(certificateId) : null;
@@ -460,7 +509,12 @@ export class EncryptionAgentService extends BaseAgentService {
         cert.issuedAt = new Date();
         cert.expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
         this.logger.log(`Certificate renewed: ${certificateId}`);
-        return { success: true, certificateId, status: 'active', expiresAt: cert.expiresAt.toISOString() };
+        return {
+          success: true,
+          certificateId,
+          status: 'active',
+          expiresAt: cert.expiresAt.toISOString(),
+        };
       }
       case 'revoke': {
         const cert = certificateId ? this.certificates.get(certificateId) : null;
@@ -479,7 +533,9 @@ export class EncryptionAgentService extends BaseAgentService {
       case 'verify': {
         const cert = certificateId ? this.certificates.get(certificateId) : null;
         const isValid = cert ? cert.status === 'active' && cert.expiresAt > new Date() : false;
-        this.logger.log(`Certificate verification: ${certificateId} — ${isValid ? 'valid' : 'invalid'}`);
+        this.logger.log(
+          `Certificate verification: ${certificateId} — ${isValid ? 'valid' : 'invalid'}`,
+        );
         return { success: true, certificateId, status: isValid ? 'valid' : 'invalid' };
       }
       default:
@@ -524,7 +580,9 @@ export class EncryptionAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(`Key rotated: ${keyId} → ${newKeyResult.keyId} (strategy: ${strategy}, re-encrypted: ${reEncryptedItems})`);
+    this.logger.log(
+      `Key rotated: ${keyId} → ${newKeyResult.keyId} (strategy: ${strategy}, re-encrypted: ${reEncryptedItems})`,
+    );
 
     return {
       rotated: true,

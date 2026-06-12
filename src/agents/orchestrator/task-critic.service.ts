@@ -101,8 +101,9 @@ export class TaskCriticService {
     // ─── Calculate Final Score (0-100) ───────────────────────────
     const score = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
     const hasCriticalIssues = issues.some((i) => i.severity === 'critical');
-    const passed = score >= this.config.passingScoreThreshold
-      && !(this.config.criticalSeverityBlocks && hasCriticalIssues);
+    const passed =
+      score >= this.config.passingScoreThreshold &&
+      !(this.config.criticalSeverityBlocks && hasCriticalIssues);
 
     const recommendations = this.generateRecommendations(issues);
 
@@ -116,7 +117,7 @@ export class TaskCriticService {
 
     this.logger.log(
       `Critique completed: ${passed ? 'PASSED' : 'FAILED'} (score: ${score}) ` +
-      `with ${issues.length} issues in ${Date.now() - startTime}ms`,
+        `with ${issues.length} issues in ${Date.now() - startTime}ms`,
     );
 
     return critiqueResult;
@@ -292,10 +293,7 @@ export class TaskCriticService {
   /**
    * Check consistency across steps.
    */
-  private checkCrossStepConsistency(
-    results: StepExecutionResult[],
-    issues: CritiqueIssue[],
-  ): void {
+  private checkCrossStepConsistency(results: StepExecutionResult[], issues: CritiqueIssue[]): void {
     const successResults = results.filter((r) => r.success);
 
     // Check for conflicting results
@@ -304,12 +302,7 @@ export class TaskCriticService {
         const a = successResults[i].output.result;
         const b = successResults[j].output.result;
 
-        if (
-          typeof a === 'object' &&
-          typeof b === 'object' &&
-          a !== null &&
-          b !== null
-        ) {
+        if (typeof a === 'object' && typeof b === 'object' && a !== null && b !== null) {
           const conflicting = this.findConflicts(a, b);
           if (conflicting.length > 0) {
             issues.push({
@@ -407,10 +400,7 @@ export class TaskCriticService {
   /**
    * Check data quality of results.
    */
-  private checkDataQuality(
-    results: StepExecutionResult[],
-    issues: CritiqueIssue[],
-  ): void {
+  private checkDataQuality(results: StepExecutionResult[], issues: CritiqueIssue[]): void {
     for (const result of results) {
       if (!result.success || !result.output.result) continue;
 
@@ -485,35 +475,25 @@ export class TaskCriticService {
     const warningIssues = issues.filter((i) => i.severity === 'warning');
 
     if (errorIssues.length > 0) {
-      recommendations.push(
-        `Address ${errorIssues.length} error(s) before accepting results`,
-      );
+      recommendations.push(`Address ${errorIssues.length} error(s) before accepting results`);
     }
 
     for (const error of errorIssues) {
       if (error.autoRepairable) {
-        recommendations.push(
-          `Auto-repair step ${error.stepId}: ${error.message}`,
-        );
+        recommendations.push(`Auto-repair step ${error.stepId}: ${error.message}`);
       }
     }
 
     if (warningIssues.some((i) => i.category === CritiqueCategory.PERFORMANCE)) {
-      recommendations.push(
-        'Consider optimizing steps with high execution time or memory usage',
-      );
+      recommendations.push('Consider optimizing steps with high execution time or memory usage');
     }
 
     if (warningIssues.some((i) => i.category === CritiqueCategory.CONSISTENCY)) {
-      recommendations.push(
-        'Review conflicting results between steps for data integrity',
-      );
+      recommendations.push('Review conflicting results between steps for data integrity');
     }
 
     if (warningIssues.some((i) => i.category === CritiqueCategory.DATA_QUALITY)) {
-      recommendations.push(
-        'Review data quality issues in step outputs',
-      );
+      recommendations.push('Review data quality issues in step outputs');
     }
 
     if (issues.every((i) => i.severity === 'info')) {

@@ -120,18 +120,12 @@ export interface IPermissionEvaluator {
   /**
    * Grant a permission to an agent.
    */
-  grantPermission(
-    agentId: string,
-    permission: PermissionDefinition,
-  ): Promise<void>;
+  grantPermission(agentId: string, permission: PermissionDefinition): Promise<void>;
 
   /**
    * Revoke a permission from an agent.
    */
-  revokePermission(
-    agentId: string,
-    permissionId: string,
-  ): Promise<void>;
+  revokePermission(agentId: string, permissionId: string): Promise<void>;
 
   /**
    * Check permissions in bulk.

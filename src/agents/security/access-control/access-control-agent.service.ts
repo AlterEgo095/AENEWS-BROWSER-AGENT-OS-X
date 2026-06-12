@@ -97,9 +97,17 @@ export const ACCESS_CONTROL_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          operation: { type: 'string', enum: ['create', 'update', 'delete', 'assign', 'unassign'], description: 'Role operation' },
+          operation: {
+            type: 'string',
+            enum: ['create', 'update', 'delete', 'assign', 'unassign'],
+            description: 'Role operation',
+          },
           roleName: { type: 'string', description: 'Name of the role' },
-          permissions: { type: 'array', items: { type: 'string' }, description: 'Permissions for the role' },
+          permissions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Permissions for the role',
+          },
           parentRole: { type: 'string', description: 'Parent role for hierarchy' },
           userId: { type: 'string', description: 'User ID for assign/unassign' },
         },
@@ -145,8 +153,16 @@ export const ACCESS_CONTROL_AGENT_CONFIG: AgentConfig = {
           name: { type: 'string', description: 'Policy name' },
           description: { type: 'string', description: 'Policy description' },
           effect: { type: 'string', enum: ['allow', 'deny'], description: 'Policy effect' },
-          principals: { type: 'array', items: { type: 'string' }, description: 'Applicable principals' },
-          resources: { type: 'array', items: { type: 'string' }, description: 'Applicable resources' },
+          principals: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Applicable principals',
+          },
+          resources: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Applicable resources',
+          },
           actions: { type: 'array', items: { type: 'string' }, description: 'Applicable actions' },
           conditions: { type: 'object', description: 'Policy conditions (ABAC)' },
         },
@@ -163,7 +179,14 @@ export const ACCESS_CONTROL_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:access', 'write:access', 'manage:roles', 'define:policies', 'audit:access'],
+  permissions: [
+    'execute:task',
+    'read:access',
+    'write:access',
+    'manage:roles',
+    'define:policies',
+    'audit:access',
+  ],
   maxConcurrentTasks: 10,
   timeout: 15000,
   retryPolicy: {
@@ -222,43 +245,71 @@ export class AccessControlAgentService extends BaseAgentService {
     this.registerTool({
       name: 'grantAccess',
       description: 'Grant access permissions to a user or role',
-      execute: async (params: { principal: string; resource: string; actions: string[]; conditions?: any }) =>
-        this.grantAccess(params),
+      execute: async (params: {
+        principal: string;
+        resource: string;
+        actions: string[];
+        conditions?: any;
+      }) => this.grantAccess(params),
     });
 
     this.registerTool({
       name: 'revokeAccess',
       description: 'Revoke access permissions from a user or role',
-      execute: async (params: { principal: string; resource: string; actions?: string[]; reason?: string }) =>
-        this.revokeAccess(params),
+      execute: async (params: {
+        principal: string;
+        resource: string;
+        actions?: string[];
+        reason?: string;
+      }) => this.revokeAccess(params),
     });
 
     this.registerTool({
       name: 'checkPermission',
       description: 'Check if a principal has a specific permission',
-      execute: async (params: { principal: string; resource: string; action: string; context?: any }) =>
-        this.checkAgentPermission(params),
+      execute: async (params: {
+        principal: string;
+        resource: string;
+        action: string;
+        context?: any;
+      }) => this.checkAgentPermission(params),
     });
 
     this.registerTool({
       name: 'manageRole',
       description: 'Create, update, or delete roles and their hierarchies',
-      execute: async (params: { operation: string; roleName: string; permissions?: string[]; parentRole?: string; userId?: string }) =>
-        this.manageRole(params),
+      execute: async (params: {
+        operation: string;
+        roleName: string;
+        permissions?: string[];
+        parentRole?: string;
+        userId?: string;
+      }) => this.manageRole(params),
     });
 
     this.registerTool({
       name: 'auditAccess',
       description: 'Audit access patterns and generate access reports',
-      execute: async (params: { principal?: string; resource?: string; timeRange?: string; includeDenied?: boolean }) =>
-        this.auditAccess(params),
+      execute: async (params: {
+        principal?: string;
+        resource?: string;
+        timeRange?: string;
+        includeDenied?: boolean;
+      }) => this.auditAccess(params),
     });
 
     this.registerTool({
       name: 'definePolicy',
       description: 'Define a new access control policy',
-      execute: async (params: { name: string; description?: string; effect: string; principals: string[]; resources: string[]; actions: string[]; conditions?: any }) =>
-        this.definePolicy(params),
+      execute: async (params: {
+        name: string;
+        description?: string;
+        effect: string;
+        principals: string[];
+        resources: string[];
+        actions: string[];
+        conditions?: any;
+      }) => this.definePolicy(params),
     });
 
     this.logger.log('AccessControl agent initialized with 6 tools');
@@ -332,7 +383,13 @@ export class AccessControlAgentService extends BaseAgentService {
     resource: string;
     actions: string[];
     conditions?: any;
-  }): Promise<{ granted: boolean; principal: string; resource: string; actions: string[]; policyId: string }> {
+  }): Promise<{
+    granted: boolean;
+    principal: string;
+    resource: string;
+    actions: string[];
+    policyId: string;
+  }> {
     const { principal, resource, actions, conditions } = params;
 
     if (!principal || !resource || !actions?.length) {
@@ -356,7 +413,9 @@ export class AccessControlAgentService extends BaseAgentService {
 
     this.policies.set(policyId, policy);
 
-    this.logger.log(`Access granted: ${principal} → ${resource} (${actions.join(', ')}), policy ${policyId}`);
+    this.logger.log(
+      `Access granted: ${principal} → ${resource} (${actions.join(', ')}), policy ${policyId}`,
+    );
 
     return { granted: true, principal, resource, actions, policyId };
   }
@@ -397,7 +456,9 @@ export class AccessControlAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(`Access revoked: ${principal} → ${resource} (${policiesAffected} policies affected, reason: ${reason || 'N/A'})`);
+    this.logger.log(
+      `Access revoked: ${principal} → ${resource} (${policiesAffected} policies affected, reason: ${reason || 'N/A'})`,
+    );
 
     return { revoked: true, principal, policiesAffected };
   }
@@ -435,11 +496,12 @@ export class AccessControlAgentService extends BaseAgentService {
 
     // Deny takes precedence
     const allowed = matchedDenyPolicies.length === 0 && matchedAllowPolicies.length > 0;
-    const reason = matchedDenyPolicies.length > 0
-      ? `Denied by policies: ${matchedDenyPolicies.join(', ')}`
-      : allowed
-        ? `Allowed by policies: ${matchedAllowPolicies.join(', ')}`
-        : 'No matching allow policy found';
+    const reason =
+      matchedDenyPolicies.length > 0
+        ? `Denied by policies: ${matchedDenyPolicies.join(', ')}`
+        : allowed
+          ? `Allowed by policies: ${matchedAllowPolicies.join(', ')}`
+          : 'No matching allow policy found';
 
     // Record in audit log
     this.auditLog.push({
@@ -453,9 +515,15 @@ export class AccessControlAgentService extends BaseAgentService {
       reason,
     });
 
-    this.logger.log(`Permission check: ${principal} → ${action} on ${resource} = ${allowed ? 'ALLOWED' : 'DENIED'}`);
+    this.logger.log(
+      `Permission check: ${principal} → ${action} on ${resource} = ${allowed ? 'ALLOWED' : 'DENIED'}`,
+    );
 
-    return { allowed, reason, matchedPolicies: allowed ? matchedAllowPolicies : matchedDenyPolicies };
+    return {
+      allowed,
+      reason,
+      matchedPolicies: allowed ? matchedAllowPolicies : matchedDenyPolicies,
+    };
   }
 
   private async manageRole(params: {
@@ -546,7 +614,9 @@ export class AccessControlAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(`Access audit: ${filtered.length} entries, ${deniedCount} denied, ${anomalies.length} anomalies`);
+    this.logger.log(
+      `Access audit: ${filtered.length} entries, ${deniedCount} denied, ${anomalies.length} anomalies`,
+    );
 
     return {
       entries: filtered.map((e) => ({

@@ -25,22 +25,27 @@ interface RetryConfig {
 
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
   maxRetryAttempts: 5,
-  baseRetryIntervalMs: 60000,    // 1 minute base
-  maxRetryIntervalMs: 3600000,   // 1 hour max
+  baseRetryIntervalMs: 60000, // 1 minute base
+  maxRetryIntervalMs: 3600000, // 1 hour max
   exponentialBackoff: true,
-  jitterMs: 5000,                // 5 seconds jitter
+  jitterMs: 5000, // 5 seconds jitter
 };
 
 @Injectable()
-export class DeadLetterQueueService implements IDeadLetterQueueService, OnModuleInit, OnModuleDestroy {
+export class DeadLetterQueueService
+  implements IDeadLetterQueueService, OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(DeadLetterQueueService.name);
   private readonly queue: Map<string, DeadLetterEntry> = new Map();
   private readonly retryConfig: RetryConfig = { ...DEFAULT_RETRY_CONFIG };
-  private readonly repairHistory: Map<string, Array<{
-    timestamp: Date;
-    success: boolean;
-    error?: string;
-  }>> = new Map();
+  private readonly repairHistory: Map<
+    string,
+    Array<{
+      timestamp: Date;
+      success: boolean;
+      error?: string;
+    }>
+  > = new Map();
   private retryInterval: NodeJS.Timer | null = null;
   private static readonly MAX_QUEUE_SIZE = 10000;
   private static readonly PURGE_BATCH_SIZE = 100;
@@ -91,7 +96,7 @@ export class DeadLetterQueueService implements IDeadLetterQueueService, OnModule
 
     this.logger.warn(
       `Added event to dead letter queue: ${entry.originalEvent.type} ` +
-      `(failure: ${entry.failureCount}, canRetry: ${deadLetterEntry.canRetry})`,
+        `(failure: ${entry.failureCount}, canRetry: ${deadLetterEntry.canRetry})`,
     );
 
     return deadLetterEntry;
@@ -126,11 +131,7 @@ export class DeadLetterQueueService implements IDeadLetterQueueService, OnModule
     const pending: DeadLetterEntry[] = [];
 
     for (const entry of this.queue.values()) {
-      if (
-        entry.canRetry &&
-        entry.nextRetryAt &&
-        now >= entry.nextRetryAt
-      ) {
+      if (entry.canRetry && entry.nextRetryAt && now >= entry.nextRetryAt) {
         pending.push(entry);
       }
     }
@@ -338,7 +339,7 @@ export class DeadLetterQueueService implements IDeadLetterQueueService, OnModule
       // Fallback: create a new event based on the original
       this.logger.warn(
         'EventBus reference not set, cannot republish event directly. ' +
-        'Ensure DeadLetterQueueService.setEventBus() is called during initialization.',
+          'Ensure DeadLetterQueueService.setEventBus() is called during initialization.',
       );
       throw new Error('EventBus reference not available for republishing');
     }
@@ -410,9 +411,7 @@ export class DeadLetterQueueService implements IDeadLetterQueueService, OnModule
       try {
         await this.retry(entry.id);
       } catch (error) {
-        this.logger.error(
-          `Auto-retry failed for ${entry.id}: ${(error as Error).message}`,
-        );
+        this.logger.error(`Auto-retry failed for ${entry.id}: ${(error as Error).message}`);
       }
     }
 

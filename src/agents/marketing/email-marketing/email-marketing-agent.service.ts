@@ -103,11 +103,19 @@ export const EMAIL_MARKETING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           campaignId: { type: 'string', description: 'Base campaign ID' },
-          variable: { type: 'string', enum: ['subject', 'from_name', 'body', 'cta'], description: 'Variable to test' },
+          variable: {
+            type: 'string',
+            enum: ['subject', 'from_name', 'body', 'cta'],
+            description: 'Variable to test',
+          },
           variantA: { type: 'string', description: 'Variant A value' },
           variantB: { type: 'string', description: 'Variant B value' },
           testSizePercent: { type: 'number', description: 'Percentage of list for test phase' },
-          winnerCriteria: { type: 'string', enum: ['open_rate', 'click_rate', 'conversion'], description: 'Criteria for winner' },
+          winnerCriteria: {
+            type: 'string',
+            enum: ['open_rate', 'click_rate', 'conversion'],
+            description: 'Criteria for winner',
+          },
         },
         required: ['campaignId', 'variable', 'variantA', 'variantB'],
       },
@@ -129,7 +137,11 @@ export const EMAIL_MARKETING_AGENT_CONFIG: AgentConfig = {
         properties: {
           campaignId: { type: 'string', description: 'Campaign ID to analyze' },
           compareWith: { type: 'string', description: 'Another campaign ID for comparison' },
-          metrics: { type: 'array', items: { type: 'string' }, description: 'Specific metrics to retrieve' },
+          metrics: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Specific metrics to retrieve',
+          },
         },
         required: ['campaignId'],
       },
@@ -149,10 +161,18 @@ export const EMAIL_MARKETING_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['add', 'remove', 'update', 'segment', 'list'], description: 'Action to perform' },
+          action: {
+            type: 'string',
+            enum: ['add', 'remove', 'update', 'segment', 'list'],
+            description: 'Action to perform',
+          },
           listId: { type: 'string', description: 'Subscriber list ID' },
           subscribers: { type: 'array', items: { type: 'object' }, description: 'Subscriber data' },
-          segmentRules: { type: 'array', items: { type: 'object' }, description: 'Segmentation rules' },
+          segmentRules: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Segmentation rules',
+          },
         },
         required: ['action'],
       },
@@ -295,11 +315,8 @@ export class EmailMarketingAgentService extends BaseAgentService {
     this.registerTool({
       name: 'sendCampaign',
       description: 'Send or schedule an email campaign',
-      execute: async (params: {
-        campaignId: string;
-        scheduleAt?: string;
-        sendToAll?: boolean;
-      }) => this.sendCampaign(params),
+      execute: async (params: { campaignId: string; scheduleAt?: string; sendToAll?: boolean }) =>
+        this.sendCampaign(params),
     });
 
     this.registerTool({
@@ -330,11 +347,8 @@ export class EmailMarketingAgentService extends BaseAgentService {
     this.registerTool({
       name: 'analyzeResults',
       description: 'Analyze campaign results and performance metrics',
-      execute: async (params: {
-        campaignId: string;
-        compareWith?: string;
-        metrics?: string[];
-      }) => this.analyzeResults(params),
+      execute: async (params: { campaignId: string; compareWith?: string; metrics?: string[] }) =>
+        this.analyzeResults(params),
     });
 
     this.registerTool({
@@ -348,7 +362,11 @@ export class EmailMarketingAgentService extends BaseAgentService {
       }) => this.manageSubscribers(params),
     });
 
-    await this.storeInWorkingMemory('email-marketing:initializedAt', new Date().toISOString(), 600000);
+    await this.storeInWorkingMemory(
+      'email-marketing:initializedAt',
+      new Date().toISOString(),
+      600000,
+    );
     this.logger.log('EmailMarketing agent initialized with 6 tools');
   }
 
@@ -645,9 +663,7 @@ export class EmailMarketingAgentService extends BaseAgentService {
 
     this.templates.set(templateId, template);
 
-    this.logger.log(
-      `Created template: ${templateId}, name="${name}", category=${category}`,
-    );
+    this.logger.log(`Created template: ${templateId}, name="${name}", category=${category}`);
 
     return {
       templateId,
@@ -739,9 +755,8 @@ export class EmailMarketingAgentService extends BaseAgentService {
     };
 
     const metric = metricMap[winnerCriteria] || 'opens';
-    abTestData.winner = abTestData.variantAResults[metric] >= abTestData.variantBResults[metric]
-      ? 'A'
-      : 'B';
+    abTestData.winner =
+      abTestData.variantAResults[metric] >= abTestData.variantBResults[metric] ? 'A' : 'B';
     abTestData.status = 'completed';
 
     campaign.abTest = abTestData;
@@ -792,19 +807,24 @@ export class EmailMarketingAgentService extends BaseAgentService {
       unsubscribes: stats.unsubscribes,
       conversions: stats.conversions,
       revenue: Math.round(stats.revenue * 100) / 100,
-      deliveryRate: stats.recipients > 0 ? +((stats.delivered / stats.recipients) * 100).toFixed(2) : 0,
+      deliveryRate:
+        stats.recipients > 0 ? +((stats.delivered / stats.recipients) * 100).toFixed(2) : 0,
       openRate: stats.delivered > 0 ? +((stats.opens / stats.delivered) * 100).toFixed(2) : 0,
       clickRate: stats.delivered > 0 ? +((stats.clicks / stats.delivered) * 100).toFixed(2) : 0,
       clickToOpenRate: stats.opens > 0 ? +((stats.clicks / stats.opens) * 100).toFixed(2) : 0,
       bounceRate: stats.recipients > 0 ? +((stats.bounces / stats.recipients) * 100).toFixed(2) : 0,
-      unsubscribeRate: stats.delivered > 0 ? +((stats.unsubscribes / stats.delivered) * 100).toFixed(2) : 0,
+      unsubscribeRate:
+        stats.delivered > 0 ? +((stats.unsubscribes / stats.delivered) * 100).toFixed(2) : 0,
       conversionRate: stats.clicks > 0 ? +((stats.conversions / stats.clicks) * 100).toFixed(2) : 0,
     };
 
     // Filter metrics if specific ones were requested
-    const resultMetrics = requestedMetrics.length > 0
-      ? Object.fromEntries(Object.entries(allMetrics).filter(([key]) => requestedMetrics.includes(key)))
-      : allMetrics;
+    const resultMetrics =
+      requestedMetrics.length > 0
+        ? Object.fromEntries(
+            Object.entries(allMetrics).filter(([key]) => requestedMetrics.includes(key)),
+          )
+        : allMetrics;
 
     // Generate insights
     const insights = this.generateInsights(allMetrics);
@@ -817,9 +837,15 @@ export class EmailMarketingAgentService extends BaseAgentService {
         const compareStats = compareCampaign.stats;
         comparison = {
           campaignId: compareWith,
-          openRateDiff: allMetrics.openRate - (compareStats.delivered > 0 ? (compareStats.opens / compareStats.delivered) * 100 : 0),
-          clickRateDiff: allMetrics.clickRate - (compareStats.delivered > 0 ? (compareStats.clicks / compareStats.delivered) * 100 : 0),
-          conversionDiff: allMetrics.conversionRate - (compareStats.clicks > 0 ? (compareStats.conversions / compareStats.clicks) * 100 : 0),
+          openRateDiff:
+            allMetrics.openRate -
+            (compareStats.delivered > 0 ? (compareStats.opens / compareStats.delivered) * 100 : 0),
+          clickRateDiff:
+            allMetrics.clickRate -
+            (compareStats.delivered > 0 ? (compareStats.clicks / compareStats.delivered) * 100 : 0),
+          conversionDiff:
+            allMetrics.conversionRate -
+            (compareStats.clicks > 0 ? (compareStats.conversions / compareStats.clicks) * 100 : 0),
         };
       }
     }
@@ -948,9 +974,7 @@ export class EmailMarketingAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(
-      `Subscriber ${action}: list=${listId}, affected=${affected}`,
-    );
+    this.logger.log(`Subscriber ${action}: list=${listId}, affected=${affected}`);
 
     return {
       action,
@@ -968,7 +992,8 @@ export class EmailMarketingAgentService extends BaseAgentService {
         id: 'tpl-welcome',
         name: 'Welcome Email',
         subject: 'Welcome to {{brand_name}}!',
-        bodyHtml: '<h1>Welcome, {{name}}!</h1><p>Thank you for joining {{brand_name}}. We\'re excited to have you on board.</p><p><a href="{{onboarding_url}}">Get Started</a></p>',
+        bodyHtml:
+          '<h1>Welcome, {{name}}!</h1><p>Thank you for joining {{brand_name}}. We\'re excited to have you on board.</p><p><a href="{{onboarding_url}}">Get Started</a></p>',
         bodyText: 'Welcome, {{name}}! Thank you for joining {{brand_name}}.',
         category: 'onboarding',
         createdAt: new Date(),
@@ -977,7 +1002,8 @@ export class EmailMarketingAgentService extends BaseAgentService {
         id: 'tpl-newsletter',
         name: 'Weekly Newsletter',
         subject: '{{brand_name}} Weekly - {{date}}',
-        bodyHtml: '<h2>{{brand_name}} Weekly Newsletter</h2><h3>{{headline}}</h3><p>{{summary}}</p><a href="{{article_url}}">Read More</a>',
+        bodyHtml:
+          '<h2>{{brand_name}} Weekly Newsletter</h2><h3>{{headline}}</h3><p>{{summary}}</p><a href="{{article_url}}">Read More</a>',
         bodyText: '{{brand_name}} Weekly - {{headline}}. {{summary}}',
         category: 'newsletter',
         createdAt: new Date(),
@@ -986,8 +1012,10 @@ export class EmailMarketingAgentService extends BaseAgentService {
         id: 'tpl-promo',
         name: 'Promotional Offer',
         subject: '🔥 {{discount_percent}}% off - Limited Time!',
-        bodyHtml: '<h1>Special Offer!</h1><p>Get {{discount_percent}}% off with code <strong>{{promo_code}}</strong></p><p>Offer expires {{expiry_date}}</p><a href="{{shop_url}}">Shop Now</a>',
-        bodyText: 'Special Offer! Get {{discount_percent}}% off with code {{promo_code}}. Expires {{expiry_date}}.',
+        bodyHtml:
+          '<h1>Special Offer!</h1><p>Get {{discount_percent}}% off with code <strong>{{promo_code}}</strong></p><p>Offer expires {{expiry_date}}</p><a href="{{shop_url}}">Shop Now</a>',
+        bodyText:
+          'Special Offer! Get {{discount_percent}}% off with code {{promo_code}}. Expires {{expiry_date}}.',
         category: 'promotional',
         createdAt: new Date(),
       },
@@ -1026,23 +1054,31 @@ export class EmailMarketingAgentService extends BaseAgentService {
     const insights: string[] = [];
 
     if (metrics.openRate < 15) {
-      insights.push('Open rate is below industry average (15-25%). Consider testing different subject lines and send times.');
+      insights.push(
+        'Open rate is below industry average (15-25%). Consider testing different subject lines and send times.',
+      );
     } else if (metrics.openRate > 25) {
       insights.push('Open rate is above average. Your subject lines are performing well.');
     }
 
     if (metrics.clickRate < 2) {
-      insights.push('Click rate is low. Review your call-to-action placement and email content relevance.');
+      insights.push(
+        'Click rate is low. Review your call-to-action placement and email content relevance.',
+      );
     } else if (metrics.clickRate > 5) {
       insights.push('Click rate is strong. Your content and CTAs are resonating with subscribers.');
     }
 
     if (metrics.bounceRate > 5) {
-      insights.push('Bounce rate is elevated. Consider cleaning your subscriber list and implementing double opt-in.');
+      insights.push(
+        'Bounce rate is elevated. Consider cleaning your subscriber list and implementing double opt-in.',
+      );
     }
 
     if (metrics.unsubscribeRate > 0.5) {
-      insights.push('Unsubscribe rate is above normal. Review email frequency and content relevance.');
+      insights.push(
+        'Unsubscribe rate is above normal. Review email frequency and content relevance.',
+      );
     }
 
     if (metrics.conversionRate > 3) {
@@ -1050,11 +1086,15 @@ export class EmailMarketingAgentService extends BaseAgentService {
     }
 
     if (metrics.revenue > 0) {
-      insights.push(`Campaign generated $${metrics.revenue.toFixed(2)} in revenue with ${metrics.conversions} conversions.`);
+      insights.push(
+        `Campaign generated $${metrics.revenue.toFixed(2)} in revenue with ${metrics.conversions} conversions.`,
+      );
     }
 
     if (insights.length === 0) {
-      insights.push('Campaign metrics are within normal ranges. Continue monitoring performance over time.');
+      insights.push(
+        'Campaign metrics are within normal ranges. Continue monitoring performance over time.',
+      );
     }
 
     return insights;

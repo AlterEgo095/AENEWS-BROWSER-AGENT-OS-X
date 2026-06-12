@@ -30,8 +30,16 @@ export const AUDIT_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           scope: { type: 'string', description: 'Audit scope (system, application, network, all)' },
-          depth: { type: 'string', enum: ['surface', 'standard', 'deep'], description: 'Audit depth' },
-          frameworks: { type: 'array', items: { type: 'string' }, description: 'Compliance frameworks to check against' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'standard', 'deep'],
+            description: 'Audit depth',
+          },
+          frameworks: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Compliance frameworks to check against',
+          },
         },
         required: ['scope'],
       },
@@ -51,9 +59,15 @@ export const AUDIT_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          framework: { type: 'string', description: 'Compliance framework (SOC2, GDPR, HIPAA, PCI-DSS, ISO27001)' },
+          framework: {
+            type: 'string',
+            description: 'Compliance framework (SOC2, GDPR, HIPAA, PCI-DSS, ISO27001)',
+          },
           scope: { type: 'string', description: 'Scope of compliance check' },
-          generateEvidence: { type: 'boolean', description: 'Whether to generate compliance evidence' },
+          generateEvidence: {
+            type: 'boolean',
+            description: 'Whether to generate compliance evidence',
+          },
         },
         required: ['framework'],
       },
@@ -75,7 +89,11 @@ export const AUDIT_AGENT_CONFIG: AgentConfig = {
         properties: {
           logSource: { type: 'string', description: 'Log source to analyze' },
           timeRange: { type: 'string', description: 'Time range to analyze' },
-          patternType: { type: 'string', enum: ['anomaly', 'threat', 'compliance', 'all'], description: 'Pattern type to look for' },
+          patternType: {
+            type: 'string',
+            enum: ['anomaly', 'threat', 'compliance', 'all'],
+            description: 'Pattern type to look for',
+          },
         },
         required: ['logSource'],
       },
@@ -94,9 +112,16 @@ export const AUDIT_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          reportType: { type: 'string', enum: ['executive', 'technical', 'compliance', 'incident'], description: 'Type of audit report' },
+          reportType: {
+            type: 'string',
+            enum: ['executive', 'technical', 'compliance', 'incident'],
+            description: 'Type of audit report',
+          },
           period: { type: 'string', description: 'Reporting period' },
-          includeRemediation: { type: 'boolean', description: 'Whether to include remediation steps' },
+          includeRemediation: {
+            type: 'boolean',
+            description: 'Whether to include remediation steps',
+          },
         },
         required: ['reportType'],
       },
@@ -116,7 +141,11 @@ export const AUDIT_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          entityType: { type: 'string', enum: ['config', 'access', 'infrastructure', 'policy'], description: 'Type of entity to track' },
+          entityType: {
+            type: 'string',
+            enum: ['config', 'access', 'infrastructure', 'policy'],
+            description: 'Type of entity to track',
+          },
           entityId: { type: 'string', description: 'Specific entity ID to track' },
           timeRange: { type: 'string', description: 'Time range to track changes' },
         },
@@ -139,7 +168,10 @@ export const AUDIT_AGENT_CONFIG: AgentConfig = {
         properties: {
           scope: { type: 'string', description: 'Scope of permission review (user, role, system)' },
           target: { type: 'string', description: 'Specific target for review' },
-          checkLeastPrivilege: { type: 'boolean', description: 'Whether to check least-privilege compliance' },
+          checkLeastPrivilege: {
+            type: 'boolean',
+            description: 'Whether to check least-privilege compliance',
+          },
         },
         required: ['scope'],
       },
@@ -153,7 +185,14 @@ export const AUDIT_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['execute:task', 'read:audit', 'write:audit', 'check:compliance', 'review:permissions', 'track:changes'],
+  permissions: [
+    'execute:task',
+    'read:audit',
+    'write:audit',
+    'check:compliance',
+    'review:permissions',
+    'track:changes',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: {
@@ -233,8 +272,11 @@ export class AuditAgentService extends BaseAgentService {
     this.registerTool({
       name: 'generateAuditReport',
       description: 'Generate a comprehensive audit report',
-      execute: async (params: { reportType: string; period?: string; includeRemediation?: boolean }) =>
-        this.generateAuditReport(params),
+      execute: async (params: {
+        reportType: string;
+        period?: string;
+        includeRemediation?: boolean;
+      }) => this.generateAuditReport(params),
     });
 
     this.registerTool({
@@ -336,7 +378,15 @@ export class AuditAgentService extends BaseAgentService {
     for (let i = 0; i < findingCount; i++) {
       this.findingCounter++;
       const severities: AuditFinding['severity'][] = ['info', 'low', 'medium', 'high', 'critical'];
-      const categories = ['access_control', 'encryption', 'logging', 'patching', 'configuration', 'network', 'authentication'];
+      const categories = [
+        'access_control',
+        'encryption',
+        'logging',
+        'patching',
+        'configuration',
+        'network',
+        'authentication',
+      ];
       const severity = severities[Math.floor(Math.random() * severities.length)];
 
       findings.push({
@@ -351,7 +401,13 @@ export class AuditAgentService extends BaseAgentService {
 
     const criticalCount = findings.filter((f) => f.severity === 'critical').length;
     const highCount = findings.filter((f) => f.severity === 'high').length;
-    const score = Math.max(0, 100 - criticalCount * 25 - highCount * 10 - findings.filter((f) => f.severity === 'medium').length * 5);
+    const score = Math.max(
+      0,
+      100 -
+        criticalCount * 25 -
+        highCount * 10 -
+        findings.filter((f) => f.severity === 'medium').length * 5,
+    );
     const status = criticalCount > 0 ? 'fail' : highCount > 2 ? 'warning' : 'pass';
 
     const record: AuditRecord = {
@@ -365,7 +421,9 @@ export class AuditAgentService extends BaseAgentService {
     };
     this.auditHistory.push(record);
 
-    this.logger.log(`Audit ${auditId} completed: ${findings.length} findings, score ${score}, status ${status}`);
+    this.logger.log(
+      `Audit ${auditId} completed: ${findings.length} findings, score ${score}, status ${status}`,
+    );
 
     return {
       auditId,
@@ -391,11 +449,22 @@ export class AuditAgentService extends BaseAgentService {
 
     const supportedFrameworks = ['SOC2', 'GDPR', 'HIPAA', 'PCI-DSS', 'ISO27001'];
     if (!supportedFrameworks.includes(framework)) {
-      throw new Error(`Unsupported framework: ${framework}. Supported: ${supportedFrameworks.join(', ')}`);
+      throw new Error(
+        `Unsupported framework: ${framework}. Supported: ${supportedFrameworks.join(', ')}`,
+      );
     }
 
     // Simulate compliance check
-    const controls = framework === 'GDPR' ? 12 : framework === 'HIPAA' ? 18 : framework === 'PCI-DSS' ? 12 : framework === 'SOC2' ? 5 : 14;
+    const controls =
+      framework === 'GDPR'
+        ? 12
+        : framework === 'HIPAA'
+          ? 18
+          : framework === 'PCI-DSS'
+            ? 12
+            : framework === 'SOC2'
+              ? 5
+              : 14;
     const passingControls = Math.floor(Math.random() * controls * 0.3 + controls * 0.6);
     const score = Math.round((passingControls / controls) * 100);
 
@@ -435,7 +504,13 @@ export class AuditAgentService extends BaseAgentService {
     }
 
     const patterns = [];
-    const patternTypes = ['repeated_failed_logins', 'unusual_access_time', 'privilege_escalation', 'data_exfiltration_attempt', 'configuration_change'];
+    const patternTypes = [
+      'repeated_failed_logins',
+      'unusual_access_time',
+      'privilege_escalation',
+      'data_exfiltration_attempt',
+      'configuration_change',
+    ];
 
     const patternCount = Math.floor(Math.random() * 4) + 1;
     for (let i = 0; i < patternCount; i++) {
@@ -458,7 +533,9 @@ export class AuditAgentService extends BaseAgentService {
       'Consider implementing automated alerting for detected patterns',
     ];
 
-    this.logger.log(`Log analysis for ${logSource}: ${patterns.length} patterns, ${anomalies} anomalies`);
+    this.logger.log(
+      `Log analysis for ${logSource}: ${patterns.length} patterns, ${anomalies} anomalies`,
+    );
 
     return { patterns, anomalies, recommendations };
   }
@@ -475,9 +552,12 @@ export class AuditAgentService extends BaseAgentService {
     const summary = {
       totalAudits: this.auditHistory.length,
       totalFindings: this.auditHistory.reduce((sum, a) => sum + a.findings.length, 0),
-      averageScore: this.auditHistory.length > 0
-        ? Math.round(this.auditHistory.reduce((sum, a) => sum + a.score, 0) / this.auditHistory.length)
-        : 100,
+      averageScore:
+        this.auditHistory.length > 0
+          ? Math.round(
+              this.auditHistory.reduce((sum, a) => sum + a.score, 0) / this.auditHistory.length,
+            )
+          : 100,
       criticalFindings: this.auditHistory.reduce(
         (sum, a) => sum + a.findings.filter((f) => f.severity === 'critical').length,
         0,
@@ -498,7 +578,9 @@ export class AuditAgentService extends BaseAgentService {
 
     const generatedAt = new Date().toISOString();
 
-    this.logger.log(`Audit report generated: ${reportId} (${reportType}, ${findings.length} findings)`);
+    this.logger.log(
+      `Audit report generated: ${reportId} (${reportType}, ${findings.length} findings)`,
+    );
 
     return { reportId, summary, findings, generatedAt };
   }
@@ -532,7 +614,9 @@ export class AuditAgentService extends BaseAgentService {
 
     const unauthorizedChanges = changes.filter((c) => !c.authorized).length;
 
-    this.logger.log(`Change tracking for ${entityType}: ${changes.length} changes, ${unauthorizedChanges} unauthorized`);
+    this.logger.log(
+      `Change tracking for ${entityType}: ${changes.length} changes, ${unauthorizedChanges} unauthorized`,
+    );
 
     return {
       changes: changes.map((c) => ({
@@ -577,7 +661,9 @@ export class AuditAgentService extends BaseAgentService {
       if (Math.random() > 0.6) {
         dormantAccess.push({
           entityId,
-          lastAccessed: new Date(Date.now() - Math.random() * 180 * 24 * 60 * 60 * 1000).toISOString(),
+          lastAccessed: new Date(
+            Date.now() - Math.random() * 180 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
           permissions: ['read', 'write'],
           daysInactive: Math.floor(Math.random() * 180) + 30,
         });
@@ -586,15 +672,21 @@ export class AuditAgentService extends BaseAgentService {
 
     const recommendations: string[] = [];
     if (overPrivileged.length > 0) {
-      recommendations.push(`Review and reduce permissions for ${overPrivileged.length} over-privileged entities`);
+      recommendations.push(
+        `Review and reduce permissions for ${overPrivileged.length} over-privileged entities`,
+      );
     }
     if (dormantAccess.length > 0) {
-      recommendations.push(`Revoke access for ${dormantAccess.length} entities with dormant access (>30 days inactive)`);
+      recommendations.push(
+        `Revoke access for ${dormantAccess.length} entities with dormant access (>30 days inactive)`,
+      );
     }
     recommendations.push('Implement regular permission review cadence (quarterly)');
     recommendations.push('Adopt just-in-time access provisioning where possible');
 
-    this.logger.log(`Permission review for ${scope}: ${overPrivileged.length} over-privileged, ${dormantAccess.length} dormant`);
+    this.logger.log(
+      `Permission review for ${scope}: ${overPrivileged.length} over-privileged, ${dormantAccess.length} dormant`,
+    );
 
     return { overPrivileged, dormantAccess, recommendations };
   }

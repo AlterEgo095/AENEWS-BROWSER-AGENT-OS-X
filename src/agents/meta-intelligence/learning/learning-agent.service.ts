@@ -30,7 +30,10 @@ export const META_LEARNING_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          experience: { type: 'object', description: 'Experience data including outcome and context' },
+          experience: {
+            type: 'object',
+            description: 'Experience data including outcome and context',
+          },
           category: { type: 'string', description: 'Category of experience' },
         },
         required: ['experience'],
@@ -53,7 +56,11 @@ export const META_LEARNING_AGENT_CONFIG: AgentConfig = {
         properties: {
           domain: { type: 'string', description: 'Knowledge domain' },
           facts: { type: 'array', items: { type: 'object' }, description: 'Facts to add/update' },
-          mergeStrategy: { type: 'string', enum: ['replace', 'merge', 'append'], description: 'How to merge with existing knowledge' },
+          mergeStrategy: {
+            type: 'string',
+            enum: ['replace', 'merge', 'append'],
+            description: 'How to merge with existing knowledge',
+          },
         },
         required: ['domain', 'facts'],
       },
@@ -73,8 +80,16 @@ export const META_LEARNING_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          data: { type: 'array', items: { type: 'object' }, description: 'Data to analyze for patterns' },
-          patternTypes: { type: 'array', items: { type: 'string' }, description: 'Types of patterns to look for' },
+          data: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Data to analyze for patterns',
+          },
+          patternTypes: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Types of patterns to look for',
+          },
           minConfidence: { type: 'number', description: 'Minimum confidence threshold' },
         },
         required: ['data'],
@@ -95,7 +110,11 @@ export const META_LEARNING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           currentStrategy: { type: 'object', description: 'Current strategy to adapt' },
-          insights: { type: 'array', items: { type: 'object' }, description: 'Insights to incorporate' },
+          insights: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Insights to incorporate',
+          },
           adaptationRate: { type: 'number', description: 'How aggressively to adapt (0-1)' },
         },
         required: ['currentStrategy'],
@@ -207,10 +226,8 @@ export class LearningAgentService extends BaseAgentService {
     this.registerTool({
       name: 'learnFromExperience',
       description: 'Learn from a specific experience or task outcome',
-      execute: async (params: {
-        experience: Record<string, any>;
-        category?: string;
-      }) => this.learnFromExperience(params),
+      execute: async (params: { experience: Record<string, any>; category?: string }) =>
+        this.learnFromExperience(params),
     });
 
     this.registerTool({
@@ -257,11 +274,8 @@ export class LearningAgentService extends BaseAgentService {
     this.registerTool({
       name: 'forgetOutdated',
       description: 'Remove or deprioritize outdated knowledge',
-      execute: async (params: {
-        domain: string;
-        maxAge?: number;
-        relevanceThreshold?: number;
-      }) => this.forgetOutdated(params),
+      execute: async (params: { domain: string; maxAge?: number; relevanceThreshold?: number }) =>
+        this.forgetOutdated(params),
     });
 
     await this.storeInWorkingMemory('learning:initializedAt', new Date().toISOString(), 600000);
@@ -273,17 +287,29 @@ export class LearningAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'learnFromExperience', 'updateKnowledge', 'identifyPatterns',
-      'adaptStrategy', 'measureImprovement', 'forgetOutdated',
+      'learnFromExperience',
+      'updateKnowledge',
+      'identifyPatterns',
+      'adaptStrategy',
+      'measureImprovement',
+      'forgetOutdated',
     ];
 
     if (!supportedActions.includes(action)) {
       return this.createAgentOutput(
-        input.taskId, false, null,
+        input.taskId,
+        false,
+        null,
         `Unknown learning action: ${action}. Supported: ${supportedActions.join(', ')}`,
         startTime,
       );
@@ -292,10 +318,20 @@ export class LearningAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
       const result = await tool.execute(params);
-      await this.storeInWorkingMemory(`learning:last:${action}`, { params, result, timestamp: new Date() }, 300000);
+      await this.storeInWorkingMemory(
+        `learning:last:${action}`,
+        { params, result, timestamp: new Date() },
+        300000,
+      );
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
       const msg = (error as Error).message;
@@ -383,7 +419,9 @@ export class LearningAgentService extends BaseAgentService {
       timestamp: new Date().toISOString(),
     });
 
-    this.logger.log(`Experience learned: id=${learningId}, insights=${insights.length}, category=${category}`);
+    this.logger.log(
+      `Experience learned: id=${learningId}, insights=${insights.length}, category=${category}`,
+    );
 
     return { learningId, insights, knowledgeUpdates, applicableScenarios };
   }
@@ -425,7 +463,9 @@ export class LearningAgentService extends BaseAgentService {
             factsUpdated++;
             break;
           case 'append':
-            const existingValues = Array.isArray(existing.fact.value) ? existing.fact.value : [existing.fact.value];
+            const existingValues = Array.isArray(existing.fact.value)
+              ? existing.fact.value
+              : [existing.fact.value];
             existingValues.push(fact.value);
             existing.fact.value = existingValues;
             existing.lastAccessedAt = new Date();
@@ -435,9 +475,10 @@ export class LearningAgentService extends BaseAgentService {
           default:
             if (existing.fact.value !== fact.value) {
               conflictsResolved++;
-              existing.fact.value = fact.confidence && existing.confidence < fact.confidence
-                ? fact.value
-                : existing.fact.value;
+              existing.fact.value =
+                fact.confidence && existing.confidence < fact.confidence
+                  ? fact.value
+                  : existing.fact.value;
               existing.confidence = Math.max(existing.confidence, fact.confidence || 0.5);
             }
             existing.lastAccessedAt = new Date();
@@ -471,17 +512,33 @@ export class LearningAgentService extends BaseAgentService {
     patternTypes?: string[];
     minConfidence?: number;
   }): Promise<{
-    patterns: Array<{ id: string; type: string; description: string; confidence: number; occurrences: number }>;
+    patterns: Array<{
+      id: string;
+      type: string;
+      description: string;
+      confidence: number;
+      occurrences: number;
+    }>;
     patternCount: number;
     strongestPattern: { id: string; type: string; description: string; confidence: number } | null;
   }> {
-    const { data, patternTypes = ['frequency', 'correlation', 'sequence'], minConfidence = 0.5 } = params;
+    const {
+      data,
+      patternTypes = ['frequency', 'correlation', 'sequence'],
+      minConfidence = 0.5,
+    } = params;
 
     if (!data || !Array.isArray(data) || data.length < 2) {
       throw new Error('At least two data points are required for pattern identification');
     }
 
-    const patterns: Array<{ id: string; type: string; description: string; confidence: number; occurrences: number }> = [];
+    const patterns: Array<{
+      id: string;
+      type: string;
+      description: string;
+      confidence: number;
+      occurrences: number;
+    }> = [];
 
     // Frequency patterns
     if (patternTypes.includes('frequency')) {
@@ -531,7 +588,9 @@ export class LearningAgentService extends BaseAgentService {
     // Sequence patterns
     if (patternTypes.includes('sequence') && data.length >= 3) {
       // Check for sequential ordering patterns
-      const statusKeys = data.flatMap((d) => Object.keys(d).filter((k) => k.includes('status') || k.includes('state')));
+      const statusKeys = data.flatMap((d) =>
+        Object.keys(d).filter((k) => k.includes('status') || k.includes('state')),
+      );
       const uniqueStatuses = [...new Set(statusKeys)];
       if (uniqueStatuses.length > 0) {
         patterns.push({
@@ -555,9 +614,10 @@ export class LearningAgentService extends BaseAgentService {
       });
     }
 
-    const strongestPattern = filteredPatterns.length > 0
-      ? filteredPatterns.reduce((a, b) => a.confidence > b.confidence ? a : b)
-      : null;
+    const strongestPattern =
+      filteredPatterns.length > 0
+        ? filteredPatterns.reduce((a, b) => (a.confidence > b.confidence ? a : b))
+        : null;
 
     this.logger.log(
       `Patterns identified: total=${filteredPatterns.length}, strongest=${strongestPattern?.type || 'none'}`,
@@ -613,9 +673,15 @@ export class LearningAgentService extends BaseAgentService {
       }
 
       // Adapt concurrency
-      if (insight.insight.toLowerCase().includes('concurrent') && adaptedStrategy.maxConcurrentTasks) {
+      if (
+        insight.insight.toLowerCase().includes('concurrent') &&
+        adaptedStrategy.maxConcurrentTasks
+      ) {
         const oldConcurrency = adaptedStrategy.maxConcurrentTasks;
-        adaptedStrategy.maxConcurrentTasks = Math.max(1, Math.round(oldConcurrency * (1 - adaptationRate * 0.2)));
+        adaptedStrategy.maxConcurrentTasks = Math.max(
+          1,
+          Math.round(oldConcurrency * (1 - adaptationRate * 0.2)),
+        );
         changes.push({
           parameter: 'maxConcurrentTasks',
           oldValue: oldConcurrency,
@@ -637,13 +703,16 @@ export class LearningAgentService extends BaseAgentService {
       });
     }
 
-    const avgInsightConfidence = insights.length > 0
-      ? insights.reduce((sum, i) => sum + i.confidence, 0) / insights.length
-      : 0.5;
+    const avgInsightConfidence =
+      insights.length > 0
+        ? insights.reduce((sum, i) => sum + i.confidence, 0) / insights.length
+        : 0.5;
 
     const confidence = Math.min(0.9, 0.5 + avgInsightConfidence * adaptationRate);
 
-    this.logger.log(`Strategy adapted: changes=${changes.length}, rate=${adaptationRate}, confidence=${confidence.toFixed(2)}`);
+    this.logger.log(
+      `Strategy adapted: changes=${changes.length}, rate=${adaptationRate}, confidence=${confidence.toFixed(2)}`,
+    );
 
     return { adaptedStrategy, changes, confidence };
   }
@@ -669,9 +738,8 @@ export class LearningAgentService extends BaseAgentService {
     }
 
     const improvement = current - baseline;
-    const percentageChange = baseline !== 0
-      ? Math.round((improvement / Math.abs(baseline)) * 10000) / 100
-      : 0;
+    const percentageChange =
+      baseline !== 0 ? Math.round((improvement / Math.abs(baseline)) * 10000) / 100 : 0;
 
     // Determine trend
     let trend: string;
@@ -763,7 +831,11 @@ export class LearningAgentService extends BaseAgentService {
 
   // ─── Private Helpers ───────────────────────────────────────────
 
-  private calculateSimpleCorrelation(data: Array<Record<string, any>>, keyA: string, keyB: string): number {
+  private calculateSimpleCorrelation(
+    data: Array<Record<string, any>>,
+    keyA: string,
+    keyB: string,
+  ): number {
     const pairs = data
       .filter((d) => typeof d[keyA] === 'number' && typeof d[keyB] === 'number')
       .map((d) => [d[keyA] as number, d[keyB] as number]);

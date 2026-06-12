@@ -56,7 +56,11 @@ export const INFLUENCER_AGENT_CONFIG: AgentConfig = {
         properties: {
           influencerId: { type: 'string', description: 'Influencer ID or handle' },
           platform: { type: 'string', description: 'Platform to analyze' },
-          analysisDepth: { type: 'string', enum: ['basic', 'standard', 'comprehensive'], description: 'Depth of analysis' },
+          analysisDepth: {
+            type: 'string',
+            enum: ['basic', 'standard', 'comprehensive'],
+            description: 'Depth of analysis',
+          },
         },
         required: ['influencerId'],
       },
@@ -77,7 +81,11 @@ export const INFLUENCER_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          influencerIds: { type: 'array', items: { type: 'string' }, description: 'Influencer IDs to contact' },
+          influencerIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Influencer IDs to contact',
+          },
           campaignName: { type: 'string', description: 'Outreach campaign name' },
           messageTemplate: { type: 'string', description: 'Outreach message template' },
           offer: { type: 'object', description: 'Collaboration offer details' },
@@ -102,7 +110,11 @@ export const INFLUENCER_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           collaborationId: { type: 'string', description: 'Collaboration ID' },
-          action: { type: 'string', enum: ['create', 'update', 'deliverable', 'approve', 'complete'], description: 'Action to perform' },
+          action: {
+            type: 'string',
+            enum: ['create', 'update', 'deliverable', 'approve', 'complete'],
+            description: 'Action to perform',
+          },
           data: { type: 'object', description: 'Action data' },
         },
         required: ['collaborationId', 'action'],
@@ -389,9 +401,10 @@ export class InfluencerAgentService extends BaseAgentService {
 
     // Filter by niche
     const nicheLower = niche.toLowerCase();
-    results = results.filter((inf) =>
-      inf.niche.toLowerCase().includes(nicheLower) ||
-      inf.tags.some((t) => t.toLowerCase().includes(nicheLower)),
+    results = results.filter(
+      (inf) =>
+        inf.niche.toLowerCase().includes(nicheLower) ||
+        inf.tags.some((t) => t.toLowerCase().includes(nicheLower)),
     );
 
     // Filter by platform
@@ -400,7 +413,9 @@ export class InfluencerAgentService extends BaseAgentService {
     }
 
     // Filter by follower count
-    results = results.filter((inf) => inf.followers >= minFollowers && inf.followers <= maxFollowers);
+    results = results.filter(
+      (inf) => inf.followers >= minFollowers && inf.followers <= maxFollowers,
+    );
 
     // Filter by engagement rate
     if (engagementRate > 0) {
@@ -456,8 +471,16 @@ export class InfluencerAgentService extends BaseAgentService {
     const audience: Record<string, any> = {
       totalFollowers: influencer?.followers || 50000 + Math.floor(Math.random() * 500000),
       demographics: {
-        ageGroups: { '18-24': 25 + Math.floor(Math.random() * 15), '25-34': 30 + Math.floor(Math.random() * 20), '35-44': 15 + Math.floor(Math.random() * 15), '45+': 5 + Math.floor(Math.random() * 10) },
-        genderSplit: { male: 40 + Math.floor(Math.random() * 20), female: 40 + Math.floor(Math.random() * 20) },
+        ageGroups: {
+          '18-24': 25 + Math.floor(Math.random() * 15),
+          '25-34': 30 + Math.floor(Math.random() * 20),
+          '35-44': 15 + Math.floor(Math.random() * 15),
+          '45+': 5 + Math.floor(Math.random() * 10),
+        },
+        genderSplit: {
+          male: 40 + Math.floor(Math.random() * 20),
+          female: 40 + Math.floor(Math.random() * 20),
+        },
         topLocations: ['United States', 'United Kingdom', 'Canada', 'Australia'],
       },
       engagementRate: influencer?.engagementRate || +(2 + Math.random() * 5).toFixed(2),
@@ -495,9 +518,9 @@ export class InfluencerAgentService extends BaseAgentService {
 
     // Overall score
     const score = +(
-      (authenticity.score * 0.3) +
-      (brandFit.score * 0.4) +
-      (audience.engagementRate * 5)
+      authenticity.score * 0.3 +
+      brandFit.score * 0.4 +
+      audience.engagementRate * 5
     ).toFixed(0);
 
     this.logger.log(
@@ -606,17 +629,22 @@ export class InfluencerAgentService extends BaseAgentService {
         influencerId: data.influencerId || '',
         campaignId: data.campaignId || '',
         status: 'negotiating',
-        deliverables: data.deliverables?.map((d: any, i: number) => ({
-          id: `del-${i + 1}`,
-          type: d.type || 'post',
-          description: d.description || '',
-          dueDate: d.dueDate ? new Date(d.dueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-          status: 'pending',
-          content: '',
-        })) || [],
+        deliverables:
+          data.deliverables?.map((d: any, i: number) => ({
+            id: `del-${i + 1}`,
+            type: d.type || 'post',
+            description: d.description || '',
+            dueDate: d.dueDate
+              ? new Date(d.dueDate)
+              : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            status: 'pending',
+            content: '',
+          })) || [],
         fee: data.fee || 0,
         startDate: new Date(),
-        endDate: data.endDate ? new Date(data.endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        endDate: data.endDate
+          ? new Date(data.endDate)
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       };
       this.collaborations.set(collabId, collaboration);
     }
@@ -663,9 +691,7 @@ export class InfluencerAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(
-      `Collaboration ${action}: ${collaboration.id}, status=${collaboration.status}`,
-    );
+    this.logger.log(`Collaboration ${action}: ${collaboration.id}, status=${collaboration.status}`);
 
     return {
       collaborationId: collaboration.id,
@@ -694,14 +720,16 @@ export class InfluencerAgentService extends BaseAgentService {
     }
 
     // Find collaborations for this campaign
-    const campaignCollabs = Array.from(this.collaborations.values())
-      .filter((c) => c.campaignId === campaignId);
+    const campaignCollabs = Array.from(this.collaborations.values()).filter(
+      (c) => c.campaignId === campaignId,
+    );
 
     // If no specific collabs found, generate simulated data
     const influencerCount = Math.max(campaignCollabs.length, 3);
-    const totalSpend = campaignCollabs.length > 0
-      ? campaignCollabs.reduce((sum, c) => sum + c.fee, 0)
-      : influencerCount * (500 + Math.floor(Math.random() * 2000));
+    const totalSpend =
+      campaignCollabs.length > 0
+        ? campaignCollabs.reduce((sum, c) => sum + c.fee, 0)
+        : influencerCount * (500 + Math.floor(Math.random() * 2000));
 
     // Simulate campaign results
     const impressions = totalSpend * (50 + Math.floor(Math.random() * 150));
@@ -749,12 +777,102 @@ export class InfluencerAgentService extends BaseAgentService {
 
   private seedInfluencerData(): void {
     const seedInfluencers: InfluencerProfile[] = [
-      { id: 'inf-tech-001', handle: '@techsarah', name: 'Sarah Chen', platform: 'instagram', niche: 'technology', followers: 250000, engagementRate: 4.2, location: 'San Francisco, CA', avgLikes: 8500, avgComments: 420, authenticityScore: 88, brandFitScore: 82, rate: 2500, tags: ['tech', 'gadgets', 'software', 'AI'] },
-      { id: 'inf-lifestyle-001', handle: '@markwithmark', name: 'Mark Johnson', platform: 'youtube', niche: 'lifestyle', followers: 500000, engagementRate: 3.5, location: 'New York, NY', avgLikes: 12000, avgComments: 800, authenticityScore: 91, brandFitScore: 75, rate: 4000, tags: ['lifestyle', 'fashion', 'travel', 'fitness'] },
-      { id: 'inf-fitness-001', handle: '@fitjessica', name: 'Jessica Park', platform: 'instagram', niche: 'fitness', followers: 180000, engagementRate: 5.8, location: 'Los Angeles, CA', avgLikes: 9200, avgComments: 580, authenticityScore: 93, brandFitScore: 88, rate: 1800, tags: ['fitness', 'health', 'wellness', 'nutrition'] },
-      { id: 'inf-food-001', handle: '@chefmike', name: 'Mike Torres', platform: 'tiktok', niche: 'food', followers: 750000, engagementRate: 6.2, location: 'Austin, TX', avgLikes: 35000, avgComments: 1500, authenticityScore: 87, brandFitScore: 80, rate: 3500, tags: ['food', 'cooking', 'recipes', 'restaurant'] },
-      { id: 'inf-beauty-001', handle: '@beautybyemma', name: 'Emma Wilson', platform: 'instagram', niche: 'beauty', followers: 420000, engagementRate: 4.8, location: 'London, UK', avgLikes: 18000, avgComments: 900, authenticityScore: 85, brandFitScore: 90, rate: 3000, tags: ['beauty', 'skincare', 'makeup', 'selfcare'] },
-      { id: 'inf-business-001', handle: '@bizleader', name: 'David Kim', platform: 'linkedin', niche: 'business', followers: 120000, engagementRate: 3.2, location: 'Seattle, WA', avgLikes: 3200, avgComments: 280, authenticityScore: 95, brandFitScore: 85, rate: 2000, tags: ['business', 'leadership', 'startup', 'SaaS'] },
+      {
+        id: 'inf-tech-001',
+        handle: '@techsarah',
+        name: 'Sarah Chen',
+        platform: 'instagram',
+        niche: 'technology',
+        followers: 250000,
+        engagementRate: 4.2,
+        location: 'San Francisco, CA',
+        avgLikes: 8500,
+        avgComments: 420,
+        authenticityScore: 88,
+        brandFitScore: 82,
+        rate: 2500,
+        tags: ['tech', 'gadgets', 'software', 'AI'],
+      },
+      {
+        id: 'inf-lifestyle-001',
+        handle: '@markwithmark',
+        name: 'Mark Johnson',
+        platform: 'youtube',
+        niche: 'lifestyle',
+        followers: 500000,
+        engagementRate: 3.5,
+        location: 'New York, NY',
+        avgLikes: 12000,
+        avgComments: 800,
+        authenticityScore: 91,
+        brandFitScore: 75,
+        rate: 4000,
+        tags: ['lifestyle', 'fashion', 'travel', 'fitness'],
+      },
+      {
+        id: 'inf-fitness-001',
+        handle: '@fitjessica',
+        name: 'Jessica Park',
+        platform: 'instagram',
+        niche: 'fitness',
+        followers: 180000,
+        engagementRate: 5.8,
+        location: 'Los Angeles, CA',
+        avgLikes: 9200,
+        avgComments: 580,
+        authenticityScore: 93,
+        brandFitScore: 88,
+        rate: 1800,
+        tags: ['fitness', 'health', 'wellness', 'nutrition'],
+      },
+      {
+        id: 'inf-food-001',
+        handle: '@chefmike',
+        name: 'Mike Torres',
+        platform: 'tiktok',
+        niche: 'food',
+        followers: 750000,
+        engagementRate: 6.2,
+        location: 'Austin, TX',
+        avgLikes: 35000,
+        avgComments: 1500,
+        authenticityScore: 87,
+        brandFitScore: 80,
+        rate: 3500,
+        tags: ['food', 'cooking', 'recipes', 'restaurant'],
+      },
+      {
+        id: 'inf-beauty-001',
+        handle: '@beautybyemma',
+        name: 'Emma Wilson',
+        platform: 'instagram',
+        niche: 'beauty',
+        followers: 420000,
+        engagementRate: 4.8,
+        location: 'London, UK',
+        avgLikes: 18000,
+        avgComments: 900,
+        authenticityScore: 85,
+        brandFitScore: 90,
+        rate: 3000,
+        tags: ['beauty', 'skincare', 'makeup', 'selfcare'],
+      },
+      {
+        id: 'inf-business-001',
+        handle: '@bizleader',
+        name: 'David Kim',
+        platform: 'linkedin',
+        niche: 'business',
+        followers: 120000,
+        engagementRate: 3.2,
+        location: 'Seattle, WA',
+        avgLikes: 3200,
+        avgComments: 280,
+        authenticityScore: 95,
+        brandFitScore: 85,
+        rate: 2000,
+        tags: ['business', 'leadership', 'startup', 'SaaS'],
+      },
     ];
 
     for (const inf of seedInfluencers) {
@@ -762,7 +880,11 @@ export class InfluencerAgentService extends BaseAgentService {
     }
   }
 
-  private generateInfluencerResults(niche: string, platform: string, count: number): InfluencerProfile[] {
+  private generateInfluencerResults(
+    niche: string,
+    platform: string,
+    count: number,
+  ): InfluencerProfile[] {
     const platforms = ['instagram', 'youtube', 'tiktok', 'twitter', 'linkedin'];
     const locations = ['United States', 'United Kingdom', 'Canada', 'Australia', 'Germany'];
 
@@ -782,8 +904,8 @@ export class InfluencerAgentService extends BaseAgentService {
         followers,
         engagementRate: engRate,
         location: locations[Math.floor(Math.random() * locations.length)],
-        avgLikes: Math.floor(followers * engRate / 100),
-        avgComments: Math.floor(followers * engRate / 100 * 0.05),
+        avgLikes: Math.floor((followers * engRate) / 100),
+        avgComments: Math.floor(((followers * engRate) / 100) * 0.05),
         authenticityScore: 65 + Math.floor(Math.random() * 30),
         brandFitScore: 60 + Math.floor(Math.random() * 35),
         rate: Math.floor(followers * 0.01),
@@ -801,13 +923,21 @@ export class InfluencerAgentService extends BaseAgentService {
     const recommendations: string[] = [];
 
     if (roi > 200) {
-      recommendations.push('Excellent ROI. Consider scaling this campaign with increased budgets for top-performing influencers.');
+      recommendations.push(
+        'Excellent ROI. Consider scaling this campaign with increased budgets for top-performing influencers.',
+      );
     } else if (roi > 100) {
-      recommendations.push('Good ROI. Identify top performers and allocate more budget to similar influencer profiles.');
+      recommendations.push(
+        'Good ROI. Identify top performers and allocate more budget to similar influencer profiles.',
+      );
     } else if (roi > 0) {
-      recommendations.push('Positive but modest ROI. Optimize by focusing on influencers with higher conversion rates.');
+      recommendations.push(
+        'Positive but modest ROI. Optimize by focusing on influencers with higher conversion rates.',
+      );
     } else {
-      recommendations.push('Negative ROI. Reassess influencer selection criteria and campaign messaging.');
+      recommendations.push(
+        'Negative ROI. Reassess influencer selection criteria and campaign messaging.',
+      );
     }
 
     // Find top and bottom performers
@@ -817,13 +947,19 @@ export class InfluencerAgentService extends BaseAgentService {
       const top = sorted[0];
       const bottom = sorted[sorted.length - 1];
 
-      recommendations.push(`Top performer: ${top[0]} (ROI: ${top[1].roi}%). Consider re-engaging for future campaigns.`);
+      recommendations.push(
+        `Top performer: ${top[0]} (ROI: ${top[1].roi}%). Consider re-engaging for future campaigns.`,
+      );
       if (bottom[1].roi < 0) {
-        recommendations.push(`Underperformer: ${bottom[0]} (ROI: ${bottom[1].roi}%). Review content alignment and audience match.`);
+        recommendations.push(
+          `Underperformer: ${bottom[0]} (ROI: ${bottom[1].roi}%). Review content alignment and audience match.`,
+        );
       }
     }
 
-    recommendations.push('Track long-term brand lift beyond direct conversions for a complete picture.');
+    recommendations.push(
+      'Track long-term brand lift beyond direct conversions for a complete picture.',
+    );
 
     return recommendations;
   }

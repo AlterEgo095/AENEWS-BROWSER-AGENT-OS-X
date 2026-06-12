@@ -30,8 +30,25 @@ export const MONITORING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           service: { type: 'string', description: 'Service name' },
-          metricType: { type: 'string', enum: ['cpu', 'memory', 'disk', 'network', 'latency', 'error_rate', 'throughput', 'all'], default: 'all' },
-          timeRange: { type: 'string', enum: ['5m', '15m', '1h', '6h', '24h', '7d'], default: '1h' },
+          metricType: {
+            type: 'string',
+            enum: [
+              'cpu',
+              'memory',
+              'disk',
+              'network',
+              'latency',
+              'error_rate',
+              'throughput',
+              'all',
+            ],
+            default: 'all',
+          },
+          timeRange: {
+            type: 'string',
+            enum: ['5m', '15m', '1h', '6h', '24h', '7d'],
+            default: '1h',
+          },
           granularity: { type: 'string', enum: ['1m', '5m', '15m', '1h'], default: '5m' },
         },
         required: ['service'],
@@ -54,9 +71,15 @@ export const MONITORING_AGENT_CONFIG: AgentConfig = {
           name: { type: 'string' },
           service: { type: 'string' },
           metric: { type: 'string' },
-          condition: { type: 'string', enum: ['greater_than', 'less_than', 'equals', 'not_equals'] },
+          condition: {
+            type: 'string',
+            enum: ['greater_than', 'less_than', 'equals', 'not_equals'],
+          },
           threshold: { type: 'number' },
-          duration: { type: 'string', description: 'Condition must persist for this duration (e.g., "5m")' },
+          duration: {
+            type: 'string',
+            description: 'Condition must persist for this duration (e.g., "5m")',
+          },
           severity: { type: 'string', enum: ['info', 'warning', 'critical'], default: 'warning' },
           channels: { type: 'array', items: { type: 'string' } },
         },
@@ -78,8 +101,16 @@ export const MONITORING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           service: { type: 'string' },
-          status: { type: 'string', enum: ['active', 'acknowledged', 'resolved', 'all'], default: 'all' },
-          severity: { type: 'string', enum: ['info', 'warning', 'critical', 'all'], default: 'all' },
+          status: {
+            type: 'string',
+            enum: ['active', 'acknowledged', 'resolved', 'all'],
+            default: 'all',
+          },
+          severity: {
+            type: 'string',
+            enum: ['info', 'warning', 'critical', 'all'],
+            default: 'all',
+          },
         },
       },
       outputSchema: {
@@ -141,7 +172,11 @@ export const MONITORING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           services: { type: 'array', items: { type: 'string' } },
-          checks: { type: 'array', items: { type: 'string', enum: ['http', 'tcp', 'dns', 'certificate'] }, default: ['http'] },
+          checks: {
+            type: 'array',
+            items: { type: 'string', enum: ['http', 'tcp', 'dns', 'certificate'] },
+            default: ['http'],
+          },
         },
         required: ['services'],
       },
@@ -234,7 +269,10 @@ interface ServiceHealthResult {
 @Injectable()
 export class MonitoringAgentService extends BaseAgentService {
   private alerts: Map<string, AlertRecord> = new Map();
-  private dashboards: Map<string, { id: string; name: string; panels: DashboardPanel[]; createdAt: Date }> = new Map();
+  private dashboards: Map<
+    string,
+    { id: string; name: string; panels: DashboardPanel[]; createdAt: Date }
+  > = new Map();
   private alertCounter = 0;
   private dashboardCounter = 0;
 
@@ -272,21 +310,15 @@ export class MonitoringAgentService extends BaseAgentService {
     this.registerTool({
       name: 'listAlerts',
       description: 'List monitoring alerts',
-      execute: async (params: {
-        service?: string;
-        status?: string;
-        severity?: string;
-      }) => this.listAlerts(params),
+      execute: async (params: { service?: string; status?: string; severity?: string }) =>
+        this.listAlerts(params),
     });
 
     this.registerTool({
       name: 'acknowledgeAlert',
       description: 'Acknowledge an active alert',
-      execute: async (params: {
-        alertId: string;
-        acknowledgedBy: string;
-        note?: string;
-      }) => this.acknowledgeAlert(params),
+      execute: async (params: { alertId: string; acknowledgedBy: string; note?: string }) =>
+        this.acknowledgeAlert(params),
     });
 
     this.registerTool({
@@ -304,10 +336,8 @@ export class MonitoringAgentService extends BaseAgentService {
     this.registerTool({
       name: 'checkServiceHealth',
       description: 'Check the health of services',
-      execute: async (params: {
-        services: string[];
-        checks?: string[];
-      }) => this.checkServiceHealth(params),
+      execute: async (params: { services: string[]; checks?: string[] }) =>
+        this.checkServiceHealth(params),
     });
 
     // Seed some initial alerts
@@ -322,12 +352,22 @@ export class MonitoringAgentService extends BaseAgentService {
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'getMetrics', 'createAlert', 'listAlerts', 'acknowledgeAlert',
-      'generateDashboard', 'checkServiceHealth',
+      'getMetrics',
+      'createAlert',
+      'listAlerts',
+      'acknowledgeAlert',
+      'generateDashboard',
+      'checkServiceHealth',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -343,7 +383,13 @@ export class MonitoringAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -390,17 +436,29 @@ export class MonitoringAgentService extends BaseAgentService {
       throw new Error('Service name is required');
     }
 
-    const validTypes = ['cpu', 'memory', 'disk', 'network', 'latency', 'error_rate', 'throughput', 'all'];
+    const validTypes = [
+      'cpu',
+      'memory',
+      'disk',
+      'network',
+      'latency',
+      'error_rate',
+      'throughput',
+      'all',
+    ];
     if (!validTypes.includes(metricType)) {
       throw new Error(`Invalid metric type: ${metricType}. Valid: ${validTypes.join(', ')}`);
     }
 
-    const types = metricType === 'all'
-      ? ['cpu', 'memory', 'disk', 'network', 'latency', 'error_rate', 'throughput']
-      : [metricType];
+    const types =
+      metricType === 'all'
+        ? ['cpu', 'memory', 'disk', 'network', 'latency', 'error_rate', 'throughput']
+        : [metricType];
 
     const dataPointCount = this.calculateDataPointCount(timeRange, granularity);
-    const metrics: MetricSet[] = types.map((type) => this.generateMetricSet(service, type, dataPointCount));
+    const metrics: MetricSet[] = types.map((type) =>
+      this.generateMetricSet(service, type, dataPointCount),
+    );
 
     const totalDataPoints = metrics.reduce((sum, m) => sum + m.dataPoints.length, 0);
 
@@ -481,7 +539,9 @@ export class MonitoringAgentService extends BaseAgentService {
 
     this.alerts.set(alertId, alert);
 
-    this.logger.log(`Created alert: ${name} [${alertId}], ${service}.${metric} ${condition} ${threshold}`);
+    this.logger.log(
+      `Created alert: ${name} [${alertId}], ${service}.${metric} ${condition} ${threshold}`,
+    );
 
     return {
       alertId,
@@ -548,7 +608,9 @@ export class MonitoringAgentService extends BaseAgentService {
     const activeCount = records.filter((a) => a.status === 'active').length;
     const acknowledgedCount = records.filter((a) => a.status === 'acknowledged').length;
 
-    this.logger.log(`listAlerts: ${mapped.length} alerts, ${activeCount} active, ${acknowledgedCount} acknowledged`);
+    this.logger.log(
+      `listAlerts: ${mapped.length} alerts, ${activeCount} active, ${acknowledgedCount} acknowledged`,
+    );
 
     return { alerts: mapped, total: mapped.length, activeCount, acknowledgedCount };
   }
@@ -641,7 +703,8 @@ export class MonitoringAgentService extends BaseAgentService {
           title: `${service} - ${metric}`,
           service,
           metric,
-          visualization: metric === 'error_rate' ? 'stat' : metric === 'latency' ? 'graph' : 'timeseries',
+          visualization:
+            metric === 'error_rate' ? 'stat' : metric === 'latency' ? 'graph' : 'timeseries',
           timeRange,
           refreshInterval,
         });
@@ -665,10 +728,7 @@ export class MonitoringAgentService extends BaseAgentService {
     };
   }
 
-  private async checkServiceHealth(params: {
-    services: string[];
-    checks?: string[];
-  }): Promise<{
+  private async checkServiceHealth(params: { services: string[]; checks?: string[] }): Promise<{
     results: ServiceHealthResult[];
     healthyCount: number;
     unhealthyCount: number;
@@ -719,7 +779,7 @@ export class MonitoringAgentService extends BaseAgentService {
 
         return {
           type: checkType,
-          status: isHealthy ? 'pass' as const : 'fail' as const,
+          status: isHealthy ? ('pass' as const) : ('fail' as const),
           latencyMs,
           details,
         };
@@ -753,14 +813,30 @@ export class MonitoringAgentService extends BaseAgentService {
   // ─── Helpers ────────────────────────────────────────────────────
 
   private calculateDataPointCount(timeRange: string, granularity: string): number {
-    const rangeMs: Record<string, number> = { '5m': 300000, '15m': 900000, '1h': 3600000, '6h': 21600000, '24h': 86400000, '7d': 604800000 };
-    const granMs: Record<string, number> = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000 };
+    const rangeMs: Record<string, number> = {
+      '5m': 300000,
+      '15m': 900000,
+      '1h': 3600000,
+      '6h': 21600000,
+      '24h': 86400000,
+      '7d': 604800000,
+    };
+    const granMs: Record<string, number> = {
+      '1m': 60000,
+      '5m': 300000,
+      '15m': 900000,
+      '1h': 3600000,
+    };
     const range = rangeMs[timeRange] || 3600000;
     const gran = granMs[granularity] || 300000;
     return Math.min(Math.floor(range / gran), 200);
   }
 
-  private generateMetricSet(service: string, metricType: string, dataPointCount: number): MetricSet {
+  private generateMetricSet(
+    service: string,
+    metricType: string,
+    dataPointCount: number,
+  ): MetricSet {
     const ranges: Record<string, { min: number; max: number; unit: string }> = {
       cpu: { min: 5, max: 95, unit: 'percent' },
       memory: { min: 20, max: 90, unit: 'percent' },
@@ -788,7 +864,10 @@ export class MonitoringAgentService extends BaseAgentService {
 
     const values = dataPoints.map((dp) => dp.value);
     const current = values[values.length - 1] || 0;
-    const average = values.length > 0 ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100 : 0;
+    const average =
+      values.length > 0
+        ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
+        : 0;
     const min = values.length > 0 ? Math.round(Math.min(...values) * 100) / 100 : 0;
     const max = values.length > 0 ? Math.round(Math.max(...values) * 100) / 100 : 0;
 
@@ -797,9 +876,30 @@ export class MonitoringAgentService extends BaseAgentService {
 
   private seedInitialAlerts(): void {
     const seedData = [
-      { name: 'High CPU Usage', service: 'api-gateway', metric: 'cpu', condition: 'greater_than', threshold: 80, severity: 'warning' as const },
-      { name: 'Memory Pressure', service: 'worker-service', metric: 'memory', condition: 'greater_than', threshold: 90, severity: 'critical' as const },
-      { name: 'High Error Rate', service: 'auth-service', metric: 'error_rate', condition: 'greater_than', threshold: 5, severity: 'critical' as const },
+      {
+        name: 'High CPU Usage',
+        service: 'api-gateway',
+        metric: 'cpu',
+        condition: 'greater_than',
+        threshold: 80,
+        severity: 'warning' as const,
+      },
+      {
+        name: 'Memory Pressure',
+        service: 'worker-service',
+        metric: 'memory',
+        condition: 'greater_than',
+        threshold: 90,
+        severity: 'critical' as const,
+      },
+      {
+        name: 'High Error Rate',
+        service: 'auth-service',
+        metric: 'error_rate',
+        condition: 'greater_than',
+        threshold: 5,
+        severity: 'critical' as const,
+      },
     ];
 
     for (const data of seedData) {
