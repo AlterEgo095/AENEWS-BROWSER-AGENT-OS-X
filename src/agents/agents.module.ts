@@ -1,6 +1,7 @@
 /**
  * AENEWS Agent OS X - Root Agents Module
- * Aggregates all agent framework modules, 11 cluster modules, and gateway module.
+ * Aggregates all agent framework modules, 11 cluster modules, gateway module,
+ * and the Mission OS cognitive operating system layer (14 components).
  */
 
 import { Module } from '@nestjs/common';
@@ -23,6 +24,7 @@ import { MetaIntelligenceClusterModule } from './meta-intelligence/meta-intellig
 import { CertificationClusterModule } from './certification/certification-cluster.module';
 import { SelfEvolutionClusterModule } from './self-evolution/self-evolution-cluster.module';
 import { GatewayModule } from '../gateway/gateway.module';
+import { MissionOsModule } from '../mission-os/mission-os.module';
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { GatewayModule } from '../gateway/gateway.module';
     CommunicationModule,
     HealthModule,
     GatewayModule,
+    MissionOsModule,
     BrowserClusterModule,
     ComputerClusterModule,
     CodingClusterModule,
@@ -55,6 +58,7 @@ import { GatewayModule } from '../gateway/gateway.module';
     CommunicationModule,
     HealthModule,
     GatewayModule,
+    MissionOsModule,
     BrowserClusterModule,
     ComputerClusterModule,
     CodingClusterModule,
