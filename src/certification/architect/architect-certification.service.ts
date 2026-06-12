@@ -1206,6 +1206,8 @@ export class ArchitectCertificationService {
       graph.set(file.relativePath, {
         filePath: file.relativePath,
         imports: file.imports,
+        module: file.relativePath.split('/').slice(0, 3).join('/'),
+        cluster: this.inferCluster(file.relativePath),
       });
     }
 
@@ -1248,6 +1250,8 @@ export class ArchitectCertificationService {
               cycles.push({
                 nodes: cyclePath,
                 length: cyclePath.length - 1,
+                severity: cyclePath.length <= 2 ? 'critical' as const : cyclePath.length <= 4 ? 'warning' as const : 'info' as const,
+                description: `Circular dependency: ${cyclePath.join(' → ')}`,
               });
             }
           } else if (neighborColor === 0) {
@@ -1273,6 +1277,19 @@ export class ArchitectCertificationService {
   }
 
   // ─── Cluster Determination Helpers ────────────────────────────────
+
+  /**
+   * Infer the cluster from a file path (for DependencyNode).
+   */
+  private inferCluster(relativePath: string): string | undefined {
+    const parts = relativePath.replace(/\\/g, '/').split('/');
+    if (parts.length >= 3 && parts[0] === 'agents') {
+      return parts[1];
+    }
+    if (parts[0] === 'certification') return 'certification';
+    if (parts[0] === 'gateway') return 'gateway';
+    return undefined;
+  }
 
   /**
    * Determine which cluster a file belongs to based on its path.

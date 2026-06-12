@@ -2,6 +2,7 @@
  * AENEWS Agent OS X - Certification Runner Service
  * Orchestrates the execution of all certification domain tests,
  * collects results, calculates EQI, and generates the final certification report.
+ * Now includes 10 domains with Observability and Dependency Analyzer integration.
  */
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -11,6 +12,7 @@ import {
   CertificationReport,
   DomainResult,
   TestResult,
+  EqiMilestone,
 } from './types';
 import { EqiCalculatorService } from './eqi-calculator.service';
 import { ArchitectCertificationService } from './architect/architect-certification.service';
@@ -22,15 +24,13 @@ import { CommunicationCertificationService } from './communication/communication
 import { MemoryCertificationService } from './memory/memory-certification.service';
 import { ResilienceCertificationService } from './resilience/resilience-certification.service';
 import { SecurityCertificationService } from './security/security-certification.service';
+import { DependencyAnalyzerService } from './architect/dependency-analyzer.service';
 
 @Injectable()
 export class CertificationRunnerService {
   private readonly logger = new Logger(CertificationRunnerService.name);
 
-  /** Stores the last certification report for quick status/retrieval */
   private lastReport: CertificationReport | null = null;
-
-  /** Tracks whether a certification run is currently in progress */
   private isRunning = false;
 
   constructor(
@@ -44,11 +44,11 @@ export class CertificationRunnerService {
     private readonly memoryCertification: MemoryCertificationService,
     private readonly resilienceCertification: ResilienceCertificationService,
     private readonly securityCertification: SecurityCertificationService,
+    private readonly dependencyAnalyzer: DependencyAnalyzerService,
   ) {}
 
   /**
-   * Run the full certification suite across all domains.
-   * Collects results, calculates EQI, and generates the report.
+   * Run the full certification suite across all 10 domains.
    */
   async runFullCertification(): Promise<CertificationReport> {
     if (this.isRunning) {
@@ -59,78 +59,77 @@ export class CertificationRunnerService {
     const overallStart = Date.now();
 
     this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    this.logger.log('  Starting Full Certification Run');
+    this.logger.log('  Starting Full Certification Run (v2 - 10 Domains)');
     this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
       const domains: DomainResult[] = [];
+      const previousEqi = this.lastReport?.eqi;
 
-      // ─── Domain 1: Architecture ──────────────────────────────────
-      this.logger.log('▶ Running Architecture certification...');
-      const archResult = await this.architectCertification.runAll();
+      // ─── Domain 1: Architecture (8%) ───────────────────────────
+      this.logger.log('▶ [1/10] Running Architecture certification...');
+      const archResult = await this.runArchitectureDomain();
       domains.push(archResult);
       this.logger.log(`  Architecture: score=${archResult.score}, passed=${archResult.passed}`);
 
-      // ─── Domain 2: Tests ─────────────────────────────────────────
-      this.logger.log('▶ Running Tests certification...');
-      const testResult = await this.runDomainPlaceholder(CertificationDomain.TESTS, [
-        'Unit test coverage check',
-        'Integration test coverage check',
-        'E2E test readiness check',
-      ]);
-      domains.push(testResult);
-      this.logger.log(`  Tests: score=${testResult.score}, passed=${testResult.passed}`);
-
-      // ─── Domain 3: Orchestration ────────────────────────────────
-      this.logger.log('▶ Running Orchestration certification...');
-      const orchResult = await this.orchestrationCertification.runAll();
-      domains.push(orchResult);
-      this.logger.log(`  Orchestration: score=${orchResult.score}, passed=${orchResult.passed}`);
-
-      // ─── Domain 4: Agents ───────────────────────────────────────
-      this.logger.log('▶ Running Agents certification...');
+      // ─── Domain 2: Agents (12%) ────────────────────────────────
+      this.logger.log('▶ [2/10] Running Agents certification...');
       const agentsResult = await this.agentIntegrityCertification.runAll();
       domains.push(agentsResult);
       this.logger.log(`  Agents: score=${agentsResult.score}, passed=${agentsResult.passed}`);
 
-      // ─── Domain 5: Browser ──────────────────────────────────────
-      this.logger.log('▶ Running Browser certification...');
+      // ─── Domain 3: Orchestration (15%) ─────────────────────────
+      this.logger.log('▶ [3/10] Running Orchestration certification...');
+      const orchResult = await this.orchestrationCertification.runAll();
+      domains.push(orchResult);
+      this.logger.log(`  Orchestration: score=${orchResult.score}, passed=${orchResult.passed}`);
+
+      // ─── Domain 4: Browser (10%) ───────────────────────────────
+      this.logger.log('▶ [4/10] Running Browser certification...');
       const browserResult = await this.browserCertification.runAll();
       domains.push(browserResult);
       this.logger.log(`  Browser: score=${browserResult.score}, passed=${browserResult.passed}`);
 
-      // ─── Domain 6: Memory ───────────────────────────────────────
-      this.logger.log('▶ Running Memory certification...');
-      const memoryResult = await this.memoryCertification.runAll();
+      // ─── Domain 5: Memory (12%) ────────────────────────────────
+      this.logger.log('▶ [5/10] Running Memory certification...');
+      const memoryResult = await this.runMemoryDomain();
       domains.push(memoryResult);
       this.logger.log(`  Memory: score=${memoryResult.score}, passed=${memoryResult.passed}`);
 
-      // ─── Domain 7: Security ─────────────────────────────────────
-      this.logger.log('▶ Running Security certification...');
-      const securityResult = await this.securityCertification.runAll();
+      // ─── Domain 6: Security (15%) ──────────────────────────────
+      this.logger.log('▶ [6/10] Running Security certification...');
+      const securityResult = await this.runSecurityDomain();
       domains.push(securityResult);
       this.logger.log(`  Security: score=${securityResult.score}, passed=${securityResult.passed}`);
 
-      // ─── Domain 8: Performance ──────────────────────────────────
-      this.logger.log('▶ Running Performance certification...');
+      // ─── Domain 7: Performance (8%) ────────────────────────────
+      this.logger.log('▶ [7/10] Running Performance certification...');
       const perfResult = await this.performanceCertification.runAll();
       domains.push(perfResult);
       this.logger.log(`  Performance: score=${perfResult.score}, passed=${perfResult.passed}`);
 
-      // ─── Domain 9: Documentation ────────────────────────────────
-      this.logger.log('▶ Running Documentation certification...');
-      const docResult = await this.runDomainPlaceholder(CertificationDomain.DOCUMENTATION, [
-        'JSDoc comment coverage',
-        'Interface documentation',
-        'API documentation completeness',
-        'README & changelog presence',
-      ]);
+      // ─── Domain 8: Tests (10%) ─────────────────────────────────
+      this.logger.log('▶ [8/10] Running Tests certification...');
+      const testResult = await this.runTestsDomain();
+      domains.push(testResult);
+      this.logger.log(`  Tests: score=${testResult.score}, passed=${testResult.passed}`);
+
+      // ─── Domain 9: Documentation (5%) ──────────────────────────
+      this.logger.log('▶ [9/10] Running Documentation certification...');
+      const docResult = await this.runDocumentationDomain();
       domains.push(docResult);
       this.logger.log(`  Documentation: score=${docResult.score}, passed=${docResult.passed}`);
+
+      // ─── Domain 10: Observability (5%) ─────────────────────────
+      this.logger.log('▶ [10/10] Running Observability certification...');
+      const obsResult = await this.runObservabilityDomain();
+      domains.push(obsResult);
+      this.logger.log(`  Observability: score=${obsResult.score}, passed=${obsResult.passed}`);
 
       // ─── Calculate EQI ──────────────────────────────────────────
       const eqi = this.eqiCalculator.calculateEqi(domains);
       const level = this.eqiCalculator.determineLevel(eqi);
+      const milestone = this.eqiCalculator.determineMilestone(eqi);
       const recommendations = this.eqiCalculator.generateRecommendations(domains);
       const criticalIssues = this.eqiCalculator.identifyCriticalFailures(domains);
 
@@ -148,30 +147,35 @@ export class CertificationRunnerService {
         timestamp: new Date(),
         eqi,
         level,
+        milestone,
         domains,
         summary,
         criticalIssues,
         recommendations,
         approved: level !== CertificationLevel.REJECTED,
+        governanceCompliant: level !== CertificationLevel.REJECTED,
+        previousEqi,
+        eqiDelta: previousEqi !== undefined ? eqi - previousEqi : undefined,
       };
 
       this.lastReport = report;
 
       const totalDuration = Date.now() - overallStart;
       this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      this.logger.log(`  Certification Complete`);
-      this.logger.log(`  EQI: ${eqi} | Level: ${level} | Approved: ${report.approved}`);
+      this.logger.log(`  Certification Complete (v2)`);
+      this.logger.log(`  EQI: ${eqi} | Level: ${level} | Milestone: ${milestone || 'none'}`);
       this.logger.log(`  Tests: ${summary.passed}/${summary.totalTests} passed`);
       this.logger.log(`  Critical Issues: ${criticalIssues.length}`);
+      this.logger.log(`  Governance: ${report.governanceCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}`);
+      if (previousEqi !== undefined) {
+        this.logger.log(`  EQI Delta: ${report.eqiDelta! >= 0 ? '+' : ''}${report.eqiDelta}`);
+      }
       this.logger.log(`  Duration: ${totalDuration}ms`);
       this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
       return report;
     } catch (error) {
-      this.logger.error(
-        `Certification run failed: ${(error as Error).message}`,
-        (error as Error).stack,
-      );
+      this.logger.error(`Certification run failed: ${(error as Error).message}`, (error as Error).stack);
       throw error;
     } finally {
       this.isRunning = false;
@@ -182,126 +186,174 @@ export class CertificationRunnerService {
    * Run certification for a specific domain only.
    */
   async runDomainCertification(domain: CertificationDomain): Promise<DomainResult> {
-    this.logger.log(`Running certification for domain: ${domain}`);
-
     switch (domain) {
       case CertificationDomain.ARCHITECTURE:
-        return this.architectCertification.runAll();
-
+        return this.runArchitectureDomain();
       case CertificationDomain.ORCHESTRATION:
         return this.orchestrationCertification.runAll();
-
       case CertificationDomain.AGENTS:
         return this.agentIntegrityCertification.runAll();
-
       case CertificationDomain.BROWSER:
         return this.browserCertification.runAll();
-
       case CertificationDomain.PERFORMANCE:
         return this.performanceCertification.runAll();
-
       case CertificationDomain.MEMORY:
-        return this.memoryCertification.runAll();
-
+        return this.runMemoryDomain();
       case CertificationDomain.SECURITY:
-        return this.securityCertification.runAll();
-
+        return this.runSecurityDomain();
       case CertificationDomain.TESTS:
+        return this.runTestsDomain();
       case CertificationDomain.DOCUMENTATION:
-        return this.runDomainPlaceholder(domain, this.getDefaultTestsForDomain(domain));
-
+        return this.runDocumentationDomain();
+      case CertificationDomain.OBSERVABILITY:
+        return this.runObservabilityDomain();
       default:
         throw new Error(`Unknown certification domain: ${domain}`);
     }
   }
 
-  /**
-   * Get the last certification report.
-   */
   getLastReport(): CertificationReport | null {
     return this.lastReport;
   }
 
-  /**
-   * Get the last certification status (lightweight).
-   */
   getStatus(): {
     hasReport: boolean;
     isRunning: boolean;
     eqi?: number;
     level?: CertificationLevel;
     approved?: boolean;
+    governanceCompliant?: boolean;
     timestamp?: Date;
   } {
     if (!this.lastReport) {
       return { hasReport: false, isRunning: this.isRunning };
     }
-
     return {
       hasReport: true,
       isRunning: this.isRunning,
       eqi: this.lastReport.eqi,
       level: this.lastReport.level,
       approved: this.lastReport.approved,
+      governanceCompliant: this.lastReport.governanceCompliant,
       timestamp: this.lastReport.timestamp,
     };
   }
 
-  // ─── Private Helpers ──────────────────────────────────────────────
+  // ─── Domain-Specific Runners ────────────────────────────────────
 
-  /**
-   * Run a placeholder domain certification with basic structural checks.
-   * These domains will be implemented with full test suites in future iterations,
-   * but for now they validate that the basic code structure exists.
-   */
-  private async runDomainPlaceholder(
-    domain: CertificationDomain,
-    testNames: string[],
-  ): Promise<DomainResult> {
+  private async runArchitectureDomain(): Promise<DomainResult> {
     const startTime = Date.now();
     const tests: TestResult[] = [];
     const criticalFailures: string[] = [];
 
-    for (const testName of testNames) {
-      const testStart = Date.now();
-      try {
-        const result = await this.runStructuralTest(domain, testName);
-        tests.push({
-          name: testName,
-          passed: result.passed,
-          score: result.score,
-          durationMs: Date.now() - testStart,
-          details: result.details,
-        });
+    // Run existing architect certification
+    const archResult = await this.architectCertification.runAll();
+    tests.push(...archResult.tests);
 
-        if (!result.passed && result.score < 50) {
-          criticalFailures.push(`${testName}: Score ${result.score}/100`);
-        }
-      } catch (error) {
-        tests.push({
-          name: testName,
-          passed: false,
-          score: 0,
-          durationMs: Date.now() - testStart,
-          error: (error as Error).message,
-        });
-        criticalFailures.push(`${testName}: Execution error`);
+    // Run dependency analysis
+    try {
+      const analysis = await this.dependencyAnalyzer.analyze();
+
+      tests.push({
+        name: 'Circular dependency detection',
+        passed: analysis.cycles.length === 0,
+        score: analysis.cycles.length === 0 ? 100 : Math.max(0, 100 - analysis.cycles.length * 20),
+        durationMs: Date.now() - startTime,
+        details: { cycleCount: analysis.cycles.length, cycles: analysis.cycles.map((c) => c.description) },
+      });
+
+      tests.push({
+        name: 'Coupling score',
+        passed: analysis.couplingScore >= 80,
+        score: analysis.couplingScore,
+        durationMs: Date.now() - startTime,
+        details: { couplingScore: analysis.couplingScore },
+      });
+
+      tests.push({
+        name: 'Cross-cluster import validation',
+        passed: analysis.crossClusterImports.length === 0,
+        score: analysis.crossClusterImports.length === 0 ? 100 : Math.max(0, 100 - analysis.crossClusterImports.length * 15),
+        durationMs: Date.now() - startTime,
+        details: { crossClusterImports: analysis.crossClusterImports.length },
+      });
+
+      if (analysis.cycles.some((c) => c.severity === 'critical')) {
+        criticalFailures.push(`Circular dependencies detected: ${analysis.cycles.filter((c) => c.severity === 'critical').length} critical cycles`);
       }
+    } catch (error) {
+      tests.push({
+        name: 'Dependency analysis',
+        passed: false,
+        score: 0,
+        durationMs: Date.now() - startTime,
+        error: (error as Error).message,
+      });
     }
 
-    // Calculate domain score
+    const allTests = [...archResult.tests, ...tests.filter((t) => !archResult.tests.some((at) => at.name === t.name))];
+    const totalScore = allTests.reduce((sum, t) => sum + t.score, 0);
+    const score = allTests.length > 0 ? Math.round(totalScore / allTests.length) : 0;
+    const allCriticals = [...archResult.criticalFailures, ...criticalFailures];
+    const passed = score >= 90 && allCriticals.length === 0;
+
+    return {
+      domain: CertificationDomain.ARCHITECTURE,
+      weight: this.eqiCalculator.getWeight(CertificationDomain.ARCHITECTURE),
+      score,
+      tests: allTests,
+      passed,
+      criticalFailures: allCriticals,
+    };
+  }
+
+  private async runMemoryDomain(): Promise<DomainResult> {
+    const baseResult = await this.memoryCertification.runAll();
+    const tests = [...baseResult.tests];
+    const criticalFailures = [...baseResult.criticalFailures];
+
+    // Add Memory Gateway checks
+    const fs = await import('fs');
+    const path = await import('path');
+    const gatewayPath = path.resolve(__dirname, '..', 'gateway', 'memory', 'memory-gateway.service.ts');
+
+    tests.push({
+      name: 'Unified Memory Gateway existence',
+      passed: fs.existsSync(gatewayPath),
+      score: fs.existsSync(gatewayPath) ? 100 : 0,
+      durationMs: 0,
+      details: { path: gatewayPath },
+    });
+
+    // Check for unified API methods
+    if (fs.existsSync(gatewayPath)) {
+      const content = fs.readFileSync(gatewayPath, 'utf-8');
+      const requiredMethods = ['store(', 'retrieve(', 'search(', 'summarize(', 'promote(', 'archive(', 'crossTierRetrieve('];
+      const foundMethods = requiredMethods.filter((m) => content.includes(m));
+      tests.push({
+        name: 'Memory Gateway unified API',
+        passed: foundMethods.length === requiredMethods.length,
+        score: Math.round((foundMethods.length / requiredMethods.length) * 100),
+        durationMs: 0,
+        details: { foundMethods, missingMethods: requiredMethods.filter((m) => !foundMethods.includes(m)) },
+      });
+
+      const hasCrossTier = content.includes('crossTierRetrieve');
+      tests.push({
+        name: 'Cross-tier retrieval engine',
+        passed: hasCrossTier,
+        score: hasCrossTier ? 100 : 0,
+        durationMs: 0,
+      });
+    }
+
     const totalScore = tests.reduce((sum, t) => sum + t.score, 0);
     const score = tests.length > 0 ? Math.round(totalScore / tests.length) : 0;
     const passed = score >= 90 && criticalFailures.length === 0;
 
-    this.logger.log(
-      `Domain ${domain}: score=${score}, passed=${passed}, tests=${tests.length}, ` +
-        `duration=${Date.now() - startTime}ms`,
-    );
-
     return {
-      domain,
-      weight: this.eqiCalculator.getWeight(domain),
+      domain: CertificationDomain.MEMORY,
+      weight: this.eqiCalculator.getWeight(CertificationDomain.MEMORY),
       score,
       tests,
       passed,
@@ -309,264 +361,349 @@ export class CertificationRunnerService {
     };
   }
 
-  /**
-   * Run a structural verification test for a domain.
-   * Checks that the relevant source files and directories exist.
-   */
-  private async runStructuralTest(
-    domain: CertificationDomain,
-    testName: string,
-  ): Promise<{ passed: boolean; score: number; details?: Record<string, any> }> {
+  private async runSecurityDomain(): Promise<DomainResult> {
+    const baseResult = await this.securityCertification.runAll();
+    const tests = [...baseResult.tests];
+    const criticalFailures = [...baseResult.criticalFailures];
+
+    // Add Security Gateway checks
     const fs = await import('fs');
     const path = await import('path');
-    const agentsDir = path.resolve(__dirname, '..', 'agents');
+    const gatewayPath = path.resolve(__dirname, '..', 'gateway', 'security', 'security-gateway.service.ts');
 
-    // Domain-specific structural checks
-    switch (domain) {
-      case CertificationDomain.TESTS: {
-        // Check for test infrastructure
-        const hasOrchestrator = fs.existsSync(path.join(agentsDir, 'orchestrator'));
-        const hasTaskValidator = fs.existsSync(
-          path.join(agentsDir, 'orchestrator', 'task-validator.service.ts'),
-        );
-        const score = (hasOrchestrator ? 50 : 0) + (hasTaskValidator ? 50 : 0);
-        return {
-          passed: score >= 90,
-          score,
-          details: { hasOrchestrator, hasTaskValidator },
-        };
-      }
+    tests.push({
+      name: 'Security Gateway existence',
+      passed: fs.existsSync(gatewayPath),
+      score: fs.existsSync(gatewayPath) ? 100 : 0,
+      durationMs: 0,
+    });
 
-      case CertificationDomain.ORCHESTRATION: {
-        const orchestratorDir = path.join(agentsDir, 'orchestrator');
-        const services = [
-          'task-decomposer.service.ts',
-          'task-planner.service.ts',
-          'task-executor.service.ts',
-          'task-critic.service.ts',
-          'task-repair.service.ts',
-          'task-validator.service.ts',
-          'task-delivery.service.ts',
-          'orchestrator.service.ts',
-        ];
-        const existing = services.filter((s) => fs.existsSync(path.join(orchestratorDir, s)));
-        const score = Math.round((existing.length / services.length) * 100);
-        return {
-          passed: score >= 90,
-          score,
-          details: {
-            existingServices: existing,
-            missingServices: services.filter((s) => !existing.includes(s)),
-          },
-        };
-      }
+    if (fs.existsSync(gatewayPath)) {
+      const content = fs.readFileSync(gatewayPath, 'utf-8');
 
-      case CertificationDomain.AGENTS: {
-        // Check agent count and structure
-        const clusterDirs = [
-          'browser',
-          'computer',
-          'coding',
-          'office',
-          'marketing',
-          'business',
-          'infrastructure',
-          'security',
-          'meta-intelligence',
-        ];
-        const existingClusters = clusterDirs.filter((d) => fs.existsSync(path.join(agentsDir, d)));
-        const score = Math.round((existingClusters.length / clusterDirs.length) * 100);
-        return {
-          passed: score >= 90,
-          score,
-          details: {
-            existingClusters,
-            missingClusters: clusterDirs.filter((d) => !existingClusters.includes(d)),
-          },
-        };
-      }
+      // Check injection prevention
+      const hasInjectionDetection = content.includes('PROMPT_INJECTION') && content.includes('COMMAND_INJECTION') && content.includes('SQL_INJECTION');
+      tests.push({
+        name: 'Injection prevention patterns',
+        passed: hasInjectionDetection,
+        score: hasInjectionDetection ? 100 : 30,
+        durationMs: 0,
+      });
 
-      case CertificationDomain.BROWSER: {
-        const browserDir = path.join(agentsDir, 'browser');
-        if (!fs.existsSync(browserDir)) {
-          return { passed: false, score: 0, details: { error: 'Browser directory not found' } };
-        }
-        const expectedAgents = 17;
-        const agentFiles = fs
-          .readdirSync(browserDir, { withFileTypes: true })
-          .filter((d) => d.isDirectory())
-          .map((d) => path.join(browserDir, d.name))
-          .flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith('-agent.service.ts')));
-        const score = Math.round((agentFiles.length / expectedAgents) * 100);
-        return {
-          passed: score >= 90,
-          score: Math.min(score, 100),
-          details: { found: agentFiles.length, expected: expectedAgents },
-        };
-      }
+      // Check policy engine
+      const hasPolicyEngine = content.includes('evaluatePolicies') && content.includes('SecurityPolicy');
+      tests.push({
+        name: 'Policy engine',
+        passed: hasPolicyEngine,
+        score: hasPolicyEngine ? 100 : 0,
+        durationMs: 0,
+      });
 
-      case CertificationDomain.MEMORY: {
-        const memoryDir = path.join(agentsDir, 'memory');
-        const requiredServices = [
-          'memory.service.ts',
-          'working-memory.service.ts',
-          'session-memory.service.ts',
-          'long-term-memory.service.ts',
-          'knowledge-graph.service.ts',
-          'vector-search.service.ts',
-          'rag.service.ts',
-        ];
-        const existing = requiredServices.filter((s) => fs.existsSync(path.join(memoryDir, s)));
-        const score = Math.round((existing.length / requiredServices.length) * 100);
-        return {
-          passed: score >= 90,
-          score,
-          details: { existing, missing: requiredServices.filter((s) => !existing.includes(s)) },
-        };
-      }
+      // Check audit logging
+      const hasAudit = content.includes('auditLog') && content.includes('AuditLogEntry');
+      tests.push({
+        name: 'Audit logging',
+        passed: hasAudit,
+        score: hasAudit ? 100 : 0,
+        durationMs: 0,
+      });
 
-      case CertificationDomain.SECURITY: {
-        const securityDir = path.join(agentsDir, 'security');
-        const requiredAgents = [
-          'authentication',
-          'access-control',
-          'encryption',
-          'audit',
-          'incident-response',
-          'threat-detection',
-        ];
-        const existing = requiredAgents.filter((a) => fs.existsSync(path.join(securityDir, a)));
-        const score = Math.round((existing.length / requiredAgents.length) * 100);
-        return {
-          passed: score >= 90,
-          score,
-          details: { existing, missing: requiredAgents.filter((a) => !existing.includes(a)) },
-        };
-      }
-
-      case CertificationDomain.PERFORMANCE: {
-        // Check for performance-related infrastructure
-        const healthDir = path.join(agentsDir, 'health');
-        const hasHealthService = fs.existsSync(path.join(healthDir, 'agent-health.service.ts'));
-        const hasMetricsService = fs.existsSync(path.join(healthDir, 'agent-metrics.service.ts'));
-        const hasBaseAgent = fs.existsSync(path.join(agentsDir, 'base', 'base-agent.service.ts'));
-
-        // Check base agent has circuit breaker, metrics, etc.
-        let perfFeatures = 0;
-        if (hasBaseAgent) {
-          const content = fs.readFileSync(
-            path.join(agentsDir, 'base', 'base-agent.service.ts'),
-            'utf-8',
-          );
-          if (content.includes('circuitBreaker')) perfFeatures++;
-          if (content.includes('collectMetrics')) perfFeatures++;
-          if (content.includes('executeWithTimeout')) perfFeatures++;
-          if (content.includes('executeWithRetry')) perfFeatures++;
-        }
-
-        const totalChecks = 6; // health + metrics + base + 4 perf features
-        const found =
-          [hasHealthService, hasMetricsService, hasBaseAgent].filter(Boolean).length + perfFeatures;
-        const score = Math.round((found / totalChecks) * 100);
-        return {
-          passed: score >= 90,
-          score,
-          details: { hasHealthService, hasMetricsService, hasBaseAgent, perfFeatures },
-        };
-      }
-
-      case CertificationDomain.DOCUMENTATION: {
-        // Check for JSDoc comments in key files
-        const keyFiles = [
-          path.join(agentsDir, 'interfaces', 'agent.interface.ts'),
-          path.join(agentsDir, 'base', 'base-agent.service.ts'),
-        ];
-
-        let documentedFiles = 0;
-        for (const file of keyFiles) {
-          if (fs.existsSync(file)) {
-            const content = fs.readFileSync(file, 'utf-8');
-            const jsdocCount = (content.match(/\/\*\*[\s\S]*?\*\//g) || []).length;
-            if (jsdocCount > 5) documentedFiles++;
-          }
-        }
-
-        const score = Math.round((documentedFiles / keyFiles.length) * 100);
-        return {
-          passed: score >= 90,
-          score,
-          details: { documentedFiles, totalFiles: keyFiles.length },
-        };
-      }
-
-      default:
-        return { passed: false, score: 0, details: { error: `Unknown domain: ${domain}` } };
+      // Check sanitization
+      const hasSanitization = content.includes('sanitize') && content.includes('REMOVED');
+      tests.push({
+        name: 'Input sanitization',
+        passed: hasSanitization,
+        score: hasSanitization ? 100 : 0,
+        durationMs: 0,
+      });
     }
+
+    const totalScore = tests.reduce((sum, t) => sum + t.score, 0);
+    const score = tests.length > 0 ? Math.round(totalScore / tests.length) : 0;
+    const passed = score >= 90 && criticalFailures.length === 0;
+
+    return {
+      domain: CertificationDomain.SECURITY,
+      weight: this.eqiCalculator.getWeight(CertificationDomain.SECURITY),
+      score,
+      tests,
+      passed,
+      criticalFailures,
+    };
   }
 
-  /**
-   * Get default test names for a domain.
-   */
-  private getDefaultTestsForDomain(domain: CertificationDomain): string[] {
-    const domainTests: Record<CertificationDomain, string[]> = {
-      [CertificationDomain.ARCHITECTURE]: [
-        'No circular dependencies',
-        'Clean architecture compliance',
-        'Naming conventions',
-        'No inter-cluster coupling',
-        'Interface compliance',
-        'Module structure',
-        'Agent config validity',
-      ],
-      [CertificationDomain.TESTS]: [
-        'Unit test coverage',
-        'Integration test coverage',
-        'E2E test readiness',
-      ],
-      [CertificationDomain.ORCHESTRATION]: [
-        'Task decomposition pipeline',
-        'Planning engine',
-        'Execute-critique-repair loop',
-        'Delivery pipeline',
-      ],
-      [CertificationDomain.AGENTS]: [
-        'Agent cluster completeness',
-        'Agent lifecycle verification',
-        'Agent health monitoring',
-        'Agent tool availability',
-      ],
-      [CertificationDomain.BROWSER]: [
-        'Browser agent completeness',
-        'Navigation & interaction',
-        'Session & cookie management',
-        'Screenshot & data extraction',
-      ],
-      [CertificationDomain.MEMORY]: [
-        'Working memory tier',
-        'Session memory tier',
-        'Long-term memory tier',
-        'Knowledge graph & vector search',
-      ],
-      [CertificationDomain.SECURITY]: [
-        'Authentication service',
-        'Authorization & access control',
-        'Encryption verification',
-        'Audit & threat detection',
-      ],
-      [CertificationDomain.PERFORMANCE]: [
-        'Execution time benchmarks',
-        'Memory consumption',
-        'Concurrent task handling',
-        'Circuit breaker & retry',
-      ],
-      [CertificationDomain.DOCUMENTATION]: [
-        'JSDoc comment coverage',
-        'Interface documentation',
-        'API documentation',
-        'README & changelog',
-      ],
-    };
+  private async runTestsDomain(): Promise<DomainResult> {
+    const fs = await import('fs');
+    const path = await import('path');
+    const tests: TestResult[] = [];
+    const criticalFailures: string[] = [];
 
-    return domainTests[domain] || [];
+    // Check test infrastructure
+    const testDir = path.resolve(__dirname, '..', '..', 'test');
+    const srcDir = path.resolve(__dirname, '..', '..');
+
+    // Count spec files
+    const specFiles = await this.findFilesAsync(srcDir, '.spec.ts');
+    const e2eFiles = await this.findFilesAsync(testDir, '.e2e-spec.ts');
+
+    tests.push({
+      name: 'Unit test file count',
+      passed: specFiles.length > 0,
+      score: Math.min(100, specFiles.length * 10),
+      durationMs: 0,
+      details: { count: specFiles.length },
+    });
+
+    tests.push({
+      name: 'E2E test readiness',
+      passed: e2eFiles.length > 0,
+      score: e2eFiles.length > 0 ? 100 : 0,
+      durationMs: 0,
+      details: { count: e2eFiles.length },
+    });
+
+    // Check jest configuration
+    const jestConfigPath = path.resolve(srcDir, '..', 'jest.config.js');
+    const hasJestConfig = fs.existsSync(jestConfigPath);
+    tests.push({
+      name: 'Jest configuration',
+      passed: hasJestConfig,
+      score: hasJestConfig ? 100 : 0,
+      durationMs: 0,
+    });
+
+    // Check test directories for each cluster
+    const clusters = ['browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence', 'certification', 'self-evolution'];
+    const clustersWithTests: string[] = [];
+    for (const c of clusters) {
+      const clusterDir = path.join(srcDir, 'agents', c);
+      if (!fs.existsSync(clusterDir)) continue;
+      const files = await this.findFilesAsync(clusterDir, '.spec.ts');
+      if (files.length > 0) clustersWithTests.push(c);
+    }
+
+    tests.push({
+      name: 'Cluster test coverage',
+      passed: clustersWithTests.length >= clusters.length * 0.5,
+      score: Math.round((clustersWithTests.length / clusters.length) * 100),
+      durationMs: 0,
+      details: { clustersWithTests, totalClusters: clusters.length },
+    });
+
+    if (specFiles.length === 0) {
+      criticalFailures.push('No unit test files found');
+    }
+
+    const totalScore = tests.reduce((sum, t) => sum + t.score, 0);
+    const score = tests.length > 0 ? Math.round(totalScore / tests.length) : 0;
+    const passed = score >= 90 && criticalFailures.length === 0;
+
+    return {
+      domain: CertificationDomain.TESTS,
+      weight: this.eqiCalculator.getWeight(CertificationDomain.TESTS),
+      score,
+      tests,
+      passed,
+      criticalFailures,
+    };
+  }
+
+  private async runDocumentationDomain(): Promise<DomainResult> {
+    const fs = await import('fs');
+    const path = await import('path');
+    const tests: TestResult[] = [];
+    const criticalFailures: string[] = [];
+
+    // Check documentation generator
+    const docGenPath = path.resolve(__dirname, '..', 'gateway', 'documentation', 'documentation-generator.service.ts');
+    tests.push({
+      name: 'Documentation generator existence',
+      passed: fs.existsSync(docGenPath),
+      score: fs.existsSync(docGenPath) ? 100 : 0,
+      durationMs: 0,
+    });
+
+    // Check JSDoc coverage
+    const srcDir = path.resolve(__dirname, '..', '..');
+    let totalFiles = 0;
+    let filesWithJSDoc = 0;
+
+    const tsFiles = await this.findFilesAsync(srcDir, '.ts');
+    for (const file of tsFiles) {
+      try {
+        const content = fs.readFileSync(file, 'utf-8');
+        totalFiles++;
+        if ((content.match(/\/\*\*[\s\S]*?\*\//g) || []).length > 2) {
+          filesWithJSDoc++;
+        }
+      } catch { /* skip */ }
+    }
+
+    const jsdocCoverage = totalFiles > 0 ? Math.round((filesWithJSDoc / totalFiles) * 100) : 0;
+    tests.push({
+      name: 'JSDoc comment coverage',
+      passed: jsdocCoverage >= 70,
+      score: jsdocCoverage,
+      durationMs: 0,
+      details: { filesWithJSDoc, totalFiles },
+    });
+
+    // Check README
+    const readmePath = path.resolve(srcDir, '..', 'README.md');
+    tests.push({
+      name: 'README presence',
+      passed: fs.existsSync(readmePath),
+      score: fs.existsSync(readmePath) ? 100 : 0,
+      durationMs: 0,
+    });
+
+    // Check for architecture diagrams
+    const hasDocGen = fs.existsSync(docGenPath);
+    if (hasDocGen) {
+      const content = fs.readFileSync(docGenPath, 'utf-8');
+      const hasMermaid = content.includes('mermaid') || content.includes('Mermaid');
+      tests.push({
+        name: 'Mermaid diagram generation',
+        passed: hasMermaid,
+        score: hasMermaid ? 100 : 0,
+        durationMs: 0,
+      });
+    }
+
+    if (jsdocCoverage < 30) {
+      criticalFailures.push(`JSDoc coverage critically low: ${jsdocCoverage}%`);
+    }
+
+    const totalScore = tests.reduce((sum, t) => sum + t.score, 0);
+    const score = tests.length > 0 ? Math.round(totalScore / tests.length) : 0;
+    const passed = score >= 90 && criticalFailures.length === 0;
+
+    return {
+      domain: CertificationDomain.DOCUMENTATION,
+      weight: this.eqiCalculator.getWeight(CertificationDomain.DOCUMENTATION),
+      score,
+      tests,
+      passed,
+      criticalFailures,
+    };
+  }
+
+  private async runObservabilityDomain(): Promise<DomainResult> {
+    const fs = await import('fs');
+    const path = await import('path');
+    const tests: TestResult[] = [];
+    const criticalFailures: string[] = [];
+    const srcDir = path.resolve(__dirname, '..', '..');
+
+    // Check health module
+    const healthModule = path.join(srcDir, 'agents', 'health', 'health.module.ts');
+    const hasHealthModule = fs.existsSync(healthModule);
+    tests.push({
+      name: 'Health monitoring module',
+      passed: hasHealthModule,
+      score: hasHealthModule ? 100 : 0,
+      durationMs: 0,
+    });
+
+    // Check metrics service
+    const metricsService = path.join(srcDir, 'agents', 'health', 'agent-metrics.service.ts');
+    const hasMetrics = fs.existsSync(metricsService);
+    tests.push({
+      name: 'Metrics collection service',
+      passed: hasMetrics,
+      score: hasMetrics ? 100 : 0,
+      durationMs: 0,
+    });
+
+    // Check event bus for observability
+    const eventBus = path.join(srcDir, 'agents', 'events', 'event-bus.service.ts');
+    const hasEventBus = fs.existsSync(eventBus);
+    tests.push({
+      name: 'Event bus for tracing',
+      passed: hasEventBus,
+      score: hasEventBus ? 100 : 0,
+      durationMs: 0,
+    });
+
+    // Check circuit breaker in base agent
+    const baseAgent = path.join(srcDir, 'agents', 'base', 'base-agent.service.ts');
+    if (fs.existsSync(baseAgent)) {
+      const content = fs.readFileSync(baseAgent, 'utf-8');
+      const hasCircuitBreaker = content.includes('circuitBreaker');
+      const hasHealthCheck = content.includes('healthCheck') || content.includes('performHealthCheck');
+      const hasMetricsCollection = content.includes('collectMetrics') || content.includes('emitMetrics');
+
+      tests.push({
+        name: 'Circuit breaker observability',
+        passed: hasCircuitBreaker,
+        score: hasCircuitBreaker ? 100 : 0,
+        durationMs: 0,
+      });
+
+      tests.push({
+        name: 'Agent health monitoring',
+        passed: hasHealthCheck,
+        score: hasHealthCheck ? 100 : 0,
+        durationMs: 0,
+      });
+
+      tests.push({
+        name: 'Agent metrics emission',
+        passed: hasMetricsCollection,
+        score: hasMetricsCollection ? 100 : 0,
+        durationMs: 0,
+      });
+    }
+
+    // Check OpenTelemetry in dependencies
+    const packageJsonPath = path.join(srcDir, '..', 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      const hasOtel = pkg.dependencies?.['@opentelemetry/api'] || pkg.dependencies?.['@opentelemetry/sdk-node'];
+      tests.push({
+        name: 'OpenTelemetry integration',
+        passed: !!hasOtel,
+        score: hasOtel ? 100 : 0,
+        durationMs: 0,
+      });
+    }
+
+    const totalScore = tests.reduce((sum, t) => sum + t.score, 0);
+    const score = tests.length > 0 ? Math.round(totalScore / tests.length) : 0;
+    const passed = score >= 90 && criticalFailures.length === 0;
+
+    return {
+      domain: CertificationDomain.OBSERVABILITY,
+      weight: this.eqiCalculator.getWeight(CertificationDomain.OBSERVABILITY),
+      score,
+      tests,
+      passed,
+      criticalFailures,
+    };
+  }
+
+  // ─── Utility ─────────────────────────────────────────────────────
+
+  private async findFilesAsync(dir: string, extension: string): Promise<string[]> {
+    const fsMod = await import('fs');
+    const pathMod = await import('path');
+    const files: string[] = [];
+    const excludeDirs = ['node_modules', 'dist', '.git', 'coverage', 'backend', 'frontend'];
+
+    try {
+      const entries = fsMod.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (excludeDirs.includes(entry.name)) continue;
+        const fullPath = pathMod.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          const subFiles = await this.findFilesAsync(fullPath, extension);
+          files.push(...subFiles);
+        } else if (entry.name.endsWith(extension)) {
+          files.push(fullPath);
+        }
+      }
+    } catch { /* skip */ }
+
+    return files;
   }
 }

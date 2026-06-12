@@ -1,6 +1,6 @@
 /**
  * AENEWS Agent OS X - Root Agents Module
- * Aggregates all agent framework modules and 9 cluster modules.
+ * Aggregates all agent framework modules, 11 cluster modules, and gateway module.
  */
 
 import { Module } from '@nestjs/common';
@@ -20,6 +20,9 @@ import { BusinessClusterModule } from './business/business-cluster.module';
 import { InfrastructureClusterModule } from './infrastructure/infrastructure-cluster.module';
 import { SecurityClusterModule } from './security/security-cluster.module';
 import { MetaIntelligenceClusterModule } from './meta-intelligence/meta-intelligence-cluster.module';
+import { CertificationClusterModule } from './certification/certification-cluster.module';
+import { SelfEvolutionClusterModule } from './self-evolution/self-evolution-cluster.module';
+import { GatewayModule } from '../gateway/gateway.module';
 
 @Module({
   imports: [
@@ -30,6 +33,7 @@ import { MetaIntelligenceClusterModule } from './meta-intelligence/meta-intellig
     OrchestratorModule,
     CommunicationModule,
     HealthModule,
+    GatewayModule,
     BrowserClusterModule,
     ComputerClusterModule,
     CodingClusterModule,
@@ -39,6 +43,8 @@ import { MetaIntelligenceClusterModule } from './meta-intelligence/meta-intellig
     InfrastructureClusterModule,
     SecurityClusterModule,
     MetaIntelligenceClusterModule,
+    CertificationClusterModule,
+    SelfEvolutionClusterModule,
   ],
   exports: [
     BaseAgentModule,
@@ -48,6 +54,7 @@ import { MetaIntelligenceClusterModule } from './meta-intelligence/meta-intellig
     OrchestratorModule,
     CommunicationModule,
     HealthModule,
+    GatewayModule,
     BrowserClusterModule,
     ComputerClusterModule,
     CodingClusterModule,
@@ -57,6 +64,8 @@ import { MetaIntelligenceClusterModule } from './meta-intelligence/meta-intellig
     InfrastructureClusterModule,
     SecurityClusterModule,
     MetaIntelligenceClusterModule,
+    CertificationClusterModule,
+    SelfEvolutionClusterModule,
   ],
 })
 export class AgentsModule {}

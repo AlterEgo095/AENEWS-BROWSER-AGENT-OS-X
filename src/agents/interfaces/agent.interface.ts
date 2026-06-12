@@ -25,6 +25,8 @@ export enum AgentCluster {
   INFRASTRUCTURE = 'infrastructure',
   SECURITY = 'security',
   META_INTELLIGENCE = 'meta_intelligence',
+  CERTIFICATION = 'certification',
+  SELF_EVOLUTION = 'self_evolution',
 }
 
 // ─── Agent Capability ────────────────────────────────────────────
