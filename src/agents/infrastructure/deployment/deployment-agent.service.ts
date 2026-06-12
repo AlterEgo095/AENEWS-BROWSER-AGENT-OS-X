@@ -255,7 +255,7 @@ export class DeploymentAgentService extends BaseAgentService {
         appName: string;
         deploymentId?: string;
         environment?: string;
-      }) => this.getStatus(params),
+      }) => this.getDeploymentStatus(params),
     });
 
     this.registerTool({
@@ -560,7 +560,7 @@ export class DeploymentAgentService extends BaseAgentService {
     };
   }
 
-  private async getStatus(params: {
+  private async getDeploymentStatus(params: {
     appName: string;
     deploymentId?: string;
     environment?: string;
