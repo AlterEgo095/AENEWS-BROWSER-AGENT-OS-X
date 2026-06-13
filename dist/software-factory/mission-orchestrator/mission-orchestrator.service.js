@@ -1,10 +1,43 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
@@ -13,6 +46,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MissionOrchestratorPipeline = void 0;
 const common_1 = require("@nestjs/common");
 const uuid_1 = require("uuid");
+const path = __importStar(require("path"));
 const kernel_services_1 = require("../kernel/kernel-services");
 const mission_contract_service_1 = require("../mission-contract/mission-contract.service");
 const mission_state_machine_service_1 = require("../mission-state-machine/mission-state-machine.service");
@@ -143,6 +177,9 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
                 totalNodes: graphPlan.graph.nodes.length,
                 totalEdges: graphPlan.graph.edges.length,
             });
+            const workspaceDir = path.join('/home/z/my-project/download/missions', missionId);
+            this.workerFactory.setMissionWorkspace(missionId, workspaceDir);
+            this.logger.log(`Mission workspace: ${workspaceDir}`);
             this.orchestrator.updateMission(missionId, { currentPhase: 'Spawning Workers', progress: 35 });
             for (const phase of graphPlan.phases) {
                 for (const nodeId of phase.nodeIds) {
@@ -173,7 +210,7 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
                     const execResult = await this.workerFactory.execute({
                         workerId: spawnResult.workerId,
                         nodeId,
-                        input: { missionId, instruction: context?.instruction, plan, resolution },
+                        input: { missionId, instruction: context?.instruction, plan, resolution, workspaceDir },
                     });
                     if (execResult.success) {
                         this.graphBuilder.updateNodeStatus(missionId, nodeId, interfaces_1.GraphNodeStatus.COMPLETED, {
@@ -332,10 +369,14 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
                 artifacts.push({ name: 'execution-plan.json', type: 'plan', path: '/artifacts/execution-plan.json', size: 2000 });
             }
             if (data?.artifacts) {
-                artifacts.push(...data.artifacts);
+                if (Array.isArray(data.artifacts)) {
+                    artifacts.push(...data.artifacts);
+                }
             }
         }
-        artifacts.push({ name: 'README.md', type: 'readme', path: '/artifacts/README.md', size: 3000 }, { name: 'documentation', type: 'documentation', path: '/artifacts/docs/', size: 15000 });
+        if (artifacts.length === 0) {
+            artifacts.push({ name: 'README.md', type: 'readme', path: '/artifacts/README.md', size: 3000 }, { name: 'documentation', type: 'documentation', path: '/artifacts/docs/', size: 15000 });
+        }
         return artifacts;
     }
     estimateNodeCost(capabilities) {

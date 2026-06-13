@@ -13,6 +13,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
+import * as path from 'path';
 
 // Kernel services
 import {
@@ -237,6 +238,11 @@ export class MissionOrchestratorPipeline {
         totalEdges: graphPlan.graph.edges.length,
       });
 
+      // Phase 3.5: CREATE MISSION WORKSPACE (Sprint 2 — connectors need workspace)
+      const workspaceDir = path.join('/home/z/my-project/download/missions', missionId);
+      this.workerFactory.setMissionWorkspace(missionId, workspaceDir);
+      this.logger.log(`Mission workspace: ${workspaceDir}`);
+
       // Phase 4: WORKER CREATION & EXECUTION
       this.orchestrator.updateMission(missionId, { currentPhase: 'Spawning Workers', progress: 35 });
 
@@ -284,7 +290,7 @@ export class MissionOrchestratorPipeline {
           const execResult = await this.workerFactory.execute({
             workerId: spawnResult.workerId,
             nodeId,
-            input: { missionId, instruction: context?.instruction, plan, resolution },
+            input: { missionId, instruction: context?.instruction, plan, resolution, workspaceDir },
           });
 
           // Handle result
@@ -494,13 +500,18 @@ export class MissionOrchestratorPipeline {
         artifacts.push({ name: 'execution-plan.json', type: 'plan', path: '/artifacts/execution-plan.json', size: 2000 });
       }
       if (data?.artifacts) {
-        artifacts.push(...data.artifacts);
+        if (Array.isArray(data.artifacts)) {
+          artifacts.push(...data.artifacts);
+        }
       }
     }
-    artifacts.push(
-      { name: 'README.md', type: 'readme', path: '/artifacts/README.md', size: 3000 },
-      { name: 'documentation', type: 'documentation', path: '/artifacts/docs/', size: 15000 },
-    );
+    // Only add generic artifacts if no real ones were collected
+    if (artifacts.length === 0) {
+      artifacts.push(
+        { name: 'README.md', type: 'readme', path: '/artifacts/README.md', size: 3000 },
+        { name: 'documentation', type: 'documentation', path: '/artifacts/docs/', size: 15000 },
+      );
+    }
     return artifacts;
   }
 

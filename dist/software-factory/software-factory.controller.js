@@ -59,12 +59,13 @@ const kernel_services_2 = require("./kernel/kernel-services");
 const mission_archive_service_1 = require("./archive/mission-archive.service");
 const mission_runtime_engine_1 = require("./runtime/mission-runtime.engine");
 const mission_metrics_service_1 = require("./runtime/mission-metrics.service");
+const connector_registry_1 = require("./connectors/connector-registry");
 const reference_missions_1 = require("./runtime/reference-missions");
 const interfaces_1 = require("./interfaces");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 let SoftwareFactoryController = class SoftwareFactoryController {
-    constructor(runtime, metrics, pipeline, contractService, stateMachine, capabilityRegistry, capabilityResolver, workerFactory, deliveryManager, archiveService, monitoring) {
+    constructor(runtime, metrics, pipeline, contractService, stateMachine, capabilityRegistry, capabilityResolver, workerFactory, deliveryManager, archiveService, monitoring, connectorRegistry) {
         this.runtime = runtime;
         this.metrics = metrics;
         this.pipeline = pipeline;
@@ -76,6 +77,7 @@ let SoftwareFactoryController = class SoftwareFactoryController {
         this.deliveryManager = deliveryManager;
         this.archiveService = archiveService;
         this.monitoring = monitoring;
+        this.connectorRegistry = connectorRegistry;
     }
     async runMission(body) {
         const result = await this.runtime.executeMission({
@@ -247,6 +249,7 @@ let SoftwareFactoryController = class SoftwareFactoryController {
                     capability_packs: 6,
                     total_capabilities: this.capabilityRegistry.getTotalCount(),
                     runtime_engine: 'ACTIVE',
+                    connectors: this.connectorRegistry.getStatistics(),
                 },
                 activeMissions: this.runtime.getActiveMissions().length,
                 completedMissions: this.runtime.getCompletedMissions().length,
@@ -296,6 +299,50 @@ let SoftwareFactoryController = class SoftwareFactoryController {
     getLowestQuality(count) {
         const n = count ? parseInt(count) : 10;
         return { success: true, data: this.metrics.getLowestQuality(n) };
+    }
+    getConnectorStats() {
+        return {
+            success: true,
+            data: {
+                ...this.connectorRegistry.getStatistics(),
+                workerFactoryConnectors: this.workerFactory.getConnectorStats(),
+            },
+        };
+    }
+    async testConnector(body) {
+        const capId = body.capabilityId;
+        const connector = this.connectorRegistry.getConnector(capId);
+        if (!connector) {
+            return { success: false, error: `No connector for capability: ${body.capabilityId}` };
+        }
+        const missionId = `test-${Date.now()}`;
+        const workspaceDir = `/home/z/my-project/download/missions/${missionId}`;
+        this.workerFactory.setMissionWorkspace(missionId, workspaceDir);
+        try {
+            const result = await connector.execute(capId, {
+                missionId,
+                instruction: body.instruction,
+                workspaceDir,
+                parameters: body.parameters || {},
+                previousResults: new Map(),
+                tools: [],
+            });
+            return {
+                success: result.success,
+                data: {
+                    connector: connector.constructor.name,
+                    durationMs: result.durationMs,
+                    costUsd: result.costUsd,
+                    artifactCount: result.artifacts.length,
+                    artifacts: result.artifacts.map(a => ({ name: a.name, type: a.type, size: a.size })),
+                    output: typeof result.output === 'object' ? JSON.stringify(result.output).substring(0, 1000) : result.output,
+                    error: result.error,
+                },
+            };
+        }
+        catch (error) {
+            return { success: false, error: error.message };
+        }
     }
     getReferenceMissions(pack, difficulty, category) {
         let missions = reference_missions_1.ReferenceMissions.ALL;
@@ -529,6 +576,22 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getLowestQuality", null);
 __decorate([
+    (0, common_1.Get)('connectors'),
+    openapi.ApiResponse({ status: 200 }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getConnectorStats", null);
+__decorate([
+    openapi.ApiOperation({ description: "Test a specific connector with a sample input\nPOST /api/factory/connectors/test" }),
+    (0, common_1.Post)('connectors/test'),
+    openapi.ApiResponse({ status: 201, type: Object }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SoftwareFactoryController.prototype, "testConnector", null);
+__decorate([
     (0, common_1.Get)('reference-missions'),
     openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Query)('pack')),
@@ -558,6 +621,7 @@ exports.SoftwareFactoryController = SoftwareFactoryController = __decorate([
         worker_factory_service_1.WorkerFactoryService,
         kernel_services_1.DeliveryManagerService,
         mission_archive_service_1.MissionArchiveService,
-        kernel_services_2.MonitoringManagerService])
+        kernel_services_2.MonitoringManagerService,
+        connector_registry_1.ConnectorRegistry])
 ], SoftwareFactoryController);
 //# sourceMappingURL=software-factory.controller.js.map

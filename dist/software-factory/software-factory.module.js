@@ -20,6 +20,13 @@ const mission_archive_service_1 = require("./archive/mission-archive.service");
 const mission_orchestrator_service_1 = require("./mission-orchestrator/mission-orchestrator.service");
 const mission_runtime_engine_1 = require("./runtime/mission-runtime.engine");
 const mission_metrics_service_1 = require("./runtime/mission-metrics.service");
+const development_connector_1 = require("./connectors/development-connector");
+const browser_connector_1 = require("./connectors/browser-connector");
+const certification_connector_1 = require("./connectors/certification-connector");
+const delivery_connector_1 = require("./connectors/delivery-connector");
+const office_connector_1 = require("./connectors/office-connector");
+const business_connector_1 = require("./connectors/business-connector");
+const connector_registry_1 = require("./connectors/connector-registry");
 const software_factory_controller_1 = require("./software-factory.controller");
 let SoftwareFactoryModule = class SoftwareFactoryModule {
 };
@@ -31,6 +38,13 @@ exports.SoftwareFactoryModule = SoftwareFactoryModule = __decorate([
             capability_registry_service_1.CapabilityRegistryService,
             execution_graph_builder_service_1.ExecutionGraphBuilderService,
             capability_resolver_service_1.CapabilityResolverService,
+            development_connector_1.DevelopmentConnector,
+            browser_connector_1.BrowserConnector,
+            certification_connector_1.CertificationConnector,
+            delivery_connector_1.DeliveryConnector,
+            office_connector_1.OfficeConnector,
+            business_connector_1.BusinessConnector,
+            connector_registry_1.ConnectorRegistry,
             worker_factory_service_1.WorkerFactoryService,
             kernel_services_1.MissionOrchestratorService,
             kernel_services_1.MissionPlannerService,
@@ -54,6 +68,7 @@ exports.SoftwareFactoryModule = SoftwareFactoryModule = __decorate([
             execution_graph_builder_service_1.ExecutionGraphBuilderService,
             capability_resolver_service_1.CapabilityResolverService,
             worker_factory_service_1.WorkerFactoryService,
+            connector_registry_1.ConnectorRegistry,
             mission_orchestrator_service_1.MissionOrchestratorPipeline,
             mission_runtime_engine_1.MissionRuntimeEngine,
             mission_metrics_service_1.MissionMetricsService,

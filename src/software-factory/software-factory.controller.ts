@@ -28,6 +28,7 @@ import { MonitoringManagerService } from './kernel/kernel-services';
 import { MissionArchiveService } from './archive/mission-archive.service';
 import { MissionRuntimeEngine, RuntimeResult } from './runtime/mission-runtime.engine';
 import { MissionMetricsService, MissionCategory, MSR_TARGETS } from './runtime/mission-metrics.service';
+import { ConnectorRegistry } from './connectors/connector-registry';
 import { ReferenceMissions } from './runtime/reference-missions';
 import { CapabilityPack, MissionQuality } from './interfaces';
 import * as fs from 'fs';
@@ -47,6 +48,7 @@ export class SoftwareFactoryController {
     private readonly deliveryManager: DeliveryManagerService,
     private readonly archiveService: MissionArchiveService,
     private readonly monitoring: MonitoringManagerService,
+    private readonly connectorRegistry: ConnectorRegistry,
   ) {}
 
   // ═══════════════════════════════════════════════════════════
@@ -324,6 +326,7 @@ export class SoftwareFactoryController {
           capability_packs: 6,
           total_capabilities: this.capabilityRegistry.getTotalCount(),
           runtime_engine: 'ACTIVE',
+          connectors: this.connectorRegistry.getStatistics(),
         },
         activeMissions: this.runtime.getActiveMissions().length,
         completedMissions: this.runtime.getCompletedMissions().length,
@@ -413,6 +416,73 @@ export class SoftwareFactoryController {
   getLowestQuality(@Query('count') count?: string) {
     const n = count ? parseInt(count) : 10;
     return { success: true, data: this.metrics.getLowestQuality(n) };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  CONNECTORS — Sprint 2: Real Connectors
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Get connector registry statistics
+   * GET /api/factory/connectors
+   */
+  @Get('connectors')
+  getConnectorStats() {
+    return {
+      success: true,
+      data: {
+        ...this.connectorRegistry.getStatistics(),
+        workerFactoryConnectors: this.workerFactory.getConnectorStats(),
+      },
+    };
+  }
+
+  /**
+   * Test a specific connector with a sample input
+   * POST /api/factory/connectors/test
+   */
+  @Post('connectors/test')
+  async testConnector(@Body() body: {
+    capabilityId: string;
+    instruction: string;
+    parameters?: Record<string, any>;
+  }) {
+    const capId = body.capabilityId as any;
+    const connector = this.connectorRegistry.getConnector(capId);
+
+    if (!connector) {
+      return { success: false, error: `No connector for capability: ${body.capabilityId}` };
+    }
+
+    const missionId = `test-${Date.now()}`;
+    const workspaceDir = `/home/z/my-project/download/missions/${missionId}`;
+    this.workerFactory.setMissionWorkspace(missionId, workspaceDir);
+
+    try {
+      const result = await connector.execute(capId, {
+        missionId,
+        instruction: body.instruction,
+        workspaceDir,
+        parameters: body.parameters || {},
+        previousResults: new Map(),
+        tools: [],
+      });
+
+      return {
+        success: result.success,
+        data: {
+          connector: connector.constructor.name,
+          durationMs: result.durationMs,
+          costUsd: result.costUsd,
+          artifactCount: result.artifacts.length,
+          artifacts: result.artifacts.map(a => ({ name: a.name, type: a.type, size: a.size })),
+          output: typeof result.output === 'object' ? JSON.stringify(result.output).substring(0, 1000) : result.output,
+          error: result.error,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   }
 
   // ═══════════════════════════════════════════════════════════

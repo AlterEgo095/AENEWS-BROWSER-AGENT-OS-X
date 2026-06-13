@@ -10,6 +10,7 @@ import { MonitoringManagerService } from './kernel/kernel-services';
 import { MissionArchiveService } from './archive/mission-archive.service';
 import { MissionRuntimeEngine } from './runtime/mission-runtime.engine';
 import { MissionMetricsService } from './runtime/mission-metrics.service';
+import { ConnectorRegistry } from './connectors/connector-registry';
 import { CapabilityPack } from './interfaces';
 export declare class SoftwareFactoryController {
     private readonly runtime;
@@ -23,7 +24,8 @@ export declare class SoftwareFactoryController {
     private readonly deliveryManager;
     private readonly archiveService;
     private readonly monitoring;
-    constructor(runtime: MissionRuntimeEngine, metrics: MissionMetricsService, pipeline: MissionOrchestratorPipeline, contractService: MissionContractService, stateMachine: MissionStateMachineService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, workerFactory: WorkerFactoryService, deliveryManager: DeliveryManagerService, archiveService: MissionArchiveService, monitoring: MonitoringManagerService);
+    private readonly connectorRegistry;
+    constructor(runtime: MissionRuntimeEngine, metrics: MissionMetricsService, pipeline: MissionOrchestratorPipeline, contractService: MissionContractService, stateMachine: MissionStateMachineService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, workerFactory: WorkerFactoryService, deliveryManager: DeliveryManagerService, archiveService: MissionArchiveService, monitoring: MonitoringManagerService, connectorRegistry: ConnectorRegistry);
     runMission(body: {
         instruction: string;
         description?: string;
@@ -168,6 +170,11 @@ export declare class SoftwareFactoryController {
                 capability_packs: number;
                 total_capabilities: number;
                 runtime_engine: string;
+                connectors: {
+                    totalConnectors: number;
+                    packs: string[];
+                    capabilitiesCovered: number;
+                };
             };
             activeMissions: number;
             completedMissions: number;
@@ -224,6 +231,40 @@ export declare class SoftwareFactoryController {
         success: boolean;
         data: import("./runtime/mission-metrics.service").MissionMetric[];
     };
+    getConnectorStats(): {
+        success: boolean;
+        data: {
+            workerFactoryConnectors: any;
+            totalConnectors: number;
+            packs: string[];
+            capabilitiesCovered: number;
+        };
+    };
+    testConnector(body: {
+        capabilityId: string;
+        instruction: string;
+        parameters?: Record<string, any>;
+    }): Promise<{
+        success: boolean;
+        data: {
+            connector: string;
+            durationMs: number;
+            costUsd: number;
+            artifactCount: number;
+            artifacts: {
+                name: string;
+                type: "document" | "config" | "screenshot" | "test" | "archive" | "report" | "source" | "log";
+                size: number;
+            }[];
+            output: any;
+            error: string | undefined;
+        };
+        error?: undefined;
+    } | {
+        success: boolean;
+        error: any;
+        data?: undefined;
+    }>;
     getReferenceMissions(pack?: string, difficulty?: string, category?: string): {
         success: boolean;
         data: {

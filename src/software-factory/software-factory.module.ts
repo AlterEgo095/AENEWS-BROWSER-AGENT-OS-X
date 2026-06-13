@@ -8,6 +8,8 @@
  * 
  * 10 permanent kernel services.
  * Everything else is dynamic.
+ * 
+ * Sprint 2: Real Connectors — 6 connectors bridge capabilities to real tools
  */
 
 import { Module } from '@nestjs/common';
@@ -50,6 +52,15 @@ import { MissionRuntimeEngine } from './runtime/mission-runtime.engine';
 // Mission Metrics Tracker — KPI #1 = MSR
 import { MissionMetricsService } from './runtime/mission-metrics.service';
 
+// Sprint 2: Real Connectors
+import { DevelopmentConnector } from './connectors/development-connector';
+import { BrowserConnector } from './connectors/browser-connector';
+import { CertificationConnector } from './connectors/certification-connector';
+import { DeliveryConnector } from './connectors/delivery-connector';
+import { OfficeConnector } from './connectors/office-connector';
+import { BusinessConnector } from './connectors/business-connector';
+import { ConnectorRegistry } from './connectors/connector-registry';
+
 // API Controller
 import { SoftwareFactoryController } from './software-factory.controller';
 
@@ -63,7 +74,16 @@ import { SoftwareFactoryController } from './software-factory.controller';
     ExecutionGraphBuilderService,
     CapabilityResolverService,
 
-    // ─── Worker Factory ───────────────────────────────────────
+    // ─── Sprint 2: Real Connectors (6 connectors) ────────────
+    DevelopmentConnector,
+    BrowserConnector,
+    CertificationConnector,
+    DeliveryConnector,
+    OfficeConnector,
+    BusinessConnector,
+    ConnectorRegistry,
+
+    // ─── Worker Factory (depends on ConnectorRegistry) ────────
     WorkerFactoryService,
 
     // ─── 10 Kernel Services (permanent) ───────────────────────
@@ -97,6 +117,7 @@ import { SoftwareFactoryController } from './software-factory.controller';
     ExecutionGraphBuilderService,
     CapabilityResolverService,
     WorkerFactoryService,
+    ConnectorRegistry,
     MissionOrchestratorPipeline,
     MissionRuntimeEngine,
     MissionMetricsService,

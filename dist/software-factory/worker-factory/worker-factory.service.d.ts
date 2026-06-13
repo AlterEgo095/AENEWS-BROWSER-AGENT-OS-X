@@ -1,12 +1,18 @@
 import { WorkerProfile, WorkerSpawnRequest, WorkerSpawnResult, WorkerTerminateRequest, WorkerTerminateResult, WorkerExecutionRequest, WorkerExecutionResult, WorkerPoolStatistics, WorkerPoolConstraints } from '../interfaces';
 import { CapabilityRegistryService } from '../capability-registry/capability-registry.service';
+import { ConnectorRegistry } from '../connectors/connector-registry';
 export declare class WorkerFactoryService {
     private readonly capabilityRegistry;
+    private readonly connectorRegistry;
     private readonly logger;
     private readonly workers;
     private readonly archive;
+    private readonly missionWorkspaces;
+    private readonly missionResults;
     private constraints;
-    constructor(capabilityRegistry: CapabilityRegistryService);
+    constructor(capabilityRegistry: CapabilityRegistryService, connectorRegistry: ConnectorRegistry);
+    setMissionWorkspace(missionId: string, workspaceDir: string): void;
+    getMissionWorkspace(missionId: string): string;
     spawn(request: WorkerSpawnRequest): Promise<WorkerSpawnResult>;
     terminate(request: WorkerTerminateRequest): Promise<WorkerTerminateResult>;
     terminateMissionWorkers(missionId: string, reason: WorkerTerminateRequest['reason']): Promise<WorkerTerminateResult[]>;
@@ -16,6 +22,7 @@ export declare class WorkerFactoryService {
     getStatistics(): WorkerPoolStatistics;
     getConstraints(): WorkerPoolConstraints;
     updateConstraints(constraints: Partial<WorkerPoolConstraints>): void;
+    getConnectorStats(): any;
     private initializeWorker;
     private executeCapability;
     private getActiveCount;

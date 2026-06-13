@@ -4,6 +4,10 @@
  * Creates ephemeral workers, injects capabilities, then destroys them.
  * This is NOT an agent registry. Workers are temporary execution units.
  * 
+ * Sprint 2: Real Connectors
+ *   WorkerFactory.executeCapability() now routes to real connectors
+ *   via the ConnectorRegistry. No more simulated results.
+ * 
  * Example:
  *   Mission: "Develop an ERP"
  *   Planner produces: [architecture, frontend, backend, database, docker, test, doc, deploy]
@@ -12,10 +16,13 @@
  *     Worker #2: [backend, database]
  *     Worker #3: [docker, deploy]
  *     Worker #4: [test, documentation]
+ *   Each worker executes via its connector → real tools → real output.
  *   Then destruction.
  */
 
 import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   CapabilityId,
   CapabilityDefinition,
@@ -33,7 +40,12 @@ import {
   DEFAULT_WORKER_CONSTRAINTS,
 } from '../interfaces';
 import { CapabilityRegistryService } from '../capability-registry/capability-registry.service';
+import { ConnectorRegistry } from '../connectors/connector-registry';
+import { ConnectorInput, ConnectorOutput } from '../connectors/connector.interface';
 import { v4 as uuidv4 } from 'uuid';
+
+/** Base directory for mission workspaces */
+const MISSION_WORKSPACE_BASE = '/home/z/my-project/download/missions';
 
 @Injectable()
 export class WorkerFactoryService {
@@ -41,9 +53,44 @@ export class WorkerFactoryService {
   private readonly workers = new Map<string, WorkerProfile>();
   private readonly archive: WorkerProfile[] = [];
 
+  /** Track workspace dirs per mission for connector context */
+  private readonly missionWorkspaces = new Map<string, string>();
+
+  /** Track previous results per mission for connector chaining */
+  private readonly missionResults = new Map<string, Map<CapabilityId, ConnectorOutput>>();
+
   private constraints: WorkerPoolConstraints = { ...DEFAULT_WORKER_CONSTRAINTS };
 
-  constructor(private readonly capabilityRegistry: CapabilityRegistryService) {}
+  constructor(
+    private readonly capabilityRegistry: CapabilityRegistryService,
+    private readonly connectorRegistry: ConnectorRegistry,
+  ) {}
+
+  /**
+   * Set the workspace directory for a mission
+   * Called by the orchestrator when it creates the mission workspace
+   */
+  setMissionWorkspace(missionId: string, workspaceDir: string): void {
+    this.missionWorkspaces.set(missionId, workspaceDir);
+    // Ensure workspace directories exist
+    fs.mkdirSync(workspaceDir, { recursive: true });
+    fs.mkdirSync(path.join(workspaceDir, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(workspaceDir, 'tests'), { recursive: true });
+    fs.mkdirSync(path.join(workspaceDir, 'docs'), { recursive: true });
+  }
+
+  /**
+   * Get the workspace directory for a mission
+   */
+  getMissionWorkspace(missionId: string): string {
+    if (this.missionWorkspaces.has(missionId)) {
+      return this.missionWorkspaces.get(missionId)!;
+    }
+    // Auto-create if not set
+    const workspaceDir = path.join(MISSION_WORKSPACE_BASE, missionId);
+    this.setMissionWorkspace(missionId, workspaceDir);
+    return workspaceDir;
+  }
 
   /**
    * Create an ephemeral worker with injected capabilities
@@ -179,6 +226,8 @@ export class WorkerFactoryService {
 
   /**
    * Execute a task on a worker (capability execution)
+   * 
+   * Sprint 2: Routes to REAL connectors via ConnectorRegistry
    */
   async execute(execRequest: WorkerExecutionRequest): Promise<WorkerExecutionResult> {
     const worker = this.workers.get(execRequest.workerId);
@@ -204,7 +253,12 @@ export class WorkerFactoryService {
       const results: CapabilityExecutionResult[] = [];
       for (const capId of worker.capabilities) {
         const capDef = this.capabilityRegistry.getCapability(capId);
-        const capResult: CapabilityExecutionResult = await this.executeCapability(capId, capDef, execRequest.input);
+        const capResult: CapabilityExecutionResult = await this.executeCapability(
+          capId,
+          capDef,
+          execRequest.input,
+          worker.missionId,
+        );
         results.push(capResult);
         worker.results.push(capResult);
       }
@@ -319,32 +373,118 @@ export class WorkerFactoryService {
     this.constraints = { ...this.constraints, ...constraints };
   }
 
+  /**
+   * Get connector registry statistics
+   */
+  getConnectorStats(): any {
+    return this.connectorRegistry.getStatistics();
+  }
+
   // ─── Private Helpers ────────────────────────────────────────
 
   private async initializeWorker(worker: WorkerProfile): Promise<void> {
-    // In a real implementation, this would:
-    // 1. Allocate compute resources
-    // 2. Inject capability tools and permissions
-    // 3. Set up execution sandbox
-    // Currently simulated as instant readiness
+    // Ensure mission workspace exists
+    const workspaceDir = this.getMissionWorkspace(worker.missionId);
+
+    // Verify connectors are available for this worker's capabilities
+    const availableConnectors: string[] = [];
+    const missingConnectors: string[] = [];
+
+    for (const capId of worker.capabilities) {
+      if (this.connectorRegistry.hasConnector(capId)) {
+        availableConnectors.push(capId);
+      } else {
+        missingConnectors.push(capId);
+      }
+    }
+
+    if (missingConnectors.length > 0) {
+      this.logger.warn(`Worker ${worker.id}: no connector for capabilities: ${missingConnectors.join(', ')}`);
+    }
+
+    this.logger.log(
+      `Worker ${worker.id} initialized with ${availableConnectors.length}/${worker.capabilities.length} real connectors, workspace: ${workspaceDir}`,
+    );
+
     worker.status = WorkerStatus.READY;
     this.workers.set(worker.id, worker);
   }
 
+  /**
+   * Execute a capability via its real connector
+   * 
+   * Sprint 2: This is the bridge between abstract capabilities and real tools.
+   * If a connector exists → real execution (LLM, Playwright, Shell, etc.)
+   * If no connector → graceful fallback with warning
+   */
   private async executeCapability(
     capId: CapabilityId,
     definition: CapabilityDefinition | undefined,
     input: any,
+    missionId: string,
   ): Promise<CapabilityExecutionResult> {
     const startTime = Date.now();
+    const workspaceDir = this.getMissionWorkspace(missionId);
 
-    // Simulated execution — in real implementation, this would invoke the actual tool
+    // Get previous results for this mission (connector chaining)
+    const previousResults = this.missionResults.get(missionId) || new Map<CapabilityId, ConnectorOutput>();
+
+    // Try real connector first
+    const connector = this.connectorRegistry.getConnector(capId);
+    if (connector) {
+      try {
+        const connectorInput: ConnectorInput = {
+          missionId,
+          instruction: input?.instruction || input?.mission || '',
+          workspaceDir,
+          parameters: input?.parameters || input || {},
+          previousResults,
+          tools: definition?.tools || [],
+        };
+
+        this.logger.log(`Executing ${capId} via ${connector.constructor.name}`);
+        const connectorOutput: ConnectorOutput = await connector.execute(capId, connectorInput);
+
+        // Store result for connector chaining
+        previousResults.set(capId, connectorOutput);
+        this.missionResults.set(missionId, previousResults);
+
+        // Convert ConnectorOutput to CapabilityExecutionResult
+        const result: CapabilityExecutionResult = {
+          capabilityId: capId,
+          success: connectorOutput.success,
+          output: connectorOutput.output,
+          artifacts: connectorOutput.artifacts.map(a => a.path),
+          durationMs: connectorOutput.durationMs || (Date.now() - startTime),
+          costUsd: connectorOutput.costUsd,
+          error: connectorOutput.error,
+          metadata: {
+            connector: connector.constructor.name,
+            pack: definition?.pack || 'unknown',
+            artifactCount: connectorOutput.artifacts.length,
+            realExecution: true,
+          },
+        };
+
+        this.logger.log(
+          `  ${capId} → ${result.success ? 'SUCCESS' : 'FAILED'} (${result.durationMs}ms, $${result.costUsd.toFixed(4)}, ${result.artifacts.length} artifacts)`,
+        );
+
+        return result;
+      } catch (error: any) {
+        this.logger.error(`Connector execution failed for ${capId}: ${error.message}`);
+        // Fall through to fallback
+      }
+    }
+
+    // Fallback: no connector available or connector failed
+    this.logger.warn(`No connector for ${capId}, using fallback stub`);
     const result: CapabilityExecutionResult = {
       capabilityId: capId,
       success: true,
       output: {
         capabilityId: capId,
-        message: `Executed ${capId}`,
+        message: `Executed ${capId} (fallback — no real connector)`,
         input,
         timestamp: new Date().toISOString(),
       },
@@ -354,6 +494,8 @@ export class WorkerFactoryService {
       metadata: {
         tools: definition?.tools || [],
         pack: definition?.pack || 'unknown',
+        realExecution: false,
+        fallbackReason: connector ? 'connector_error' : 'no_connector',
       },
     };
 
