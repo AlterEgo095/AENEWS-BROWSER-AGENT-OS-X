@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 var CertificationController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CertificationController = void 0;
+const openapi = require("@nestjs/swagger");
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const certification_runner_service_1 = require("./certification-runner.service");
@@ -105,6 +106,7 @@ __decorate([
         status: 409,
         description: 'A certification run is already in progress',
     }),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
@@ -120,6 +122,7 @@ __decorate([
         status: 200,
         description: 'Certification status retrieved',
     }),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
@@ -140,6 +143,7 @@ __decorate([
         status: 404,
         description: 'No certification report available',
     }),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
@@ -165,6 +169,7 @@ __decorate([
         status: 400,
         description: 'Invalid domain specified',
     }),
+    openapi.ApiResponse({ status: 201 }),
     __param(0, (0, common_1.Param)('domain')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),

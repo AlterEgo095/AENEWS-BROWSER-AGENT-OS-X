@@ -46,6 +46,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SoftwareFactoryController = void 0;
+const openapi = require("@nestjs/swagger");
 const common_1 = require("@nestjs/common");
 const mission_orchestrator_service_1 = require("./mission-orchestrator/mission-orchestrator.service");
 const mission_contract_service_1 = require("./mission-contract/mission-contract.service");
@@ -368,20 +369,25 @@ exports.SoftwareFactoryController = SoftwareFactoryController;
 __decorate([
     (0, common_1.Post)('run'),
     (0, common_1.HttpCode)(common_1.HttpStatus.ACCEPTED),
+    openapi.ApiResponse({ status: common_1.HttpStatus.ACCEPTED }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], SoftwareFactoryController.prototype, "runMission", null);
 __decorate([
+    openapi.ApiOperation({ description: "Get runtime mission result\nGET /api/factory/run/:id" }),
     (0, common_1.Get)('run/:id'),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getRuntimeMission", null);
 __decorate([
+    openapi.ApiOperation({ description: "Download an artifact file\nGET /api/factory/run/:id/download/:filename" }),
     (0, common_1.Get)('run/:id/download/:filename'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Param)('filename')),
     __param(2, (0, common_1.Res)()),
@@ -390,7 +396,9 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "downloadArtifact", null);
 __decorate([
+    openapi.ApiOperation({ description: "Download the full mission as ZIP\nGET /api/factory/run/:id/zip" }),
     (0, common_1.Get)('run/:id/zip'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Res)()),
     __metadata("design:type", Function),
@@ -400,6 +408,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)('missions'),
     (0, common_1.HttpCode)(common_1.HttpStatus.ACCEPTED),
+    openapi.ApiResponse({ status: common_1.HttpStatus.ACCEPTED }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -407,12 +416,14 @@ __decorate([
 ], SoftwareFactoryController.prototype, "submitMission", null);
 __decorate([
     (0, common_1.Get)('missions'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getActiveMissions", null);
 __decorate([
     (0, common_1.Get)('missions/:id'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -420,6 +431,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "getMissionStatus", null);
 __decorate([
     (0, common_1.Post)('missions/:id/cancel'),
+    openapi.ApiResponse({ status: 201 }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -427,6 +439,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "cancelMission", null);
 __decorate([
     (0, common_1.Get)('contracts/:id'),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -434,6 +447,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "getContract", null);
 __decorate([
     (0, common_1.Get)('missions/:id/timeline'),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -441,6 +455,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "getTimeline", null);
 __decorate([
     (0, common_1.Get)('missions/:id/transitions'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -448,12 +463,14 @@ __decorate([
 ], SoftwareFactoryController.prototype, "getAvailableTransitions", null);
 __decorate([
     (0, common_1.Get)('capabilities'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getAllCapabilities", null);
 __decorate([
     (0, common_1.Get)('capabilities/pack/:pack'),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __param(0, (0, common_1.Param)('pack')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -461,6 +478,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "getCapabilitiesByPack", null);
 __decorate([
     (0, common_1.Get)('capabilities/search'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Query)('q')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -468,6 +486,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "searchCapabilities", null);
 __decorate([
     (0, common_1.Post)('capabilities/resolve'),
+    openapi.ApiResponse({ status: 201 }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -475,12 +494,14 @@ __decorate([
 ], SoftwareFactoryController.prototype, "resolveCapabilities", null);
 __decorate([
     (0, common_1.Get)('workers/stats'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getWorkerStats", null);
 __decorate([
     (0, common_1.Get)('archives/:id'),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -488,6 +509,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "getArchive", null);
 __decorate([
     (0, common_1.Get)('archives'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Query)('result')),
     __param(1, (0, common_1.Query)('minQuality')),
     __param(2, (0, common_1.Query)('maxCost')),
@@ -497,45 +519,57 @@ __decorate([
 ], SoftwareFactoryController.prototype, "searchArchives", null);
 __decorate([
     (0, common_1.Get)('stats'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getFactoryStats", null);
 __decorate([
     (0, common_1.Get)('metrics/msr'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getMSR", null);
 __decorate([
+    openapi.ApiOperation({ description: "Get full aggregate metrics dashboard\nGET /api/factory/metrics" }),
     (0, common_1.Get)('metrics'),
+    openapi.ApiResponse({ status: 200, type: Object }),
     __param(0, (0, common_1.Query)('category')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getMetrics", null);
 __decorate([
+    openapi.ApiOperation({ description: "Get recent mission metrics\nGET /api/factory/metrics/recent" }),
     (0, common_1.Get)('metrics/recent'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Query)('count')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getRecentMetrics", null);
 __decorate([
+    openapi.ApiOperation({ description: "Get failed missions for analysis\nGET /api/factory/metrics/failures" }),
     (0, common_1.Get)('metrics/failures'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getFailures", null);
 __decorate([
+    openapi.ApiOperation({ description: "Get slowest missions\nGET /api/factory/metrics/slowest" }),
     (0, common_1.Get)('metrics/slowest'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Query)('count')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getSlowest", null);
 __decorate([
+    openapi.ApiOperation({ description: "Get lowest quality missions\nGET /api/factory/metrics/lowest-quality" }),
     (0, common_1.Get)('metrics/lowest-quality'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Query)('count')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -543,12 +577,15 @@ __decorate([
 ], SoftwareFactoryController.prototype, "getLowestQuality", null);
 __decorate([
     (0, common_1.Get)('connectors'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getConnectorStats", null);
 __decorate([
+    openapi.ApiOperation({ description: "Test a specific connector with a sample input\nPOST /api/factory/connectors/test" }),
     (0, common_1.Post)('connectors/test'),
+    openapi.ApiResponse({ status: 201, type: Object }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -556,6 +593,7 @@ __decorate([
 ], SoftwareFactoryController.prototype, "testConnector", null);
 __decorate([
     (0, common_1.Get)('reference-missions'),
+    openapi.ApiResponse({ status: 200 }),
     __param(0, (0, common_1.Query)('pack')),
     __param(1, (0, common_1.Query)('difficulty')),
     __param(2, (0, common_1.Query)('category')),
@@ -564,7 +602,9 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getReferenceMissions", null);
 __decorate([
+    openapi.ApiOperation({ description: "Get reference mission stats\nGET /api/factory/reference-missions/stats" }),
     (0, common_1.Get)('reference-missions/stats'),
+    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)

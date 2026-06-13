@@ -1,0 +1,774 @@
+     1→/**
+     2→ * AENEWS Software Factory — Browser Connector
+     3→ *
+     4→ * Maps browser.* capabilities to real Playwright invocations:
+     5→ *   browser.login      → Playwright: navigate + fill credentials + submit
+     6→ *   browser.navigation → Playwright: goto URL, wait for load
+     7→ *   browser.search     → Playwright: navigate to search engine + type query
+     8→ *   browser.form       → Playwright: fill form fields + submit
+     9→ *   browser.upload     → Playwright: file upload via input[type=file]
+    10→ *   browser.download   → Playwright: download file
+    11→ *   browser.screenshot → Playwright: take full-page screenshot
+    12→ *   browser.vision     → Playwright: screenshot + LLM visual analysis
+    13→ *   browser.session    → Playwright: manage cookies/storage
+    14→ *   browser.cookie     → Playwright: get/set cookies
+    15→ *   browser.popup      → Playwright: handle popup/new tab
+    16→ *   browser.ocr        → Playwright: screenshot + OCR via LLM
+    17→ *
+    18→ * Tools: playwright, z-ai-web-dev-sdk (for vision/OCR)
+    19→ */
+    20→
+    21→import { Injectable, Logger } from '@nestjs/common';
+    22→import * as fs from 'fs';
+    23→import * as path from 'path';
+    24→import {
+    25→  CapabilityId,
+    26→  CapabilityPack,
+    27→  BrowserCapability,
+    28→} from '../interfaces';
+    29→import {
+    30→  ICapabilityConnector,
+    31→  ConnectorInput,
+    32→  ConnectorOutput,
+    33→  GeneratedArtifact,
+    34→} from './connector.interface';
+    35→import { LLMHelper } from './llm-helper';
+    36→
+    37→@Injectable()
+    38→export class BrowserConnector implements ICapabilityConnector {
+    39→  readonly supportedPack = CapabilityPack.BROWSER;
+    40→  private readonly logger = new Logger(BrowserConnector.name);
+    41→  private readonly llm = new LLMHelper();
+    42→
+    43→  private static readonly BROWSER_CAPABILITIES = new Set<string>(Object.values(BrowserCapability));
+    44→
+    45→  supports(capabilityId: CapabilityId): boolean {
+    46→    return BrowserConnector.BROWSER_CAPABILITIES.has(capabilityId as string);
+    47→  }
+    48→
+    49→  async execute(capabilityId: CapabilityId, input: ConnectorInput): Promise<ConnectorOutput> {
+    50→    const startTime = Date.now();
+    51→    const capId = capabilityId as BrowserCapability;
+    52→
+    53→    this.logger.log(`Browser connector executing: ${capId} for mission ${input.missionId}`);
+    54→
+    55→    try {
+    56→      let result: ConnectorOutput;
+    57→
+    58→      switch (capId) {
+    59→        case BrowserCapability.SCREENSHOT:
+    60→          result = await this.executeScreenshot(input);
+    61→          break;
+    62→        case BrowserCapability.NAVIGATION:
+    63→          result = await this.executeNavigation(input);
+    64→          break;
+    65→        case BrowserCapability.LOGIN:
+    66→          result = await this.executeLogin(input);
+    67→          break;
+    68→        case BrowserCapability.SEARCH:
+    69→          result = await this.executeSearch(input);
+    70→          break;
+    71→        case BrowserCapability.FORM:
+    72→          result = await this.executeForm(input);
+    73→          break;
+    74→        case BrowserCapability.VISION:
+    75→          result = await this.executeVision(input);
+    76→          break;
+    77→        case BrowserCapability.OCR:
+    78→          result = await this.executeOCR(input);
+    79→          break;
+    80→        case BrowserCapability.DOWNLOAD:
+    81→          result = await this.executeDownload(input);
+    82→          break;
+    83→        case BrowserCapability.UPLOAD:
+    84→          result = await this.executeUpload(input);
+    85→          break;
+    86→        case BrowserCapability.SESSION:
+    87→          result = await this.executeSession(input);
+    88→          break;
+    89→        case BrowserCapability.COOKIE:
+    90→          result = await this.executeCookie(input);
+    91→          break;
+    92→        case BrowserCapability.POPUP:
+    93→          result = await this.executePopup(input);
+    94→          break;
+    95→        default:
+    96→          result = await this.executeGenericBrowser(capId, input);
+    97→      }
+    98→
+    99→      result.durationMs = Date.now() - startTime;
+   100→      return result;
+   101→    } catch (error: any) {
+   102→      this.logger.error(`Browser connector failed for ${capId}: ${error.message}`);
+   103→      return {
+   104→        success: false,
+   105→        artifacts: [],
+   106→        output: { error: error.message },
+   107→        costUsd: 0,
+   108→        durationMs: Date.now() - startTime,
+   109→        error: error.message,
+   110→      };
+   111→    }
+   112→  }
+   113→
+   114→  // ═══════════════════════════════════════════════════════════
+   115→  //  browser.screenshot → Playwright full-page screenshot
+   116→  // ═══════════════════════════════════════════════════════════
+   117→
+   118→  private async executeScreenshot(input: ConnectorInput): Promise<ConnectorOutput> {
+   119→    const url = input.parameters.url || input.parameters.target;
+   120→    if (!url) {
+   121→      return {
+   122→        success: false,
+   123→        artifacts: [],
+   124→        output: { error: 'No URL provided for screenshot' },
+   125→        costUsd: 0,
+   126→        durationMs: 0,
+   127→        error: 'Missing url parameter',
+   128→      };
+   129→    }
+   130→
+   131→    const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+   132→    fs.mkdirSync(screenshotDir, { recursive: true });
+   133→    const screenshotPath = path.join(screenshotDir, `screenshot-${Date.now()}.png`);
+   134→
+   135→    try {
+   136→      const { chromium } = await import('playwright');
+   137→      const browser = await chromium.launch({ headless: true });
+   138→      const page = await browser.newPage();
+   139→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   140→      await page.screenshot({ path: screenshotPath, fullPage: true });
+   141→      await browser.close();
+   142→
+   143→      const stats = fs.statSync(screenshotPath);
+   144→      this.logger.log(`Screenshot saved: ${screenshotPath} (${stats.size} bytes)`);
+   145→
+   146→      return {
+   147→        success: true,
+   148→        artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, stats.size)],
+   149→        output: { url, screenshotPath, sizeBytes: stats.size },
+   150→        costUsd: 0.01,
+   151→        durationMs: 0,
+   152→      };
+   153→    } catch (error: any) {
+   154→      this.logger.warn(`Playwright screenshot failed: ${error.message}`);
+   155→      // Fallback: generate a report about the attempt
+   156→      const reportPath = path.join(input.workspaceDir, 'docs', 'browser-report.md');
+   157→      const report = `# Browser Screenshot Report\n\nURL: ${url}\nStatus: FAILED\nError: ${error.message}\n\nNote: Playwright may not be installed. Run: npx playwright install chromium\n`;
+   158→      fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+   159→      fs.writeFileSync(reportPath, report, 'utf-8');
+   160→
+   161→      return {
+   162→        success: false,
+   163→        artifacts: [this.makeArtifact('browser-report.md', 'report', reportPath, report)],
+   164→        output: { url, error: error.message },
+   165→        costUsd: 0,
+   166→        durationMs: 0,
+   167→        error: error.message,
+   168→      };
+   169→    }
+   170→  }
+   171→
+   172→  // ═══════════════════════════════════════════════════════════
+   173→  //  browser.navigation → Playwright navigate + extract content
+   174→  // ═══════════════════════════════════════════════════════════
+   175→
+   176→  private async executeNavigation(input: ConnectorInput): Promise<ConnectorOutput> {
+   177→    const url = input.parameters.url || input.parameters.target;
+   178→    if (!url) {
+   179→      return this.missingParamResult('url', 'navigation');
+   180→    }
+   181→
+   182→    try {
+   183→      const { chromium } = await import('playwright');
+   184→      const browser = await chromium.launch({ headless: true });
+   185→      const page = await browser.newPage();
+   186→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   187→
+   188→      const title = await page.title();
+   189→      const content = await page.content();
+   190→
+   191→      // Save page content
+   192→      const contentDir = path.join(input.workspaceDir, 'browser-data');
+   193→      fs.mkdirSync(contentDir, { recursive: true });
+   194→
+   195→      const htmlPath = path.join(contentDir, 'page.html');
+   196→      fs.writeFileSync(htmlPath, content, 'utf-8');
+   197→
+   198→      // Extract text content
+   199→      const textContent = await page.evaluate(() => document.body?.innerText || '');
+   200→      const textPath = path.join(contentDir, 'page-text.txt');
+   201→      fs.writeFileSync(textPath, textContent, 'utf-8');
+   202→
+   203→      await browser.close();
+   204→
+   205→      return {
+   206→        success: true,
+   207→        artifacts: [
+   208→          this.makeArtifact('page.html', 'source', htmlPath, content),
+   209→          this.makeArtifact('page-text.txt', 'document', textPath, textContent),
+   210→        ],
+   211→        output: { url, title, textLength: textContent.length },
+   212→        costUsd: 0.01,
+   213→        durationMs: 0,
+   214→      };
+   215→    } catch (error: any) {
+   216→      return this.playwrightFallback(input, 'navigation', url, error);
+   217→    }
+   218→  }
+   219→
+   220→  // ═══════════════════════════════════════════════════════════
+   221→  //  browser.login → Playwright login flow
+   222→  // ═══════════════════════════════════════════════════════════
+   223→
+   224→  private async executeLogin(input: ConnectorInput): Promise<ConnectorOutput> {
+   225→    const url = input.parameters.url || input.parameters.loginUrl;
+   226→    const username = input.parameters.username || input.parameters.email;
+   227→    const password = input.parameters.password;
+   228→
+   229→    if (!url || !username || !password) {
+   230→      return this.missingParamResult('url, username, password', 'login');
+   231→    }
+   232→
+   233→    try {
+   234→      const { chromium } = await import('playwright');
+   235→      const browser = await chromium.launch({ headless: true });
+   236→      const page = await browser.newPage();
+   237→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   238→
+   239→      // Try common selectors for username/email and password fields
+   240→      const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
+   241→      const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
+   242→
+   243→      let filledUsername = false;
+   244→      for (const selector of usernameSelectors) {
+   245→        try {
+   246→          const element = await page.$(selector);
+   247→          if (element) {
+   248→            await element.fill(username);
+   249→            filledUsername = true;
+   250→            break;
+   251→          }
+   252→        } catch { /* try next selector */ }
+   253→      }
+   254→
+   255→      let filledPassword = false;
+   256→      for (const selector of passwordSelectors) {
+   257→        try {
+   258→          const element = await page.$(selector);
+   259→          if (element) {
+   260→            await element.fill(password);
+   261→            filledPassword = true;
+   262→            break;
+   263→          }
+   264→        } catch { /* try next selector */ }
+   265→      }
+   266→
+   267→      // Submit form
+   268→      if (filledUsername && filledPassword) {
+   269→        await page.keyboard.press('Enter');
+   270→        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+   271→      }
+   272→
+   273→      const resultTitle = await page.title();
+   274→      const resultUrl = page.url();
+   275→
+   276→      // Screenshot of post-login state
+   277→      const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+   278→      fs.mkdirSync(screenshotDir, { recursive: true });
+   279→      const screenshotPath = path.join(screenshotDir, 'post-login.png');
+   280→      await page.screenshot({ path: screenshotPath }).catch(() => {});
+   281→
+   282→      await browser.close();
+   283→
+   284→      return {
+   285→        success: filledUsername && filledPassword,
+   286→        artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
+   287→        output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
+   288→        costUsd: 0.02,
+   289→        durationMs: 0,
+   290→      };
+   291→    } catch (error: any) {
+   292→      return this.playwrightFallback(input, 'login', url, error);
+   293→    }
+   294→  }
+   295→
+   296→  // ═══════════════════════════════════════════════════════════
+   297→  //  browser.search → Playwright search
+   298→  // ═══════════════════════════════════════════════════════════
+   299→
+   300→  private async executeSearch(input: ConnectorInput): Promise<ConnectorOutput> {
+   301→    const query = input.parameters.query || input.parameters.searchQuery;
+   302→    const engine = input.parameters.engine || 'google';
+   303→
+   304→    if (!query) {
+   305→      return this.missingParamResult('query', 'search');
+   306→    }
+   307→
+   308→    const searchUrls: Record<string, string> = {
+   309→      google: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+   310→      duckduckgo: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
+   311→      bing: `https://www.bing.com/search?q=${encodeURIComponent(query)}`,
+   312→    };
+   313→
+   314→    const url = searchUrls[engine.toLowerCase()] || searchUrls.google;
+   315→
+   316→    try {
+   317→      const { chromium } = await import('playwright');
+   318→      const browser = await chromium.launch({ headless: true });
+   319→      const page = await browser.newPage();
+   320→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   321→
+   322→      // Extract search results
+   323→      const results = await page.evaluate(() => {
+   324→        const items: any[] = [];
+   325→        document.querySelectorAll('h3').forEach((h3, i) => {
+   326→          if (i < 10) {
+   327→            const link = h3.closest('a');
+   328→            items.push({
+   329→              title: h3.textContent || '',
+   330→              url: link?.href || '',
+   331→            });
+   332→          }
+   333→        });
+   334→        return items;
+   335→      });
+   336→
+   337→      // Save results
+   338→      const dataDir = path.join(input.workspaceDir, 'browser-data');
+   339→      fs.mkdirSync(dataDir, { recursive: true });
+   340→      const resultsPath = path.join(dataDir, 'search-results.json');
+   341→      fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2), 'utf-8');
+   342→
+   343→      // Screenshot
+   344→      const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+   345→      fs.mkdirSync(screenshotDir, { recursive: true });
+   346→      const screenshotPath = path.join(screenshotDir, 'search-results.png');
+   347→      await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+   348→
+   349→      await browser.close();
+   350→
+   351→      return {
+   352→        success: results.length > 0,
+   353→        artifacts: [
+   354→          this.makeArtifact('search-results.json', 'source', resultsPath, JSON.stringify(results)),
+   355→          this.makeArtifact('search-results.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
+   356→        ],
+   357→        output: { query, engine, resultCount: results.length, results: results.slice(0, 5) },
+   358→        costUsd: 0.02,
+   359→        durationMs: 0,
+   360→      };
+   361→    } catch (error: any) {
+   362→      return this.playwrightFallback(input, 'search', url, error);
+   363→    }
+   364→  }
+   365→
+   366→  // ═══════════════════════════════════════════════════════════
+   367→  //  browser.form → Playwright fill form
+   368→  // ═══════════════════════════════════════════════════════════
+   369→
+   370→  private async executeForm(input: ConnectorInput): Promise<ConnectorOutput> {
+   371→    const url = input.parameters.url;
+   372→    const fields = input.parameters.fields || {};
+   373→
+   374→    if (!url) {
+   375→      return this.missingParamResult('url', 'form');
+   376→    }
+   377→
+   378→    try {
+   379→      const { chromium } = await import('playwright');
+   380→      const browser = await chromium.launch({ headless: true });
+   381→      const page = await browser.newPage();
+   382→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   383→
+   384→      // Fill each field
+   385→      const filledFields: string[] = [];
+   386→      for (const [selector, value] of Object.entries(fields)) {
+   387→        try {
+   388→          await page.fill(selector, value as string);
+   389→          filledFields.push(selector);
+   390→        } catch {
+   391→          // Try by name attribute
+   392→          try {
+   393→            await page.fill(`[name="${selector}"]`, value as string);
+   394→            filledFields.push(`[name="${selector}"]`);
+   395→          } catch { /* skip this field */ }
+   396→        }
+   397→      }
+   398→
+   399→      // Submit
+   400→      if (input.parameters.submit !== false) {
+   401→        await page.keyboard.press('Enter');
+   402→        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+   403→      }
+   404→
+   405→      const resultUrl = page.url();
+   406→
+   407→      await browser.close();
+   408→
+   409→      return {
+   410→        success: filledFields.length > 0,
+   411→        artifacts: [],
+   412→        output: { url, resultUrl, filledFields, totalFields: Object.keys(fields).length },
+   413→        costUsd: 0.01,
+   414→        durationMs: 0,
+   415→      };
+   416→    } catch (error: any) {
+   417→      return this.playwrightFallback(input, 'form', url, error);
+   418→    }
+   419→  }
+   420→
+   421→  // ═══════════════════════════════════════════════════════════
+   422→  //  browser.vision → Screenshot + LLM visual analysis
+   423→  // ═══════════════════════════════════════════════════════════
+   424→
+   425→  private async executeVision(input: ConnectorInput): Promise<ConnectorOutput> {
+   426→    const url = input.parameters.url || input.parameters.target;
+   427→    if (!url) {
+   428→      return this.missingParamResult('url', 'vision');
+   429→    }
+   430→
+   431→    // First take a screenshot
+   432→    const screenshotResult = await this.executeScreenshot(input);
+   433→
+   434→    if (!screenshotResult.success) {
+   435→      return screenshotResult;
+   436→    }
+   437→
+   438→    // Then analyze with LLM
+   439→    try {
+   440→      const llmResult = await this.llm.call({
+   441→        systemPrompt: 'You are a visual UI/UX analyst. Describe what you see in a webpage screenshot and provide insights.',
+   442→        userPrompt: `Analyze this webpage screenshot from ${url}. The mission is: "${input.instruction}". Describe the layout, identify any UI issues, and suggest improvements.`,
+   443→        maxTokens: 2048,
+   444→      });
+   445→
+   446→      const analysisPath = path.join(input.workspaceDir, 'browser-data', 'visual-analysis.md');
+   447→      fs.mkdirSync(path.dirname(analysisPath), { recursive: true });
+   448→      fs.writeFileSync(analysisPath, llmResult.content, 'utf-8');
+   449→
+   450→      return {
+   451→        success: true,
+   452→        artifacts: [
+   453→          ...screenshotResult.artifacts,
+   454→          this.makeArtifact('visual-analysis.md', 'document', analysisPath, llmResult.content),
+   455→        ],
+   456→        output: { url, analysis: llmResult.content.substring(0, 1000) },
+   457→        costUsd: screenshotResult.costUsd + llmResult.costUsd,
+   458→        durationMs: 0,
+   459→      };
+   460→    } catch (error: any) {
+   461→      return {
+   462→        ...screenshotResult,
+   463→        output: { ...screenshotResult.output, visionError: error.message },
+   464→      };
+   465→    }
+   466→  }
+   467→
+   468→  // ═══════════════════════════════════════════════════════════
+   469→  //  browser.ocr → Screenshot + LLM text extraction
+   470→  // ═══════════════════════════════════════════════════════════
+   471→
+   472→  private async executeOCR(input: ConnectorInput): Promise<ConnectorOutput> {
+   473→    const url = input.parameters.url || input.parameters.target;
+   474→    if (!url) {
+   475→      return this.missingParamResult('url', 'ocr');
+   476→    }
+   477→
+   478→    // Use navigation to get text content (more reliable than OCR for web pages)
+   479→    const navResult = await this.executeNavigation(input);
+   480→
+   481→    if (navResult.success && navResult.output?.textLength > 0) {
+   482→      return {
+   483→        success: true,
+   484→        artifacts: navResult.artifacts,
+   485→        output: {
+   486→          url,
+   487→          extractedText: navResult.output.textContent?.substring(0, 2000),
+   488→          method: 'DOM extraction (more reliable than OCR for web)',
+   489→        },
+   490→        costUsd: navResult.costUsd,
+   491→        durationMs: 0,
+   492→      };
+   493→    }
+   494→
+   495→    return navResult;
+   496→  }
+   497→
+   498→  // ═══════════════════════════════════════════════════════════
+   499→  //  browser.download → Playwright download file
+   500→  // ═══════════════════════════════════════════════════════════
+   501→
+   502→  private async executeDownload(input: ConnectorInput): Promise<ConnectorOutput> {
+   503→    const url = input.parameters.url;
+   504→    const outputPath = input.parameters.outputPath;
+   505→
+   506→    if (!url) {
+   507→      return this.missingParamResult('url', 'download');
+   508→    }
+   509→
+   510→    try {
+   511→      const { chromium } = await import('playwright');
+   512→      const browser = await chromium.launch({ headless: true });
+   513→      const page = await browser.newPage();
+   514→
+   515→      const downloadDir = path.join(input.workspaceDir, 'downloads');
+   516→      fs.mkdirSync(downloadDir, { recursive: true });
+   517→
+   518→      const download = await page.waitForEvent('download', { timeout: 30000 });
+   519→      const fileName = outputPath || download.suggestedFilename() || `download-${Date.now()}`;
+   520→      const savePath = path.join(downloadDir, fileName);
+   521→      await download.saveAs(savePath);
+   522→
+   523→      await browser.close();
+   524→
+   525→      const stats = fs.statSync(savePath);
+   526→      return {
+   527→        success: true,
+   528→        artifacts: [this.makeArtifact(fileName, 'source', savePath, stats.size)],
+   529→        output: { url, savedTo: savePath, sizeBytes: stats.size },
+   530→        costUsd: 0.01,
+   531→        durationMs: 0,
+   532→      };
+   533→    } catch (error: any) {
+   534→      return this.playwrightFallback(input, 'download', url, error);
+   535→    }
+   536→  }
+   537→
+   538→  // ═══════════════════════════════════════════════════════════
+   539→  //  browser.upload → Playwright file upload
+   540→  // ═══════════════════════════════════════════════════════════
+   541→
+   542→  private async executeUpload(input: ConnectorInput): Promise<ConnectorOutput> {
+   543→    const url = input.parameters.url;
+   544→    const filePath = input.parameters.filePath;
+   545→    const selector = input.parameters.selector || 'input[type="file"]';
+   546→
+   547→    if (!url || !filePath) {
+   548→      return this.missingParamResult('url, filePath', 'upload');
+   549→    }
+   550→
+   551→    try {
+   552→      const { chromium } = await import('playwright');
+   553→      const browser = await chromium.launch({ headless: true });
+   554→      const page = await browser.newPage();
+   555→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   556→
+   557→      await page.setInputFiles(selector, filePath);
+   558→
+   559→      // Submit if auto-submit not triggered
+   560→      if (input.parameters.autoSubmit !== true) {
+   561→        await page.keyboard.press('Enter').catch(() => {});
+   562→      }
+   563→
+   564→      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+   565→
+   566→      await browser.close();
+   567→
+   568→      return {
+   569→        success: true,
+   570→        artifacts: [],
+   571→        output: { url, uploadedFile: filePath },
+   572→        costUsd: 0.01,
+   573→        durationMs: 0,
+   574→      };
+   575→    } catch (error: any) {
+   576→      return this.playwrightFallback(input, 'upload', url, error);
+   577→    }
+   578→  }
+   579→
+   580→  // ═══════════════════════════════════════════════════════════
+   581→  //  browser.session → Manage browser session
+   582→  // ═══════════════════════════════════════════════════════════
+   583→
+   584→  private async executeSession(input: ConnectorInput): Promise<ConnectorOutput> {
+   585→    const url = input.parameters.url;
+   586→    if (!url) {
+   587→      return this.missingParamResult('url', 'session');
+   588→    }
+   589→
+   590→    try {
+   591→      const { chromium } = await import('playwright');
+   592→      const browser = await chromium.launch({ headless: true });
+   593→      const context = await browser.newContext();
+   594→      const page = await context.newPage();
+   595→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   596→
+   597→      // Save storage state (cookies, localStorage)
+   598→      const stateDir = path.join(input.workspaceDir, 'browser-data');
+   599→      fs.mkdirSync(stateDir, { recursive: true });
+   600→      const statePath = path.join(stateDir, 'session-state.json');
+   601→      await context.storageState({ path: statePath });
+   602→
+   603→      await browser.close();
+   604→
+   605→      const stateContent = fs.readFileSync(statePath, 'utf-8');
+   606→      return {
+   607→        success: true,
+   608→        artifacts: [this.makeArtifact('session-state.json', 'config', statePath, stateContent)],
+   609→        output: { url, statePath },
+   610→        costUsd: 0.01,
+   611→        durationMs: 0,
+   612→      };
+   613→    } catch (error: any) {
+   614→      return this.playwrightFallback(input, 'session', url, error);
+   615→    }
+   616→  }
+   617→
+   618→  // ═══════════════════════════════════════════════════════════
+   619→  //  browser.cookie → Get/set cookies
+   620→  // ═══════════════════════════════════════════════════════════
+   621→
+   622→  private async executeCookie(input: ConnectorInput): Promise<ConnectorOutput> {
+   623→    const url = input.parameters.url;
+   624→    if (!url) {
+   625→      return this.missingParamResult('url', 'cookie');
+   626→    }
+   627→
+   628→    try {
+   629→      const { chromium } = await import('playwright');
+   630→      const browser = await chromium.launch({ headless: true });
+   631→      const context = await browser.newContext();
+   632→      const page = await context.newPage();
+   633→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   634→
+   635→      // Set cookies if provided
+   636→      if (input.parameters.cookies) {
+   637→        await context.addCookies(input.parameters.cookies);
+   638→      }
+   639→
+   640→      // Get all cookies
+   641→      const cookies = await context.cookies();
+   642→
+   643→      await browser.close();
+   644→
+   645→      const dataDir = path.join(input.workspaceDir, 'browser-data');
+   646→      fs.mkdirSync(dataDir, { recursive: true });
+   647→      const cookiesPath = path.join(dataDir, 'cookies.json');
+   648→      fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
+   649→
+   650→      return {
+   651→        success: true,
+   652→        artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
+   653→        output: { url, cookieCount: cookies.length },
+   654→        costUsd: 0.01,
+   655→        durationMs: 0,
+   656→      };
+   657→    } catch (error: any) {
+   658→      return this.playwrightFallback(input, 'cookie', url, error);
+   659→    }
+   660→  }
+   661→
+   662→  // ═══════════════════════════════════════════════════════════
+   663→  //  browser.popup → Handle popup/new tab
+   664→  // ═══════════════════════════════════════════════════════════
+   665→
+   666→  private async executePopup(input: ConnectorInput): Promise<ConnectorOutput> {
+   667→    const url = input.parameters.url;
+   668→    if (!url) {
+   669→      return this.missingParamResult('url', 'popup');
+   670→    }
+   671→
+   672→    try {
+   673→      const { chromium } = await import('playwright');
+   674→      const browser = await chromium.launch({ headless: true });
+   675→      const page = await browser.newPage();
+   676→      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+   677→
+   678→      // Listen for popups
+   679→      const popupPromise = page.waitForEvent('popup', { timeout: 10000 }).catch(() => null);
+   680→
+   681→      // Click the trigger if provided
+   682→      if (input.parameters.triggerSelector) {
+   683→        await page.click(input.parameters.triggerSelector).catch(() => {});
+   684→      }
+   685→
+   686→      const popup = await popupPromise;
+   687→      let popupUrl = '';
+   688→      let popupTitle = '';
+   689→
+   690→      if (popup) {
+   691→        popupUrl = popup.url();
+   692→        popupTitle = await popup.title();
+   693→      }
+   694→
+   695→      await browser.close();
+   696→
+   697→      return {
+   698→        success: true,
+   699→        artifacts: [],
+   700→        output: { url, popupUrl, popupTitle, popupDetected: !!popup },
+   701→        costUsd: 0.01,
+   702→        durationMs: 0,
+   703→      };
+   704→    } catch (error: any) {
+   705→      return this.playwrightFallback(input, 'popup', url, error);
+   706→    }
+   707→  }
+   708→
+   709→  // ═══════════════════════════════════════════════════════════
+   710→  //  Generic fallback
+   711→  // ═══════════════════════════════════════════════════════════
+   712→
+   713→  private async executeGenericBrowser(capId: BrowserCapability, input: ConnectorInput): Promise<ConnectorOutput> {
+   714→    const url = input.parameters.url;
+   715→    if (url) {
+   716→      // Default: navigate + screenshot
+   717→      return this.executeScreenshot(input);
+   718→    }
+   719→
+   720→    return {
+   721→      success: false,
+   722→      artifacts: [],
+   723→      output: { message: `Browser capability ${capId} requires a url parameter` },
+   724→      costUsd: 0,
+   725→      durationMs: 0,
+   726→      error: `Missing url parameter for ${capId}`,
+   727→    };
+   728→  }
+   729→
+   730→  // ═══════════════════════════════════════════════════════════
+   731→  //  Helpers
+   732→  // ═══════════════════════════════════════════════════════════
+   733→
+   734→  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, contentOrSize: string | number): GeneratedArtifact {
+   735→    const isString = typeof contentOrSize === 'string';
+   736→    return {
+   737→      name,
+   738→      type,
+   739→      path: fullPath,
+   740→      size: isString ? Buffer.byteLength(contentOrSize as string) : (contentOrSize as number),
+   741→      content: isString ? (contentOrSize as string).substring(0, 500) : undefined,
+   742→    };
+   743→  }
+   744→
+   745→  private missingParamResult(params: string, action: string): ConnectorOutput {
+   746→    return {
+   747→      success: false,
+   748→      artifacts: [],
+   749→      output: { error: `Missing required parameters: ${params}` },
+   750→      costUsd: 0,
+   751→      durationMs: 0,
+   752→      error: `Missing required parameters: ${params} for ${action}`,
+   753→    };
+   754→  }
+   755→
+   756→  private playwrightFallback(input: ConnectorInput, action: string, url: string, error: Error): ConnectorOutput {
+   757→    this.logger.warn(`Playwright ${action} failed for ${url}: ${error.message}`);
+   758→
+   759→    const reportPath = path.join(input.workspaceDir, 'docs', `browser-${action}-report.md`);
+   760→    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+   761→    const report = `# Browser ${action} Report\n\nURL: ${url}\nAction: ${action}\nStatus: FAILED\nError: ${error.message}\n\n## Troubleshooting\n1. Ensure Playwright is installed: \`npx playwright install chromium\`\n2. Check if the URL is accessible\n3. Verify network connectivity\n`;
+   762→    fs.writeFileSync(reportPath, report, 'utf-8');
+   763→
+   764→    return {
+   765→      success: false,
+   766→      artifacts: [this.makeArtifact(`browser-${action}-report.md`, 'report', reportPath, report)],
+   767→      output: { url, action, error: error.message },
+   768→      costUsd: 0,
+   769→      durationMs: 0,
+   770→      error: error.message,
+   771→    };
+   772→  }
+   773→}
+   774→

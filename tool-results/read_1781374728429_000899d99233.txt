@@ -1,0 +1,787 @@
+     1→/**
+     2→ * AENEWS Software Factory — Development Connector
+     3→ *
+     4→ * Maps dev.* capabilities to real tool invocations:
+     5→ *   dev.architecture  → LLM: analyze & design
+     6→ *   dev.frontend      → LLM: generate HTML/CSS/JS + write files
+     7→ *   dev.backend       → LLM: generate server code + write files
+     8→ *   dev.database      → LLM: generate schema + write files
+     9→ *   dev.api           → LLM: generate API code + write files
+    10→ *   dev.devops        → LLM: generate CI/CD configs + write files
+    11→ *   dev.docker        → Generate Dockerfile + docker-compose
+    12→ *   dev.kubernetes    → Generate K8s manifests
+    13→ *   dev.qa            → Shell: run tests + LLM: analyze
+    14→ *   dev.test          → LLM: generate test code + write files
+    15→ *   dev.debug         → LLM: analyze errors + suggest fixes
+    16→ *   dev.documentation → LLM: generate docs + write files
+    17→ *
+    18→ * Tools: z-ai-web-dev-sdk (LLM), child_process (shell), fs (files)
+    19→ */
+    20→
+    21→import { Injectable, Logger } from '@nestjs/common';
+    22→import * as fs from 'fs';
+    23→import * as path from 'path';
+    24→import { execSync } from 'child_process';
+    25→import {
+    26→  CapabilityId,
+    27→  CapabilityPack,
+    28→  DevCapability,
+    29→} from '../interfaces';
+    30→import {
+    31→  ICapabilityConnector,
+    32→  ConnectorInput,
+    33→  ConnectorOutput,
+    34→  GeneratedArtifact,
+    35→} from './connector.interface';
+    36→import { LLMHelper } from './llm-helper';
+    37→
+    38→@Injectable()
+    39→export class DevelopmentConnector implements ICapabilityConnector {
+    40→  readonly supportedPack = CapabilityPack.DEVELOPMENT;
+    41→  private readonly logger = new Logger(DevelopmentConnector.name);
+    42→  private readonly llm = new LLMHelper();
+    43→
+    44→  private static readonly DEV_CAPABILITIES = new Set<string>(Object.values(DevCapability));
+    45→
+    46→  supports(capabilityId: CapabilityId): boolean {
+    47→    return DevelopmentConnector.DEV_CAPABILITIES.has(capabilityId as string);
+    48→  }
+    49→
+    50→  async execute(capabilityId: CapabilityId, input: ConnectorInput): Promise<ConnectorOutput> {
+    51→    const startTime = Date.now();
+    52→    const capId = capabilityId as DevCapability;
+    53→
+    54→    this.logger.log(`Dev connector executing: ${capId} for mission ${input.missionId}`);
+    55→
+    56→    // Ensure workspace directories exist
+    57→    this.ensureWorkspace(input.workspaceDir);
+    58→
+    59→    try {
+    60→      let result: ConnectorOutput;
+    61→
+    62→      switch (capId) {
+    63→        case DevCapability.ARCHITECTURE:
+    64→          result = await this.executeArchitecture(input);
+    65→          break;
+    66→        case DevCapability.FRONTEND:
+    67→          result = await this.executeFrontend(input);
+    68→          break;
+    69→        case DevCapability.BACKEND:
+    70→          result = await this.executeBackend(input);
+    71→          break;
+    72→        case DevCapability.DATABASE:
+    73→          result = await this.executeDatabase(input);
+    74→          break;
+    75→        case DevCapability.API:
+    76→          result = await this.executeApi(input);
+    77→          break;
+    78→        case DevCapability.DEVOPS:
+    79→          result = await this.executeDevOps(input);
+    80→          break;
+    81→        case DevCapability.DOCKER:
+    82→          result = await this.executeDocker(input);
+    83→          break;
+    84→        case DevCapability.KUBERNETES:
+    85→          result = await this.executeKubernetes(input);
+    86→          break;
+    87→        case DevCapability.QA:
+    88→          result = await this.executeQA(input);
+    89→          break;
+    90→        case DevCapability.TEST:
+    91→          result = await this.executeTest(input);
+    92→          break;
+    93→        case DevCapability.DEBUG:
+    94→          result = await this.executeDebug(input);
+    95→          break;
+    96→        case DevCapability.DOCUMENTATION:
+    97→          result = await this.executeDocumentation(input);
+    98→          break;
+    99→        default:
+   100→          result = await this.executeGenericDev(capId, input);
+   101→      }
+   102→
+   103→      result.durationMs = Date.now() - startTime;
+   104→      return result;
+   105→    } catch (error: any) {
+   106→      this.logger.error(`Dev connector failed for ${capId}: ${error.message}`);
+   107→      return {
+   108→        success: false,
+   109→        artifacts: [],
+   110→        output: { error: error.message },
+   111→        costUsd: 0,
+   112→        durationMs: Date.now() - startTime,
+   113→        error: error.message,
+   114→      };
+   115→    }
+   116→  }
+   117→
+   118→  // ═══════════════════════════════════════════════════════════
+   119→  //  dev.architecture → LLM analyzes mission, produces design doc
+   120→  // ═══════════════════════════════════════════════════════════
+   121→
+   122→  private async executeArchitecture(input: ConnectorInput): Promise<ConnectorOutput> {
+   123→    const systemPrompt = `You are a senior software architect. Analyze the mission and produce a complete technical architecture document.
+   124→Include: tech stack, project structure, component diagram, data models, API design, security considerations.
+   125→Output in markdown format.`;
+   126→
+   127→    const userPrompt = `Design the architecture for: "${input.instruction}"
+   128→${input.parameters.context ? `Context: ${JSON.stringify(input.parameters.context)}` : ''}
+   129→Produce a detailed ARCHITECTURE.md with all design decisions.`;
+   130→
+   131→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   132→
+   133→    const filePath = path.join(input.workspaceDir, 'docs', 'ARCHITECTURE.md');
+   134→    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+   135→    fs.writeFileSync(filePath, llmResult.content, 'utf-8');
+   136→
+   137→    return {
+   138→      success: true,
+   139→      artifacts: [this.makeArtifact('ARCHITECTURE.md', 'document', filePath, llmResult.content)],
+   140→      output: { architecture: llmResult.content.substring(0, 1000) },
+   141→      costUsd: llmResult.costUsd,
+   142→      durationMs: 0,
+   143→    };
+   144→  }
+   145→
+   146→  // ═══════════════════════════════════════════════════════════
+   147→  //  dev.frontend → LLM generates HTML/CSS/JS
+   148→  // ═══════════════════════════════════════════════════════════
+   149→
+   150→  private async executeFrontend(input: ConnectorInput): Promise<ConnectorOutput> {
+   151→    const systemPrompt = `You are an expert frontend developer. Generate complete, working, production-ready code.
+   152→For each file, use this format:
+   153→===FILE: path/to/file===
+   154→(file content)
+   155→===ENDFILE===
+   156→
+   157→Generate ALL frontend files: HTML, CSS, JavaScript. Make it beautiful and functional.`;
+   158→
+   159→    const userPrompt = `Build the frontend for: "${input.instruction}"
+   160→${this.getExistingFilesContext(input)}
+   161→Create complete HTML/CSS/JS that works when opened in a browser.`;
+   162→
+   163→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   164→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   165→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   166→
+   167→    // If LLM didn't produce parseable files, generate a template
+   168→    if (artifacts.length === 0) {
+   169→      const template = this.generateFrontendTemplate(input.instruction);
+   170→      const templateFiles = this.llm.parseGeneratedFiles(template);
+   171→      this.writeFiles(templateFiles, input.workspaceDir);
+   172→      artifacts.push(...this.writeFiles(templateFiles, input.workspaceDir));
+   173→    }
+   174→
+   175→    return {
+   176→      success: artifacts.length > 0,
+   177→      artifacts,
+   178→      output: { filesGenerated: artifacts.map(a => a.name) },
+   179→      costUsd: llmResult.costUsd,
+   180→      durationMs: 0,
+   181→    };
+   182→  }
+   183→
+   184→  // ═══════════════════════════════════════════════════════════
+   185→  //  dev.backend → LLM generates server code
+   186→  // ═══════════════════════════════════════════════════════════
+   187→
+   188→  private async executeBackend(input: ConnectorInput): Promise<ConnectorOutput> {
+   189→    const systemPrompt = `You are an expert backend developer. Generate complete, working server code.
+   190→For each file, use this format:
+   191→===FILE: path/to/file===
+   192→(file content)
+   193→===ENDFILE===
+   194→
+   195→Generate server.js, routes, middleware, and any needed configuration.`;
+   196→
+   197→    const userPrompt = `Build the backend for: "${input.instruction}"
+   198→${this.getExistingFilesContext(input)}
+   199→Create a Node.js/Express server with all necessary endpoints.`;
+   200→
+   201→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   202→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   203→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   204→
+   205→    if (artifacts.length === 0) {
+   206→      const template = this.generateBackendTemplate(input.instruction);
+   207→      const templateFiles = this.llm.parseGeneratedFiles(template);
+   208→      this.writeFiles(templateFiles, input.workspaceDir);
+   209→      artifacts.push(...this.writeFiles(templateFiles, input.workspaceDir));
+   210→    }
+   211→
+   212→    // Ensure package.json exists
+   213→    this.ensurePackageJson(input.workspaceDir, input.instruction);
+   214→
+   215→    return {
+   216→      success: artifacts.length > 0,
+   217→      artifacts,
+   218→      output: { filesGenerated: artifacts.map(a => a.name) },
+   219→      costUsd: llmResult.costUsd,
+   220→      durationMs: 0,
+   221→    };
+   222→  }
+   223→
+   224→  // ═══════════════════════════════════════════════════════════
+   225→  //  dev.database → LLM generates schema + migration
+   226→  // ═══════════════════════════════════════════════════════════
+   227→
+   228→  private async executeDatabase(input: ConnectorInput): Promise<ConnectorOutput> {
+   229→    const systemPrompt = `You are a database architect. Generate database schema and migration files.
+   230→For each file, use this format:
+   231→===FILE: path/to/file===
+   232→(file content)
+   233→===ENDFILE===
+   234→
+   235→Generate SQL schema, seed data, and a database utility module.`;
+   236→
+   237→    const userPrompt = `Design the database for: "${input.instruction}"
+   238→${this.getExistingFilesContext(input)}
+   239→Create schema.sql, seed.sql, and a db.js utility module.`;
+   240→
+   241→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   242→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   243→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   244→
+   245→    // Fallback: ensure at least a schema.sql exists
+   246→    if (!files.has('schema.sql') && !files.has('db/schema.sql')) {
+   247→      const schema = `-- Database schema for: ${input.instruction}\nCREATE TABLE IF NOT EXISTS items (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL,\n  created_at DATETIME DEFAULT CURRENT_TIMESTAMP\n);`;
+   248→      const schemaPath = path.join(input.workspaceDir, 'db', 'schema.sql');
+   249→      fs.mkdirSync(path.dirname(schemaPath), { recursive: true });
+   250→      fs.writeFileSync(schemaPath, schema, 'utf-8');
+   251→      artifacts.push(this.makeArtifact('schema.sql', 'source', schemaPath, schema));
+   252→    }
+   253→
+   254→    return {
+   255→      success: artifacts.length > 0,
+   256→      artifacts,
+   257→      output: { filesGenerated: artifacts.map(a => a.name) },
+   258→      costUsd: llmResult.costUsd,
+   259→      durationMs: 0,
+   260→    };
+   261→  }
+   262→
+   263→  // ═══════════════════════════════════════════════════════════
+   264→  //  dev.api → LLM generates API code
+   265→  // ═══════════════════════════════════════════════════════════
+   266→
+   267→  private async executeApi(input: ConnectorInput): Promise<ConnectorOutput> {
+   268→    const systemPrompt = `You are an API developer. Generate complete REST API code.
+   269→For each file, use this format:
+   270→===FILE: path/to/file===
+   271→(file content)
+   272→===ENDFILE===
+   273→
+   274→Generate routes, controllers, middleware, and OpenAPI spec.`;
+   275→
+   276→    const userPrompt = `Build the API for: "${input.instruction}"
+   277→${this.getExistingFilesContext(input)}
+   278→Create a complete REST API with all endpoints.`;
+   279→
+   280→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   281→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   282→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   283→
+   284→    return {
+   285→      success: artifacts.length > 0,
+   286→      artifacts,
+   287→      output: { filesGenerated: artifacts.map(a => a.name) },
+   288→      costUsd: llmResult.costUsd,
+   289→      durationMs: 0,
+   290→    };
+   291→  }
+   292→
+   293→  // ═══════════════════════════════════════════════════════════
+   294→  //  dev.devops → Generate CI/CD configs
+   295→  // ═══════════════════════════════════════════════════════════
+   296→
+   297→  private async executeDevOps(input: ConnectorInput): Promise<ConnectorOutput> {
+   298→    const systemPrompt = `You are a DevOps engineer. Generate CI/CD and infrastructure configuration.
+   299→For each file, use this format:
+   300→===FILE: path/to/file===
+   301→(file content)
+   302→===ENDFILE===`;
+   303→
+   304→    const userPrompt = `Generate DevOps configuration for: "${input.instruction}"
+   305→Include: .github/workflows/ci.yml, .env.example, Makefile`;
+   306→
+   307→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   308→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   309→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   310→
+   311→    return {
+   312→      success: artifacts.length > 0,
+   313→      artifacts,
+   314→      output: { filesGenerated: artifacts.map(a => a.name) },
+   315→      costUsd: llmResult.costUsd,
+   316→      durationMs: 0,
+   317→    };
+   318→  }
+   319→
+   320→  // ═══════════════════════════════════════════════════════════
+   321→  //  dev.docker → Generate Dockerfile + docker-compose
+   322→  // ═══════════════════════════════════════════════════════════
+   323→
+   324→  private async executeDocker(input: ConnectorInput): Promise<ConnectorOutput> {
+   325→    const artifacts: GeneratedArtifact[] = [];
+   326→
+   327→    // Generate Dockerfile
+   328→    const dockerfile = this.generateDockerfile(input.instruction);
+   329→    const dockerfilePath = path.join(input.workspaceDir, 'Dockerfile');
+   330→    fs.writeFileSync(dockerfilePath, dockerfile, 'utf-8');
+   331→    artifacts.push(this.makeArtifact('Dockerfile', 'config', dockerfilePath, dockerfile));
+   332→
+   333→    // Generate docker-compose.yml
+   334→    const compose = this.generateDockerCompose(input.instruction);
+   335→    const composePath = path.join(input.workspaceDir, 'docker-compose.yml');
+   336→    fs.writeFileSync(composePath, compose, 'utf-8');
+   337→    artifacts.push(this.makeArtifact('docker-compose.yml', 'config', composePath, compose));
+   338→
+   339→    // Generate .dockerignore
+   340→    const dockerignore = 'node_modules\n.git\n*.md\n.env\n';
+   341→    const dockerignorePath = path.join(input.workspaceDir, '.dockerignore');
+   342→    fs.writeFileSync(dockerignorePath, dockerignore, 'utf-8');
+   343→    artifacts.push(this.makeArtifact('.dockerignore', 'config', dockerignorePath, dockerignore));
+   344→
+   345→    return {
+   346→      success: true,
+   347→      artifacts,
+   348→      output: { filesGenerated: artifacts.map(a => a.name) },
+   349→      costUsd: 0,
+   350→      durationMs: 0,
+   351→    };
+   352→  }
+   353→
+   354→  // ═══════════════════════════════════════════════════════════
+   355→  //  dev.kubernetes → Generate K8s manifests
+   356→  // ═══════════════════════════════════════════════════════════
+   357→
+   358→  private async executeKubernetes(input: ConnectorInput): Promise<ConnectorOutput> {
+   359→    const systemPrompt = `You are a Kubernetes expert. Generate K8s manifests.
+   360→For each file, use this format:
+   361→===FILE: path/to/file===
+   362→(file content)
+   363→===ENDFILE===`;
+   364→
+   365→    const userPrompt = `Generate Kubernetes manifests for: "${input.instruction}"
+   366→Include: deployment.yml, service.yml, ingress.yml, configmap.yml`;
+   367→
+   368→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   369→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   370→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   371→
+   372→    // Fallback: generate basic K8s manifests
+   373→    if (artifacts.length === 0) {
+   374→      const k8sDir = path.join(input.workspaceDir, 'k8s');
+   375→      fs.mkdirSync(k8sDir, { recursive: true });
+   376→
+   377→      const deployment = `apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: app\n  template:\n    metadata:\n      labels:\n        app: app\n    spec:\n      containers:\n      - name: app\n        image: app:latest\n        ports:\n        - containerPort: 3000\n`;
+   378→      const deployPath = path.join(k8sDir, 'deployment.yml');
+   379→      fs.writeFileSync(deployPath, deployment, 'utf-8');
+   380→      artifacts.push(this.makeArtifact('deployment.yml', 'config', deployPath, deployment));
+   381→    }
+   382→
+   383→    return {
+   384→      success: artifacts.length > 0,
+   385→      artifacts,
+   386→      output: { filesGenerated: artifacts.map(a => a.name) },
+   387→      costUsd: llmResult.costUsd,
+   388→      durationMs: 0,
+   389→    };
+   390→  }
+   391→
+   392→  // ═══════════════════════════════════════════════════════════
+   393→  //  dev.qa → Run tests + LLM analysis
+   394→  // ═══════════════════════════════════════════════════════════
+   395→
+   396→  private async executeQA(input: ConnectorInput): Promise<ConnectorOutput> {
+   397→    const results: any[] = [];
+   398→    let allPassed = true;
+   399→
+   400→    // Try running existing test files
+   401→    const testDir = path.join(input.workspaceDir, 'tests');
+   402→    if (fs.existsSync(testDir)) {
+   403→      const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+   404→      for (const testFile of testFiles.slice(0, 5)) {
+   405→        try {
+   406→          const output = execSync(`node "${path.join(testDir, testFile)}" 2>&1`, {
+   407→            timeout: 30000,
+   408→            cwd: input.workspaceDir,
+   409→          }).toString();
+   410→          results.push({ file: testFile, passed: true, output: output.slice(0, 500) });
+   411→        } catch (err: any) {
+   412→          results.push({ file: testFile, passed: false, output: (err.stdout || err.message || '').toString().slice(0, 500) });
+   413→          allPassed = false;
+   414→        }
+   415→      }
+   416→    }
+   417→
+   418→    // LLM-based quality analysis
+   419→    let llmAnalysis = '';
+   420→    try {
+   421→      const srcFiles = this.collectSourceFiles(input.workspaceDir);
+   422→      if (srcFiles.length > 0) {
+   423→        const llmResult = await this.llm.call({
+   424→          systemPrompt: 'You are a QA engineer. Analyze code for bugs and quality issues.',
+   425→          userPrompt: `Analyze this code for quality:\n${srcFiles.slice(0, 5).map(f => `--- ${f.name} ---\n${f.content?.slice(0, 500) || ''}`).join('\n\n')}\n\nReply in JSON: {"passed": true/false, "analysis": "brief analysis", "bugs": []}`,
+   426→          maxTokens: 2048,
+   427→        });
+   428→        llmAnalysis = llmResult.content;
+   429→      }
+   430→    } catch { /* optional */ }
+   431→
+   432→    // Write QA report
+   433→    const reportPath = path.join(input.workspaceDir, 'docs', 'QA-REPORT.md');
+   434→    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+   435→    const report = `# QA Report\n\n## Test Results\n${results.map(r => `- ${r.file}: ${r.passed ? 'PASS' : 'FAIL'}`).join('\n')}\n\n## LLM Analysis\n${llmAnalysis || 'N/A'}\n`;
+   436→    fs.writeFileSync(reportPath, report, 'utf-8');
+   437→
+   438→    return {
+   439→      success: allPassed,
+   440→      artifacts: [this.makeArtifact('QA-REPORT.md', 'report', reportPath, report)],
+   441→      output: { results, llmAnalysis: llmAnalysis.substring(0, 500) },
+   442→      costUsd: 0.02,
+   443→      durationMs: 0,
+   444→    };
+   445→  }
+   446→
+   447→  // ═══════════════════════════════════════════════════════════
+   448→  //  dev.test → LLM generates test code
+   449→  // ═══════════════════════════════════════════════════════════
+   450→
+   451→  private async executeTest(input: ConnectorInput): Promise<ConnectorOutput> {
+   452→    const systemPrompt = `You are a test engineer. Generate comprehensive test files.
+   453→For each file, use this format:
+   454→===FILE: path/to/file===
+   455→(file content)
+   456→===ENDFILE===
+   457→
+   458→Generate Node.js test files using assert or a simple test runner. Each test should be self-contained and runnable with 'node <file>'.`;
+   459→
+   460→    const srcContext = this.getExistingFilesContext(input);
+   461→
+   462→    const userPrompt = `Generate tests for: "${input.instruction}"
+   463→${srcContext}
+   464→Create test files in the tests/ directory that verify the core functionality.`;
+   465→
+   466→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   467→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   468→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   469→
+   470→    // Fallback: generate basic test
+   471→    if (artifacts.length === 0) {
+   472→      const testCode = this.generateFallbackTest(input.instruction, input.workspaceDir);
+   473→      const testPath = path.join(input.workspaceDir, 'tests', 'test.js');
+   474→      fs.mkdirSync(path.dirname(testPath), { recursive: true });
+   475→      fs.writeFileSync(testPath, testCode, 'utf-8');
+   476→      artifacts.push(this.makeArtifact('test.js', 'test', testPath, testCode));
+   477→    }
+   478→
+   479→    return {
+   480→      success: artifacts.length > 0,
+   481→      artifacts,
+   482→      output: { filesGenerated: artifacts.map(a => a.name) },
+   483→      costUsd: llmResult.costUsd,
+   484→      durationMs: 0,
+   485→    };
+   486→  }
+   487→
+   488→  // ═══════════════════════════════════════════════════════════
+   489→  //  dev.debug → LLM analyzes errors
+   490→  // ═══════════════════════════════════════════════════════════
+   491→
+   492→  private async executeDebug(input: ConnectorInput): Promise<ConnectorOutput> {
+   493→    const errorMessage = input.parameters.error || input.parameters.lastError || 'Unknown error';
+   494→
+   495→    const systemPrompt = `You are a debugging expert. Analyze the error and provide a fix.`;
+   496→    const userPrompt = `Debug this error in the project: "${input.instruction}"
+   497→Error: ${errorMessage}
+   498→${this.getExistingFilesContext(input)}
+   499→Provide:
+   500→1. Root cause analysis
+   501→2. The exact fix needed
+   502→3. Updated file content if needed (use ===FILE: path=== format)`;
+   503→
+   504→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   505→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   506→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   507→
+   508→    return {
+   509→      success: true,
+   510→      artifacts,
+   511→      output: { analysis: llmResult.content.substring(0, 2000) },
+   512→      costUsd: llmResult.costUsd,
+   513→      durationMs: 0,
+   514→    };
+   515→  }
+   516→
+   517→  // ═══════════════════════════════════════════════════════════
+   518→  //  dev.documentation → LLM generates docs
+   519→  // ═══════════════════════════════════════════════════════════
+   520→
+   521→  private async executeDocumentation(input: ConnectorInput): Promise<ConnectorOutput> {
+   522→    const systemPrompt = `You are a technical writer. Generate comprehensive documentation in markdown.`;
+   523→    const userPrompt = `Generate documentation for: "${input.instruction}"
+   524→${this.getExistingFilesContext(input)}
+   525→Create:
+   526→1. README.md with: title, description, features, installation, usage, API, tech stack, license
+   527→2. API.md with endpoint documentation if applicable`;
+   528→
+   529→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   530→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   531→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   532→
+   533→    // Ensure README exists
+   534→    if (!files.has('README.md')) {
+   535→      const readme = llmResult.content.length > 100
+   536→        ? llmResult.content
+   537→        : `# ${input.instruction}\n\n## Generated by AENEWS Software Factory\n\n## Installation\n\n\`\`\`bash\nnpm install\n\`\`\`\n\n## Usage\n\n\`\`\`bash\nnpm start\n\`\`\`\n\n## License\n\nMIT\n`;
+   538→      const readmePath = path.join(input.workspaceDir, 'README.md');
+   539→      fs.writeFileSync(readmePath, readme, 'utf-8');
+   540→      artifacts.push(this.makeArtifact('README.md', 'document', readmePath, readme));
+   541→    }
+   542→
+   543→    return {
+   544→      success: artifacts.length > 0,
+   545→      artifacts,
+   546→      output: { filesGenerated: artifacts.map(a => a.name) },
+   547→      costUsd: llmResult.costUsd,
+   548→      durationMs: 0,
+   549→    };
+   550→  }
+   551→
+   552→  // ═══════════════════════════════════════════════════════════
+   553→  //  Generic fallback for unknown dev capabilities
+   554→  // ═══════════════════════════════════════════════════════════
+   555→
+   556→  private async executeGenericDev(capId: DevCapability, input: ConnectorInput): Promise<ConnectorOutput> {
+   557→    const systemPrompt = `You are an expert software developer. Complete the requested task.
+   558→For each file you create, use this format:
+   559→===FILE: path/to/file===
+   560→(file content)
+   561→===ENDFILE===`;
+   562→
+   563→    const userPrompt = `Complete this development task: "${capId}" for the project: "${input.instruction}"
+   564→${this.getExistingFilesContext(input)}
+   565→Generate all necessary files.`;
+   566→
+   567→    const llmResult = await this.llm.call({ systemPrompt, userPrompt, maxTokens: 4096 });
+   568→    const files = this.llm.parseGeneratedFiles(llmResult.content);
+   569→    const artifacts = this.writeFiles(files, input.workspaceDir);
+   570→
+   571→    return {
+   572→      success: artifacts.length > 0,
+   573→      artifacts,
+   574→      output: { filesGenerated: artifacts.map(a => a.name) },
+   575→      costUsd: llmResult.costUsd,
+   576→      durationMs: 0,
+   577→    };
+   578→  }
+   579→
+   580→  // ═══════════════════════════════════════════════════════════
+   581→  //  Helpers
+   582→  // ═══════════════════════════════════════════════════════════
+   583→
+   584→  private ensureWorkspace(workspaceDir: string): void {
+   585→    const dirs = ['src', 'tests', 'docs', 'db', 'k8s'];
+   586→    for (const dir of dirs) {
+   587→      fs.mkdirSync(path.join(workspaceDir, dir), { recursive: true });
+   588→    }
+   589→  }
+   590→
+   591→  private writeFiles(files: Map<string, string>, workspaceDir: string): GeneratedArtifact[] {
+   592→    const artifacts: GeneratedArtifact[] = [];
+   593→    files.forEach((content, filePath) => {
+   594→      const fullPath = path.join(workspaceDir, filePath);
+   595→      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+   596→      fs.writeFileSync(fullPath, content, 'utf-8');
+   597→
+   598→      let type: GeneratedArtifact['type'] = 'source';
+   599→      if (filePath.includes('test') || filePath.includes('spec')) type = 'test';
+   600→      else if (filePath.endsWith('.md') || filePath.endsWith('.txt')) type = 'document';
+   601→      else if (filePath.endsWith('.json') || filePath.endsWith('.yml') || filePath.endsWith('.yaml') || filePath.endsWith('Dockerfile') || filePath.includes('.config')) type = 'config';
+   602→
+   603→      artifacts.push(this.makeArtifact(path.basename(filePath), type, fullPath, content));
+   604→      this.logger.log(`  Created: ${filePath} (${Buffer.byteLength(content)} bytes)`);
+   605→    });
+   606→    return artifacts;
+   607→  }
+   608→
+   609→  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, content: string): GeneratedArtifact {
+   610→    return {
+   611→      name,
+   612→      type,
+   613→      path: fullPath,
+   614→      size: Buffer.byteLength(content),
+   615→      content: content.substring(0, 500),
+   616→    };
+   617→  }
+   618→
+   619→  private getExistingFilesContext(input: ConnectorInput): string {
+   620→    const existing = input.previousResults;
+   621→    if (!existing || existing.size === 0) return '';
+   622→
+   623→    const summaries: string[] = [];
+   624→    existing.forEach((output, capId) => {
+   625→      if (output.artifacts?.length > 0) {
+   626→        summaries.push(`${capId}: ${output.artifacts.map((a: any) => a.name).join(', ')}`);
+   627→      }
+   628→    });
+   629→    return summaries.length > 0 ? `Previously generated: ${summaries.join('; ')}` : '';
+   630→  }
+   631→
+   632→  private collectSourceFiles(workspaceDir: string): { name: string; content?: string }[] {
+   633→    const files: { name: string; content?: string }[] = [];
+   634→    const extensions = ['.js', '.ts', '.html', '.css', '.py'];
+   635→
+   636→    const walkDir = (dir: string) => {
+   637→      if (!fs.existsSync(dir)) return;
+   638→      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+   639→        const fullPath = path.join(dir, entry.name);
+   640→        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+   641→          walkDir(fullPath);
+   642→        } else if (entry.isFile() && extensions.some(ext => entry.name.endsWith(ext))) {
+   643→          try {
+   644→            const content = fs.readFileSync(fullPath, 'utf-8').slice(0, 1000);
+   645→            files.push({ name: path.relative(workspaceDir, fullPath), content });
+   646→          } catch { /* skip */ }
+   647→        }
+   648→      }
+   649→    };
+   650→
+   651→    walkDir(workspaceDir);
+   652→    return files;
+   653→  }
+   654→
+   655→  private generateDockerfile(instruction: string): string {
+   656→    const lower = instruction.toLowerCase();
+   657→    const isNode = lower.includes('node') || lower.includes('app') || lower.includes('api') || lower.includes('web') || lower.includes('server');
+   658→    const isPython = lower.includes('python') || lower.includes('flask') || lower.includes('django');
+   659→
+   660→    if (isPython) {
+   661→      return `FROM python:3.11-slim
+   662→WORKDIR /app
+   663→COPY requirements.txt .
+   664→RUN pip install --no-cache-dir -r requirements.txt
+   665→COPY . .
+   666→EXPOSE 8000
+   667→CMD ["python", "app.py"]\n`;
+   668→    }
+   669→
+   670→    return `FROM node:20-alpine
+   671→WORKDIR /app
+   672→COPY package*.json ./
+   673→RUN npm install --production
+   674→COPY . .
+   675→EXPOSE 3000
+   676→${isNode ? 'CMD ["node", "server.js"]' : 'CMD ["node", "app.js"]'}\n`;
+   677→  }
+   678→
+   679→  private generateDockerCompose(instruction: string): string {
+   680→    return `version: '3.8'
+   681→services:
+   682→  app:
+   683→    build: .
+   684→    ports:
+   685→      - "3000:3000"
+   686→    environment:
+   687→      - NODE_ENV=production
+   688→    restart: unless-stopped\n`;
+   689→  }
+   690→
+   691→  private ensurePackageJson(workspaceDir: string, instruction: string): void {
+   692→    const packageJsonPath = path.join(workspaceDir, 'package.json');
+   693→    if (!fs.existsSync(packageJsonPath)) {
+   694→      const packageJson = {
+   695→        name: `aenews-${instruction.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}`,
+   696→        version: '1.0.0',
+   697→        description: instruction,
+   698→        scripts: { start: 'node server.js', test: 'node tests/test.js' },
+   699→      };
+   700→      fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2), 'utf-8');
+   701→    }
+   702→  }
+   703→
+   704→  private generateFrontendTemplate(instruction: string): string {
+   705→    return `===FILE: index.html===
+   706→<!DOCTYPE html>
+   707→<html lang="en">
+   708→<head>
+   709→    <meta charset="UTF-8">
+   710→    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   711→    <title>${instruction}</title>
+   712→    <link rel="stylesheet" href="style.css">
+   713→</head>
+   714→<body>
+   715→    <div id="app">
+   716→        <header>
+   717→            <h1>${instruction}</h1>
+   718→        </header>
+   719→        <main>
+   720→            <p>Generated by AENEWS Software Factory</p>
+   721→        </main>
+   722→    </div>
+   723→    <script src="app.js"></script>
+   724→</body>
+   725→</html>
+   726→===ENDFILE===
+   727→===FILE: style.css===
+   728→* { margin: 0; padding: 0; box-sizing: border-box; }
+   729→body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+   730→header { background: #1a1a2e; color: white; padding: 2rem; text-align: center; }
+   731→main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+   732→===ENDFILE===
+   733→===FILE: app.js===
+   734→console.log('${instruction} - loaded');
+   735→document.addEventListener('DOMContentLoaded', () => {
+   736→    console.log('App initialized');
+   737→});
+   738→===ENDFILE===`;
+   739→  }
+   740→
+   741→  private generateBackendTemplate(instruction: string): string {
+   742→    return `===FILE: server.js===
+   743→const http = require('http');
+   744→const PORT = process.env.PORT || 3000;
+   745→
+   746→const server = http.createServer((req, res) => {
+   747→    res.writeHead(200, { 'Content-Type': 'application/json' });
+   748→    res.end(JSON.stringify({ status: 'ok', service: '${instruction.replace(/'/g, "\\'")}' }));
+   749→});
+   750→
+   751→server.listen(PORT, () => {
+   752→    console.log(\`Server running on port \${PORT}\`);
+   753→});
+   754→===ENDFILE===`;
+   755→  }
+   756→
+   757→  private generateFallbackTest(instruction: string, workspaceDir: string): string {
+   758→    return `const assert = require('assert');
+   759→const fs = require('fs');
+   760→const path = require('path');
+   761→
+   762→console.log('Running tests for: ${instruction.replace(/'/g, "\\'")}');
+   763→
+   764→// Test 1: Project directory exists
+   765→assert.ok(fs.existsSync('${workspaceDir}'), 'Project directory should exist');
+   766→console.log('PASS: Project directory exists');
+   767→
+   768→// Test 2: Source files exist
+   769→const srcDir = path.join('${workspaceDir}', 'src');
+   770→const rootFiles = fs.readdirSync('${workspaceDir}').filter(f => f.endsWith('.js') || f.endsWith('.html') || f.endsWith('.py'));
+   771→const srcFiles = fs.existsSync(srcDir) ? fs.readdirSync(srcDir) : [];
+   772→assert.ok(rootFiles.length > 0 || srcFiles.length > 0, 'Should have source files');
+   773→console.log('PASS: Source files exist');
+   774→
+   775→// Test 3: Package.json exists (for Node.js projects)
+   776→const packageJsonPath = path.join('${workspaceDir}', 'package.json');
+   777→if (fs.existsSync(packageJsonPath)) {
+   778→    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+   779→    assert.ok(pkg.name, 'package.json should have a name');
+   780→    console.log('PASS: package.json is valid');
+   781→}
+   782→
+   783→console.log('\\nAll tests passed!');
+   784→`;
+   785→  }
+   786→}
+   787→

@@ -19,4 +19,7 @@ __exportStar(require("./mission-state.interface"), exports);
 __exportStar(require("./capability.interface"), exports);
 __exportStar(require("./execution-graph.interface"), exports);
 __exportStar(require("./worker.interface"), exports);
+__exportStar(require("./agents-64.interface"), exports);
+__exportStar(require("./agent-pool.interface"), exports);
+__exportStar(require("./team.interface"), exports);
 //# sourceMappingURL=index.js.map

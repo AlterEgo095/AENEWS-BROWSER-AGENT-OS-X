@@ -42,7 +42,7 @@ export declare class SoftwareFactoryController {
             totalCostUsd: number;
             artifacts: {
                 name: string;
-                type: "document" | "source" | "test" | "config" | "report" | "archive";
+                type: "document" | "config" | "test" | "archive" | "report" | "source";
                 size: number;
                 path: string;
             }[];
@@ -253,7 +253,7 @@ export declare class SoftwareFactoryController {
             artifactCount: number;
             artifacts: {
                 name: string;
-                type: "document" | "source" | "screenshot" | "test" | "config" | "report" | "archive" | "log";
+                type: "document" | "config" | "screenshot" | "test" | "archive" | "report" | "source" | "log";
                 size: number;
             }[];
             output: any;
