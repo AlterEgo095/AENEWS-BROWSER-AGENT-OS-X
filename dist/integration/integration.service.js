@@ -73,7 +73,9 @@ let IntegrationService = IntegrationService_1 = class IntegrationService {
             const securityCheck = await this.securityGateway.process('integration-service', 'execute_mission', 'mission_runtime', request.instruction, { permissions: ['mission:execute'], metadata: { submittedBy: request.submittedBy } });
             if (!securityCheck.allowed) {
                 context.status = 'failed';
-                context.errors = [`Security gateway blocked: risk=${securityCheck.riskScore}, threats=${securityCheck.threats.length}`];
+                context.errors = [
+                    `Security gateway blocked: risk=${securityCheck.riskScore}, threats=${securityCheck.threats.length}`,
+                ];
                 return context;
             }
             const actionContext = {
@@ -88,8 +90,13 @@ let IntegrationService = IntegrationService_1 = class IntegrationService {
             context.constitutionalCheck = constitutionalResult;
             if (!constitutionalResult.allowed) {
                 context.status = 'failed';
-                context.errors = [`Constitutional AI violation: ${constitutionalResult.violations.map((v) => v.ruleName).join(', ')}`];
-                this.realtimeGateway.pushMissionEvent(missionId, realtime_gateway_1.RealtimeEventType.SYSTEM_ALERT, { type: 'constitutional_violation', violations: constitutionalResult.violations.length });
+                context.errors = [
+                    `Constitutional AI violation: ${constitutionalResult.violations.map((v) => v.ruleName).join(', ')}`,
+                ];
+                this.realtimeGateway.pushMissionEvent(missionId, realtime_gateway_1.RealtimeEventType.SYSTEM_ALERT, {
+                    type: 'constitutional_violation',
+                    violations: constitutionalResult.violations.length,
+                });
                 return context;
             }
             if (this.requiresHumanApproval(request)) {
@@ -103,7 +110,10 @@ let IntegrationService = IntegrationService_1 = class IntegrationService {
                 };
                 const approvalRequest = this.humanApproval.requestApproval('integration-service', 'execute_mission', human_approval_service_1.ApprovalActionType.DEPLOY_PRODUCTION, { instruction: request.instruction, budgetMaxUsd: request.budgetMaxUsd }, `Mission requires human approval: "${request.instruction.substring(0, 100)}"`);
                 if (approvalRequest.status === 'pending') {
-                    this.realtimeGateway.pushMissionEvent(missionId, realtime_gateway_1.RealtimeEventType.SYSTEM_ALERT, { type: 'human_approval_required', requestId: approvalRequest.id });
+                    this.realtimeGateway.pushMissionEvent(missionId, realtime_gateway_1.RealtimeEventType.SYSTEM_ALERT, {
+                        type: 'human_approval_required',
+                        requestId: approvalRequest.id,
+                    });
                 }
             }
             try {

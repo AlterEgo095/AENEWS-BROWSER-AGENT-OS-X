@@ -7,12 +7,7 @@
 
 import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentCluster,
-  AgentInput,
-  AgentOutput,
-} from '../interfaces/agent.interface';
+import { AgentConfig, AgentCluster, AgentInput, AgentOutput } from '../interfaces/agent.interface';
 import { AgentConnectorBridge } from '../bridge';
 
 // ─── Agent Configuration ──────────────────────────────────────────

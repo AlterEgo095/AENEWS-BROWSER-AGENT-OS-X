@@ -26,6 +26,19 @@ import { TenantModule } from './modules/tenant/tenant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { ComputerClusterModule } from './clusters/computer/computer-cluster.module';
+import { BrowserClusterModule } from './clusters/browser/browser-cluster.module';
+import { CodingClusterModule } from './clusters/coding/coding-cluster.module';
+import { OfficeClusterModule } from './clusters/office/office-cluster.module';
+import { MarketingClusterModule } from './clusters/marketing/marketing-cluster.module';
+import { BusinessClusterModule } from './clusters/business/business-cluster.module';
+import { InfrastructureClusterModule } from './clusters/infrastructure/infrastructure-cluster.module';
+import { SecurityClusterModule } from './clusters/security/security-cluster.module';
+import { MetaIntelligenceClusterModule } from './clusters/meta-intelligence/meta-intelligence-cluster.module';
+import { LLMIntelligenceClusterModule } from './clusters/llm-intelligence/llm-intelligence-cluster.module';
+import { IntelligentOrchestrationClusterModule } from './clusters/intelligent-orchestration/intelligent-orchestration-cluster.module';
+import { WatchdogClusterModule } from './clusters/watchdog/watchdog.module';
+import { SelfEvolutionClusterModule } from './clusters/self-evolution/self-evolution-cluster.module';
+import { CertificationClusterModule } from './clusters/certification/certification-cluster.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -130,7 +143,24 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     TenantModule,
     AuthModule,
     UserModule,
+
+    // ─── Agent Clusters (9 original + 5 Phase 2 Intelligence) ───
     ComputerClusterModule,
+    BrowserClusterModule,
+    CodingClusterModule,
+    OfficeClusterModule,
+    MarketingClusterModule,
+    BusinessClusterModule,
+    InfrastructureClusterModule,
+    SecurityClusterModule,
+    MetaIntelligenceClusterModule,
+
+    // Phase 2 — Intelligence Clusters
+    LLMIntelligenceClusterModule,
+    IntelligentOrchestrationClusterModule,
+    WatchdogClusterModule,
+    SelfEvolutionClusterModule,
+    CertificationClusterModule,
   ],
   controllers: [AppController],
   providers: [

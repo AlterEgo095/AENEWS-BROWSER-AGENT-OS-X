@@ -32,7 +32,11 @@ let TaskQueueProcessor = TaskQueueProcessor_1 = class TaskQueueProcessor {
         this.logger.log(`Processing task ${taskId} for agent ${agentId}`);
         await job.progress(10);
         if (parentMissionId) {
-            this.realtimeGateway.pushOrchestrationEvent(parentMissionId, realtime_gateway_1.RealtimeEventType.ORCH_EXECUTE, { taskId, agentId, phase: 'executing' });
+            this.realtimeGateway.pushOrchestrationEvent(parentMissionId, realtime_gateway_1.RealtimeEventType.ORCH_EXECUTE, {
+                taskId,
+                agentId,
+                phase: 'executing',
+            });
         }
         this.realtimeGateway.pushAgentEvent(agentId, job.data.cluster || 'unknown', realtime_gateway_1.RealtimeEventType.AGENT_STARTED, { taskId, phase: 'executing' });
         try {

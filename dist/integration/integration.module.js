@@ -20,13 +20,7 @@ let IntegrationModule = class IntegrationModule {
 exports.IntegrationModule = IntegrationModule;
 exports.IntegrationModule = IntegrationModule = __decorate([
     (0, common_1.Module)({
-        imports: [
-            software_factory_module_1.SoftwareFactoryModule,
-            agents_module_1.AgentsModule,
-            mission_os_module_1.MissionOsModule,
-            gateway_module_1.GatewayModule,
-            realtime_module_1.RealtimeModule,
-        ],
+        imports: [software_factory_module_1.SoftwareFactoryModule, agents_module_1.AgentsModule, mission_os_module_1.MissionOsModule, gateway_module_1.GatewayModule, realtime_module_1.RealtimeModule],
         providers: [integration_service_1.IntegrationService],
         controllers: [integration_controller_1.IntegrationController],
         exports: [integration_service_1.IntegrationService],

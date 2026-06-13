@@ -14,7 +14,10 @@ import { Processor, Process, OnQueueActive, OnQueueCompleted, OnQueueFailed } fr
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { MissionRuntimeEngine } from '../software-factory/runtime/mission-runtime.engine';
-import { MissionMetricsService, MissionCategory } from '../software-factory/runtime/mission-metrics.service';
+import {
+  MissionMetricsService,
+  MissionCategory,
+} from '../software-factory/runtime/mission-metrics.service';
 import { RealtimeGateway, RealtimeEventType } from '../realtime/realtime.gateway';
 import { EventBusService } from '../agents/events/event-bus.service';
 import { AgentEventType } from '../agents/interfaces/agent-event.interface';
@@ -75,7 +78,7 @@ export class MissionQueueProcessor {
       const result = await this.runtimeEngine.executeMission({
         instruction,
         description,
-        quality: quality as any || 'standard',
+        quality: (quality as any) || 'standard',
         budgetMaxUsd,
         deadline: deadline ? new Date(deadline) : undefined,
       });
@@ -176,11 +179,10 @@ export class MissionQueueProcessor {
   @OnQueueActive()
   onActive(job: Job<MissionJobData>): void {
     this.logger.log(`Mission job ${job.id} started for mission ${job.data.missionId}`);
-    this.realtimeGateway.pushMissionEvent(
-      job.data.missionId,
-      RealtimeEventType.MISSION_RUNNING,
-      { phase: 'queued', jobId: job.id },
-    );
+    this.realtimeGateway.pushMissionEvent(job.data.missionId, RealtimeEventType.MISSION_RUNNING, {
+      phase: 'queued',
+      jobId: job.id,
+    });
   }
 
   @OnQueueCompleted()

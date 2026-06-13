@@ -62,11 +62,11 @@ export class TaskQueueProcessor {
 
     // Push real-time event: task executing
     if (parentMissionId) {
-      this.realtimeGateway.pushOrchestrationEvent(
-        parentMissionId,
-        RealtimeEventType.ORCH_EXECUTE,
-        { taskId, agentId, phase: 'executing' },
-      );
+      this.realtimeGateway.pushOrchestrationEvent(parentMissionId, RealtimeEventType.ORCH_EXECUTE, {
+        taskId,
+        agentId,
+        phase: 'executing',
+      });
     }
 
     this.realtimeGateway.pushAgentEvent(
@@ -173,8 +173,6 @@ export class TaskQueueProcessor {
 
   @OnQueueFailed()
   onFailed(job: Job<TaskJobData>, error: Error): void {
-    this.logger.error(
-      `Task job ${job.id} failed for task ${job.data.taskId}: ${error.message}`,
-    );
+    this.logger.error(`Task job ${job.id} failed for task ${job.data.taskId}: ${error.message}`);
   }
 }

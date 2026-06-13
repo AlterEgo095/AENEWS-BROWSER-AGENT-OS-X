@@ -62,11 +62,14 @@ export class EventQueueProcessor {
 
   // ─── Handlers ───────────────────────────────────────────────────
 
-  private async handleReplayEvents(job: Job, payload: {
-    fromTimestamp: string;
-    toTimestamp: string;
-    targetRoom?: string;
-  }): Promise<{ replayed: number }> {
+  private async handleReplayEvents(
+    job: Job,
+    payload: {
+      fromTimestamp: string;
+      toTimestamp: string;
+      targetRoom?: string;
+    },
+  ): Promise<{ replayed: number }> {
     await job.progress(10);
 
     const fromTimestamp = new Date(payload.fromTimestamp);
@@ -86,18 +89,24 @@ export class EventQueueProcessor {
     return { replayed };
   }
 
-  private async handleBatchNotify(job: Job, payload: {
-    room: string;
-    event: string;
-    data: any;
-  }): Promise<{ notified: boolean }> {
+  private async handleBatchNotify(
+    job: Job,
+    payload: {
+      room: string;
+      event: string;
+      data: any;
+    },
+  ): Promise<{ notified: boolean }> {
     await job.progress(50);
     this.realtimeGateway.pushSystemEvent(RealtimeEventType.SYSTEM_ALERT, payload.data);
     await job.progress(100);
     return { notified: true };
   }
 
-  private async handleAggregateMetrics(job: Job, _payload: any): Promise<{
+  private async handleAggregateMetrics(
+    job: Job,
+    _payload: any,
+  ): Promise<{
     eventBusStats: any;
     deadLetterCount: number;
   }> {

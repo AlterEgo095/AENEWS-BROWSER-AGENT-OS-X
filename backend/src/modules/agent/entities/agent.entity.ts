@@ -19,6 +19,12 @@ export enum ClusterType {
   INFRASTRUCTURE = 'infrastructure',
   SECURITY = 'security',
   META_INTELLIGENCE = 'meta-intelligence',
+  // Phase 2 — Intelligence Clusters
+  LLM_INTELLIGENCE = 'llm-intelligence',
+  INTELLIGENT_ORCHESTRATION = 'intelligent-orchestration',
+  WATCHDOG = 'watchdog',
+  SELF_EVOLUTION = 'self-evolution',
+  CERTIFICATION = 'certification',
 }
 
 export enum AgentStatus {

@@ -18,13 +18,7 @@ import { GatewayModule } from '../gateway/gateway.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 
 @Module({
-  imports: [
-    SoftwareFactoryModule,
-    AgentsModule,
-    MissionOsModule,
-    GatewayModule,
-    RealtimeModule,
-  ],
+  imports: [SoftwareFactoryModule, AgentsModule, MissionOsModule, GatewayModule, RealtimeModule],
   providers: [IntegrationService],
   controllers: [IntegrationController],
   exports: [IntegrationService],

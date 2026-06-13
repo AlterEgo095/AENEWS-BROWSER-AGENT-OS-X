@@ -73,11 +73,7 @@ import { CommunicationModule } from '../agents/communication/communication.modul
     AgentRegistryModule,
     CommunicationModule,
   ],
-  providers: [
-    MissionQueueProcessor,
-    TaskQueueProcessor,
-    EventQueueProcessor,
-  ],
+  providers: [MissionQueueProcessor, TaskQueueProcessor, EventQueueProcessor],
   exports: [],
 })
 export class QueuesModule {}

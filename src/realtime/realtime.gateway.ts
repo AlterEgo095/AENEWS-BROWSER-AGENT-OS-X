@@ -85,9 +85,7 @@ export interface RealtimePayload {
   namespace: '/realtime',
   transports: ['websocket', 'polling'],
 })
-export class RealtimeGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
 
   @WebSocketServer()
@@ -214,11 +212,7 @@ export class RealtimeGateway
   /**
    * Push an orchestration progress event.
    */
-  pushOrchestrationEvent(
-    missionId: string,
-    eventType: RealtimeEventType,
-    data: any,
-  ): void {
+  pushOrchestrationEvent(missionId: string, eventType: RealtimeEventType, data: any): void {
     const payload: RealtimePayload = {
       type: eventType,
       timestamp: new Date(),

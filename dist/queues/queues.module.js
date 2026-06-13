@@ -66,11 +66,7 @@ exports.QueuesModule = QueuesModule = __decorate([
             agent_registry_module_1.AgentRegistryModule,
             communication_module_1.CommunicationModule,
         ],
-        providers: [
-            mission_queue_processor_1.MissionQueueProcessor,
-            task_queue_processor_1.TaskQueueProcessor,
-            event_queue_processor_1.EventQueueProcessor,
-        ],
+        providers: [mission_queue_processor_1.MissionQueueProcessor, task_queue_processor_1.TaskQueueProcessor, event_queue_processor_1.EventQueueProcessor],
         exports: [],
     })
 ], QueuesModule);

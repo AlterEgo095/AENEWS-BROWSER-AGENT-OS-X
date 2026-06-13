@@ -124,7 +124,10 @@ let MissionQueueProcessor = MissionQueueProcessor_1 = class MissionQueueProcesso
     }
     onActive(job) {
         this.logger.log(`Mission job ${job.id} started for mission ${job.data.missionId}`);
-        this.realtimeGateway.pushMissionEvent(job.data.missionId, realtime_gateway_1.RealtimeEventType.MISSION_RUNNING, { phase: 'queued', jobId: job.id });
+        this.realtimeGateway.pushMissionEvent(job.data.missionId, realtime_gateway_1.RealtimeEventType.MISSION_RUNNING, {
+            phase: 'queued',
+            jobId: job.id,
+        });
     }
     onCompleted(job, result) {
         this.logger.log(`Mission job ${job.id} completed: mission ${result.missionId} ` +

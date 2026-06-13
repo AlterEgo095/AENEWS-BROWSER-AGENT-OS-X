@@ -15,7 +15,7 @@ CREATE SCHEMA IF NOT EXISTS audit;
 CREATE TYPE agent_status AS ENUM ('idle', 'running', 'paused', 'error', 'stopped', 'completed');
 CREATE TYPE task_status AS ENUM ('pending', 'queued', 'running', 'completed', 'failed', 'cancelled', 'retrying');
 CREATE TYPE user_role AS ENUM ('super_admin', 'tenant_admin', 'operator', 'viewer');
-CREATE TYPE cluster_type AS ENUM ('browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence');
+CREATE TYPE cluster_type AS ENUM ('browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence', 'llm-intelligence', 'intelligent-orchestration', 'watchdog', 'self-evolution', 'certification');
 CREATE TYPE event_severity AS ENUM ('info', 'warning', 'error', 'critical');
 
 -- Tenants table

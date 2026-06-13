@@ -9,18 +9,8 @@
  *   - Action validation (Security + Constitutional)
  */
 
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
-import {
-  IntegrationService,
-  MissionIntegrationContext,
-} from './integration.service';
+import { Controller, Get, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { IntegrationService, MissionIntegrationContext } from './integration.service';
 
 @Controller('api/integration')
 export class IntegrationController {
@@ -120,9 +110,7 @@ export class IntegrationController {
    * POST /api/integration/constitutional/check
    */
   @Post('constitutional/check')
-  async checkConstitutionalCompliance(
-    @Body() body: { prompt: string },
-  ) {
+  async checkConstitutionalCompliance(@Body() body: { prompt: string }) {
     const result = await this.integration.checkConstitutionalCompliance(body.prompt);
     return { success: true, data: result };
   }

@@ -151,7 +151,9 @@ export class IntegrationService implements OnModuleInit {
 
       if (!securityCheck.allowed) {
         context.status = 'failed';
-        context.errors = [`Security gateway blocked: risk=${securityCheck.riskScore}, threats=${securityCheck.threats.length}`];
+        context.errors = [
+          `Security gateway blocked: risk=${securityCheck.riskScore}, threats=${securityCheck.threats.length}`,
+        ];
         return context;
       }
 
@@ -169,12 +171,13 @@ export class IntegrationService implements OnModuleInit {
 
       if (!constitutionalResult.allowed) {
         context.status = 'failed';
-        context.errors = [`Constitutional AI violation: ${constitutionalResult.violations.map((v) => v.ruleName).join(', ')}`];
-        this.realtimeGateway.pushMissionEvent(
-          missionId,
-          RealtimeEventType.SYSTEM_ALERT,
-          { type: 'constitutional_violation', violations: constitutionalResult.violations.length },
-        );
+        context.errors = [
+          `Constitutional AI violation: ${constitutionalResult.violations.map((v) => v.ruleName).join(', ')}`,
+        ];
+        this.realtimeGateway.pushMissionEvent(missionId, RealtimeEventType.SYSTEM_ALERT, {
+          type: 'constitutional_violation',
+          violations: constitutionalResult.violations.length,
+        });
         return context;
       }
 
@@ -199,11 +202,10 @@ export class IntegrationService implements OnModuleInit {
         );
 
         if (approvalRequest.status === 'pending') {
-          this.realtimeGateway.pushMissionEvent(
-            missionId,
-            RealtimeEventType.SYSTEM_ALERT,
-            { type: 'human_approval_required', requestId: approvalRequest.id },
-          );
+          this.realtimeGateway.pushMissionEvent(missionId, RealtimeEventType.SYSTEM_ALERT, {
+            type: 'human_approval_required',
+            requestId: approvalRequest.id,
+          });
         }
       }
 
@@ -239,7 +241,7 @@ export class IntegrationService implements OnModuleInit {
       const result = await this.runtimeEngine.executeMission({
         instruction: request.instruction,
         description: request.description,
-        quality: request.quality as any || 'standard',
+        quality: (request.quality as any) || 'standard',
         budgetMaxUsd: request.budgetMaxUsd,
       });
 
@@ -440,14 +442,10 @@ export class IntegrationService implements OnModuleInit {
     this.totalRecoveryActions++;
 
     try {
-      this.autoRecovery.detectFailure(
-        `mission:${missionId}`,
-        FailureType.UNHANDLED_EXCEPTION,
-        {
-          errorMessage: error.message,
-          stackTrace: error.stack,
-        } as RecoveryContext,
-      );
+      this.autoRecovery.detectFailure(`mission:${missionId}`, FailureType.UNHANDLED_EXCEPTION, {
+        errorMessage: error.message,
+        stackTrace: error.stack,
+      } as RecoveryContext);
     } catch (recoveryError) {
       this.logger.error(
         `Auto-recovery trigger failed for mission ${missionId}: ${(recoveryError as Error).message}`,
@@ -526,10 +524,7 @@ export class IntegrationService implements OnModuleInit {
   //  HELPERS
   // ═══════════════════════════════════════════════════════════════════
 
-  private requiresHumanApproval(request: {
-    instruction: string;
-    budgetMaxUsd?: number;
-  }): boolean {
+  private requiresHumanApproval(request: { instruction: string; budgetMaxUsd?: number }): boolean {
     const lower = request.instruction.toLowerCase();
     return (
       (request.budgetMaxUsd !== undefined && request.budgetMaxUsd > 5) ||
