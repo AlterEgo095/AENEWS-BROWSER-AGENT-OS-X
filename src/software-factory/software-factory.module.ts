@@ -44,6 +44,9 @@ import { MissionArchiveService } from './archive/mission-archive.service';
 // Pipeline Orchestrator
 import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orchestrator.service';
 
+// Mission Runtime Engine — THE execution motor
+import { MissionRuntimeEngine } from './runtime/mission-runtime.engine';
+
 @Module({
   providers: [
     // ─── Capability Catalog (must be first) ───────────────────
@@ -75,6 +78,9 @@ import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orch
 
     // ─── Pipeline Orchestrator (depends on all above) ─────────
     MissionOrchestratorPipeline,
+
+    // ─── Mission Runtime Engine — THE motor ───────────────────
+    MissionRuntimeEngine,
   ],
   exports: [
     CapabilityRegistryService,
@@ -82,6 +88,7 @@ import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orch
     CapabilityResolverService,
     WorkerFactoryService,
     MissionOrchestratorPipeline,
+    MissionRuntimeEngine,
     MissionContractService,
     MissionStateMachineService,
     MissionMemoryService,

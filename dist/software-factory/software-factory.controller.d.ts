@@ -1,3 +1,4 @@
+import { Response } from 'express';
 import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orchestrator.service';
 import { MissionContractService } from './mission-contract/mission-contract.service';
 import { MissionStateMachineService } from './mission-state-machine/mission-state-machine.service';
@@ -5,10 +6,12 @@ import { CapabilityRegistryService } from './capability-registry/capability-regi
 import { CapabilityResolverService } from './capability-resolver/capability-resolver.service';
 import { WorkerFactoryService } from './worker-factory/worker-factory.service';
 import { DeliveryManagerService } from './kernel/kernel-services';
-import { MissionArchiveService } from './archive/mission-archive.service';
 import { MonitoringManagerService } from './kernel/kernel-services';
+import { MissionArchiveService } from './archive/mission-archive.service';
+import { MissionRuntimeEngine } from './runtime/mission-runtime.engine';
 import { CapabilityPack } from './interfaces';
 export declare class SoftwareFactoryController {
+    private readonly runtime;
     private readonly pipeline;
     private readonly contractService;
     private readonly stateMachine;
@@ -18,7 +21,42 @@ export declare class SoftwareFactoryController {
     private readonly deliveryManager;
     private readonly archiveService;
     private readonly monitoring;
-    constructor(pipeline: MissionOrchestratorPipeline, contractService: MissionContractService, stateMachine: MissionStateMachineService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, workerFactory: WorkerFactoryService, deliveryManager: DeliveryManagerService, archiveService: MissionArchiveService, monitoring: MonitoringManagerService);
+    constructor(runtime: MissionRuntimeEngine, pipeline: MissionOrchestratorPipeline, contractService: MissionContractService, stateMachine: MissionStateMachineService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, workerFactory: WorkerFactoryService, deliveryManager: DeliveryManagerService, archiveService: MissionArchiveService, monitoring: MonitoringManagerService);
+    runMission(body: {
+        instruction: string;
+        description?: string;
+        quality?: string;
+        budgetMaxUsd?: number;
+        deadline?: string;
+    }): Promise<{
+        success: boolean;
+        data: {
+            missionId: string;
+            certified: boolean;
+            qualityScore: number;
+            totalDurationMs: number;
+            totalCostUsd: number;
+            artifacts: {
+                name: string;
+                type: "document" | "config" | "test" | "archive" | "report" | "source";
+                size: number;
+                path: string;
+            }[];
+            workspaceDir: string;
+            errors: string[];
+        };
+    }>;
+    getRuntimeMission(id: string): {
+        success: boolean;
+        error: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: import("./runtime/mission-runtime.engine").RuntimeMission;
+        error?: undefined;
+    };
+    downloadArtifact(id: string, filename: string, res: Response): void;
+    downloadZip(id: string, res: Response): void;
     submitMission(body: {
         instruction: string;
         description?: string;
@@ -33,16 +71,17 @@ export declare class SoftwareFactoryController {
     }>;
     getActiveMissions(): {
         success: boolean;
-        data: import("./mission-orchestrator/mission-orchestrator.service").MissionExecution[];
+        data: {
+            runtime: import("./runtime/mission-runtime.engine").RuntimeMission[];
+            pipeline: import("./mission-orchestrator/mission-orchestrator.service").MissionExecution[];
+        };
     };
     getMissionStatus(id: string): {
         success: boolean;
-        error: string;
-        data?: undefined;
-    } | {
-        success: boolean;
-        data: import("./mission-orchestrator/mission-orchestrator.service").MissionExecution;
-        error?: undefined;
+        data: {
+            runtime: import("./runtime/mission-runtime.engine").RuntimeMission | undefined;
+            pipeline: import("./mission-orchestrator/mission-orchestrator.service").MissionExecution | undefined;
+        };
     };
     cancelMission(id: string): Promise<{
         success: boolean;
@@ -68,28 +107,6 @@ export declare class SoftwareFactoryController {
     getAvailableTransitions(id: string): {
         success: boolean;
         data: import("./interfaces").StateTransition[];
-    };
-    getDelivery(id: string): {
-        success: boolean;
-        error: string;
-        data?: undefined;
-    } | {
-        success: boolean;
-        data: import("./kernel/kernel-services").DeliveryPackage;
-        error?: undefined;
-    };
-    getArchive(id: string): {
-        success: boolean;
-        error: string;
-        data?: undefined;
-    } | {
-        success: boolean;
-        data: import("./archive/mission-archive.service").ArchivedMission;
-        error?: undefined;
-    };
-    searchArchives(result?: 'success' | 'partial' | 'failed', minQuality?: number, maxCost?: number): {
-        success: boolean;
-        data: import("./archive/mission-archive.service").ArchivedMission[];
     };
     getAllCapabilities(): {
         success: boolean;
@@ -126,6 +143,19 @@ export declare class SoftwareFactoryController {
         success: boolean;
         data: import("./interfaces").WorkerPoolStatistics;
     };
+    getArchive(id: string): {
+        success: boolean;
+        error: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: import("./archive/mission-archive.service").ArchivedMission;
+        error?: undefined;
+    };
+    searchArchives(result?: 'success' | 'partial' | 'failed', minQuality?: number, maxCost?: number): {
+        success: boolean;
+        data: import("./archive/mission-archive.service").ArchivedMission[];
+    };
     getFactoryStats(): {
         success: boolean;
         data: {
@@ -135,8 +165,10 @@ export declare class SoftwareFactoryController {
                 kernel_services: number;
                 capability_packs: number;
                 total_capabilities: number;
+                runtime_engine: string;
             };
             activeMissions: number;
+            completedMissions: number;
             workerPool: import("./interfaces").WorkerPoolStatistics;
             archiveStats: {
                 totalMissions: number;

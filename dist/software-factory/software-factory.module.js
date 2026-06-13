@@ -18,6 +18,7 @@ const mission_state_machine_service_1 = require("./mission-state-machine/mission
 const mission_memory_service_1 = require("./memory/mission-memory.service");
 const mission_archive_service_1 = require("./archive/mission-archive.service");
 const mission_orchestrator_service_1 = require("./mission-orchestrator/mission-orchestrator.service");
+const mission_runtime_engine_1 = require("./runtime/mission-runtime.engine");
 let SoftwareFactoryModule = class SoftwareFactoryModule {
 };
 exports.SoftwareFactoryModule = SoftwareFactoryModule;
@@ -42,6 +43,7 @@ exports.SoftwareFactoryModule = SoftwareFactoryModule = __decorate([
             mission_memory_service_1.MissionMemoryService,
             mission_archive_service_1.MissionArchiveService,
             mission_orchestrator_service_1.MissionOrchestratorPipeline,
+            mission_runtime_engine_1.MissionRuntimeEngine,
         ],
         exports: [
             capability_registry_service_1.CapabilityRegistryService,
@@ -49,6 +51,7 @@ exports.SoftwareFactoryModule = SoftwareFactoryModule = __decorate([
             capability_resolver_service_1.CapabilityResolverService,
             worker_factory_service_1.WorkerFactoryService,
             mission_orchestrator_service_1.MissionOrchestratorPipeline,
+            mission_runtime_engine_1.MissionRuntimeEngine,
             mission_contract_service_1.MissionContractService,
             mission_state_machine_service_1.MissionStateMachineService,
             mission_memory_service_1.MissionMemoryService,
