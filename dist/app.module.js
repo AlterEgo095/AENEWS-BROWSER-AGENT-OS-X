@@ -17,7 +17,6 @@ const app_service_1 = require("./app.service");
 const health_module_1 = require("./health/health.module");
 const agents_module_1 = require("./agents/agents.module");
 const software_factory_module_1 = require("./software-factory/software-factory.module");
-const software_factory_controller_1 = require("./software-factory/software-factory.controller");
 const config_2 = require("./config");
 let AppModule = class AppModule {
 };
@@ -54,12 +53,12 @@ exports.AppModule = AppModule = __decorate([
                     poolSize: configService.get('database.poolSize', 20),
                     autoLoadEntities: true,
                     keepConnectionAlive: true,
-                    retryAttempts: 10,
-                    retryDelay: 3000,
+                    retryAttempts: 2,
+                    retryDelay: 1000,
                     extra: {
                         max: configService.get('database.poolSize', 20),
                         idleTimeoutMillis: 30000,
-                        connectionTimeoutMillis: 5000,
+                        connectionTimeoutMillis: 3000,
                     },
                 }),
             }),
@@ -70,7 +69,7 @@ exports.AppModule = AppModule = __decorate([
                     redis: {
                         host: configService.get('redis.host', 'localhost'),
                         port: configService.get('redis.port', 6379),
-                        password: configService.get('redis.password', 'aenews_redis_secret'),
+                        password: configService.get('redis.password', ''),
                         db: configService.get('redis.db', 1),
                     },
                     defaultJobOptions: {
@@ -92,7 +91,7 @@ exports.AppModule = AppModule = __decorate([
             agents_module_1.AgentsModule,
             software_factory_module_1.SoftwareFactoryModule,
         ],
-        controllers: [app_controller_1.AppController, software_factory_controller_1.SoftwareFactoryController],
+        controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
         exports: [app_service_1.AppService],
     })

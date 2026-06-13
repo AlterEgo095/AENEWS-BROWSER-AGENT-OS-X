@@ -45,6 +45,7 @@ export declare class MissionRuntimeEngine {
     private readonly missions;
     private zaiInstance;
     private readonly baseWorkspace;
+    private llmCallCount;
     constructor(contractService: MissionContractService, stateMachine: MissionStateMachineService, memoryService: MissionMemoryService, archiveService: MissionArchiveService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService);
     executeMission(request: {
         instruction: string;
@@ -63,10 +64,12 @@ export declare class MissionRuntimeEngine {
     private callLLM;
     private writeFile;
     private parseGeneratedFiles;
+    private extractCodeBlocks;
     private collectSourceFiles;
     private createZipArchive;
     private generateTemplateCode;
     private generateDockerfile;
+    private generateFallbackTests;
     private generateReport;
     private updateState;
     private buildResult;

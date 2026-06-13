@@ -10,7 +10,6 @@ import { AppService } from './app.service';
 import { HealthModule } from './health/health.module';
 import { AgentsModule } from './agents/agents.module';
 import { SoftwareFactoryModule } from './software-factory/software-factory.module';
-import { SoftwareFactoryController } from './software-factory/software-factory.controller';
 
 import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
 
@@ -50,12 +49,12 @@ import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
         poolSize: configService.get<number>('database.poolSize', 20),
         autoLoadEntities: true,
         keepConnectionAlive: true,
-        retryAttempts: 10,
-        retryDelay: 3000,
+        retryAttempts: 2,
+        retryDelay: 1000,
         extra: {
           max: configService.get<number>('database.poolSize', 20),
           idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 5000,
+          connectionTimeoutMillis: 3000,
         },
       }),
     }),
@@ -68,7 +67,7 @@ import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
         redis: {
           host: configService.get<string>('redis.host', 'localhost'),
           port: configService.get<number>('redis.port', 6379),
-          password: configService.get<string>('redis.password', 'aenews_redis_secret'),
+          password: configService.get<string>('redis.password', ''),
           db: configService.get<number>('redis.db', 1),
         },
         defaultJobOptions: {
@@ -96,7 +95,7 @@ import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
     // ─── Software Factory ─────────────────────────────────────
     SoftwareFactoryModule,
   ],
-  controllers: [AppController, SoftwareFactoryController],
+  controllers: [AppController],
   providers: [AppService],
   exports: [AppService],
 })

@@ -47,7 +47,11 @@ import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orch
 // Mission Runtime Engine — THE execution motor
 import { MissionRuntimeEngine } from './runtime/mission-runtime.engine';
 
+// API Controller
+import { SoftwareFactoryController } from './software-factory.controller';
+
 @Module({
+  controllers: [SoftwareFactoryController],
   providers: [
     // ─── Capability Catalog (must be first) ───────────────────
     CapabilityRegistryService,

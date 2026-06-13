@@ -15,6 +15,6 @@ import { MemoryModule } from '../memory/memory.module';
 @Module({
   imports: [EventsModule, MemoryModule],
   providers: [],
-  exports: [EventsModule, MemoryModule, EventBusService, MemoryService],
+  exports: [EventsModule, MemoryModule],
 })
 export class BaseAgentModule {}

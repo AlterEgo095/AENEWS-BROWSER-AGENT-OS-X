@@ -19,11 +19,13 @@ const mission_memory_service_1 = require("./memory/mission-memory.service");
 const mission_archive_service_1 = require("./archive/mission-archive.service");
 const mission_orchestrator_service_1 = require("./mission-orchestrator/mission-orchestrator.service");
 const mission_runtime_engine_1 = require("./runtime/mission-runtime.engine");
+const software_factory_controller_1 = require("./software-factory.controller");
 let SoftwareFactoryModule = class SoftwareFactoryModule {
 };
 exports.SoftwareFactoryModule = SoftwareFactoryModule;
 exports.SoftwareFactoryModule = SoftwareFactoryModule = __decorate([
     (0, common_1.Module)({
+        controllers: [software_factory_controller_1.SoftwareFactoryController],
         providers: [
             capability_registry_service_1.CapabilityRegistryService,
             execution_graph_builder_service_1.ExecutionGraphBuilderService,

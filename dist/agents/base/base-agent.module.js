@@ -8,8 +8,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseAgentModule = void 0;
 const common_1 = require("@nestjs/common");
-const event_bus_service_1 = require("../events/event-bus.service");
-const memory_service_1 = require("../memory/memory.service");
 const events_module_1 = require("../events/events.module");
 const memory_module_1 = require("../memory/memory.module");
 let BaseAgentModule = class BaseAgentModule {
@@ -20,7 +18,7 @@ exports.BaseAgentModule = BaseAgentModule = __decorate([
     (0, common_1.Module)({
         imports: [events_module_1.EventsModule, memory_module_1.MemoryModule],
         providers: [],
-        exports: [events_module_1.EventsModule, memory_module_1.MemoryModule, event_bus_service_1.EventBusService, memory_service_1.MemoryService],
+        exports: [events_module_1.EventsModule, memory_module_1.MemoryModule],
     })
 ], BaseAgentModule);
 //# sourceMappingURL=base-agent.module.js.map
