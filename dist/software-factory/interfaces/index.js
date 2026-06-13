@@ -18,4 +18,5 @@ __exportStar(require("./mission-contract.interface"), exports);
 __exportStar(require("./mission-state.interface"), exports);
 __exportStar(require("./team.interface"), exports);
 __exportStar(require("./agent-pool.interface"), exports);
+__exportStar(require("./agents-64.interface"), exports);
 //# sourceMappingURL=index.js.map

@@ -4,6 +4,7 @@ import { MissionStateMachineService } from './mission-state-machine/mission-stat
 import { AgentPoolService } from './agent-pool/agent-pool.service';
 import { DeliveryService } from './delivery/delivery.service';
 import { MissionArchiveService } from './archive/mission-archive.service';
+import { AgentRegistryService } from './registry/agent-registry.service';
 export declare class SoftwareFactoryController {
     private readonly missionControl;
     private readonly contractService;
@@ -11,7 +12,8 @@ export declare class SoftwareFactoryController {
     private readonly agentPool;
     private readonly deliveryService;
     private readonly archiveService;
-    constructor(missionControl: MissionControlService, contractService: MissionContractService, stateMachine: MissionStateMachineService, agentPool: AgentPoolService, deliveryService: DeliveryService, archiveService: MissionArchiveService);
+    private readonly agentRegistry;
+    constructor(missionControl: MissionControlService, contractService: MissionContractService, stateMachine: MissionStateMachineService, agentPool: AgentPoolService, deliveryService: DeliveryService, archiveService: MissionArchiveService, agentRegistry: AgentRegistryService);
     submitMission(body: {
         instruction: string;
         description?: string;
@@ -102,5 +104,48 @@ export declare class SoftwareFactoryController {
             };
             missionsByState: Record<string, number>;
         };
+    };
+    getAllAgents(): {
+        success: boolean;
+        data: {
+            total: {
+                permanent: number;
+                onDemand: number;
+                total: number;
+            };
+            agents: import("./interfaces").AgentDefinition[];
+        };
+    };
+    getAgentsByLevel(level: string): {
+        success: boolean;
+        error: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: import("./interfaces").AgentDefinition[];
+        error?: undefined;
+    };
+    getTeamCompositions(): {
+        success: boolean;
+        data: import("./interfaces").TeamComposition[];
+    };
+    recommendAgents(body: {
+        mission: string;
+    }): {
+        success: boolean;
+        data: {
+            mission: string;
+            recommendedAgents: import("./interfaces").AgentDefinition[];
+            totalRecommended: number;
+        };
+    };
+    getAgentDefinition(id: string): {
+        success: boolean;
+        error: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: import("./interfaces").AgentDefinition;
+        error?: undefined;
     };
 }

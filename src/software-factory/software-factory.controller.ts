@@ -20,7 +20,8 @@ import { MissionStateMachineService, MissionState } from './mission-state-machin
 import { AgentPoolService } from './agent-pool/agent-pool.service';
 import { DeliveryService } from './delivery/delivery.service';
 import { MissionArchiveService } from './archive/mission-archive.service';
-import { MissionQuality } from './interfaces';
+import { AgentRegistryService } from './registry/agent-registry.service';
+import { MissionQuality, AgentLevel } from './interfaces';
 
 @Controller('api/factory')
 export class SoftwareFactoryController {
@@ -31,6 +32,7 @@ export class SoftwareFactoryController {
     private readonly agentPool: AgentPoolService,
     private readonly deliveryService: DeliveryService,
     private readonly archiveService: MissionArchiveService,
+    private readonly agentRegistry: AgentRegistryService,
   ) {}
 
   /**
@@ -216,5 +218,77 @@ export class SoftwareFactoryController {
         missionsByState,
       },
     };
+  }
+
+  /**
+   * Get all 64 agent definitions
+   * GET /api/factory/agents
+   */
+  @Get('agents')
+  getAllAgents() {
+    return {
+      success: true,
+      data: {
+        total: this.agentRegistry.getTotalCount(),
+        agents: this.agentRegistry.getAllDefinitions(),
+      },
+    };
+  }
+
+  /**
+   * Get agents by level
+   * GET /api/factory/agents/level/:level
+   */
+  @Get('agents/level/:level')
+  getAgentsByLevel(@Param('level') level: string) {
+    const agentLevel = Object.values(AgentLevel).find(l => l.toLowerCase() === level.toLowerCase());
+    if (!agentLevel) {
+      return { success: false, error: `Invalid level: ${level}` };
+    }
+    return {
+      success: true,
+      data: this.agentRegistry.getByLevel(agentLevel as AgentLevel),
+    };
+  }
+
+  /**
+   * Get team compositions
+   * GET /api/factory/agents/teams
+   */
+  @Get('agents/teams')
+  getTeamCompositions() {
+    return {
+      success: true,
+      data: this.agentRegistry.getTeamCompositions(),
+    };
+  }
+
+  /**
+   * Find agents needed for a mission
+   * POST /api/factory/agents/recommend
+   */
+  @Post('agents/recommend')
+  recommendAgents(@Body() body: { mission: string }) {
+    return {
+      success: true,
+      data: {
+        mission: body.mission,
+        recommendedAgents: this.agentRegistry.findAgentsForMission(body.mission),
+        totalRecommended: this.agentRegistry.findAgentsForMission(body.mission).length,
+      },
+    };
+  }
+
+  /**
+   * Get single agent definition
+   * GET /api/factory/agents/:id
+   */
+  @Get('agents/:id')
+  getAgentDefinition(@Param('id') id: string) {
+    const definition = this.agentRegistry.getDefinition(id as any);
+    if (!definition) {
+      return { success: false, error: `Agent not found: ${id}` };
+    }
+    return { success: true, data: definition };
   }
 }

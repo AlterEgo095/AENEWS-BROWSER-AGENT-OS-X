@@ -1,0 +1,27 @@
+import { BaseAgentService } from '../../base/base-agent.service';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+export declare const META_PLANNER_AGENT_CONFIG: AgentConfig;
+export declare class PlannerAgentService extends BaseAgentService {
+    private plans;
+    protected defineConfig(): AgentConfig;
+    protected onInitialize(): Promise<void>;
+    protected onExecute(input: AgentInput): Promise<AgentOutput>;
+    protected onDestroy(): Promise<void>;
+    private createPlan;
+    private decomposeGoal;
+    private prioritizeTasks;
+    private estimateEffort;
+    private identifyDependencies;
+    private optimizePlan;
+    private extractMainComponents;
+    private extractSubComponents;
+    private estimateImpact;
+    private estimateEffortScore;
+    private estimateBaseHours;
+    private calculateConfidence;
+    private identifyEffortRiskFactors;
+    private inferImplicitDependencies;
+    private calculateCriticalPath;
+    private identifyParallelGroups;
+    private generatePrioritizationRationale;
+}

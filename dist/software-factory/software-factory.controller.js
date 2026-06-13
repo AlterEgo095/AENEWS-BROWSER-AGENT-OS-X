@@ -21,15 +21,17 @@ const mission_state_machine_service_1 = require("./mission-state-machine/mission
 const agent_pool_service_1 = require("./agent-pool/agent-pool.service");
 const delivery_service_1 = require("./delivery/delivery.service");
 const mission_archive_service_1 = require("./archive/mission-archive.service");
+const agent_registry_service_1 = require("./registry/agent-registry.service");
 const interfaces_1 = require("./interfaces");
 let SoftwareFactoryController = class SoftwareFactoryController {
-    constructor(missionControl, contractService, stateMachine, agentPool, deliveryService, archiveService) {
+    constructor(missionControl, contractService, stateMachine, agentPool, deliveryService, archiveService, agentRegistry) {
         this.missionControl = missionControl;
         this.contractService = contractService;
         this.stateMachine = stateMachine;
         this.agentPool = agentPool;
         this.deliveryService = deliveryService;
         this.archiveService = archiveService;
+        this.agentRegistry = agentRegistry;
     }
     async submitMission(body) {
         const request = {
@@ -128,6 +130,48 @@ let SoftwareFactoryController = class SoftwareFactoryController {
                 missionsByState,
             },
         };
+    }
+    getAllAgents() {
+        return {
+            success: true,
+            data: {
+                total: this.agentRegistry.getTotalCount(),
+                agents: this.agentRegistry.getAllDefinitions(),
+            },
+        };
+    }
+    getAgentsByLevel(level) {
+        const agentLevel = Object.values(interfaces_1.AgentLevel).find(l => l.toLowerCase() === level.toLowerCase());
+        if (!agentLevel) {
+            return { success: false, error: `Invalid level: ${level}` };
+        }
+        return {
+            success: true,
+            data: this.agentRegistry.getByLevel(agentLevel),
+        };
+    }
+    getTeamCompositions() {
+        return {
+            success: true,
+            data: this.agentRegistry.getTeamCompositions(),
+        };
+    }
+    recommendAgents(body) {
+        return {
+            success: true,
+            data: {
+                mission: body.mission,
+                recommendedAgents: this.agentRegistry.findAgentsForMission(body.mission),
+                totalRecommended: this.agentRegistry.findAgentsForMission(body.mission).length,
+            },
+        };
+    }
+    getAgentDefinition(id) {
+        const definition = this.agentRegistry.getDefinition(id);
+        if (!definition) {
+            return { success: false, error: `Agent not found: ${id}` };
+        }
+        return { success: true, data: definition };
     }
 };
 exports.SoftwareFactoryController = SoftwareFactoryController;
@@ -239,6 +283,49 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getFactoryStats", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get all 64 agent definitions\nGET /api/factory/agents" }),
+    (0, common_1.Get)('agents'),
+    openapi.ApiResponse({ status: 200 }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getAllAgents", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get agents by level\nGET /api/factory/agents/level/:level" }),
+    (0, common_1.Get)('agents/level/:level'),
+    openapi.ApiResponse({ status: 200, type: Object }),
+    __param(0, (0, common_1.Param)('level')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getAgentsByLevel", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get team compositions\nGET /api/factory/agents/teams" }),
+    (0, common_1.Get)('agents/teams'),
+    openapi.ApiResponse({ status: 200 }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getTeamCompositions", null);
+__decorate([
+    openapi.ApiOperation({ description: "Find agents needed for a mission\nPOST /api/factory/agents/recommend" }),
+    (0, common_1.Post)('agents/recommend'),
+    openapi.ApiResponse({ status: 201 }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "recommendAgents", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get single agent definition\nGET /api/factory/agents/:id" }),
+    (0, common_1.Get)('agents/:id'),
+    openapi.ApiResponse({ status: 200, type: Object }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getAgentDefinition", null);
 exports.SoftwareFactoryController = SoftwareFactoryController = __decorate([
     (0, common_1.Controller)('api/factory'),
     __metadata("design:paramtypes", [mission_control_service_1.MissionControlService,
@@ -246,6 +333,7 @@ exports.SoftwareFactoryController = SoftwareFactoryController = __decorate([
         mission_state_machine_service_1.MissionStateMachineService,
         agent_pool_service_1.AgentPoolService,
         delivery_service_1.DeliveryService,
-        mission_archive_service_1.MissionArchiveService])
+        mission_archive_service_1.MissionArchiveService,
+        agent_registry_service_1.AgentRegistryService])
 ], SoftwareFactoryController);
 //# sourceMappingURL=software-factory.controller.js.map
