@@ -10,7 +10,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HealthController = void 0;
-const openapi = require("@nestjs/swagger");
 const common_1 = require("@nestjs/common");
 const terminus_1 = require("@nestjs/terminus");
 const swagger_1 = require("@nestjs/swagger");
@@ -38,7 +37,6 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Full health check' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Health check passed' }),
     (0, swagger_1.ApiResponse)({ status: 503, description: 'Health check failed' }),
-    openapi.ApiResponse({ status: 200, type: Object }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
@@ -47,7 +45,6 @@ __decorate([
     (0, common_1.Get)('live'),
     (0, swagger_1.ApiOperation)({ summary: 'Liveness probe' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Service is live' }),
-    openapi.ApiResponse({ status: 200 }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Object)
@@ -58,7 +55,6 @@ __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Readiness probe' }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Service is ready' }),
     (0, swagger_1.ApiResponse)({ status: 503, description: 'Service is not ready' }),
-    openapi.ApiResponse({ status: 200, type: Object }),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)

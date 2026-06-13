@@ -1,12 +1,15 @@
 /**
- * AENEWS Software Factory — Batch Runner
- * 
+ * AENEWS Software Factory — Batch Runner (Connector-based)
+ *
  * Executes N missions sequentially, measures MSR, and produces a report.
  * This is the Sprint 1 validation tool: "The pipeline must run 100 times without error."
- * 
+ *
+ * Now delegates all LLM calls, file parsing, template generation, etc.
+ * to the connector system instead of duplicating that logic here.
+ *
  * Usage:
  *   npx ts-node src/software-factory/runtime/batch-runner.ts [--count 10] [--mission-id 12] [--easy]
- * 
+ *
  * Options:
  *   --count N        Run N missions (default: 5)
  *   --mission-id N   Run specific reference mission by ID
@@ -24,6 +27,15 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { ReferenceMissions, ReferenceMission } from './reference-missions';
 import { MissionMetricsService, MissionCategory, MissionMetric, AggregateMetrics, MSR_TARGETS } from './mission-metrics.service';
+
+import { DevelopmentConnector } from '../connectors/development-connector';
+import { BrowserConnector } from '../connectors/browser-connector';
+import { CertificationConnector } from '../connectors/certification-connector';
+import { DeliveryConnector } from '../connectors/delivery-connector';
+import { OfficeConnector } from '../connectors/office-connector';
+import { BusinessConnector } from '../connectors/business-connector';
+import { ICapabilityConnector, ConnectorInput, ConnectorOutput } from '../connectors/connector.interface';
+import { DevCapability, CertCapability, DeliveryCapability, CapabilityId } from '../interfaces';
 
 // ─── Types (simplified, no NestJS) ────────────────────────────
 
@@ -56,13 +68,76 @@ interface PhaseTiming {
 // ─── THE BATCH RUNNER ─────────────────────────────────────────
 
 class BatchRunner {
-  private zaiInstance: any = null;
   private readonly baseWorkspace = '/home/z/my-project/download/missions';
-  private llmCallCount = 0;
+  private connectorCallCount = 0;
   private metrics: MissionMetric[] = [];
+
+  /** Local connector registry — maps capability IDs to connector instances */
+  private readonly connectors = new Map<string, ICapabilityConnector>();
 
   constructor() {
     fs.mkdirSync(this.baseWorkspace, { recursive: true });
+
+    // Instantiate connectors directly (standalone — no NestJS DI)
+    const devConnector = new DevelopmentConnector();
+    const browserConnector = new BrowserConnector();
+    const certConnector = new CertificationConnector();
+    const deliveryConnector = new DeliveryConnector();
+    const officeConnector = new OfficeConnector();
+    const businessConnector = new BusinessConnector();
+
+    this.registerConnector(devConnector);
+    this.registerConnector(browserConnector);
+    this.registerConnector(certConnector);
+    this.registerConnector(deliveryConnector);
+    this.registerConnector(officeConnector);
+    this.registerConnector(businessConnector);
+  }
+
+  /**
+   * Register a connector by iterating its supported capability IDs.
+   * We register all known capability IDs from each pack so the
+   * local registry can dispatch to the right connector.
+   */
+  private registerConnector(connector: ICapabilityConnector): void {
+    const capabilityIds = this.getCapabilityIdsForPack(connector.supportedPack);
+    for (const capId of capabilityIds) {
+      this.connectors.set(capId, connector);
+    }
+  }
+
+  /**
+   * Get all capability ID strings for a given pack.
+   * This avoids needing a separate registry module.
+   */
+  private getCapabilityIdsForPack(pack: string): string[] {
+    switch (pack) {
+      case 'DEVELOPMENT':
+        return Object.values(DevCapability);
+      case 'BROWSER':
+        return [
+          'browser.login', 'browser.navigation', 'browser.search', 'browser.form',
+          'browser.upload', 'browser.download', 'browser.screenshot', 'browser.vision',
+          'browser.session', 'browser.cookie', 'browser.popup', 'browser.ocr',
+        ];
+      case 'CERTIFICATION':
+        return Object.values(CertCapability);
+      case 'DELIVERY':
+        return Object.values(DeliveryCapability);
+      case 'OFFICE':
+        return [
+          'office.pdf', 'office.docx', 'office.excel', 'office.powerpoint',
+          'office.ocr', 'office.signature', 'office.email', 'office.calendar',
+        ];
+      case 'BUSINESS':
+        return [
+          'business.seo', 'business.marketing', 'business.copywriting', 'business.branding',
+          'business.crm', 'business.analytics', 'business.finance', 'business.sales',
+          'business.legal', 'business.partnership',
+        ];
+      default:
+        return [];
+    }
   }
 
   private delay(ms: number): Promise<void> {
@@ -70,9 +145,68 @@ class BatchRunner {
   }
 
   private async rateLimitDelay(): Promise<void> {
-    const delayMs = this.llmCallCount > 5 ? 3000 : 1500;
+    const delayMs = this.connectorCallCount > 5 ? 3000 : 1500;
     await this.delay(delayMs);
   }
+
+  /**
+   * Execute a capability via the connector system
+   */
+  private async executeViaConnector(
+    capabilityId: CapabilityId,
+    input: ConnectorInput,
+  ): Promise<ConnectorOutput> {
+    const connector = this.connectors.get(capabilityId as string);
+    if (!connector || !connector.supports(capabilityId)) {
+      return {
+        success: false,
+        artifacts: [],
+        output: { skipped: true },
+        costUsd: 0,
+        durationMs: 0,
+        error: `No connector for ${capabilityId}`,
+      };
+    }
+    this.connectorCallCount++;
+    return connector.execute(capabilityId, input);
+  }
+
+  /**
+   * Build a ConnectorInput with common fields
+   */
+  private buildConnectorInput(
+    missionId: string,
+    instruction: string,
+    workspaceDir: string,
+    previousResults: Map<CapabilityId, ConnectorOutput>,
+    parameters: Record<string, any> = {},
+  ): ConnectorInput {
+    return {
+      missionId,
+      instruction,
+      workspaceDir,
+      parameters,
+      previousResults,
+      tools: [],
+    };
+  }
+
+  /**
+   * Convert ConnectorOutput artifacts to RuntimeArtifact format
+   */
+  private convertArtifacts(connectorArtifacts: any[]): RuntimeArtifact[] {
+    return connectorArtifacts.map(a => ({
+      name: a.name,
+      type: a.type as RuntimeArtifact['type'],
+      path: a.path,
+      size: a.size,
+      content: a.content,
+    }));
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  BATCH RUN
+  // ═══════════════════════════════════════════════════════════
 
   /**
    * Run a batch of reference missions and measure MSR
@@ -104,7 +238,7 @@ class BatchRunner {
     missions = missions.slice(0, count);
 
     console.log(`\n${'═'.repeat(80)}`);
-    console.log(`  AENEWS SOFTWARE FACTORY — BATCH RUN`);
+    console.log(`  AENEWS SOFTWARE FACTORY — BATCH RUN (Connector-based)`);
     console.log(`  Missions: ${missions.length} | Delay: ${delayMs}ms`);
     console.log(`${'═'.repeat(80)}\n`);
 
@@ -112,11 +246,11 @@ class BatchRunner {
 
     for (let i = 0; i < missions.length; i++) {
       const mission = missions[i];
-      console.log(`\n[${ i + 1}/${missions.length}] Mission #${mission.id}: "${mission.instruction.slice(0, 60)}..."`);
+      console.log(`\n[${i + 1}/${missions.length}] Mission #${mission.id}: "${mission.instruction.slice(0, 60)}..."`);
       console.log(`  Category: ${mission.category} | Pack: ${mission.capabilityPack} | Difficulty: ${mission.difficulty}`);
 
       const result = await this.executeMission(mission.instruction);
-      
+
       // Record metric
       const metric: MissionMetric = {
         missionId: result.missionId,
@@ -162,14 +296,25 @@ class BatchRunner {
     return this.computeAggregate();
   }
 
+  // ═══════════════════════════════════════════════════════════
+  //  EXECUTE MISSION — via connectors
+  // ═══════════════════════════════════════════════════════════
+
   /**
-   * Execute a single mission (same logic as StandaloneRunner)
+   * Execute a single mission using the connector pipeline:
+   *   1. Analyze   → dev.architecture connector
+   *   2. Build     → dev.frontend, dev.backend, dev.database, dev.docker (based on plan)
+   *   3. Test      → dev.test + dev.qa connectors
+   *   4. Audit     → Quick checks (no LLM for speed in batch mode)
+   *   5. Certify   → Score computation
+   *   6. Document  → dev.documentation connector
+   *   7. ZIP       → delivery.zip connector
+   *   8. Quality Gate → if score < 60, run dev.debug then re-test (1 attempt only)
    */
   async executeMission(instruction: string): Promise<RuntimeResult> {
     const missionId = `mission-${uuidv4().slice(0, 8)}`;
     const startTime = Date.now();
     let totalCost = 0;
-    let retries = 0;
 
     const workspaceDir = path.join(this.baseWorkspace, missionId);
     fs.mkdirSync(workspaceDir, { recursive: true });
@@ -179,83 +324,229 @@ class BatchRunner {
 
     const artifacts: RuntimeArtifact[] = [];
     const errors: string[] = [];
+    const previousResults = new Map<CapabilityId, ConnectorOutput>();
 
-    // Phase 1: Analyze
-    let analysis: any;
+    // ─── Phase 1: Analyze → dev.architecture connector ────────
+    let analysisPlan: any;
     try {
-      analysis = await this.analyzeMission(instruction);
-      totalCost += analysis.cost;
+      await this.rateLimitDelay();
+      const archInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const archResult = await this.executeViaConnector(DevCapability.ARCHITECTURE, archInput);
+      totalCost += archResult.costUsd;
+      previousResults.set(DevCapability.ARCHITECTURE, archResult);
+
+      if (archResult.success && archResult.output?.architecture) {
+        // Try to parse a JSON plan from the architecture output
+        try {
+          const jsonMatch = archResult.output.architecture.match(/\{[\s\S]*\}/);
+          analysisPlan = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+        } catch { /* not JSON, that's fine */ }
+      }
+
+      // Add architecture artifacts
+      artifacts.push(...this.convertArtifacts(archResult.artifacts));
     } catch (err: any) {
       errors.push(`Analysis: ${err.message}`);
-      analysis = { plan: this.fallbackPlan(instruction), cost: 0 };
     }
 
-    // Phase 2: Build
-    await this.rateLimitDelay();
-    try {
-      const buildResult = await this.executeBuild(instruction, analysis, workspaceDir);
-      totalCost += buildResult.cost;
-      artifacts.push(...buildResult.artifacts);
-    } catch (err: any) {
-      errors.push(`Build: ${err.message}`);
-      retries++;
-      // Template fallback
-      const templateCode = this.generateTemplateCode(instruction, analysis.plan);
-      const files = this.parseGeneratedFiles(templateCode);
-      for (const [filePath, content] of files) {
-        this.writeFile(workspaceDir, filePath, content);
-        let type: RuntimeArtifact['type'] = 'source';
-        if (filePath.includes('test') || filePath.includes('spec')) type = 'test';
-        else if (filePath.endsWith('.md') || filePath.endsWith('.txt')) type = 'document';
-        else if (filePath.endsWith('.json') || filePath.endsWith('.yml') || filePath.endsWith('.yaml') || filePath.endsWith('Dockerfile') || filePath.includes('.config')) type = 'config';
-        artifacts.push({ name: path.basename(filePath), type, path: path.join(workspaceDir, filePath), size: Buffer.byteLength(content), content: content.substring(0, 200) });
+    // Use fallback plan if analysis failed
+    if (!analysisPlan) {
+      analysisPlan = this.fallbackPlan(instruction);
+    }
+
+    // ─── Phase 2: Build → dev.frontend, dev.backend, dev.database, dev.docker ───
+    const hasBackend = /api|backend|server|database|erp|crm|todo|chat|auth/i.test(instruction);
+    const hasDatabase = /database|db|sql|sqlite|mongo|postgres|stock|erp|crm/i.test(instruction);
+    const buildCapabilities: CapabilityId[] = [DevCapability.FRONTEND];
+    if (hasBackend) buildCapabilities.push(DevCapability.BACKEND);
+    if (hasDatabase) buildCapabilities.push(DevCapability.DATABASE);
+
+    for (const capId of buildCapabilities) {
+      try {
+        await this.rateLimitDelay();
+        const buildInput = this.buildConnectorInput(
+          missionId,
+          instruction,
+          workspaceDir,
+          previousResults,
+          { plan: analysisPlan },
+        );
+        const buildResult = await this.executeViaConnector(capId, buildInput);
+        totalCost += buildResult.costUsd;
+        previousResults.set(capId, buildResult);
+
+        if (buildResult.success) {
+          artifacts.push(...this.convertArtifacts(buildResult.artifacts));
+        } else {
+          errors.push(`Build ${capId}: ${buildResult.error || 'connector returned failure'}`);
+        }
+      } catch (err: any) {
+        errors.push(`Build ${capId}: ${err.message}`);
+        // Continue with partial results — don't crash the batch
       }
     }
 
-    // Phase 3: Test
-    await this.rateLimitDelay();
-    let testResult: { passed: boolean; results: any[]; cost: number } = { passed: true, results: [], cost: 0 };
+    // Docker → dev.docker connector
     try {
-      testResult = await this.executeTests(workspaceDir, analysis);
-      totalCost += testResult.cost;
-    } catch (err: any) {
-      errors.push(`Test: ${err.message}`);
-    }
-
-    // Phase 4: Audit (skip LLM audit in batch mode for speed)
-    let auditResult: { passed: boolean; findings: string[]; cost: number } = { passed: true, findings: [], cost: 0 };
-    try {
-      auditResult = await this.executeAuditQuick(workspaceDir, artifacts);
-    } catch (err: any) {
-      errors.push(`Audit: ${err.message}`);
-    }
-
-    // Phase 5: Certification
-    const certResult = this.certify(artifacts, testResult, auditResult);
-
-    // Phase 6: Ensure Dockerfile
-    const dockerfilePath = path.join(workspaceDir, 'Dockerfile');
-    if (!fs.existsSync(dockerfilePath)) {
-      const dockerfile = this.generateDockerfile(analysis.plan);
-      this.writeFile(workspaceDir, 'Dockerfile', dockerfile);
-      artifacts.push({ name: 'Dockerfile', type: 'config', path: dockerfilePath, size: Buffer.byteLength(dockerfile) });
-    }
-
-    // Phase 7: Generate README (use template for speed in batch mode)
-    const readmeContent = `# ${instruction}\n\nGenerated by AENEWS Software Factory\n\n## Files\n\n${artifacts.map(a => `- \`${a.name}\` (${a.type}, ${a.size} bytes)`).join('\n')}\n\n## Installation\n\n\`\`\`bash\nnpm install\n\`\`\`\n\n## Usage\n\n\`\`\`bash\nnpm start\n\`\`\`\n\n## License\n\nMIT\n`;
-    this.writeFile(workspaceDir, 'README.md', readmeContent);
-    artifacts.push({ name: 'README.md', type: 'document', path: path.join(workspaceDir, 'README.md'), size: Buffer.byteLength(readmeContent) });
-
-    // Phase 8: ZIP
-    let zipPath: string | null = null;
-    try {
-      const { execSync } = await import('child_process');
-      zipPath = path.join(this.baseWorkspace, `${missionId}.zip`);
-      execSync(`cd "${workspaceDir}" && zip -r "${zipPath}" . -x "*.git*" 2>&1`, { timeout: 60000 });
-      if (fs.existsSync(zipPath) && fs.statSync(zipPath).size > 0) {
-        artifacts.push({ name: `${missionId}.zip`, type: 'archive', path: zipPath, size: fs.statSync(zipPath).size });
+      await this.rateLimitDelay();
+      const dockerInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults, { plan: analysisPlan });
+      const dockerResult = await this.executeViaConnector(DevCapability.DOCKER, dockerInput);
+      totalCost += dockerResult.costUsd;
+      previousResults.set(DevCapability.DOCKER, dockerResult);
+      if (dockerResult.success) {
+        artifacts.push(...this.convertArtifacts(dockerResult.artifacts));
       }
-    } catch { /* ZIP is optional in batch mode */ }
+    } catch (err: any) {
+      errors.push(`Docker: ${err.message}`);
+    }
+
+    // ─── Phase 3: Test → dev.test + dev.qa connectors ────────
+    let testPassed = true;
+    let testResults: any[] = [];
+
+    // dev.test — generates test code
+    try {
+      await this.rateLimitDelay();
+      const testInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const testResult = await this.executeViaConnector(DevCapability.TEST, testInput);
+      totalCost += testResult.costUsd;
+      previousResults.set(DevCapability.TEST, testResult);
+      if (testResult.success) {
+        artifacts.push(...this.convertArtifacts(testResult.artifacts));
+      }
+    } catch (err: any) {
+      errors.push(`Test generation: ${err.message}`);
+    }
+
+    // dev.qa — runs tests + LLM analysis
+    try {
+      await this.rateLimitDelay();
+      const qaInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const qaResult = await this.executeViaConnector(DevCapability.QA, qaInput);
+      totalCost += qaResult.costUsd;
+      previousResults.set(DevCapability.QA, qaResult);
+
+      if (qaResult.success) {
+        artifacts.push(...this.convertArtifacts(qaResult.artifacts));
+      } else {
+        testPassed = false;
+        if (qaResult.output?.results) {
+          testResults = qaResult.output.results;
+        }
+      }
+    } catch (err: any) {
+      errors.push(`QA: ${err.message}`);
+      testPassed = false;
+    }
+
+    // ─── Phase 4: Audit → Quick checks (no LLM for speed) ────
+    let auditPassed = true;
+    const auditFindings: string[] = [];
+    if (artifacts.filter(a => a.type === 'source').length === 0) {
+      auditFindings.push('No source files');
+      auditPassed = false;
+    }
+    for (const a of artifacts) {
+      if (a.size < 10 && a.type === 'source') {
+        auditFindings.push(`${a.name} too small`);
+      }
+    }
+
+    // ─── Phase 5: Certify → Score computation ────────────────
+    const certResult = this.certify(artifacts, testPassed, auditFindings);
+
+    // ─── Phase 6: Document → dev.documentation connector ─────
+    try {
+      await this.rateLimitDelay();
+      const docInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const docResult = await this.executeViaConnector(DevCapability.DOCUMENTATION, docInput);
+      totalCost += docResult.costUsd;
+      previousResults.set(DevCapability.DOCUMENTATION, docResult);
+      if (docResult.success) {
+        // Only add doc artifacts that aren't already present (avoid duplicates)
+        const existingNames = new Set(artifacts.map(a => a.name));
+        for (const art of this.convertArtifacts(docResult.artifacts)) {
+          if (!existingNames.has(art.name)) {
+            artifacts.push(art);
+          }
+        }
+      }
+    } catch (err: any) {
+      errors.push(`Documentation: ${err.message}`);
+    }
+
+    // ─── Phase 7: ZIP → delivery.zip connector ───────────────
+    try {
+      const zipInput = this.buildConnectorInput(
+        missionId,
+        instruction,
+        workspaceDir,
+        previousResults,
+        { outputPath: path.join(this.baseWorkspace, `${missionId}.zip`) },
+      );
+      const zipResult = await this.executeViaConnector(DeliveryCapability.ZIP, zipInput);
+      totalCost += zipResult.costUsd;
+      previousResults.set(DeliveryCapability.ZIP, zipResult);
+      if (zipResult.success) {
+        artifacts.push(...this.convertArtifacts(zipResult.artifacts));
+      }
+    } catch (err: any) {
+      errors.push(`ZIP: ${err.message}`);
+      // ZIP is optional in batch mode
+    }
+
+    // ─── Phase 8: Quality Gate → retry once if score < 60 ────
+    let finalScore = certResult.qualityScore;
+    let finalCertified = certResult.certified;
+
+    if (finalScore < 60) {
+      console.log(`  🔄 Quality gate: score ${finalScore} < 60, attempting debug + re-test...`);
+
+      // Run dev.debug connector
+      try {
+        await this.rateLimitDelay();
+        const debugInput = this.buildConnectorInput(
+          missionId,
+          instruction,
+          workspaceDir,
+          previousResults,
+          {
+            error: errors.join('; ') || 'Low quality score',
+            lastError: errors.join('; ') || 'Low quality score',
+          },
+        );
+        const debugResult = await this.executeViaConnector(DevCapability.DEBUG, debugInput);
+        totalCost += debugResult.costUsd;
+        previousResults.set(DevCapability.DEBUG, debugResult);
+        if (debugResult.success) {
+          artifacts.push(...this.convertArtifacts(debugResult.artifacts));
+        }
+      } catch (err: any) {
+        errors.push(`Debug: ${err.message}`);
+      }
+
+      // Re-test after debug
+      try {
+        await this.rateLimitDelay();
+        const reTestInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+        const reTestResult = await this.executeViaConnector(DevCapability.QA, reTestInput);
+        totalCost += reTestResult.costUsd;
+
+        if (reTestResult.success) {
+          testPassed = true;
+          if (reTestResult.artifacts?.length) {
+            artifacts.push(...this.convertArtifacts(reTestResult.artifacts));
+          }
+        }
+      } catch (err: any) {
+        errors.push(`Re-test: ${err.message}`);
+      }
+
+      // Re-certify
+      const reCert = this.certify(artifacts, testPassed, auditFindings);
+      finalScore = reCert.qualityScore;
+      finalCertified = reCert.certified;
+    }
 
     const totalDuration = Date.now() - startTime;
     const success = errors.length === 0 || artifacts.filter(a => a.type === 'source').length > 0;
@@ -265,11 +556,76 @@ class BatchRunner {
       success,
       artifacts,
       workspaceDir,
-      qualityScore: certResult.qualityScore,
-      certified: certResult.certified,
+      qualityScore: finalScore,
+      certified: finalCertified,
       totalDurationMs: totalDuration,
       totalCostUsd: totalCost,
       errors,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  CERTIFICATION (local scoring, no connector needed)
+  // ═══════════════════════════════════════════════════════════
+
+  private certify(
+    artifacts: RuntimeArtifact[],
+    testPassed: boolean,
+    auditFindings: string[],
+  ): { certified: boolean; qualityScore: number; reasons: string[] } {
+    const reasons: string[] = [];
+    let score = 100;
+
+    if (!testPassed) {
+      score -= 30;
+      reasons.push('Tests failed');
+    }
+    if (auditFindings.some(f => f.includes('No source'))) {
+      score -= 40;
+      reasons.push('No source code');
+    }
+    if (auditFindings.some(f => f.includes('too small'))) {
+      score -= 10;
+      reasons.push('Small files');
+    }
+    if (!artifacts.some(a => a.type === 'test')) {
+      score -= 10;
+      reasons.push('No tests');
+    }
+    if (!artifacts.some(a => a.type === 'document')) {
+      score -= 5;
+      reasons.push('No documentation');
+    }
+    if (!artifacts.some(a => a.type === 'config')) {
+      score -= 5;
+      reasons.push('No config files');
+    }
+
+    return { certified: score >= 60, qualityScore: Math.max(0, score), reasons };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  FALLBACK PLAN (kept — connectors don't generate this)
+  // ═══════════════════════════════════════════════════════════
+
+  private fallbackPlan(instruction: string): any {
+    const lower = instruction.toLowerCase();
+    const isWebApp = /app|application|web|site|page|saas|erp|todo|list/i.test(lower);
+    const hasBackend = /api|backend|server|database|erp|crm|todo/i.test(lower);
+    return {
+      objective: instruction,
+      techStack: isWebApp ? ['HTML', 'CSS', 'JavaScript', 'Node.js'] : ['JavaScript'],
+      phases: [
+        { name: 'Architecture', tasks: ['Define structure'], capabilities: ['dev.architecture'], estimatedMinutes: 10 },
+        { name: 'Frontend', tasks: ['Build UI'], capabilities: ['dev.frontend'], estimatedMinutes: 30 },
+        ...(hasBackend ? [{ name: 'Backend', tasks: ['Build API'], capabilities: ['dev.backend'], estimatedMinutes: 45 }] : []),
+        { name: 'Testing', tasks: ['Write tests'], capabilities: ['dev.test'], estimatedMinutes: 15 },
+      ],
+      requiredCapabilities: hasBackend
+        ? ['dev.architecture', 'dev.frontend', 'dev.backend', 'dev.test']
+        : ['dev.architecture', 'dev.frontend', 'dev.test'],
+      deliverables: ['index.html', 'style.css', 'app.js', 'README.md', 'Dockerfile'],
+      complexity: hasBackend ? 'medium' : 'low',
     };
   }
 
@@ -376,253 +732,6 @@ class BatchRunner {
       msrGap: 0.70 - (total > 0 ? successes / total : 0),
     };
   }
-
-  // ═══════════════════════════════════════════════════════════
-  //  EXECUTION METHODS (same as StandaloneRunner, simplified)
-  // ═══════════════════════════════════════════════════════════
-
-  private async analyzeMission(instruction: string): Promise<{ plan: any; cost: number }> {
-    try {
-      const response = await this.callLLM(`Analyze this mission and create a plan in JSON: {"objective":"...","techStack":[...],"phases":[...],"requiredCapabilities":[...],"deliverables":[...],"complexity":"low|medium|high"}\n\nMission: "${instruction}"`);
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      return { plan: jsonMatch ? JSON.parse(jsonMatch[0]) : this.fallbackPlan(instruction), cost: 0.02 };
-    } catch {
-      return { plan: this.fallbackPlan(instruction), cost: 0 };
-    }
-  }
-
-  private async executeBuild(instruction: string, analysis: { plan: any }, workspaceDir: string): Promise<{ artifacts: RuntimeArtifact[]; cost: number }> {
-    const artifacts: RuntimeArtifact[] = [];
-    let totalCost = 0;
-
-    const codePrompt = `You are an expert software developer. Build this project COMPLETELY.\n\nMission: "${instruction}"\nPlan: ${JSON.stringify(analysis.plan, null, 2)}\n\nGenerate ALL code using this format:\n\n===FILE: path/to/file===\n(file content)\n===ENDFILE===\n\nInclude source files, package.json, Dockerfile, test files. Write REAL WORKING code.`;
-
-    let codeResponse: string;
-    let llmSucceeded = false;
-    try {
-      codeResponse = await this.callLLM(codePrompt);
-      totalCost += 0.10;
-      llmSucceeded = true;
-    } catch (err: any) {
-      // Will use template fallback
-    }
-
-    let files = new Map<string, string>();
-    if (llmSucceeded) {
-      files = this.parseGeneratedFiles(codeResponse!);
-      if (files.size < 2) {
-        const codeBlocks = this.extractCodeBlocks(codeResponse!);
-        if (codeBlocks.size > files.size) files = codeBlocks;
-      }
-    }
-
-    if (files.size === 0) {
-      const templateResponse = this.generateTemplateCode(instruction, analysis.plan);
-      files = this.parseGeneratedFiles(templateResponse);
-    }
-
-    for (const [filePath, content] of files) {
-      const fullPath = path.join(workspaceDir, filePath);
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      fs.writeFileSync(fullPath, content, 'utf-8');
-      let type: RuntimeArtifact['type'] = 'source';
-      if (filePath.includes('test') || filePath.includes('spec')) type = 'test';
-      else if (filePath.endsWith('.md') || filePath.endsWith('.txt')) type = 'document';
-      else if (filePath.endsWith('.json') || filePath.endsWith('.yml') || filePath.endsWith('.yaml') || filePath.endsWith('Dockerfile') || filePath.includes('.config')) type = 'config';
-      artifacts.push({ name: path.basename(filePath), type, path: fullPath, size: Buffer.byteLength(content), content: content.substring(0, 500) });
-    }
-
-    // Ensure test file
-    if (!artifacts.some(a => a.type === 'test')) {
-      const testCode = this.generateFallbackTests(instruction, workspaceDir);
-      if (testCode) {
-        const testPath = path.join(workspaceDir, 'tests', 'test.js');
-        this.writeFile(workspaceDir, 'tests/test.js', testCode);
-        artifacts.push({ name: 'test.js', type: 'test', path: testPath, size: Buffer.byteLength(testCode) });
-      }
-    }
-
-    return { artifacts, cost: totalCost };
-  }
-
-  private async executeTests(workspaceDir: string, analysis: { plan: any }): Promise<{ passed: boolean; results: any[]; cost: number }> {
-    const results: any[] = [];
-    const testDir = path.join(workspaceDir, 'tests');
-    if (fs.existsSync(testDir)) {
-      const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
-      for (const testFile of testFiles.slice(0, 3)) {
-        try {
-          const { execSync } = await import('child_process');
-          const output = execSync(`node "${path.join(testDir, testFile)}" 2>&1`, { timeout: 30000, cwd: workspaceDir }).toString();
-          results.push({ file: testFile, passed: true, output: output.slice(0, 300) });
-        } catch (err: any) {
-          results.push({ file: testFile, passed: false, output: (err.stdout || err.message || '').toString().slice(0, 300) });
-        }
-      }
-    }
-    const passed = results.length === 0 || results.every(r => r.passed);
-    return { passed, results, cost: 0.01 };
-  }
-
-  private async executeAuditQuick(workspaceDir: string, artifacts: RuntimeArtifact[]): Promise<{ passed: boolean; findings: string[]; cost: number }> {
-    const findings: string[] = [];
-    if (artifacts.filter(a => a.type === 'source').length === 0) findings.push('No source files');
-    for (const a of artifacts) {
-      if (a.size < 10 && a.type === 'source') findings.push(`${a.name} too small`);
-    }
-    return { passed: findings.length === 0, findings, cost: 0 };
-  }
-
-  private certify(artifacts: RuntimeArtifact[], testResult: { passed: boolean; results: any[] }, auditResult: { passed: boolean; findings: string[] }): { certified: boolean; qualityScore: number; reasons: string[] } {
-    const reasons: string[] = [];
-    let score = 100;
-    if (!testResult.passed) { score -= 30; reasons.push('Tests failed'); }
-    if (auditResult.findings.some(f => f.includes('No source'))) { score -= 40; reasons.push('No source code'); }
-    if (auditResult.findings.some(f => f.includes('too small'))) { score -= 10; reasons.push('Small files'); }
-    if (!artifacts.some(a => a.type === 'test')) { score -= 10; reasons.push('No tests'); }
-    return { certified: score >= 60, qualityScore: Math.max(0, score), reasons };
-  }
-
-  // ─── LLM Integration ─────────────────────────────────────
-
-  private async callLLM(prompt: string): Promise<string> {
-    if (!this.zaiInstance) {
-      const sdk = await import('z-ai-web-dev-sdk');
-      const ZAIClass = sdk.default || sdk;
-      this.zaiInstance = await ZAIClass.create();
-    }
-
-    const maxRetries = 3;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        const completion = await this.zaiInstance.chat.completions.create({
-          messages: [
-            { role: 'system', content: 'You are an expert software engineer. Generate complete, working, production-ready code. Be thorough and practical.' },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.3,
-          max_tokens: 4096,
-        });
-        const content = completion.choices?.[0]?.message?.content;
-        if (content) { this.llmCallCount++; return content; }
-        throw new Error('Empty LLM response');
-      } catch (err: any) {
-        const isRateLimit = err.message?.includes('429') || err.message?.includes('rate');
-        if (isRateLimit && attempt < maxRetries - 1) {
-          const delayMs = Math.pow(2, attempt) * 3000;
-          console.log(`     Rate limited, retrying in ${delayMs / 1000}s...`);
-          await this.delay(delayMs);
-          continue;
-        }
-        throw err;
-      }
-    }
-    throw new Error('Max retries exceeded');
-  }
-
-  // ─── File Operations (reused from StandaloneRunner) ──────
-
-  private writeFile(workspaceDir: string, relativePath: string, content: string): void {
-    const fullPath = path.join(workspaceDir, relativePath);
-    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-    fs.writeFileSync(fullPath, content, 'utf-8');
-  }
-
-  private parseGeneratedFiles(response: string): Map<string, string> {
-    const files = new Map<string, string>();
-    const fileRegex = /===FILE:\s*(.+?)===\s*\n([\s\S]*?)===ENDFILE===/g;
-    let match;
-    while ((match = fileRegex.exec(response)) !== null) {
-      if (match[1].trim() && match[2].trim()) files.set(match[1].trim(), match[2].trim());
-    }
-    if (files.size > 0) return files;
-
-    const codeBlockRegex = /```(\w*?)\s*\n([\s\S]*?)```/g;
-    while ((match = codeBlockRegex.exec(response)) !== null) {
-      const lang = match[1].trim();
-      const content = match[2].trim();
-      if (!content || content.length < 10) continue;
-      const beforeMatch = response.substring(Math.max(0, match.index - 200), match.index);
-      const nameMatch = beforeMatch.match(/(\S+\.\w+)/);
-      if (nameMatch) { files.set(nameMatch[1], content); }
-      else {
-        const langMap: Record<string, string> = { 'html': 'index.html', 'css': 'style.css', 'javascript': 'app.js', 'js': 'app.js', 'json': 'package.json', 'dockerfile': 'Dockerfile' };
-        const fileName = langMap[lang.toLowerCase()];
-        if (fileName && !files.has(fileName)) files.set(fileName, content);
-      }
-    }
-    return files;
-  }
-
-  private extractCodeBlocks(response: string): Map<string, string> {
-    const files = new Map<string, string>();
-    const lines = response.split('\n');
-    let currentFile = '';
-    let currentContent: string[] = [];
-    let inCodeBlock = false;
-    let codeLang = '';
-    let fileCounter = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.trim().startsWith('```')) {
-        if (inCodeBlock) {
-          const content = currentContent.join('\n').trim();
-          if (content.length > 10) {
-            if (!currentFile) {
-              const langMap: Record<string, string> = { 'html': 'index.html', 'css': 'style.css', 'javascript': 'app.js', 'js': 'app.js', 'json': 'package.json', 'dockerfile': 'Dockerfile' };
-              currentFile = langMap[codeLang.toLowerCase()] || `file-${++fileCounter}.${codeLang || 'txt'}`;
-            }
-            if (!files.has(currentFile)) files.set(currentFile, content);
-          }
-          currentFile = ''; currentContent = []; inCodeBlock = false;
-        } else {
-          inCodeBlock = true;
-          codeLang = line.trim().replace('```', '').trim();
-          const prevLines = lines.slice(Math.max(0, i - 3), i).join('\n');
-          const m = prevLines.match(/(\S+\.\w+)/);
-          if (m) currentFile = m[1];
-        }
-      } else if (inCodeBlock) {
-        currentContent.push(line);
-      }
-    }
-    return files;
-  }
-
-  // ─── Template / Fallback Code (simplified) ───────────────
-
-  private fallbackPlan(instruction: string): any {
-    const lower = instruction.toLowerCase();
-    const isWebApp = /app|application|web|site|page|saas|erp|todo|list/i.test(lower);
-    const hasBackend = /api|backend|server|database|erp|crm|todo/i.test(lower);
-    return {
-      objective: instruction,
-      techStack: isWebApp ? ['HTML', 'CSS', 'JavaScript', 'Node.js'] : ['JavaScript'],
-      phases: [
-        { name: 'Architecture', tasks: ['Define structure'], capabilities: ['dev.architecture'], estimatedMinutes: 10 },
-        { name: 'Frontend', tasks: ['Build UI'], capabilities: ['dev.frontend'], estimatedMinutes: 30 },
-        ...(hasBackend ? [{ name: 'Backend', tasks: ['Build API'], capabilities: ['dev.backend'], estimatedMinutes: 45 }] : []),
-        { name: 'Testing', tasks: ['Write tests'], capabilities: ['dev.test'], estimatedMinutes: 15 },
-      ],
-      requiredCapabilities: hasBackend ? ['dev.architecture', 'dev.frontend', 'dev.backend', 'dev.test'] : ['dev.architecture', 'dev.frontend', 'dev.test'],
-      deliverables: ['index.html', 'style.css', 'app.js', 'README.md', 'Dockerfile'],
-      complexity: hasBackend ? 'medium' : 'low',
-    };
-  }
-
-  private generateTemplateCode(instruction: string, plan: any): string {
-    const title = instruction.slice(0, 60);
-    return `===FILE: index.html===\n<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>${title}</title>\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <div id="app">\n        <header><h1>${title}</h1></header>\n        <main id="content"><p>Generated by AENEWS Software Factory</p></main>\n    </div>\n    <script src="app.js"></script>\n</body>\n</html>\n===ENDFILE===\n\n===FILE: style.css===\n* { margin: 0; padding: 0; box-sizing: border-box; }\nbody { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }\n#app { max-width: 800px; margin: 0 auto; padding: 2rem; }\nheader { text-align: center; margin-bottom: 2rem; }\nheader h1 { font-size: 2rem; color: #60a5fa; }\nmain { background: #1e293b; border-radius: 12px; padding: 2rem; }\n===ENDFILE===\n\n===FILE: app.js===\ndocument.addEventListener('DOMContentLoaded', () => {\n    console.log('${title} loaded');\n});\n===ENDFILE===\n\n===FILE: Dockerfile===\nFROM node:18-alpine\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\nCMD ["npx", "serve", "-s", ".", "-l", "3000"]\n===ENDFILE===`;
-  }
-
-  private generateDockerfile(plan: any): string {
-    return `FROM node:18-alpine\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\nCMD ["npx", "serve", "-s", ".", "-l", "3000"]`;
-  }
-
-  private generateFallbackTests(instruction: string, workspaceDir: string): string {
-    return `const fs = require('fs');\nconst path = require('path');\nlet passed = 0, failed = 0;\nfunction assert(c, m) { if(c) { passed++; console.log('  ✓ ' + m); } else { failed++; console.log('  ✗ ' + m); } }\nconsole.log('Running tests for: ${instruction.slice(0, 50)}');\nassert(fs.existsSync(path.join(__dirname, '..', 'index.html')), 'index.html exists');\nassert(fs.existsSync(path.join(__dirname, '..', 'Dockerfile')), 'Dockerfile exists');\nconst html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf-8');\nassert(html.includes('<!DOCTYPE'), 'HTML has doctype');\nassert(html.includes('</html>'), 'HTML is complete');\nconsole.log('\\nResults: ' + passed + ' passed, ' + failed + ' failed');\nif (failed > 0) process.exit(1);`;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -631,7 +740,7 @@ class BatchRunner {
 
 async function main() {
   const args = process.argv.slice(2);
-  
+
   let count = 5;
   let missionIds: number[] = [];
   let difficulty: 'easy' | 'medium' | 'hard' | undefined;
@@ -649,7 +758,7 @@ async function main() {
   }
 
   const runner = new BatchRunner();
-  
+
   try {
     await runner.runBatch({
       count,

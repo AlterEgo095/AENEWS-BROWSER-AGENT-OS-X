@@ -18,13 +18,18 @@ interface RuntimeResult {
     errors: string[];
 }
 declare class BatchRunner {
-    private zaiInstance;
     private readonly baseWorkspace;
-    private llmCallCount;
+    private connectorCallCount;
     private metrics;
+    private readonly connectors;
     constructor();
+    private registerConnector;
+    private getCapabilityIdsForPack;
     private delay;
     private rateLimitDelay;
+    private executeViaConnector;
+    private buildConnectorInput;
+    private convertArtifacts;
     runBatch(options: {
         count?: number;
         missionIds?: number[];
@@ -33,21 +38,10 @@ declare class BatchRunner {
         delayMs?: number;
     }): Promise<AggregateMetrics>;
     executeMission(instruction: string): Promise<RuntimeResult>;
+    private certify;
+    private fallbackPlan;
     private printReport;
     private saveMetrics;
     private computeAggregate;
-    private analyzeMission;
-    private executeBuild;
-    private executeTests;
-    private executeAuditQuick;
-    private certify;
-    private callLLM;
-    private writeFile;
-    private parseGeneratedFiles;
-    private extractCodeBlocks;
-    private fallbackPlan;
-    private generateTemplateCode;
-    private generateDockerfile;
-    private generateFallbackTests;
 }
 export { BatchRunner };
