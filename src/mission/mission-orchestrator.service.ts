@@ -191,32 +191,125 @@ export interface MissionStats {
 // ─── Instruction Heuristic Keywords ───────────────────────────────
 
 const BROWSER_KEYWORDS = [
-  'web', 'search', 'scrape', 'scraping', 'browse', 'navigate', 'url',
-  'website', 'page', 'crawling', 'crawl', 'download', 'screenshot',
-  'online', 'internet', 'http', 'api call', 'fetch data', 'extract data',
-  'monitor site', 'track price', 'research online', 'find information',
-  'collect data', 'survey', 'competitive analysis', 'market data',
+  'web',
+  'search',
+  'scrape',
+  'scraping',
+  'browse',
+  'navigate',
+  'url',
+  'website',
+  'page',
+  'crawling',
+  'crawl',
+  'download',
+  'screenshot',
+  'online',
+  'internet',
+  'http',
+  'api call',
+  'fetch data',
+  'extract data',
+  'monitor site',
+  'track price',
+  'research online',
+  'find information',
+  'collect data',
+  'survey',
+  'competitive analysis',
+  'market data',
 ];
 
 const DEVELOPMENT_KEYWORDS = [
-  'create', 'build', 'develop', 'code', 'app', 'application', 'software',
-  'website', 'api', 'backend', 'frontend', 'fullstack', 'database',
-  'deploy', 'saas', 'platform', 'service', 'microservice', 'function',
-  'component', 'module', 'library', 'framework', 'test', 'testing',
-  'debug', 'refactor', 'migrate', 'integrate', 'automate', 'script',
-  'program', 'algorithm', 'feature', 'ui', 'ux', 'rest', 'graphql',
-  'crud', 'auth', 'authentication', 'authorization', 'docker',
-  'kubernetes', 'ci/cd', 'pipeline', 'infrastructure', 'terraform',
-  'construct', 'implement', 'engineer', 'scaffold', 'generate code',
+  'create',
+  'build',
+  'develop',
+  'code',
+  'app',
+  'application',
+  'software',
+  'website',
+  'api',
+  'backend',
+  'frontend',
+  'fullstack',
+  'database',
+  'deploy',
+  'saas',
+  'platform',
+  'service',
+  'microservice',
+  'function',
+  'component',
+  'module',
+  'library',
+  'framework',
+  'test',
+  'testing',
+  'debug',
+  'refactor',
+  'migrate',
+  'integrate',
+  'automate',
+  'script',
+  'program',
+  'algorithm',
+  'feature',
+  'ui',
+  'ux',
+  'rest',
+  'graphql',
+  'crud',
+  'auth',
+  'authentication',
+  'authorization',
+  'docker',
+  'kubernetes',
+  'ci/cd',
+  'pipeline',
+  'infrastructure',
+  'terraform',
+  'construct',
+  'implement',
+  'engineer',
+  'scaffold',
+  'generate code',
 ];
 
 const BUSINESS_KEYWORDS = [
-  'analyze', 'report', 'marketing', 'seo', 'strategy', 'business',
-  'financial', 'market research', 'competitor', 'roi', 'kpi', 'metrics',
-  'analytics', 'dashboard', 'insight', 'forecast', 'budget', 'revenue',
-  'growth', 'conversion', 'engagement', 'audience', 'segmentation',
-  'brand', 'content strategy', 'campaign', 'optimization', 'audit',
-  'compliance', 'legal', 'proposal', 'business plan', 'model',
+  'analyze',
+  'report',
+  'marketing',
+  'seo',
+  'strategy',
+  'business',
+  'financial',
+  'market research',
+  'competitor',
+  'roi',
+  'kpi',
+  'metrics',
+  'analytics',
+  'dashboard',
+  'insight',
+  'forecast',
+  'budget',
+  'revenue',
+  'growth',
+  'conversion',
+  'engagement',
+  'audience',
+  'segmentation',
+  'brand',
+  'content strategy',
+  'campaign',
+  'optimization',
+  'audit',
+  'compliance',
+  'legal',
+  'proposal',
+  'business plan',
+  'model',
 ];
 
 // ─── Certification Domain Names ───────────────────────────────────
@@ -235,10 +328,27 @@ const CERTIFICATION_DOMAINS = [
 
 const VALID_TRANSITIONS: Record<MissionStatus, MissionStatus[]> = {
   [MissionStatus.RECEIVED]: [MissionStatus.PLANNING, MissionStatus.CANCELLED],
-  [MissionStatus.PLANNING]: [MissionStatus.EXECUTING, MissionStatus.FAILED, MissionStatus.CANCELLED],
-  [MissionStatus.EXECUTING]: [MissionStatus.CERTIFYING, MissionStatus.FAILED, MissionStatus.CANCELLED, MissionStatus.PAUSED],
-  [MissionStatus.CERTIFYING]: [MissionStatus.DELIVERING, MissionStatus.FAILED, MissionStatus.CANCELLED],
-  [MissionStatus.DELIVERING]: [MissionStatus.COMPLETED, MissionStatus.FAILED, MissionStatus.CANCELLED],
+  [MissionStatus.PLANNING]: [
+    MissionStatus.EXECUTING,
+    MissionStatus.FAILED,
+    MissionStatus.CANCELLED,
+  ],
+  [MissionStatus.EXECUTING]: [
+    MissionStatus.CERTIFYING,
+    MissionStatus.FAILED,
+    MissionStatus.CANCELLED,
+    MissionStatus.PAUSED,
+  ],
+  [MissionStatus.CERTIFYING]: [
+    MissionStatus.DELIVERING,
+    MissionStatus.FAILED,
+    MissionStatus.CANCELLED,
+  ],
+  [MissionStatus.DELIVERING]: [
+    MissionStatus.COMPLETED,
+    MissionStatus.FAILED,
+    MissionStatus.CANCELLED,
+  ],
   [MissionStatus.COMPLETED]: [],
   [MissionStatus.FAILED]: [],
   [MissionStatus.CANCELLED]: [],
@@ -482,9 +592,7 @@ export class MissionOrchestratorService {
       ];
 
       // Business phase can run in parallel with browser if browser exists
-      const businessDependsOn = needsBrowser
-        ? [lastPhaseId]
-        : [planPhaseId];
+      const businessDependsOn = needsBrowser ? [lastPhaseId] : [planPhaseId];
 
       phases.push({
         id: businessPhaseId,
@@ -549,9 +657,7 @@ export class MissionOrchestratorService {
       ];
 
       // Development depends on browser research if it exists, otherwise on plan
-      const developDependsOn = needsBrowser
-        ? [lastPhaseId]
-        : [planPhaseId];
+      const developDependsOn = needsBrowser ? [lastPhaseId] : [planPhaseId];
 
       phases.push({
         id: developPhaseId,
@@ -639,25 +745,19 @@ export class MissionOrchestratorService {
     dependencies.push({ from: certifyPhaseId, to: deliverPhaseId });
 
     // ── Build the plan ────────────────────────────────────────────
-    const totalEstimatedDurationMs = phases.reduce(
-      (sum, p) => sum + p.estimatedDurationMs,
-      0,
-    );
+    const totalEstimatedDurationMs = phases.reduce((sum, p) => sum + p.estimatedDurationMs, 0);
 
     // Rough cost estimation based on teams and phases
     const costPerTeam: Record<TeamType, number> = {
       [TeamType.BROWSER]: 0.05,
       [TeamType.DEVELOPMENT]: 0.25,
-      [TeamType.BUSINESS]: 0.10,
+      [TeamType.BUSINESS]: 0.1,
       [TeamType.MEMORY]: 0.02,
       [TeamType.CERTIFICATION]: 0.08,
       [TeamType.DELIVERY]: 0.03,
     };
 
-    const estimatedCost = requiredTeams.reduce(
-      (sum, team) => sum + (costPerTeam[team] ?? 0),
-      0,
-    );
+    const estimatedCost = requiredTeams.reduce((sum, team) => sum + (costPerTeam[team] ?? 0), 0);
 
     const plan: MissionPlan = {
       missionId,
@@ -731,9 +831,7 @@ export class MissionOrchestratorService {
       totalPhases: mission.plan.phases.length,
     });
 
-    this.logger.log(
-      `🚀 Executing mission ${missionId} (${mission.plan.phases.length} phases)...`,
-    );
+    this.logger.log(`🚀 Executing mission ${missionId} (${mission.plan.phases.length} phases)...`);
 
     const phases = mission.plan.phases;
 
@@ -741,7 +839,9 @@ export class MissionOrchestratorService {
       // ── Check for cancellation ────────────────────────────────
       if (this.cancelledMissions.has(missionId)) {
         this.transitionStatus(mission, MissionStatus.CANCELLED);
-        this.emitEvent(missionId, 'mission.cancelled', { reason: 'User cancelled during execution' });
+        this.emitEvent(missionId, 'mission.cancelled', {
+          reason: 'User cancelled during execution',
+        });
         return;
       }
 
@@ -782,9 +882,7 @@ export class MissionOrchestratorService {
         const result = mission.results.get(plannedPhase.type);
         if (result && !result.success) {
           // Phase failed — attempt repair
-          this.logger.warn(
-            `⚠️  Phase ${plannedPhase.type} failed, attempting repair...`,
-          );
+          this.logger.warn(`⚠️  Phase ${plannedPhase.type} failed, attempting repair...`);
 
           const repaired = await this.attemptRepair(missionId, plannedPhase.type);
 
@@ -802,9 +900,7 @@ export class MissionOrchestratorService {
           }
         }
       } catch (error) {
-        this.logger.error(
-          `❌ Phase ${plannedPhase.type} threw error: ${(error as Error).message}`,
-        );
+        this.logger.error(`❌ Phase ${plannedPhase.type} threw error: ${(error as Error).message}`);
 
         // Attempt repair
         const repaired = await this.attemptRepair(missionId, plannedPhase.type);
@@ -893,16 +989,11 @@ export class MissionOrchestratorService {
 
     if (isParallel) {
       // Execute all tasks concurrently
-      const taskPromises = phaseRecord.tasks.map((task) =>
-        this.executeTask(missionId, task, team),
-      );
+      const taskPromises = phaseRecord.tasks.map((task) => this.executeTask(missionId, task, team));
       await Promise.allSettled(taskPromises);
     } else {
       // Execute tasks sequentially with dependency ordering
-      const sortedTasks = this.topologicalSortTasks(
-        phaseRecord.tasks,
-        plannedPhase?.tasks ?? [],
-      );
+      const sortedTasks = this.topologicalSortTasks(phaseRecord.tasks, plannedPhase?.tasks ?? []);
 
       for (const task of sortedTasks) {
         // Check cancellation/pause between tasks
@@ -972,20 +1063,13 @@ export class MissionOrchestratorService {
     const domains: CertificationDomain[] = [];
 
     // ── Completeness Certification ────────────────────────────────
-    const allPhasesCompleted = mission.phases.every(
-      (p) => p.status === 'completed',
-    );
-    const totalTasks = mission.phases.reduce(
-      (sum, p) => sum + p.tasks.length,
-      0,
-    );
+    const allPhasesCompleted = mission.phases.every((p) => p.status === 'completed');
+    const totalTasks = mission.phases.reduce((sum, p) => sum + p.tasks.length, 0);
     const completedTasks = mission.phases.reduce(
       (sum, p) => sum + p.tasks.filter((t) => t.status === 'completed').length,
       0,
     );
-    const completenessScore = totalTasks > 0
-      ? Math.round((completedTasks / totalTasks) * 100)
-      : 0;
+    const completenessScore = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     domains.push({
       name: 'completeness',
@@ -1015,15 +1099,12 @@ export class MissionOrchestratorService {
     // ── Performance Certification ─────────────────────────────────
     const resultEntries = [] as PhaseResult[];
     mission.results.forEach((r) => resultEntries.push(r));
-    const totalDuration = resultEntries.reduce(
-      (sum, r) => sum + r.durationMs,
-      0,
-    );
+    const totalDuration = resultEntries.reduce((sum, r) => sum + r.durationMs, 0);
     const estimatedDuration = mission.plan?.estimatedDurationMs ?? 0;
     const withinEstimate = totalDuration <= estimatedDuration * 1.5;
     const performanceScore = withinEstimate
       ? Math.min(100, Math.round((estimatedDuration / Math.max(totalDuration, 1)) * 100))
-      : Math.max(0, Math.round(100 - ((totalDuration - estimatedDuration * 1.5) / 1000)));
+      : Math.max(0, Math.round(100 - (totalDuration - estimatedDuration * 1.5) / 1000));
 
     domains.push({
       name: 'performance',
@@ -1035,9 +1116,8 @@ export class MissionOrchestratorService {
     // ── Reliability Certification ─────────────────────────────────
     const failedPhases = mission.phases.filter((p) => p.status === 'failed').length;
     const totalPhases = mission.phases.length;
-    const reliabilityScore = totalPhases > 0
-      ? Math.round(((totalPhases - failedPhases) / totalPhases) * 100)
-      : 100;
+    const reliabilityScore =
+      totalPhases > 0 ? Math.round(((totalPhases - failedPhases) / totalPhases) * 100) : 100;
 
     domains.push({
       name: 'reliability',
@@ -1047,8 +1127,9 @@ export class MissionOrchestratorService {
     });
 
     // ── Documentation Certification ───────────────────────────────
-    const hasDocs = mission.results.has(MissionPhaseType.DEVELOP)
-      && mission.phases.some((p) =>
+    const hasDocs =
+      mission.results.has(MissionPhaseType.DEVELOP) &&
+      mission.phases.some((p) =>
         p.tasks.some((t) => t.capability === 'documentation' && t.status === 'completed'),
       );
     const docScore = hasDocs ? 85 : 40;
@@ -1064,7 +1145,11 @@ export class MissionOrchestratorService {
 
     // ── Test Coverage Certification ───────────────────────────────
     const hasTests = mission.phases.some((p) =>
-      p.tasks.some((t) => (t.capability === 'test' || t.capability === 'certify_quality') && t.status === 'completed'),
+      p.tasks.some(
+        (t) =>
+          (t.capability === 'test' || t.capability === 'certify_quality') &&
+          t.status === 'completed',
+      ),
     );
     const testScore = hasTests ? 80 : 30;
 
@@ -1079,13 +1164,13 @@ export class MissionOrchestratorService {
 
     // ── Compute overall score ─────────────────────────────────────
     const weights: Record<string, number> = {
-      completeness: 0.20,
-      quality: 0.20,
+      completeness: 0.2,
+      quality: 0.2,
       security: 0.15,
-      performance: 0.10,
+      performance: 0.1,
       reliability: 0.15,
-      documentation: 0.10,
-      test_coverage: 0.10,
+      documentation: 0.1,
+      test_coverage: 0.1,
     };
 
     const overallScore = Math.round(
@@ -1189,8 +1274,9 @@ export class MissionOrchestratorService {
           type: 'deployed_url',
           name: `deployment-url-${missionId.substring(0, 8)}`,
           description: 'Deployed application URL',
-          location: devResult.output?.find?.((o: any) => o.capability === 'deploy')?.result?.url
-            ?? `https://app-${missionId.substring(0, 8)}.aenews.app`,
+          location:
+            devResult.output?.find?.((o: any) => o.capability === 'deploy')?.result?.url ??
+            `https://app-${missionId.substring(0, 8)}.aenews.app`,
           createdAt: new Date(),
         });
       }
@@ -1271,9 +1357,7 @@ export class MissionOrchestratorService {
     ];
 
     if (!cancellableStatuses.includes(mission.status)) {
-      this.logger.warn(
-        `Cannot cancel mission ${missionId} in status ${mission.status}`,
-      );
+      this.logger.warn(`Cannot cancel mission ${missionId} in status ${mission.status}`);
       return false;
     }
 
@@ -1305,9 +1389,7 @@ export class MissionOrchestratorService {
     if (!mission) return false;
 
     if (mission.status !== MissionStatus.EXECUTING) {
-      this.logger.warn(
-        `Cannot pause mission ${missionId} in status ${mission.status}`,
-      );
+      this.logger.warn(`Cannot pause mission ${missionId} in status ${mission.status}`);
       return false;
     }
 
@@ -1338,9 +1420,7 @@ export class MissionOrchestratorService {
     if (!mission) return false;
 
     if (mission.status !== MissionStatus.PAUSED) {
-      this.logger.warn(
-        `Cannot resume mission ${missionId} in status ${mission.status}`,
-      );
+      this.logger.warn(`Cannot resume mission ${missionId} in status ${mission.status}`);
       return false;
     }
 
@@ -1362,7 +1442,10 @@ export class MissionOrchestratorService {
   /**
    * Get mission history, optionally filtered by user.
    */
-  getMissionHistory(userId?: string, limit: number = 50): Array<{
+  getMissionHistory(
+    userId?: string,
+    limit: number = 50,
+  ): Array<{
     id: string;
     instruction: string;
     status: MissionStatus;
@@ -1419,43 +1502,41 @@ export class MissionOrchestratorService {
     const completedMissions = missions.filter(
       (m) => m.status === MissionStatus.COMPLETED && m.startedAt && m.completedAt,
     );
-    const averageDurationMs = completedMissions.length > 0
-      ? Math.round(
-          completedMissions.reduce((sum, m) => {
-            return sum + (m.completedAt!.getTime() - m.startedAt!.getTime());
-          }, 0) / completedMissions.length,
-        )
-      : 0;
+    const averageDurationMs =
+      completedMissions.length > 0
+        ? Math.round(
+            completedMissions.reduce((sum, m) => {
+              return sum + (m.completedAt!.getTime() - m.startedAt!.getTime());
+            }, 0) / completedMissions.length,
+          )
+        : 0;
 
     // Success rate
     const terminalMissions = missions.filter((m) =>
       [MissionStatus.COMPLETED, MissionStatus.FAILED].includes(m.status),
     );
-    const successRate = terminalMissions.length > 0
-      ? Math.round(
-          (terminalMissions.filter((m) => m.status === MissionStatus.COMPLETED).length /
-            terminalMissions.length) *
-            100,
-        ) / 100
-      : 0;
+    const successRate =
+      terminalMissions.length > 0
+        ? Math.round(
+            (terminalMissions.filter((m) => m.status === MissionStatus.COMPLETED).length /
+              terminalMissions.length) *
+              100,
+          ) / 100
+        : 0;
 
     // Deliverables
-    const totalDeliverables = missions.reduce(
-      (sum, m) => sum + m.deliverables.length,
-      0,
-    );
+    const totalDeliverables = missions.reduce((sum, m) => sum + m.deliverables.length, 0);
 
     // Certifications
     const certifiedMissions = missions.filter((m) => m.certificationReport !== null);
     const totalCertifications = certifiedMissions.length;
-    const averageCertificationScore = certifiedMissions.length > 0
-      ? Math.round(
-          certifiedMissions.reduce(
-            (sum, m) => sum + m.certificationReport!.overallScore,
-            0,
-          ) / certifiedMissions.length,
-        )
-      : 0;
+    const averageCertificationScore =
+      certifiedMissions.length > 0
+        ? Math.round(
+            certifiedMissions.reduce((sum, m) => sum + m.certificationReport!.overallScore, 0) /
+              certifiedMissions.length,
+          )
+        : 0;
 
     return {
       totalMissions,
@@ -1579,9 +1660,7 @@ export class MissionOrchestratorService {
           task.result = {
             contextRetrieved: true,
             relevantMemories: [],
-            projectContext: mission.metadata.projectId
-              ? { id: mission.metadata.projectId }
-              : null,
+            projectContext: mission.metadata.projectId ? { id: mission.metadata.projectId } : null,
           };
           task.status = 'completed';
         } else {
@@ -1627,9 +1706,7 @@ export class MissionOrchestratorService {
       task.startedAt = new Date();
       task.assignedAgent = `cert-agent-${uuidv4().substring(0, 8)}`;
 
-      const domain = report.domains.find(
-        (d) => d.name === task.capability.replace('certify_', ''),
-      );
+      const domain = report.domains.find((d) => d.name === task.capability.replace('certify_', ''));
 
       if (domain) {
         task.result = {
@@ -1718,11 +1795,7 @@ export class MissionOrchestratorService {
   /**
    * Execute a single task within a phase.
    */
-  private async executeTask(
-    missionId: string,
-    task: PhaseTask,
-    team: TeamType,
-  ): Promise<void> {
+  private async executeTask(missionId: string, task: PhaseTask, team: TeamType): Promise<void> {
     task.status = 'assigned';
     task.assignedAgent = `${team}-agent-${uuidv4().substring(0, 8)}`;
     task.startedAt = new Date();
@@ -1768,10 +1841,7 @@ export class MissionOrchestratorService {
    * Simulate task execution for a given team and capability.
    * In production, this delegates to actual agent services.
    */
-  private async simulateTaskExecution(
-    task: PhaseTask,
-    team: TeamType,
-  ): Promise<any> {
+  private async simulateTaskExecution(task: PhaseTask, team: TeamType): Promise<any> {
     // Simulated execution delay based on team type
     const delays: Record<TeamType, number> = {
       [TeamType.BROWSER]: 2000,
@@ -1838,16 +1908,11 @@ export class MissionOrchestratorService {
   /**
    * Attempt to repair a failed phase. Returns true if repair succeeded.
    */
-  private async attemptRepair(
-    missionId: string,
-    phaseType: MissionPhaseType,
-  ): Promise<boolean> {
+  private async attemptRepair(missionId: string, phaseType: MissionPhaseType): Promise<boolean> {
     const currentAttempts = this.repairAttempts.get(missionId) ?? 0;
 
     if (currentAttempts >= 1) {
-      this.logger.warn(
-        `Repair limit reached for mission ${missionId}, phase ${phaseType}`,
-      );
+      this.logger.warn(`Repair limit reached for mission ${missionId}, phase ${phaseType}`);
       return false;
     }
 
@@ -1888,9 +1953,7 @@ export class MissionOrchestratorService {
       const result = await this.executePhase(missionId, phaseType);
       return result.success;
     } catch (error) {
-      this.logger.error(
-        `Repair failed for mission ${missionId}: ${(error as Error).message}`,
-      );
+      this.logger.error(`Repair failed for mission ${missionId}: ${(error as Error).message}`);
       return false;
     }
   }
@@ -1913,19 +1976,13 @@ export class MissionOrchestratorService {
     const previousStatus = mission.status;
     mission.status = newStatus;
 
-    this.logger.debug?.(
-      `Mission ${mission.id}: ${previousStatus} → ${newStatus}`,
-    );
+    this.logger.debug?.(`Mission ${mission.id}: ${previousStatus} → ${newStatus}`);
   }
 
   /**
    * Emit a structured mission event.
    */
-  private emitEvent(
-    missionId: string,
-    type: string,
-    data: Record<string, any>,
-  ): void {
+  private emitEvent(missionId: string, type: string, data: Record<string, any>): void {
     const event: MissionEvent = {
       type,
       missionId,
@@ -2011,7 +2068,10 @@ export class MissionOrchestratorService {
     estimatedDurationMinutes: number;
   } {
     const complexity = this.assessComplexity(instruction);
-    const multipliers: Record<string, { estimatedPhases: number; estimatedTasks: number; estimatedDurationMinutes: number }> = {
+    const multipliers: Record<
+      string,
+      { estimatedPhases: number; estimatedTasks: number; estimatedDurationMinutes: number }
+    > = {
       low: { estimatedPhases: 3, estimatedTasks: 5, estimatedDurationMinutes: 2 },
       medium: { estimatedPhases: 4, estimatedTasks: 10, estimatedDurationMinutes: 5 },
       high: { estimatedPhases: 5, estimatedTasks: 18, estimatedDurationMinutes: 10 },
@@ -2128,10 +2188,7 @@ export class MissionOrchestratorService {
    * Topological sort of tasks based on dependencies.
    * Falls back to sequential order if no dependency info available.
    */
-  private topologicalSortTasks(
-    phaseTasks: PhaseTask[],
-    plannedTasks: PlannedTask[],
-  ): PhaseTask[] {
+  private topologicalSortTasks(phaseTasks: PhaseTask[], plannedTasks: PlannedTask[]): PhaseTask[] {
     if (plannedTasks.length === 0) return phaseTasks;
 
     // Build dependency graph from planned tasks

@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { DeploymentAgentService } from './deployment/deployment-agent.service';
 import { MonitoringAgentService } from './monitoring/monitoring-agent.service';
 import { LoggingAgentService } from './logging/logging-agent.service';
@@ -17,7 +18,7 @@ import { ContainerAgentService } from './container/container-agent.service';
 import { ConfigurationAgentService } from './configuration/configuration-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Deployment — deploy, rollback, blue-green, canary, smoke-test, promote
     DeploymentAgentService,

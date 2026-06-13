@@ -67,14 +67,24 @@ export interface BrowserObservability {
 export interface InfrastructureObservability {
   redis: { connected: boolean; memoryUsedMb: number; commandsPerSec: number; keys: number };
   rabbitmq: { connected: boolean; queues: number; messages: number; consumers: number };
-  postgresql: { connected: boolean; activeConnections: number; queriesPerSec: number; sizeMb: number };
+  postgresql: {
+    connected: boolean;
+    activeConnections: number;
+    queriesPerSec: number;
+    sizeMb: number;
+  };
   cpu: { cores: number; usagePercent: number; loadAvg: number[] };
-  gpu: { available: boolean; memoryUsedMb: number; memoryTotalMb: number; utilizationPercent: number };
+  gpu: {
+    available: boolean;
+    memoryUsedMb: number;
+    memoryTotalMb: number;
+    utilizationPercent: number;
+  };
 }
 
 export interface EqiObservability {
   currentScore: number;
-  trend: number[];            // Last N scores
+  trend: number[]; // Last N scores
   byDomain: Record<string, number>;
   lastCertificationAt: Date | null;
   certificationLevel: string;
@@ -382,9 +392,7 @@ export class ObservabilityCenterService implements OnModuleInit {
       this.alerts.splice(0, this.alerts.length - MAX_ALERTS);
     }
 
-    this.logger.warn(
-      `Alert created [${severity}] from ${source}: ${message}`,
-    );
+    this.logger.warn(`Alert created [${severity}] from ${source}: ${message}`);
 
     return { ...alert, metadata: { ...alert.metadata } };
   }
@@ -601,17 +609,17 @@ export class ObservabilityCenterService implements OnModuleInit {
         criticalAlerts: criticalAlerts.length,
         eqiScore: snapshot.eqi.currentScore,
         infrastructureConnected:
-          (redisState.connected as boolean ?? true) &&
-          (rabbitmqState.connected as boolean ?? true) &&
-          (postgresqlState.connected as boolean ?? true),
+          ((redisState.connected as boolean) ?? true) &&
+          ((rabbitmqState.connected as boolean) ?? true) &&
+          ((postgresqlState.connected as boolean) ?? true),
       },
       keyMetrics,
       alertSummary,
       agentHealth: { healthy, degraded, failed },
       infrastructure: {
-        redisConnected: redisState.connected as boolean ?? true,
-        rabbitmqConnected: rabbitmqState.connected as boolean ?? true,
-        postgresqlConnected: postgresqlState.connected as boolean ?? true,
+        redisConnected: (redisState.connected as boolean) ?? true,
+        rabbitmqConnected: (rabbitmqState.connected as boolean) ?? true,
+        postgresqlConnected: (postgresqlState.connected as boolean) ?? true,
         cpuUsagePercent: (cpuState.usagePercent as number) ?? snapshot.system.cpuPercent,
         memoryUsagePercent: (memState.percent as number) ?? snapshot.system.memoryPercent,
       },
@@ -669,10 +677,7 @@ export class ObservabilityCenterService implements OnModuleInit {
    * Push infrastructure metrics for a component (redis, rabbitmq,
    * postgresql, cpu, gpu, system-memory, etc.).
    */
-  updateInfrastructureMetrics(
-    component: string,
-    metrics: Record<string, any>,
-  ): void {
+  updateInfrastructureMetrics(component: string, metrics: Record<string, any>): void {
     this.infraStates.set(component, { ...metrics });
 
     // Auto-record a metric for the update
@@ -687,12 +692,10 @@ export class ObservabilityCenterService implements OnModuleInit {
     }
 
     if (typeof metrics.connected === 'boolean' && !metrics.connected) {
-      this.createAlert(
-        'error',
-        `infrastructure.${component}`,
-        `${component} connection lost`,
-        { component, metrics },
-      );
+      this.createAlert('error', `infrastructure.${component}`, `${component} connection lost`, {
+        component,
+        metrics,
+      });
     }
   }
 
@@ -718,7 +721,8 @@ export class ObservabilityCenterService implements OnModuleInit {
       currentScore: score,
       trend,
       byDomain: { ...domains },
-      lastCertificationAt: certificationLevel !== 'uncertified' ? new Date() : this.eqiState.lastCertificationAt,
+      lastCertificationAt:
+        certificationLevel !== 'uncertified' ? new Date() : this.eqiState.lastCertificationAt,
       certificationLevel,
     };
 
@@ -779,10 +783,17 @@ export class ObservabilityCenterService implements OnModuleInit {
 
     // Infrastructure resource pressure
     if (snapshot.infrastructure.cpu.usagePercent > 90) {
-      issues.push(`Infrastructure CPU critical: ${snapshot.infrastructure.cpu.usagePercent.toFixed(1)}%`);
+      issues.push(
+        `Infrastructure CPU critical: ${snapshot.infrastructure.cpu.usagePercent.toFixed(1)}%`,
+      );
     }
-    if (snapshot.infrastructure.gpu.available && snapshot.infrastructure.gpu.utilizationPercent > 95) {
-      issues.push(`GPU utilization critical: ${snapshot.infrastructure.gpu.utilizationPercent.toFixed(1)}%`);
+    if (
+      snapshot.infrastructure.gpu.available &&
+      snapshot.infrastructure.gpu.utilizationPercent > 95
+    ) {
+      issues.push(
+        `GPU utilization critical: ${snapshot.infrastructure.gpu.utilizationPercent.toFixed(1)}%`,
+      );
     }
 
     // Agent health
@@ -824,12 +835,7 @@ export class ObservabilityCenterService implements OnModuleInit {
    * Buckets data into intervals and computes min/max/avg/sum/count
    * per bucket.
    */
-  getMetricTimeSeries(
-    name: string,
-    from: Date,
-    to: Date,
-    intervalMs: number,
-  ): TimeSeriesBucket[] {
+  getMetricTimeSeries(name: string, from: Date, to: Date, intervalMs: number): TimeSeriesBucket[] {
     if (intervalMs <= 0) {
       throw new Error('intervalMs must be positive');
     }
@@ -950,8 +956,8 @@ export class ObservabilityCenterService implements OnModuleInit {
 
     this.logger.log(
       `Cleanup complete: removed ${result.metricsRemoved} metrics, ` +
-      `${result.logsRemoved} logs, ${result.tracesRemoved} traces, ` +
-      `${result.alertsRemoved} alerts (retention=${retention}ms)`,
+        `${result.logsRemoved} logs, ${result.tracesRemoved} traces, ` +
+        `${result.alertsRemoved} alerts (retention=${retention}ms)`,
     );
 
     return result;
@@ -993,19 +999,16 @@ export class ObservabilityCenterService implements OnModuleInit {
    */
   private computeSystemHealth(now: Date): SystemHealth {
     // Collect CPU metric from buffer
-    const cpuMetrics = this.metricsBuffer.filter(
-      (m) => m.name === 'system.cpu.percent',
-    );
-    const cpuPercent = cpuMetrics.length > 0
-      ? cpuMetrics[cpuMetrics.length - 1].value
-      : process.cpuUsage?.().user
-        ? (process.cpuUsage().user / 1_000_000) * 100
-        : 0;
+    const cpuMetrics = this.metricsBuffer.filter((m) => m.name === 'system.cpu.percent');
+    const cpuPercent =
+      cpuMetrics.length > 0
+        ? cpuMetrics[cpuMetrics.length - 1].value
+        : process.cpuUsage?.().user
+          ? (process.cpuUsage().user / 1_000_000) * 100
+          : 0;
 
     // Memory from process or metric buffer
-    const memMetrics = this.metricsBuffer.filter(
-      (m) => m.name === 'system.memory.percent',
-    );
+    const memMetrics = this.metricsBuffer.filter((m) => m.name === 'system.memory.percent');
     let memoryPercent = 0;
     if (memMetrics.length > 0) {
       memoryPercent = memMetrics[memMetrics.length - 1].value;
@@ -1142,7 +1145,12 @@ export class ObservabilityCenterService implements OnModuleInit {
   private computeDashboardKeyMetrics(
     snapshot: ObservabilitySnapshot,
   ): Array<{ name: string; value: number; unit: string; trend: 'up' | 'down' | 'stable' }> {
-    const metrics: Array<{ name: string; value: number; unit: string; trend: 'up' | 'down' | 'stable' }> = [];
+    const metrics: Array<{
+      name: string;
+      value: number;
+      unit: string;
+      trend: 'up' | 'down' | 'stable';
+    }> = [];
 
     // CPU
     metrics.push({
@@ -1242,9 +1250,7 @@ export class ObservabilityCenterService implements OnModuleInit {
     metricName: string,
     maxPoints: number,
   ): Array<{ timestamp: Date; value: number }> {
-    const points = this.metricsBuffer
-      .filter((m) => m.name === metricName)
-      .slice(-maxPoints);
+    const points = this.metricsBuffer.filter((m) => m.name === metricName).slice(-maxPoints);
 
     return points.map((m) => ({ timestamp: m.timestamp, value: m.value }));
   }

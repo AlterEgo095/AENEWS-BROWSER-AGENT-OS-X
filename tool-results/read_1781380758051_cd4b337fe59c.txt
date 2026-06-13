@@ -1,0 +1,1089 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Network Agent
+     3→ * Network management, DNS, load balancing, and firewall configuration.
+     4→ * Configures DNS records, manages load balancers, configures firewalls, checks connectivity, analyzes traffic, and manages SSL certificates.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const NETWORK_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'infrastructure-network',
+    20→  name: 'Network',
+    21→  cluster: AgentCluster.INFRASTRUCTURE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Network management, DNS, load balancing, and firewall configuration. Manages DNS records, load balancers, firewall rules, connectivity checks, traffic analysis, and SSL/TLS certificates.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'configureDNS',
+    28→      description: 'Configure DNS records',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          domain: { type: 'string' },
+    33→          recordType: { type: 'string', enum: ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'NS'] },
+    34→          value: { type: 'string' },
+    35→          ttl: { type: 'number', default: 3600 },
+    36→          action: { type: 'string', enum: ['create', 'update', 'delete'], default: 'create' },
+    37→        },
+    38→        required: ['domain', 'recordType', 'value', 'action'],
+    39→      },
+    40→      outputSchema: {
+    41→        type: 'object',
+    42→        properties: {
+    43→          success: { type: 'boolean' },
+    44→          recordId: { type: 'string' },
+    45→        },
+    46→      },
+    47→    },
+    48→    {
+    49→      name: 'manageLoadBalancer',
+    50→      description: 'Manage load balancer configuration',
+    51→      inputSchema: {
+    52→        type: 'object',
+    53→        properties: {
+    54→          name: { type: 'string' },
+    55→          action: {
+    56→            type: 'string',
+    57→            enum: ['create', 'update', 'delete', 'addTarget', 'removeTarget', 'getHealth'],
+    58→          },
+    59→          algorithm: {
+    60→            type: 'string',
+    61→            enum: ['round_robin', 'least_connections', 'ip_hash', 'weighted'],
+    62→          },
+    63→          targets: { type: 'array', items: { type: 'object' } },
+    64→          healthCheckPath: { type: 'string' },
+    65→          port: { type: 'number' },
+    66→          protocol: { type: 'string', enum: ['http', 'https', 'tcp', 'udp'] },
+    67→        },
+    68→        required: ['name', 'action'],
+    69→      },
+    70→      outputSchema: {
+    71→        type: 'object',
+    72→        properties: {
+    73→          success: { type: 'boolean' },
+    74→          name: { type: 'string' },
+    75→        },
+    76→      },
+    77→    },
+    78→    {
+    79→      name: 'configureFirewall',
+    80→      description: 'Configure firewall rules',
+    81→      inputSchema: {
+    82→        type: 'object',
+    83→        properties: {
+    84→          name: { type: 'string' },
+    85→          action: { type: 'string', enum: ['create', 'update', 'delete', 'list'] },
+    86→          direction: { type: 'string', enum: ['ingress', 'egress'] },
+    87→          protocol: { type: 'string', enum: ['tcp', 'udp', 'icmp', 'all'] },
+    88→          portRange: {
+    89→            type: 'string',
+    90→            description: 'Port range (e.g., "80", "443", "1024-65535")',
+    91→          },
+    92→          sourceCidr: { type: 'string', description: 'Source CIDR block' },
+    93→          targetTags: { type: 'array', items: { type: 'string' } },
+    94→          ruleAction: { type: 'string', enum: ['allow', 'deny'] },
+    95→          priority: { type: 'number' },
+    96→        },
+    97→        required: ['name', 'action'],
+    98→      },
+    99→      outputSchema: {
+   100→        type: 'object',
+   101→        properties: {
+   102→          success: { type: 'boolean' },
+   103→          ruleId: { type: 'string' },
+   104→        },
+   105→      },
+   106→    },
+   107→    {
+   108→      name: 'checkConnectivity',
+   109→      description: 'Check network connectivity between endpoints',
+   110→      inputSchema: {
+   111→        type: 'object',
+   112→        properties: {
+   113→          source: { type: 'string', description: 'Source host or service' },
+   114→          target: { type: 'string', description: 'Target host, IP, or URL' },
+   115→          port: { type: 'number' },
+   116→          protocol: {
+   117→            type: 'string',
+   118→            enum: ['tcp', 'udp', 'icmp', 'http', 'https'],
+   119→            default: 'tcp',
+   120→          },
+   121→          timeout: { type: 'number', default: 5000 },
+   122→        },
+   123→        required: ['source', 'target'],
+   124→      },
+   125→      outputSchema: {
+   126→        type: 'object',
+   127→        properties: {
+   128→          connected: { type: 'boolean' },
+   129→          latencyMs: { type: 'number' },
+   130→        },
+   131→      },
+   132→    },
+   133→    {
+   134→      name: 'analyzeTraffic',
+   135→      description: 'Analyze network traffic patterns',
+   136→      inputSchema: {
+   137→        type: 'object',
+   138→        properties: {
+   139→          service: { type: 'string' },
+   140→          timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d'], default: '24h' },
+   141→          analysisType: {
+   142→            type: 'string',
+   143→            enum: ['bandwidth', 'connections', 'errors', 'latency', 'all'],
+   144→            default: 'all',
+   145→          },
+   146→        },
+   147→        required: ['service'],
+   148→      },
+   149→      outputSchema: {
+   150→        type: 'object',
+   151→        properties: {
+   152→          service: { type: 'string' },
+   153→          bandwidth: { type: 'object' },
+   154→          connections: { type: 'object' },
+   155→        },
+   156→      },
+   157→    },
+   158→    {
+   159→      name: 'manageSSL',
+   160→      description: 'Manage SSL/TLS certificates',
+   161→      inputSchema: {
+   162→        type: 'object',
+   163→        properties: {
+   164→          domain: { type: 'string' },
+   165→          action: { type: 'string', enum: ['provision', 'renew', 'revoke', 'list', 'verify'] },
+   166→          certificateType: {
+   167→            type: 'string',
+   168→            enum: ['lets_encrypt', 'custom', 'wildcard'],
+   169→            default: 'lets_encrypt',
+   170→          },
+   171→          autoRenew: { type: 'boolean', default: true },
+   172→        },
+   173→        required: ['domain', 'action'],
+   174→      },
+   175→      outputSchema: {
+   176→        type: 'object',
+   177→        properties: {
+   178→          success: { type: 'boolean' },
+   179→          domain: { type: 'string' },
+   180→          action: { type: 'string' },
+   181→        },
+   182→      },
+   183→    },
+   184→  ],
+   185→  permissions: [
+   186→    'execute:task',
+   187→    'manage:dns',
+   188→    'manage:load-balancer',
+   189→    'manage:firewall',
+   190→    'check:connectivity',
+   191→    'analyze:traffic',
+   192→    'manage:ssl',
+   193→  ],
+   194→  maxConcurrentTasks: 4,
+   195→  timeout: 90000,
+   196→  retryPolicy: {
+   197→    maxRetries: 2,
+   198→    backoffMs: 2000,
+   199→    exponentialBackoff: true,
+   200→  },
+   201→};
+   202→
+   203→// ─── Internal Types ───────────────────────────────────────────────
+   204→
+   205→interface DNSRecord {
+   206→  id: string;
+   207→  domain: string;
+   208→  recordType: string;
+   209→  value: string;
+   210→  ttl: number;
+   211→  createdAt: Date;
+   212→}
+   213→
+   214→interface LoadBalancer {
+   215→  name: string;
+   216→  algorithm: string;
+   217→  protocol: string;
+   218→  port: number;
+   219→  targets: Array<{ host: string; port: number; weight: number; healthy: boolean }>;
+   220→  healthCheckPath: string;
+   221→  createdAt: Date;
+   222→}
+   223→
+   224→interface FirewallRule {
+   225→  id: string;
+   226→  name: string;
+   227→  direction: string;
+   228→  protocol: string;
+   229→  portRange: string;
+   230→  sourceCidr: string;
+   231→  targetTags: string[];
+   232→  ruleAction: string;
+   233→  priority: number;
+   234→  enabled: boolean;
+   235→  createdAt: Date;
+   236→}
+   237→
+   238→interface SSLCertificate {
+   239→  domain: string;
+   240→  type: string;
+   241→  status: string;
+   242→  autoRenew: boolean;
+   243→  issuedAt?: Date;
+   244→  expiresAt?: Date;
+   245→}
+   246→
+   247→// ─── Agent Service ────────────────────────────────────────────────
+   248→
+   249→@Injectable()
+   250→export class NetworkAgentService extends BaseAgentService {
+   251→  private dnsRecords: Map<string, DNSRecord> = new Map();
+   252→  private loadBalancers: Map<string, LoadBalancer> = new Map();
+   253→  private firewallRules: Map<string, FirewallRule> = new Map();
+   254→  private sslCerts: Map<string, SSLCertificate> = new Map();
+   255→  private dnsCounter = 0;
+   256→  private firewallCounter = 0;
+   257→
+   258→  protected defineConfig(): AgentConfig {
+   259→    return NETWORK_AGENT_CONFIG;
+   260→  }
+   261→
+   262→  protected async onInitialize(): Promise<void> {
+   263→    this.registerTool({
+   264→      name: 'configureDNS',
+   265→      description: 'Configure DNS records',
+   266→      execute: async (params: {
+   267→        domain: string;
+   268→        recordType: string;
+   269→        value: string;
+   270→        ttl?: number;
+   271→        action?: string;
+   272→      }) => this.configureDNS(params),
+   273→    });
+   274→
+   275→    this.registerTool({
+   276→      name: 'manageLoadBalancer',
+   277→      description: 'Manage load balancer configuration',
+   278→      execute: async (params: {
+   279→        name: string;
+   280→        action: string;
+   281→        algorithm?: string;
+   282→        targets?: Array<{ host: string; port: number; weight?: number }>;
+   283→        healthCheckPath?: string;
+   284→        port?: number;
+   285→        protocol?: string;
+   286→      }) => this.manageLoadBalancer(params),
+   287→    });
+   288→
+   289→    this.registerTool({
+   290→      name: 'configureFirewall',
+   291→      description: 'Configure firewall rules',
+   292→      execute: async (params: {
+   293→        name: string;
+   294→        action: string;
+   295→        direction?: string;
+   296→        protocol?: string;
+   297→        portRange?: string;
+   298→        sourceCidr?: string;
+   299→        targetTags?: string[];
+   300→        ruleAction?: string;
+   301→        priority?: number;
+   302→      }) => this.configureFirewall(params),
+   303→    });
+   304→
+   305→    this.registerTool({
+   306→      name: 'checkConnectivity',
+   307→      description: 'Check network connectivity',
+   308→      execute: async (params: {
+   309→        source: string;
+   310→        target: string;
+   311→        port?: number;
+   312→        protocol?: string;
+   313→        timeout?: number;
+   314→      }) => this.checkConnectivity(params),
+   315→    });
+   316→
+   317→    this.registerTool({
+   318→      name: 'analyzeTraffic',
+   319→      description: 'Analyze network traffic patterns',
+   320→      execute: async (params: { service: string; timeRange?: string; analysisType?: string }) =>
+   321→        this.analyzeTraffic(params),
+   322→    });
+   323→
+   324→    this.registerTool({
+   325→      name: 'manageSSL',
+   326→      description: 'Manage SSL/TLS certificates',
+   327→      execute: async (params: {
+   328→        domain: string;
+   329→        action: string;
+   330→        certificateType?: string;
+   331→        autoRenew?: boolean;
+   332→      }) => this.manageSSL(params),
+   333→    });
+   334→
+   335→    // Seed initial data
+   336→    this.seedInitialData();
+   337→
+   338→    await this.storeInWorkingMemory('network:initializedAt', new Date().toISOString(), 600000);
+   339→    this.logger.log('Network agent initialized with 6 tools');
+   340→  }
+   341→
+   342→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   343→    const startTime = Date.now();
+   344→    const { action, ...params } = input.payload;
+   345→
+   346→    if (!action) {
+   347→      return this.createAgentOutput(
+   348→        input.taskId,
+   349→        false,
+   350→        null,
+   351→        'Missing required parameter: action',
+   352→        startTime,
+   353→      );
+   354→    }
+   355→
+   356→    const supportedActions = [
+   357→      'configureDNS',
+   358→      'manageLoadBalancer',
+   359→      'configureFirewall',
+   360→      'checkConnectivity',
+   361→      'analyzeTraffic',
+   362→      'manageSSL',
+   363→    ];
+   364→
+   365→    if (!supportedActions.includes(action)) {
+   366→      return this.createAgentOutput(
+   367→        input.taskId,
+   368→        false,
+   369→        null,
+   370→        `Unknown network action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   371→        startTime,
+   372→      );
+   373→    }
+   374→
+   375→    try {
+   376→      const tool = this.getTool(action);
+   377→      if (!tool) {
+   378→        return this.createAgentOutput(
+   379→          input.taskId,
+   380→          false,
+   381→          null,
+   382→          `Tool not found: ${action}`,
+   383→          startTime,
+   384→        );
+   385→      }
+   386→
+   387→      const result = await tool.execute(params);
+   388→
+   389→      await this.storeInWorkingMemory(
+   390→        `network:last:${action}`,
+   391→        { params, result, timestamp: new Date() },
+   392→        300000,
+   393→      );
+   394→
+   395→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   396→    } catch (error) {
+   397→      const msg = (error as Error).message;
+   398→      this.logger.error(`Network execution failed for ${action}: ${msg}`);
+   399→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   400→    }
+   401→  }
+   402→
+   403→  protected async onDestroy(): Promise<void> {
+   404→    this.dnsRecords.clear();
+   405→    this.loadBalancers.clear();
+   406→    this.firewallRules.clear();
+   407→    this.sslCerts.clear();
+   408→    this.logger.log('Network agent destroyed, state cleared');
+   409→  }
+   410→
+   411→  // ─── Tool Implementations ──────────────────────────────────────
+   412→
+   413→  private async configureDNS(params: {
+   414→    domain: string;
+   415→    recordType: string;
+   416→    value: string;
+   417→    ttl?: number;
+   418→    action?: string;
+   419→  }): Promise<{
+   420→    success: boolean;
+   421→    recordId?: string;
+   422→    domain: string;
+   423→    recordType: string;
+   424→    action: string;
+   425→    message: string;
+   426→  }> {
+   427→    const { domain, recordType, value, ttl = 3600, action = 'create' } = params;
+   428→
+   429→    if (!domain || typeof domain !== 'string') {
+   430→      throw new Error('Domain is required');
+   431→    }
+   432→    const validTypes = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'SRV', 'NS'];
+   433→    if (!validTypes.includes(recordType)) {
+   434→      throw new Error(`Invalid record type: ${recordType}. Valid: ${validTypes.join(', ')}`);
+   435→    }
+   436→    const validActions = ['create', 'update', 'delete'];
+   437→    if (!validActions.includes(action)) {
+   438→      throw new Error(`Invalid action: ${action}. Valid: ${validActions.join(', ')}`);
+   439→    }
+   440→
+   441→    const recordKey = `${domain}:${recordType}`;
+   442→    const existing = this.dnsRecords.get(recordKey);
+   443→
+   444→    if (action === 'delete') {
+   445→      if (!existing) {
+   446→        throw new Error(`DNS record not found for ${domain} (${recordType})`);
+   447→      }
+   448→      this.dnsRecords.delete(recordKey);
+   449→      this.logger.log(`Deleted DNS: ${domain} ${recordType}`);
+   450→      return {
+   451→        success: true,
+   452→        recordId: existing.id,
+   453→        domain,
+   454→        recordType,
+   455→        action,
+   456→        message: `Deleted ${recordType} record for ${domain}`,
+   457→      };
+   458→    }
+   459→
+   460→    if (action === 'update' && !existing) {
+   461→      throw new Error(
+   462→        `DNS record not found for ${domain} (${recordType}). Use action: 'create' to add.`,
+   463→      );
+   464→    }
+   465→
+   466→    this.dnsCounter++;
+   467→    const recordId = existing?.id || `dns-${this.dnsCounter}-${Date.now()}`;
+   468→
+   469→    this.dnsRecords.set(recordKey, {
+   470→      id: recordId,
+   471→      domain,
+   472→      recordType,
+   473→      value,
+   474→      ttl,
+   475→      createdAt: existing?.createdAt || new Date(),
+   476→    });
+   477→
+   478→    const message =
+   479→      action === 'create'
+   480→        ? `Created ${recordType} record for ${domain} → ${value} (TTL: ${ttl}s)`
+   481→        : `Updated ${recordType} record for ${domain} → ${value} (TTL: ${ttl}s)`;
+   482→
+   483→    this.logger.log(message);
+   484→
+   485→    return { success: true, recordId, domain, recordType, action, message };
+   486→  }
+   487→
+   488→  private async manageLoadBalancer(params: {
+   489→    name: string;
+   490→    action: string;
+   491→    algorithm?: string;
+   492→    targets?: Array<{ host: string; port: number; weight?: number }>;
+   493→    healthCheckPath?: string;
+   494→    port?: number;
+   495→    protocol?: string;
+   496→  }): Promise<{
+   497→    success: boolean;
+   498→    name: string;
+   499→    action: string;
+   500→    algorithm?: string;
+   501→    targets?: Array<{ host: string; port: number; weight: number; healthy: boolean }>;
+   502→    healthStatus?: Array<{ host: string; healthy: boolean; responseTimeMs: number }>;
+   503→    message: string;
+   504→  }> {
+   505→    const { name, action, algorithm, targets, healthCheckPath, port, protocol } = params;
+   506→
+   507→    if (!name || typeof name !== 'string') {
+   508→      throw new Error('Load balancer name is required');
+   509→    }
+   510→
+   511→    const validActions = ['create', 'update', 'delete', 'addTarget', 'removeTarget', 'getHealth'];
+   512→    if (!validActions.includes(action)) {
+   513→      throw new Error(`Invalid action: ${action}. Valid: ${validActions.join(', ')}`);
+   514→    }
+   515→
+   516→    if (action === 'create') {
+   517→      const validAlgorithms = ['round_robin', 'least_connections', 'ip_hash', 'weighted'];
+   518→      if (algorithm && !validAlgorithms.includes(algorithm)) {
+   519→        throw new Error(`Invalid algorithm: ${algorithm}. Valid: ${validAlgorithms.join(', ')}`);
+   520→      }
+   521→
+   522→      const lb: LoadBalancer = {
+   523→        name,
+   524→        algorithm: algorithm || 'round_robin',
+   525→        protocol: protocol || 'http',
+   526→        port: port || 80,
+   527→        targets: (targets || []).map((t) => ({ ...t, weight: t.weight || 1, healthy: true })),
+   528→        healthCheckPath: healthCheckPath || '/health',
+   529→        createdAt: new Date(),
+   530→      };
+   531→
+   532→      this.loadBalancers.set(name, lb);
+   533→
+   534→      this.logger.log(
+   535→        `Created LB: ${name}, algorithm=${lb.algorithm}, ${lb.targets.length} target(s)`,
+   536→      );
+   537→
+   538→      return {
+   539→        success: true,
+   540→        name,
+   541→        action,
+   542→        algorithm: lb.algorithm,
+   543→        targets: lb.targets,
+   544→        message: `Load balancer "${name}" created with ${lb.algorithm} algorithm`,
+   545→      };
+   546→    }
+   547→
+   548→    if (action === 'delete') {
+   549→      if (!this.loadBalancers.has(name)) {
+   550→        throw new Error(`Load balancer not found: ${name}`);
+   551→      }
+   552→      this.loadBalancers.delete(name);
+   553→      return { success: true, name, action, message: `Load balancer "${name}" deleted` };
+   554→    }
+   555→
+   556→    const lb = this.loadBalancers.get(name);
+   557→    if (!lb) {
+   558→      throw new Error(`Load balancer not found: ${name}`);
+   559→    }
+   560→
+   561→    if (action === 'addTarget' && targets) {
+   562→      for (const t of targets) {
+   563→        lb.targets.push({ host: t.host, port: t.port, weight: t.weight || 1, healthy: true });
+   564→      }
+   565→      this.logger.log(`Added ${targets.length} target(s) to LB ${name}`);
+   566→      return {
+   567→        success: true,
+   568→        name,
+   569→        action,
+   570→        targets: lb.targets,
+   571→        message: `Added ${targets.length} target(s) to "${name}"`,
+   572→      };
+   573→    }
+   574→
+   575→    if (action === 'removeTarget' && targets) {
+   576→      lb.targets = lb.targets.filter(
+   577→        (existing) => !targets.some((t) => t.host === existing.host && t.port === existing.port),
+   578→      );
+   579→      this.logger.log(`Removed target(s) from LB ${name}, ${lb.targets.length} remaining`);
+   580→      return {
+   581→        success: true,
+   582→        name,
+   583→        action,
+   584→        targets: lb.targets,
+   585→        message: `Removed target(s) from "${name}", ${lb.targets.length} remaining`,
+   586→      };
+   587→    }
+   588→
+   589→    if (action === 'getHealth') {
+   590→      const healthStatus = lb.targets.map((t) => ({
+   591→        host: t.host,
+   592→        healthy: Math.random() > 0.1,
+   593→        responseTimeMs: Math.floor(Math.random() * 100) + 5,
+   594→      }));
+   595→
+   596→      this.logger.log(
+   597→        `LB ${name} health: ${healthStatus.filter((h) => h.healthy).length}/${healthStatus.length} healthy`,
+   598→      );
+   599→
+   600→      return {
+   601→        success: true,
+   602→        name,
+   603→        action,
+   604→        healthStatus,
+   605→        message: `Health check for "${name}": ${healthStatus.filter((h) => h.healthy).length}/${healthStatus.length} targets healthy`,
+   606→      };
+   607→    }
+   608→
+   609→    // Update
+   610→    if (algorithm) lb.algorithm = algorithm;
+   611→    if (port) lb.port = port;
+   612→    if (protocol) lb.protocol = protocol;
+   613→    if (healthCheckPath) lb.healthCheckPath = healthCheckPath;
+   614→
+   615→    this.logger.log(`Updated LB ${name}`);
+   616→    return {
+   617→      success: true,
+   618→      name,
+   619→      action,
+   620→      algorithm: lb.algorithm,
+   621→      targets: lb.targets,
+   622→      message: `Load balancer "${name}" updated`,
+   623→    };
+   624→  }
+   625→
+   626→  private async configureFirewall(params: {
+   627→    name: string;
+   628→    action: string;
+   629→    direction?: string;
+   630→    protocol?: string;
+   631→    portRange?: string;
+   632→    sourceCidr?: string;
+   633→    targetTags?: string[];
+   634→    ruleAction?: string;
+   635→    priority?: number;
+   636→  }): Promise<{
+   637→    success: boolean;
+   638→    ruleId?: string;
+   639→    name: string;
+   640→    action: string;
+   641→    message: string;
+   642→  }> {
+   643→    const {
+   644→      name,
+   645→      action,
+   646→      direction = 'ingress',
+   647→      protocol = 'tcp',
+   648→      portRange,
+   649→      sourceCidr = '0.0.0.0/0',
+   650→      targetTags = [],
+   651→      ruleAction = 'allow',
+   652→      priority = 1000,
+   653→    } = params;
+   654→
+   655→    if (!name || typeof name !== 'string') {
+   656→      throw new Error('Rule name is required');
+   657→    }
+   658→
+   659→    const validActions = ['create', 'update', 'delete', 'list'];
+   660→    if (!validActions.includes(action)) {
+   661→      throw new Error(`Invalid action: ${action}. Valid: ${validActions.join(', ')}`);
+   662→    }
+   663→
+   664→    if (action === 'list') {
+   665→      const rules = Array.from(this.firewallRules.values()).map((r) => ({
+   666→        id: r.id,
+   667→        name: r.name,
+   668→        direction: r.direction,
+   669→        protocol: r.protocol,
+   670→        portRange: r.portRange,
+   671→        sourceCidr: r.sourceCidr,
+   672→        ruleAction: r.ruleAction,
+   673→        priority: r.priority,
+   674→      }));
+   675→      this.logger.log(`Listed ${rules.length} firewall rules`);
+   676→      return { success: true, name, action, message: `${rules.length} firewall rules found` };
+   677→    }
+   678→
+   679→    if (action === 'delete') {
+   680→      const existing = Array.from(this.firewallRules.values()).find((r) => r.name === name);
+   681→      if (!existing) {
+   682→        throw new Error(`Firewall rule not found: ${name}`);
+   683→      }
+   684→      this.firewallRules.delete(existing.id);
+   685→      this.logger.log(`Deleted firewall rule: ${name}`);
+   686→      return {
+   687→        success: true,
+   688→        ruleId: existing.id,
+   689→        name,
+   690→        action,
+   691→        message: `Firewall rule "${name}" deleted`,
+   692→      };
+   693→    }
+   694→
+   695→    const validDirections = ['ingress', 'egress'];
+   696→    if (!validDirections.includes(direction)) {
+   697→      throw new Error(`Invalid direction: ${direction}. Valid: ${validDirections.join(', ')}`);
+   698→    }
+   699→
+   700→    const validProtocols = ['tcp', 'udp', 'icmp', 'all'];
+   701→    if (!validProtocols.includes(protocol)) {
+   702→      throw new Error(`Invalid protocol: ${protocol}. Valid: ${validProtocols.join(', ')}`);
+   703→    }
+   704→
+   705→    this.firewallCounter++;
+   706→    const ruleId = `fw-${this.firewallCounter}-${Date.now()}`;
+   707→
+   708→    this.firewallRules.set(ruleId, {
+   709→      id: ruleId,
+   710→      name,
+   711→      direction,
+   712→      protocol,
+   713→      portRange: portRange || (protocol === 'icmp' ? 'N/A' : '1-65535'),
+   714→      sourceCidr,
+   715→      targetTags,
+   716→      ruleAction,
+   717→      priority,
+   718→      enabled: true,
+   719→      createdAt: new Date(),
+   720→    });
+   721→
+   722→    this.logger.log(
+   723→      `Created firewall rule: ${name}, ${direction} ${ruleAction} ${protocol}/${portRange || 'all'} from ${sourceCidr}`,
+   724→    );
+   725→
+   726→    return {
+   727→      success: true,
+   728→      ruleId,
+   729→      name,
+   730→      action,
+   731→      message: `Firewall rule "${name}" created: ${direction} ${ruleAction} ${protocol}/${portRange || 'all'} from ${sourceCidr}`,
+   732→    };
+   733→  }
+   734→
+   735→  private async checkConnectivity(params: {
+   736→    source: string;
+   737→    target: string;
+   738→    port?: number;
+   739→    protocol?: string;
+   740→    timeout?: number;
+   741→  }): Promise<{
+   742→    source: string;
+   743→    target: string;
+   744→    connected: boolean;
+   745→    latencyMs: number;
+   746→    protocol: string;
+   747→    port?: number;
+   748→    details: string;
+   749→    checkedAt: string;
+   750→  }> {
+   751→    const { source, target, port, protocol = 'tcp', timeout = 5000 } = params;
+   752→
+   753→    if (!source || typeof source !== 'string') {
+   754→      throw new Error('Source is required');
+   755→    }
+   756→    if (!target || typeof target !== 'string') {
+   757→      throw new Error('Target is required');
+   758→    }
+   759→
+   760→    const connected = Math.random() > 0.1;
+   761→    const latencyMs = connected ? Math.floor(Math.random() * 150) + 1 : timeout;
+   762→
+   763→    let details: string;
+   764→    if (connected) {
+   765→      switch (protocol) {
+   766→        case 'http':
+   767→        case 'https':
+   768→          details = `${protocol.toUpperCase()} ${connected ? 200 : 503} from ${target}${port ? `:${port}` : ''} in ${latencyMs}ms`;
+   769→          break;
+   770→        case 'tcp':
+   771→          details = `TCP connection to ${target}:${port || 80} established in ${latencyMs}ms`;
+   772→          break;
+   773→        case 'udp':
+   774→          details = `UDP packet to ${target}:${port || 53} sent, response received in ${latencyMs}ms`;
+   775→          break;
+   776→        case 'icmp':
+   777→          details = `ICMP echo reply from ${target} in ${latencyMs}ms, TTL=64`;
+   778→          break;
+   779→        default:
+   780→          details = `Connected to ${target} in ${latencyMs}ms`;
+   781→      }
+   782→    } else {
+   783→      details = `Connection to ${target}${port ? `:${port}` : ''} (${protocol}) timed out after ${timeout}ms`;
+   784→    }
+   785→
+   786→    this.logger.log(
+   787→      `Connectivity: ${source} → ${target} (${protocol}): ${connected ? 'OK' : 'FAILED'}, ${latencyMs}ms`,
+   788→    );
+   789→
+   790→    return {
+   791→      source,
+   792→      target,
+   793→      connected,
+   794→      latencyMs,
+   795→      protocol,
+   796→      port,
+   797→      details,
+   798→      checkedAt: new Date().toISOString(),
+   799→    };
+   800→  }
+   801→
+   802→  private async analyzeTraffic(params: {
+   803→    service: string;
+   804→    timeRange?: string;
+   805→    analysisType?: string;
+   806→  }): Promise<{
+   807→    service: string;
+   808→    timeRange: string;
+   809→    analysisType: string;
+   810→    bandwidth: {
+   811→      inboundBytesPerSec: number;
+   812→      outboundBytesPerSec: number;
+   813→      totalInboundGb: number;
+   814→      totalOutboundGb: number;
+   815→      peakInboundBytesPerSec: number;
+   816→      peakOutboundBytesPerSec: number;
+   817→    };
+   818→    connections: {
+   819→      activeConnections: number;
+   820→      totalConnections: number;
+   821→      avgConnectionDurationMs: number;
+   822→      connectionRatePerSec: number;
+   823→    };
+   824→    errors: {
+   825→      totalErrors: number;
+   826→      errorRate: number;
+   827→      topErrors: Array<{ code: string; count: number; description: string }>;
+   828→    };
+   829→    latency: {
+   830→      avgMs: number;
+   831→      p50Ms: number;
+   832→      p95Ms: number;
+   833→      p99Ms: number;
+   834→    };
+   835→    analyzedAt: string;
+   836→  }> {
+   837→    const { service, timeRange = '24h', analysisType = 'all' } = params;
+   838→
+   839→    if (!service || typeof service !== 'string') {
+   840→      throw new Error('Service name is required');
+   841→    }
+   842→
+   843→    const multiplier =
+   844→      timeRange === '1h' ? 1 : timeRange === '6h' ? 6 : timeRange === '24h' ? 24 : 168;
+   845→
+   846→    const result = {
+   847→      service,
+   848→      timeRange,
+   849→      analysisType,
+   850→      bandwidth: {
+   851→        inboundBytesPerSec: Math.floor(Math.random() * 50000000) + 1000000,
+   852→        outboundBytesPerSec: Math.floor(Math.random() * 100000000) + 5000000,
+   853→        totalInboundGb: Math.round((Math.random() * 50 + 5) * multiplier * 100) / 100,
+   854→        totalOutboundGb: Math.round((Math.random() * 200 + 20) * multiplier * 100) / 100,
+   855→        peakInboundBytesPerSec: Math.floor(Math.random() * 200000000) + 20000000,
+   856→        peakOutboundBytesPerSec: Math.floor(Math.random() * 500000000) + 50000000,
+   857→      },
+   858→      connections: {
+   859→        activeConnections: Math.floor(Math.random() * 5000) + 100,
+   860→        totalConnections: Math.floor(Math.random() * 100000) * multiplier + 10000,
+   861→        avgConnectionDurationMs: Math.floor(Math.random() * 5000) + 100,
+   862→        connectionRatePerSec: Math.floor(Math.random() * 500) + 10,
+   863→      },
+   864→      errors: {
+   865→        totalErrors: Math.floor(Math.random() * 500) + 10,
+   866→        errorRate: Math.round(Math.random() * 3 * 10000) / 10000,
+   867→        topErrors: [
+   868→          { code: '502', count: Math.floor(Math.random() * 100) + 5, description: 'Bad Gateway' },
+   869→          {
+   870→            code: '503',
+   871→            count: Math.floor(Math.random() * 50) + 2,
+   872→            description: 'Service Unavailable',
+   873→          },
+   874→          {
+   875→            code: '504',
+   876→            count: Math.floor(Math.random() * 30) + 1,
+   877→            description: 'Gateway Timeout',
+   878→          },
+   879→          {
+   880→            code: '429',
+   881→            count: Math.floor(Math.random() * 200) + 10,
+   882→            description: 'Too Many Requests',
+   883→          },
+   884→        ],
+   885→      },
+   886→      latency: {
+   887→        avgMs: Math.floor(Math.random() * 100) + 10,
+   888→        p50Ms: Math.floor(Math.random() * 80) + 8,
+   889→        p95Ms: Math.floor(Math.random() * 300) + 50,
+   890→        p99Ms: Math.floor(Math.random() * 800) + 100,
+   891→      },
+   892→      analyzedAt: new Date().toISOString(),
+   893→    };
+   894→
+   895→    this.logger.log(
+   896→      `analyzeTraffic: ${service}, ${timeRange}, bandwidth=${(result.bandwidth.totalInboundGb / multiplier).toFixed(1)}GB/hr avg`,
+   897→    );
+   898→
+   899→    return result;
+   900→  }
+   901→
+   902→  private async manageSSL(params: {
+   903→    domain: string;
+   904→    action: string;
+   905→    certificateType?: string;
+   906→    autoRenew?: boolean;
+   907→  }): Promise<{
+   908→    success: boolean;
+   909→    domain: string;
+   910→    action: string;
+   911→    certificateType: string;
+   912→    status?: string;
+   913→    expiresAt?: string;
+   914→    message: string;
+   915→  }> {
+   916→    const { domain, action, certificateType = 'lets_encrypt', autoRenew = true } = params;
+   917→
+   918→    if (!domain || typeof domain !== 'string') {
+   919→      throw new Error('Domain is required');
+   920→    }
+   921→
+   922→    const validActions = ['provision', 'renew', 'revoke', 'list', 'verify'];
+   923→    if (!validActions.includes(action)) {
+   924→      throw new Error(`Invalid action: ${action}. Valid: ${validActions.join(', ')}`);
+   925→    }
+   926→
+   927→    const validTypes = ['lets_encrypt', 'custom', 'wildcard'];
+   928→    if (!validTypes.includes(certificateType)) {
+   929→      throw new Error(
+   930→        `Invalid certificate type: ${certificateType}. Valid: ${validTypes.join(', ')}`,
+   931→      );
+   932→    }
+   933→
+   934→    if (action === 'list') {
+   935→      const certs = Array.from(this.sslCerts.values());
+   936→      this.logger.log(`Listed ${certs.length} SSL certificates`);
+   937→      return {
+   938→        success: true,
+   939→        domain,
+   940→        action,
+   941→        certificateType,
+   942→        message: `${certs.length} certificate(s) found. Domains: ${certs.map((c) => c.domain).join(', ') || 'none'}`,
+   943→      };
+   944→    }
+   945→
+   946→    if (action === 'provision') {
+   947→      const cert: SSLCertificate = {
+   948→        domain,
+   949→        type: certificateType,
+   950→        status: 'active',
+   951→        autoRenew,
+   952→        issuedAt: new Date(),
+   953→        expiresAt: new Date(Date.now() + 90 * 86400000),
+   954→      };
+   955→
+   956→      this.sslCerts.set(domain, cert);
+   957→
+   958→      this.logger.log(
+   959→        `Provisioned SSL cert for ${domain} (${certificateType}), expires ${cert.expiresAt?.toISOString().split('T')[0]}`,
+   960→      );
+   961→
+   962→      return {
+   963→        success: true,
+   964→        domain,
+   965→        action,
+   966→        certificateType,
+   967→        status: 'active',
+   968→        expiresAt: cert.expiresAt?.toISOString(),
+   969→        message: `SSL certificate provisioned for ${domain} (${certificateType}), auto-renew: ${autoRenew}`,
+   970→      };
+   971→    }
+   972→
+   973→    const existing = this.sslCerts.get(domain);
+   974→    if (!existing) {
+   975→      throw new Error(`No certificate found for ${domain}. Use action: 'provision' to create one.`);
+   976→    }
+   977→
+   978→    if (action === 'renew') {
+   979→      existing.issuedAt = new Date();
+   980→      existing.expiresAt = new Date(Date.now() + 90 * 86400000);
+   981→      existing.status = 'active';
+   982→
+   983→      this.logger.log(
+   984→        `Renewed SSL cert for ${domain}, new expiry: ${existing.expiresAt.toISOString().split('T')[0]}`,
+   985→      );
+   986→
+   987→      return {
+   988→        success: true,
+   989→        domain,
+   990→        action,
+   991→        certificateType,
+   992→        status: 'active',
+   993→        expiresAt: existing.expiresAt.toISOString(),
+   994→        message: `SSL certificate renewed for ${domain}, valid until ${existing.expiresAt.toISOString().split('T')[0]}`,
+   995→      };
+   996→    }
+   997→
+   998→    if (action === 'revoke') {
+   999→      existing.status = 'revoked';
+  1000→      this.sslCerts.delete(domain);
+  1001→
+  1002→      this.logger.log(`Revoked SSL cert for ${domain}`);
+  1003→
+  1004→      return {
+  1005→        success: true,
+  1006→        domain,
+  1007→        action,
+  1008→        certificateType,
+  1009→        status: 'revoked',
+  1010→        message: `SSL certificate revoked for ${domain}`,
+  1011→      };
+  1012→    }
+  1013→
+  1014→    if (action === 'verify') {
+  1015→      const daysUntilExpiry = existing.expiresAt
+  1016→        ? Math.floor((existing.expiresAt.getTime() - Date.now()) / 86400000)
+  1017→        : 0;
+  1018→      const isExpiringSoon = daysUntilExpiry < 30;
+  1019→
+  1020→      this.logger.log(`Verified SSL cert for ${domain}: ${daysUntilExpiry} days until expiry`);
+  1021→
+  1022→      return {
+  1023→        success: true,
+  1024→        domain,
+  1025→        action,
+  1026→        certificateType,
+  1027→        status: existing.status,
+  1028→        expiresAt: existing.expiresAt?.toISOString(),
+  1029→        message: `Certificate for ${domain} is ${existing.status}, expires in ${daysUntilExpiry} days${isExpiringSoon ? ' (EXPIRING SOON)' : ''}`,
+  1030→      };
+  1031→    }
+  1032→
+  1033→    return {
+  1034→      success: true,
+  1035→      domain,
+  1036→      action,
+  1037→      certificateType,
+  1038→      message: `Action ${action} completed for ${domain}`,
+  1039→    };
+  1040→  }
+  1041→
+  1042→  // ─── Helpers ────────────────────────────────────────────────────
+  1043→
+  1044→  private seedInitialData(): void {
+  1045→    // Seed DNS records
+  1046→    this.dnsRecords.set('example.com:A', {
+  1047→      id: 'dns-seed-1',
+  1048→      domain: 'example.com',
+  1049→      recordType: 'A',
+  1050→      value: '93.184.216.34',
+  1051→      ttl: 3600,
+  1052→      createdAt: new Date(),
+  1053→    });
+  1054→    this.dnsRecords.set('api.example.com:CNAME', {
+  1055→      id: 'dns-seed-2',
+  1056→      domain: 'api.example.com',
+  1057→      recordType: 'CNAME',
+  1058→      value: 'lb.example.com',
+  1059→      ttl: 300,
+  1060→      createdAt: new Date(),
+  1061→    });
+  1062→
+  1063→    // Seed load balancer
+  1064→    this.loadBalancers.set('main-lb', {
+  1065→      name: 'main-lb',
+  1066→      algorithm: 'round_robin',
+  1067→      protocol: 'https',
+  1068→      port: 443,
+  1069→      targets: [
+  1070→        { host: '10.0.1.10', port: 8080, weight: 1, healthy: true },
+  1071→        { host: '10.0.1.11', port: 8080, weight: 1, healthy: true },
+  1072→        { host: '10.0.1.12', port: 8080, weight: 1, healthy: true },
+  1073→      ],
+  1074→      healthCheckPath: '/health',
+  1075→      createdAt: new Date(),
+  1076→    });
+  1077→
+  1078→    // Seed SSL certs
+  1079→    this.sslCerts.set('example.com', {
+  1080→      domain: 'example.com',
+  1081→      type: 'lets_encrypt',
+  1082→      status: 'active',
+  1083→      autoRenew: true,
+  1084→      issuedAt: new Date(Date.now() - 30 * 86400000),
+  1085→      expiresAt: new Date(Date.now() + 60 * 86400000),
+  1086→    });
+  1087→  }
+  1088→}
+  1089→

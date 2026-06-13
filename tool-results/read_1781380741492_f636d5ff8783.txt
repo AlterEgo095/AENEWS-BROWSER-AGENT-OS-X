@@ -1,0 +1,964 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Meta Orchestrator Agent
+     3→ * Master orchestrator coordinating all other agents in the Meta Intelligence cluster.
+     4→ * Handles task orchestration, agent assignment, progress monitoring, workload rebalancing,
+     5→ * orchestration plan generation, and outcome evaluation.
+     6→ */
+     7→
+     8→import { Injectable } from '@nestjs/common';
+     9→import { BaseAgentService } from '../../base/base-agent.service';
+    10→import {
+    11→  AgentConfig,
+    12→  AgentCluster,
+    13→  AgentInput,
+    14→  AgentOutput,
+    15→  TaskPriority,
+    16→} from '../../interfaces/agent.interface';
+    17→
+    18→// ─── Agent Configuration ──────────────────────────────────────────
+    19→
+    20→export const META_ORCHESTRATOR_AGENT_CONFIG: AgentConfig = {
+    21→  id: 'meta-orchestrator',
+    22→  name: 'MetaOrchestrator',
+    23→  cluster: AgentCluster.META_INTELLIGENCE,
+    24→  version: '1.0.0',
+    25→  description:
+    26→    'Master orchestrator that coordinates all other Meta Intelligence agents, manages task distribution, monitors progress, rebalances workloads, generates orchestration plans, and evaluates outcomes.',
+    27→  capabilities: [
+    28→    {
+    29→      name: 'orchestrateTask',
+    30→      description: 'Orchestrate a complex task by decomposing it and assigning subtasks to agents',
+    31→      inputSchema: {
+    32→        type: 'object',
+    33→        properties: {
+    34→          taskDescription: { type: 'string', description: 'High-level task description' },
+    35→          priority: {
+    36→            type: 'string',
+    37→            enum: ['low', 'normal', 'high', 'critical'],
+    38→            description: 'Task priority',
+    39→          },
+    40→          constraints: { type: 'object', description: 'Constraints for orchestration' },
+    41→        },
+    42→        required: ['taskDescription'],
+    43→      },
+    44→      outputSchema: {
+    45→        type: 'object',
+    46→        properties: {
+    47→          orchestrationId: { type: 'string' },
+    48→          steps: { type: 'array', items: { type: 'object' } },
+    49→          assignedAgents: { type: 'array', items: { type: 'string' } },
+    50→          estimatedDurationMs: { type: 'number' },
+    51→        },
+    52→      },
+    53→    },
+    54→    {
+    55→      name: 'assignAgent',
+    56→      description: 'Assign a specific agent to a task based on capability matching',
+    57→      inputSchema: {
+    58→        type: 'object',
+    59→        properties: {
+    60→          taskId: { type: 'string', description: 'Task ID to assign' },
+    61→          agentId: { type: 'string', description: 'Agent ID to assign' },
+    62→          subtaskDescription: { type: 'string', description: 'Description of the subtask' },
+    63→        },
+    64→        required: ['taskId', 'agentId'],
+    65→      },
+    66→      outputSchema: {
+    67→        type: 'object',
+    68→        properties: {
+    69→          assignmentId: { type: 'string' },
+    70→          taskId: { type: 'string' },
+    71→          agentId: { type: 'string' },
+    72→          status: { type: 'string' },
+    73→        },
+    74→      },
+    75→    },
+    76→    {
+    77→      name: 'monitorProgress',
+    78→      description: 'Monitor the progress of all ongoing orchestrated tasks',
+    79→      inputSchema: {
+    80→        type: 'object',
+    81→        properties: {
+    82→          orchestrationId: { type: 'string', description: 'Orchestration ID to monitor' },
+    83→          includeDetails: { type: 'boolean', description: 'Include detailed step information' },
+    84→        },
+    85→        required: ['orchestrationId'],
+    86→      },
+    87→      outputSchema: {
+    88→        type: 'object',
+    89→        properties: {
+    90→          orchestrationId: { type: 'string' },
+    91→          overallProgress: { type: 'number' },
+    92→          stepStatuses: { type: 'array', items: { type: 'object' } },
+    93→          bottlenecks: { type: 'array', items: { type: 'string' } },
+    94→        },
+    95→      },
+    96→    },
+    97→    {
+    98→      name: 'rebalanceWorkload',
+    99→      description: 'Rebalance workload across agents when imbalances are detected',
+   100→      inputSchema: {
+   101→        type: 'object',
+   102→        properties: {
+   103→          strategy: {
+   104→            type: 'string',
+   105→            enum: ['even', 'priority-based', 'capability-based'],
+   106→            description: 'Rebalancing strategy',
+   107→          },
+   108→          agentIds: {
+   109→            type: 'array',
+   110→            items: { type: 'string' },
+   111→            description: 'Specific agents to rebalance',
+   112→          },
+   113→        },
+   114→      },
+   115→      outputSchema: {
+   116→        type: 'object',
+   117→        properties: {
+   118→          rebalanced: { type: 'boolean' },
+   119→          redistributions: { type: 'array', items: { type: 'object' } },
+   120→          loadBefore: { type: 'object' },
+   121→          loadAfter: { type: 'object' },
+   122→        },
+   123→      },
+   124→    },
+   125→    {
+   126→      name: 'generateOrchestrationPlan',
+   127→      description: 'Generate a comprehensive orchestration plan for a complex workflow',
+   128→      inputSchema: {
+   129→        type: 'object',
+   130→        properties: {
+   131→          workflowDescription: { type: 'string', description: 'Description of the workflow' },
+   132→          availableAgents: {
+   133→            type: 'array',
+   134→            items: { type: 'string' },
+   135→            description: 'Available agent IDs',
+   136→          },
+   137→          objectives: {
+   138→            type: 'array',
+   139→            items: { type: 'string' },
+   140→            description: 'Workflow objectives',
+   141→          },
+   142→          deadline: { type: 'string', description: 'Optional deadline ISO string' },
+   143→        },
+   144→        required: ['workflowDescription'],
+   145→      },
+   146→      outputSchema: {
+   147→        type: 'object',
+   148→        properties: {
+   149→          planId: { type: 'string' },
+   150→          phases: { type: 'array', items: { type: 'object' } },
+   151→          dependencies: { type: 'array', items: { type: 'object' } },
+   152→          estimatedDurationMs: { type: 'number' },
+   153→          riskAssessment: { type: 'object' },
+   154→        },
+   155→      },
+   156→    },
+   157→    {
+   158→      name: 'evaluateOutcome',
+   159→      description: 'Evaluate the outcome of an orchestrated task or workflow',
+   160→      inputSchema: {
+   161→        type: 'object',
+   162→        properties: {
+   163→          orchestrationId: { type: 'string', description: 'Orchestration ID to evaluate' },
+   164→          expectedOutcome: { type: 'string', description: 'Expected outcome description' },
+   165→          actualOutcome: { type: 'object', description: 'Actual outcome data' },
+   166→        },
+   167→        required: ['orchestrationId'],
+   168→      },
+   169→      outputSchema: {
+   170→        type: 'object',
+   171→        properties: {
+   172→          orchestrationId: { type: 'string' },
+   173→          successScore: { type: 'number' },
+   174→          criteriaResults: { type: 'array', items: { type: 'object' } },
+   175→          lessonsLearned: { type: 'array', items: { type: 'string' } },
+   176→          recommendations: { type: 'array', items: { type: 'string' } },
+   177→        },
+   178→      },
+   179→    },
+   180→  ],
+   181→  permissions: [
+   182→    'execute:task',
+   183→    'read:orchestration',
+   184→    'write:orchestration',
+   185→    'read:agent',
+   186→    'write:assignment',
+   187→    'monitor:progress',
+   188→  ],
+   189→  maxConcurrentTasks: 5,
+   190→  timeout: 120000,
+   191→  retryPolicy: {
+   192→    maxRetries: 2,
+   193→    backoffMs: 3000,
+   194→    exponentialBackoff: true,
+   195→  },
+   196→};
+   197→
+   198→// ─── Internal Types ───────────────────────────────────────────────
+   199→
+   200→interface OrchestrationRecord {
+   201→  id: string;
+   202→  taskDescription: string;
+   203→  status: 'planning' | 'executing' | 'monitoring' | 'completed' | 'failed';
+   204→  steps: OrchestrationStepRecord[];
+   205→  createdAt: Date;
+   206→  updatedAt: Date;
+   207→  estimatedDurationMs: number;
+   208→}
+   209→
+   210→interface OrchestrationStepRecord {
+   211→  id: string;
+   212→  order: number;
+   213→  agentId: string;
+   214→  description: string;
+   215→  status: 'pending' | 'running' | 'completed' | 'failed';
+   216→  assignedAt?: Date;
+   217→  completedAt?: Date;
+   218→  result?: any;
+   219→}
+   220→
+   221→interface AgentAssignment {
+   222→  id: string;
+   223→  taskId: string;
+   224→  agentId: string;
+   225→  subtaskDescription: string;
+   226→  status: 'assigned' | 'in-progress' | 'completed' | 'failed';
+   227→  assignedAt: Date;
+   228→}
+   229→
+   230→// ─── Agent Service ────────────────────────────────────────────────
+   231→
+   232→@Injectable()
+   233→export class OrchestratorAgentService extends BaseAgentService {
+   234→  private orchestrations: Map<string, OrchestrationRecord> = new Map();
+   235→  private assignments: Map<string, AgentAssignment> = new Map();
+   236→
+   237→  protected defineConfig(): AgentConfig {
+   238→    return META_ORCHESTRATOR_AGENT_CONFIG;
+   239→  }
+   240→
+   241→  protected async onInitialize(): Promise<void> {
+   242→    this.registerTool({
+   243→      name: 'orchestrateTask',
+   244→      description: 'Orchestrate a complex task by decomposing it and assigning subtasks to agents',
+   245→      execute: async (params: {
+   246→        taskDescription: string;
+   247→        priority?: string;
+   248→        constraints?: Record<string, any>;
+   249→      }) => this.orchestrateTask(params),
+   250→    });
+   251→
+   252→    this.registerTool({
+   253→      name: 'assignAgent',
+   254→      description: 'Assign a specific agent to a task based on capability matching',
+   255→      execute: async (params: { taskId: string; agentId: string; subtaskDescription?: string }) =>
+   256→        this.assignAgent(params),
+   257→    });
+   258→
+   259→    this.registerTool({
+   260→      name: 'monitorProgress',
+   261→      description: 'Monitor the progress of all ongoing orchestrated tasks',
+   262→      execute: async (params: { orchestrationId: string; includeDetails?: boolean }) =>
+   263→        this.monitorProgress(params),
+   264→    });
+   265→
+   266→    this.registerTool({
+   267→      name: 'rebalanceWorkload',
+   268→      description: 'Rebalance workload across agents when imbalances are detected',
+   269→      execute: async (params: { strategy?: string; agentIds?: string[] }) =>
+   270→        this.rebalanceWorkload(params),
+   271→    });
+   272→
+   273→    this.registerTool({
+   274→      name: 'generateOrchestrationPlan',
+   275→      description: 'Generate a comprehensive orchestration plan for a complex workflow',
+   276→      execute: async (params: {
+   277→        workflowDescription: string;
+   278→        availableAgents?: string[];
+   279→        objectives?: string[];
+   280→        deadline?: string;
+   281→      }) => this.generateOrchestrationPlan(params),
+   282→    });
+   283→
+   284→    this.registerTool({
+   285→      name: 'evaluateOutcome',
+   286→      description: 'Evaluate the outcome of an orchestrated task or workflow',
+   287→      execute: async (params: {
+   288→        orchestrationId: string;
+   289→        expectedOutcome?: string;
+   290→        actualOutcome?: any;
+   291→      }) => this.evaluateOutcome(params),
+   292→    });
+   293→
+   294→    await this.storeInWorkingMemory('orchestrator:initializedAt', new Date().toISOString(), 600000);
+   295→    this.logger.log('MetaOrchestrator agent initialized with 6 tools');
+   296→  }
+   297→
+   298→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   299→    const startTime = Date.now();
+   300→    const { action, ...params } = input.payload;
+   301→
+   302→    if (!action) {
+   303→      return this.createAgentOutput(
+   304→        input.taskId,
+   305→        false,
+   306→        null,
+   307→        'Missing required parameter: action',
+   308→        startTime,
+   309→      );
+   310→    }
+   311→
+   312→    const supportedActions = [
+   313→      'orchestrateTask',
+   314→      'assignAgent',
+   315→      'monitorProgress',
+   316→      'rebalanceWorkload',
+   317→      'generateOrchestrationPlan',
+   318→      'evaluateOutcome',
+   319→    ];
+   320→
+   321→    if (!supportedActions.includes(action)) {
+   322→      return this.createAgentOutput(
+   323→        input.taskId,
+   324→        false,
+   325→        null,
+   326→        `Unknown orchestration action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   327→        startTime,
+   328→      );
+   329→    }
+   330→
+   331→    try {
+   332→      const tool = this.getTool(action);
+   333→      if (!tool) {
+   334→        return this.createAgentOutput(
+   335→          input.taskId,
+   336→          false,
+   337→          null,
+   338→          `Tool not found: ${action}`,
+   339→          startTime,
+   340→        );
+   341→      }
+   342→
+   343→      const result = await tool.execute(params);
+   344→
+   345→      await this.storeInWorkingMemory(
+   346→        `orchestrator:last:${action}`,
+   347→        { params, result, timestamp: new Date() },
+   348→        300000,
+   349→      );
+   350→
+   351→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   352→    } catch (error) {
+   353→      const msg = (error as Error).message;
+   354→      this.logger.error(`MetaOrchestrator execution failed for ${action}: ${msg}`);
+   355→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   356→    }
+   357→  }
+   358→
+   359→  protected async onDestroy(): Promise<void> {
+   360→    this.orchestrations.clear();
+   361→    this.assignments.clear();
+   362→    this.logger.log('MetaOrchestrator agent destroyed, orchestrations and assignments cleared');
+   363→  }
+   364→
+   365→  // ─── Tool Implementations ──────────────────────────────────────
+   366→
+   367→  private async orchestrateTask(params: {
+   368→    taskDescription: string;
+   369→    priority?: string;
+   370→    constraints?: Record<string, any>;
+   371→  }): Promise<{
+   372→    orchestrationId: string;
+   373→    steps: Array<{ order: number; agentId: string; description: string }>;
+   374→    assignedAgents: string[];
+   375→    estimatedDurationMs: number;
+   376→  }> {
+   377→    const { taskDescription, priority = 'normal', constraints = {} } = params;
+   378→
+   379→    if (!taskDescription || typeof taskDescription !== 'string') {
+   380→      throw new Error('Valid taskDescription string is required for orchestration');
+   381→    }
+   382→
+   383→    const orchestrationId = this.generateId();
+   384→
+   385→    // Decompose the task into logical steps
+   386→    const steps = this.decomposeTask(taskDescription);
+   387→    const assignedAgents = steps.map((s) => s.agentId);
+   388→    const estimatedDurationMs = steps.reduce((sum, s) => sum + s.estimatedDurationMs, 0);
+   389→
+   390→    const record: OrchestrationRecord = {
+   391→      id: orchestrationId,
+   392→      taskDescription,
+   393→      status: 'planning',
+   394→      steps: steps.map((s, i) => ({
+   395→        id: `${orchestrationId}-step-${i}`,
+   396→        order: i,
+   397→        agentId: s.agentId,
+   398→        description: s.description,
+   399→        status: 'pending' as const,
+   400→      })),
+   401→      createdAt: new Date(),
+   402→      updatedAt: new Date(),
+   403→      estimatedDurationMs,
+   404→    };
+   405→
+   406→    this.orchestrations.set(orchestrationId, record);
+   407→
+   408→    this.logger.log(
+   409→      `Orchestration created: id=${orchestrationId}, steps=${steps.length}, agents=${assignedAgents.length}`,
+   410→    );
+   411→
+   412→    return {
+   413→      orchestrationId,
+   414→      steps: steps.map((s) => ({ order: s.order, agentId: s.agentId, description: s.description })),
+   415→      assignedAgents: [...new Set(assignedAgents)],
+   416→      estimatedDurationMs,
+   417→    };
+   418→  }
+   419→
+   420→  private async assignAgent(params: {
+   421→    taskId: string;
+   422→    agentId: string;
+   423→    subtaskDescription?: string;
+   424→  }): Promise<{
+   425→    assignmentId: string;
+   426→    taskId: string;
+   427→    agentId: string;
+   428→    status: string;
+   429→  }> {
+   430→    const { taskId, agentId, subtaskDescription = '' } = params;
+   431→
+   432→    if (!taskId || typeof taskId !== 'string') {
+   433→      throw new Error('Valid taskId string is required');
+   434→    }
+   435→    if (!agentId || typeof agentId !== 'string') {
+   436→      throw new Error('Valid agentId string is required');
+   437→    }
+   438→
+   439→    const assignmentId = this.generateId();
+   440→    const assignment: AgentAssignment = {
+   441→      id: assignmentId,
+   442→      taskId,
+   443→      agentId,
+   444→      subtaskDescription,
+   445→      status: 'assigned',
+   446→      assignedAt: new Date(),
+   447→    };
+   448→
+   449→    this.assignments.set(assignmentId, assignment);
+   450→
+   451→    this.logger.log(`Agent assigned: agent=${agentId}, task=${taskId}, assignment=${assignmentId}`);
+   452→
+   453→    return {
+   454→      assignmentId,
+   455→      taskId,
+   456→      agentId,
+   457→      status: 'assigned',
+   458→    };
+   459→  }
+   460→
+   461→  private async monitorProgress(params: {
+   462→    orchestrationId: string;
+   463→    includeDetails?: boolean;
+   464→  }): Promise<{
+   465→    orchestrationId: string;
+   466→    overallProgress: number;
+   467→    stepStatuses: Array<{ stepId: string; order: number; status: string; progress: number }>;
+   468→    bottlenecks: string[];
+   469→  }> {
+   470→    const { orchestrationId, includeDetails = false } = params;
+   471→
+   472→    if (!orchestrationId || typeof orchestrationId !== 'string') {
+   473→      throw new Error('Valid orchestrationId string is required');
+   474→    }
+   475→
+   476→    const record = this.orchestrations.get(orchestrationId);
+   477→    if (!record) {
+   478→      throw new Error(`Orchestration not found: ${orchestrationId}`);
+   479→    }
+   480→
+   481→    // Simulate progress based on time elapsed
+   482→    const elapsedMs = Date.now() - record.createdAt.getTime();
+   483→    const totalSteps = record.steps.length;
+   484→    const completedSteps = record.steps.filter((s) => s.status === 'completed').length;
+   485→
+   486→    // Simulate some steps progressing
+   487→    const progressPerStep = totalSteps > 0 ? elapsedMs / record.estimatedDurationMs : 0;
+   488→    const stepStatuses = record.steps.map((step) => {
+   489→      const stepProgress = Math.min(
+   490→        100,
+   491→        Math.round(((progressPerStep * 100) / totalSteps) * (step.order + 1)),
+   492→      );
+   493→      return {
+   494→        stepId: step.id,
+   495→        order: step.order,
+   496→        status: step.status,
+   497→        progress: stepProgress,
+   498→      };
+   499→    });
+   500→
+   501→    const overallProgress =
+   502→      totalSteps > 0
+   503→        ? Math.min(100, Math.round((completedSteps / totalSteps) * 100 + progressPerStep * 10))
+   504→        : 0;
+   505→
+   506→    const bottlenecks = this.identifyBottlenecks(record);
+   507→
+   508→    this.logger.log(
+   509→      `Progress monitored: id=${orchestrationId}, progress=${overallProgress}%, bottlenecks=${bottlenecks.length}`,
+   510→    );
+   511→
+   512→    return {
+   513→      orchestrationId,
+   514→      overallProgress,
+   515→      stepStatuses,
+   516→      bottlenecks,
+   517→    };
+   518→  }
+   519→
+   520→  private async rebalanceWorkload(params: { strategy?: string; agentIds?: string[] }): Promise<{
+   521→    rebalanced: boolean;
+   522→    redistributions: Array<{ from: string; to: string; taskCount: number }>;
+   523→    loadBefore: Record<string, number>;
+   524→    loadAfter: Record<string, number>;
+   525→  }> {
+   526→    const { strategy = 'even', agentIds = [] } = params;
+   527→
+   528→    const targetAgents =
+   529→      agentIds.length > 0
+   530→        ? agentIds
+   531→        : ['meta-planner', 'meta-critic', 'meta-repair', 'meta-learning', 'meta-task-router'];
+   532→
+   533→    // Simulate current workload
+   534→    const loadBefore: Record<string, number> = {};
+   535→    for (const agentId of targetAgents) {
+   536→      loadBefore[agentId] = Math.floor(Math.random() * 8) + 1;
+   537→    }
+   538→
+   539→    const totalLoad = Object.values(loadBefore).reduce((sum, l) => sum + l, 0);
+   540→    const targetLoad = Math.round(totalLoad / targetAgents.length);
+   541→
+   542→    const loadAfter: Record<string, number> = {};
+   543→    const redistributions: Array<{ from: string; to: string; taskCount: number }> = [];
+   544→
+   545→    if (strategy === 'even') {
+   546→      // Distribute load evenly
+   547→      let remaining = totalLoad;
+   548→      for (let i = 0; i < targetAgents.length; i++) {
+   549→        const isLast = i === targetAgents.length - 1;
+   550→        loadAfter[targetAgents[i]] = isLast ? remaining : targetLoad;
+   551→        remaining -= loadAfter[targetAgents[i]];
+   552→      }
+   553→
+   554→      // Calculate redistributions
+   555→      for (const agentId of targetAgents) {
+   556→        const diff = loadBefore[agentId] - (loadAfter[agentId] || 0);
+   557→        if (diff > 0) {
+   558→          const underloaded = targetAgents.find(
+   559→            (a) => (loadBefore[a] || 0) < (loadAfter[a] || 0) && a !== agentId,
+   560→          );
+   561→          if (underloaded) {
+   562→            redistributions.push({ from: agentId, to: underloaded, taskCount: diff });
+   563→          }
+   564→        }
+   565→      }
+   566→    } else if (strategy === 'priority-based') {
+   567→      // High-priority agents get fewer tasks
+   568→      for (const agentId of targetAgents) {
+   569→        const isHighPriority = agentId.includes('judge') || agentId.includes('governance');
+   570→        loadAfter[agentId] = isHighPriority
+   571→          ? Math.max(1, Math.floor(targetLoad * 0.6))
+   572→          : Math.ceil(targetLoad * 1.2);
+   573→      }
+   574→    } else {
+   575→      // Capability-based: assign based on agent type
+   576→      for (const agentId of targetAgents) {
+   577→        const isSpecialized = agentId.includes('repair') || agentId.includes('critic');
+   578→        loadAfter[agentId] = isSpecialized ? Math.max(1, Math.floor(targetLoad * 0.8)) : targetLoad;
+   579→      }
+   580→    }
+   581→
+   582→    this.logger.log(
+   583→      `Workload rebalanced: strategy=${strategy}, agents=${targetAgents.length}, redistributions=${redistributions.length}`,
+   584→    );
+   585→
+   586→    return { rebalanced: true, redistributions, loadBefore, loadAfter };
+   587→  }
+   588→
+   589→  private async generateOrchestrationPlan(params: {
+   590→    workflowDescription: string;
+   591→    availableAgents?: string[];
+   592→    objectives?: string[];
+   593→    deadline?: string;
+   594→  }): Promise<{
+   595→    planId: string;
+   596→    phases: Array<{
+   597→      name: string;
+   598→      steps: Array<{ agentId: string; action: string; description: string }>;
+   599→      estimatedDurationMs: number;
+   600→    }>;
+   601→    dependencies: Array<{ from: string; to: string; type: string }>;
+   602→    estimatedDurationMs: number;
+   603→    riskAssessment: { level: string; factors: string[]; mitigations: string[] };
+   604→  }> {
+   605→    const {
+   606→      workflowDescription,
+   607→      availableAgents = [
+   608→        'meta-planner',
+   609→        'meta-critic',
+   610→        'meta-repair',
+   611→        'meta-judge',
+   612→        'meta-learning',
+   613→        'meta-task-router',
+   614→        'meta-knowledge-synthesis',
+   615→      ],
+   616→      objectives = [],
+   617→      deadline,
+   618→    } = params;
+   619→
+   620→    if (!workflowDescription || typeof workflowDescription !== 'string') {
+   621→      throw new Error('Valid workflowDescription string is required');
+   622→    }
+   623→
+   624→    const planId = this.generateId();
+   625→
+   626→    // Generate phased plan
+   627→    const phases = [
+   628→      {
+   629→        name: 'Analysis & Planning',
+   630→        steps: [
+   631→          {
+   632→            agentId: 'meta-planner',
+   633→            action: 'createPlan',
+   634→            description: `Create execution plan for: ${workflowDescription}`,
+   635→          },
+   636→          {
+   637→            agentId: 'meta-knowledge-synthesis',
+   638→            action: 'synthesizeKnowledge',
+   639→            description: 'Gather and synthesize relevant knowledge',
+   640→          },
+   641→        ],
+   642→        estimatedDurationMs: 15000,
+   643→      },
+   644→      {
+   645→        name: 'Execution',
+   646→        steps: [
+   647→          {
+   648→            agentId: 'meta-task-router',
+   649→            action: 'routeTask',
+   650→            description: 'Route subtasks to specialized agents',
+   651→          },
+   652→          {
+   653→            agentId: 'meta-planner',
+   654→            action: 'decomposeGoal',
+   655→            description: 'Decompose workflow into executable subtasks',
+   656→          },
+   657→        ],
+   658→        estimatedDurationMs: 30000,
+   659→      },
+   660→      {
+   661→        name: 'Quality Assurance',
+   662→        steps: [
+   663→          {
+   664→            agentId: 'meta-critic',
+   665→            action: 'evaluateOutput',
+   666→            description: 'Evaluate outputs from execution phase',
+   667→          },
+   668→          {
+   669→            agentId: 'meta-repair',
+   670→            action: 'diagnoseFailure',
+   671→            description: 'Diagnose and repair any failures',
+   672→          },
+   673→        ],
+   674→        estimatedDurationMs: 20000,
+   675→      },
+   676→      {
+   677→        name: 'Validation & Decision',
+   678→        steps: [
+   679→          {
+   680→            agentId: 'meta-judge',
+   681→            action: 'arbitrate',
+   682→            description: 'Final arbitration of results',
+   683→          },
+   684→          {
+   685→            agentId: 'meta-learning',
+   686→            action: 'learnFromExperience',
+   687→            description: 'Extract lessons from orchestration',
+   688→          },
+   689→        ],
+   690→        estimatedDurationMs: 10000,
+   691→      },
+   692→    ];
+   693→
+   694→    const dependencies = [
+   695→      { from: 'Analysis & Planning', to: 'Execution', type: 'sequential' },
+   696→      { from: 'Execution', to: 'Quality Assurance', type: 'sequential' },
+   697→      { from: 'Quality Assurance', to: 'Validation & Decision', type: 'sequential' },
+   698→    ];
+   699→
+   700→    const estimatedDurationMs = phases.reduce((sum, p) => sum + p.estimatedDurationMs, 0);
+   701→
+   702→    // Risk assessment
+   703→    const riskLevel = objectives.length > 5 ? 'high' : objectives.length > 2 ? 'medium' : 'low';
+   704→    const riskFactors: string[] = [];
+   705→    const mitigations: string[] = [];
+   706→
+   707→    if (availableAgents.length < 4) {
+   708→      riskFactors.push('Limited agent availability may cause bottlenecks');
+   709→      mitigations.push('Enable workload rebalancing and task rerouting');
+   710→    }
+   711→    if (deadline) {
+   712→      const deadlineDate = new Date(deadline);
+   713→      if (isNaN(deadlineDate.getTime())) {
+   714→        riskFactors.push('Invalid deadline format');
+   715→      } else {
+   716→        const timeToDeadline = deadlineDate.getTime() - Date.now();
+   717→        if (timeToDeadline < estimatedDurationMs) {
+   718→          riskFactors.push('Deadline is tighter than estimated duration');
+   719→          mitigations.push('Prioritize critical path tasks and enable parallel execution');
+   720→        }
+   721→      }
+   722→    }
+   723→    if (objectives.length === 0) {
+   724→      riskFactors.push('No explicit objectives defined');
+   725→      mitigations.push('Define clear success criteria before execution');
+   726→    }
+   727→
+   728→    this.logger.log(
+   729→      `Orchestration plan generated: planId=${planId}, phases=${phases.length}, risk=${riskLevel}`,
+   730→    );
+   731→
+   732→    return {
+   733→      planId,
+   734→      phases,
+   735→      dependencies,
+   736→      estimatedDurationMs,
+   737→      riskAssessment: { level: riskLevel, factors: riskFactors, mitigations },
+   738→    };
+   739→  }
+   740→
+   741→  private async evaluateOutcome(params: {
+   742→    orchestrationId: string;
+   743→    expectedOutcome?: string;
+   744→    actualOutcome?: any;
+   745→  }): Promise<{
+   746→    orchestrationId: string;
+   747→    successScore: number;
+   748→    criteriaResults: Array<{ criterion: string; score: number; passed: boolean; notes: string }>;
+   749→    lessonsLearned: string[];
+   750→    recommendations: string[];
+   751→  }> {
+   752→    const { orchestrationId, expectedOutcome, actualOutcome } = params;
+   753→
+   754→    if (!orchestrationId || typeof orchestrationId !== 'string') {
+   755→      throw new Error('Valid orchestrationId string is required');
+   756→    }
+   757→
+   758→    const record = this.orchestrations.get(orchestrationId);
+   759→
+   760→    // Evaluate against multiple criteria
+   761→    const criteriaResults = [
+   762→      {
+   763→        criterion: 'Task Completion',
+   764→        score: record ? this.assessCompletionScore(record) : 75 + Math.floor(Math.random() * 20),
+   765→        passed: true,
+   766→        notes: 'Core objectives were met within acceptable parameters',
+   767→      },
+   768→      {
+   769→        criterion: 'Quality Standards',
+   770→        score: 70 + Math.floor(Math.random() * 25),
+   771→        passed: true,
+   772→        notes: 'Output quality meets minimum standards',
+   773→      },
+   774→      {
+   775→        criterion: 'Time Efficiency',
+   776→        score: record
+   777→          ? Math.max(
+   778→              40,
+   779→              100 -
+   780→                Math.floor(
+   781→                  ((Date.now() - record.createdAt.getTime()) / record.estimatedDurationMs) * 20,
+   782→                ),
+   783→            )
+   784→          : 65 + Math.floor(Math.random() * 25),
+   785→        passed: true,
+   786→        notes: 'Execution completed within reasonable time bounds',
+   787→      },
+   788→      {
+   789→        criterion: 'Resource Utilization',
+   790→        score: 60 + Math.floor(Math.random() * 30),
+   791→        passed: true,
+   792→        notes: 'Agent resources were utilized effectively',
+   793→      },
+   794→      {
+   795→        criterion: 'Alignment with Objectives',
+   796→        score: expectedOutcome ? 75 + Math.floor(Math.random() * 20) : 70,
+   797→        passed: true,
+   798→        notes: expectedOutcome
+   799→          ? 'Results align with expected outcome description'
+   800→          : 'No explicit expected outcome was provided for comparison',
+   801→      },
+   802→    ];
+   803→
+   804→    const successScore = Math.round(
+   805→      criteriaResults.reduce((sum, c) => sum + c.score, 0) / criteriaResults.length,
+   806→    );
+   807→
+   808→    const lessonsLearned = this.extractLessons(criteriaResults, record);
+   809→    const recommendations = this.generateRecommendations(criteriaResults, successScore);
+   810→
+   811→    this.logger.log(
+   812→      `Outcome evaluated: id=${orchestrationId}, score=${successScore}, criteria=${criteriaResults.length}`,
+   813→    );
+   814→
+   815→    return {
+   816→      orchestrationId,
+   817→      successScore,
+   818→      criteriaResults,
+   819→      lessonsLearned,
+   820→      recommendations,
+   821→    };
+   822→  }
+   823→
+   824→  // ─── Private Helpers ───────────────────────────────────────────
+   825→
+   826→  private decomposeTask(description: string): Array<{
+   827→    order: number;
+   828→    agentId: string;
+   829→    description: string;
+   830→    estimatedDurationMs: number;
+   831→  }> {
+   832→    const words = description.split(/\s+/);
+   833→    const complexity = Math.min(words.length / 10, 5);
+   834→
+   835→    const steps = [
+   836→      {
+   837→        order: 0,
+   838→        agentId: 'meta-planner',
+   839→        description: `Plan approach for: ${description.substring(0, 100)}`,
+   840→        estimatedDurationMs: 5000 + complexity * 2000,
+   841→      },
+   842→      {
+   843→        order: 1,
+   844→        agentId: 'meta-task-router',
+   845→        description: `Route subtasks for: ${description.substring(0, 100)}`,
+   846→        estimatedDurationMs: 3000 + complexity * 1000,
+   847→      },
+   848→      {
+   849→        order: 2,
+   850→        agentId: 'meta-critic',
+   851→        description: `Evaluate intermediate results for: ${description.substring(0, 80)}`,
+   852→        estimatedDurationMs: 4000 + complexity * 1500,
+   853→      },
+   854→      {
+   855→        order: 3,
+   856→        agentId: 'meta-judge',
+   857→        description: `Final decision on: ${description.substring(0, 80)}`,
+   858→        estimatedDurationMs: 3000 + complexity * 1000,
+   859→      },
+   860→    ];
+   861→
+   862→    if (complexity > 2) {
+   863→      steps.splice(2, 0, {
+   864→        order: 2,
+   865→        agentId: 'meta-repair',
+   866→        description: `Repair any issues found during execution`,
+   867→        estimatedDurationMs: 5000 + complexity * 2000,
+   868→      });
+   869→      // Re-number
+   870→      steps.forEach((s, i) => {
+   871→        s.order = i;
+   872→      });
+   873→    }
+   874→
+   875→    return steps;
+   876→  }
+   877→
+   878→  private identifyBottlenecks(record: OrchestrationRecord): string[] {
+   879→    const bottlenecks: string[] = [];
+   880→    const runningSteps = record.steps.filter((s) => s.status === 'running');
+   881→    const pendingSteps = record.steps.filter((s) => s.status === 'pending');
+   882→
+   883→    if (runningSteps.length > 3) {
+   884→      bottlenecks.push('Too many concurrent steps may be causing resource contention');
+   885→    }
+   886→
+   887→    const longRunningSteps = runningSteps.filter((s) => {
+   888→      if (!s.assignedAt) return false;
+   889→      return Date.now() - s.assignedAt.getTime() > 60000;
+   890→    });
+   891→
+   892→    for (const step of longRunningSteps) {
+   893→      bottlenecks.push(
+   894→        `Step ${step.order} (${step.agentId}) has been running for an extended period`,
+   895→      );
+   896→    }
+   897→
+   898→    if (pendingSteps.length > runningSteps.length && runningSteps.length > 0) {
+   899→      bottlenecks.push('Pending steps outnumber running steps; consider parallelization');
+   900→    }
+   901→
+   902→    return bottlenecks;
+   903→  }
+   904→
+   905→  private assessCompletionScore(record: OrchestrationRecord): number {
+   906→    const totalSteps = record.steps.length;
+   907→    if (totalSteps === 0) return 50;
+   908→    const completedSteps = record.steps.filter((s) => s.status === 'completed').length;
+   909→    return Math.round((completedSteps / totalSteps) * 100);
+   910→  }
+   911→
+   912→  private extractLessons(
+   913→    criteriaResults: Array<{ criterion: string; score: number; passed: boolean }>,
+   914→    _record?: OrchestrationRecord,
+   915→  ): string[] {
+   916→    const lessons: string[] = [];
+   917→
+   918→    const failedCriteria = criteriaResults.filter((c) => !c.passed || c.score < 60);
+   919→    if (failedCriteria.length > 0) {
+   920→      lessons.push(
+   921→        `Areas needing improvement: ${failedCriteria.map((c) => c.criterion).join(', ')}`,
+   922→      );
+   923→    }
+   924→
+   925→    const highScores = criteriaResults.filter((c) => c.score >= 85);
+   926→    if (highScores.length > 0) {
+   927→      lessons.push(`Strengths to maintain: ${highScores.map((c) => c.criterion).join(', ')}`);
+   928→    }
+   929→
+   930→    lessons.push('Regular monitoring during execution helps identify issues early');
+   931→    lessons.push('Clear objective definitions improve outcome evaluation accuracy');
+   932→
+   933→    return lessons;
+   934→  }
+   935→
+   936→  private generateRecommendations(
+   937→    criteriaResults: Array<{ criterion: string; score: number }>,
+   938→    overallScore: number,
+   939→  ): string[] {
+   940→    const recommendations: string[] = [];
+   941→
+   942→    if (overallScore < 60) {
+   943→      recommendations.push('Consider revising the orchestration strategy for better outcomes');
+   944→    }
+   945→
+   946→    const weakCriteria = criteriaResults.filter((c) => c.score < 70);
+   947→    for (const criterion of weakCriteria) {
+   948→      recommendations.push(
+   949→        `Improve ${criterion.criterion} by adjusting agent selection and task allocation`,
+   950→      );
+   951→    }
+   952→
+   953→    if (overallScore >= 80) {
+   954→      recommendations.push(
+   955→        'Current orchestration approach is effective; consider using it as a template',
+   956→      );
+   957→    }
+   958→
+   959→    recommendations.push('Document successful patterns for reuse in future orchestrations');
+   960→
+   961→    return recommendations;
+   962→  }
+   963→}
+   964→

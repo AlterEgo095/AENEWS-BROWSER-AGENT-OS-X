@@ -3,7 +3,7 @@
  * Provides smart wait strategies: waitForSelector, waitForNavigation, waitForNetworkIdle, waitForFunction, waitForTimeout.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -11,6 +11,9 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { BrowserCapability } from '../../../software-factory/interfaces';
+import { ConnectorOutput } from '../../../software-factory/connectors/connector.interface';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -151,6 +154,15 @@ export const WAIT_STRATEGY_AGENT_CONFIG: AgentConfig = {
 export class WaitStrategyAgentService extends BaseAgentService {
   private activeWaits: Map<string, NodeJS.Timeout> = new Map();
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   protected defineConfig(): AgentConfig {
     return WAIT_STRATEGY_AGENT_CONFIG;
   }
@@ -204,6 +216,34 @@ export class WaitStrategyAgentService extends BaseAgentService {
     const startTime = Date.now();
     const { action, ...params } = input.payload;
 
+    // Try real connector first via bridge
+    if (this.bridge) {
+      try {
+        const result: ConnectorOutput = await this.bridge.executeCapability(
+          BrowserCapability.SESSION,
+          {
+            missionId: input.taskId,
+            instruction: action || 'wait',
+            workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+            parameters: input.payload,
+          },
+        );
+
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Bridge execution failed, falling back to local: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    // Fallback to existing simulated logic
     if (!action) {
       return this.createAgentOutput(
         input.taskId,

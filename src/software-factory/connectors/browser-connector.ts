@@ -21,11 +21,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  CapabilityId,
-  CapabilityPack,
-  BrowserCapability,
-} from '../interfaces';
+import { CapabilityId, CapabilityPack, BrowserCapability } from '../interfaces';
 import {
   ICapabilityConnector,
   ConnectorInput,
@@ -143,7 +139,9 @@ export class BrowserConnector implements ICapabilityConnector {
 
       return {
         success: true,
-        artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, sizeBytes)],
+        artifacts: [
+          this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, sizeBytes),
+        ],
         output: { url, screenshotPath, sizeBytes },
         costUsd: 0.01,
         durationMs: 0,
@@ -229,8 +227,18 @@ export class BrowserConnector implements ICapabilityConnector {
         await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
         // Try common selectors for username/email and password fields
-        const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
-        const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
+        const usernameSelectors = [
+          'input[type="email"]',
+          'input[name="username"]',
+          'input[name="email"]',
+          'input[id="username"]',
+          'input[id="email"]',
+        ];
+        const passwordSelectors = [
+          'input[type="password"]',
+          'input[name="password"]',
+          'input[id="password"]',
+        ];
 
         let filledUsername = false;
         for (const selector of usernameSelectors) {
@@ -241,7 +249,9 @@ export class BrowserConnector implements ICapabilityConnector {
               filledUsername = true;
               break;
             }
-          } catch { /* try next selector */ }
+          } catch {
+            /* try next selector */
+          }
         }
 
         let filledPassword = false;
@@ -253,7 +263,9 @@ export class BrowserConnector implements ICapabilityConnector {
               filledPassword = true;
               break;
             }
-          } catch { /* try next selector */ }
+          } catch {
+            /* try next selector */
+          }
         }
 
         // Submit form
@@ -273,8 +285,21 @@ export class BrowserConnector implements ICapabilityConnector {
 
         return {
           success: filledUsername && filledPassword,
-          artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
-          output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
+          artifacts: [
+            this.makeArtifact(
+              'post-login.png',
+              'screenshot',
+              screenshotPath,
+              fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0,
+            ),
+          ],
+          output: {
+            url,
+            resultUrl,
+            resultTitle,
+            usernameFilled: filledUsername,
+            passwordFilled: filledPassword,
+          },
           costUsd: 0.02,
           durationMs: 0,
         };
@@ -338,8 +363,18 @@ export class BrowserConnector implements ICapabilityConnector {
         return {
           success: results.length > 0,
           artifacts: [
-            this.makeArtifact('search-results.json', 'source', resultsPath, JSON.stringify(results)),
-            this.makeArtifact('search-results.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
+            this.makeArtifact(
+              'search-results.json',
+              'source',
+              resultsPath,
+              JSON.stringify(results),
+            ),
+            this.makeArtifact(
+              'search-results.png',
+              'screenshot',
+              screenshotPath,
+              fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0,
+            ),
           ],
           output: { query, engine, resultCount: results.length, results: results.slice(0, 5) },
           costUsd: 0.02,
@@ -378,7 +413,9 @@ export class BrowserConnector implements ICapabilityConnector {
             try {
               await page.fill(`[name="${selector}"]`, value as string);
               filledFields.push(`[name="${selector}"]`);
-            } catch { /* skip this field */ }
+            } catch {
+              /* skip this field */
+            }
           }
         }
 
@@ -423,7 +460,8 @@ export class BrowserConnector implements ICapabilityConnector {
     // Then analyze with LLM
     try {
       const llmResult = await this.llm.call({
-        systemPrompt: 'You are a visual UI/UX analyst. Describe what you see in a webpage screenshot and provide insights.',
+        systemPrompt:
+          'You are a visual UI/UX analyst. Describe what you see in a webpage screenshot and provide insights.',
         userPrompt: `Analyze this webpage screenshot from ${url}. The mission is: "${input.instruction}". Describe the layout, identify any UI issues, and suggest improvements.`,
         maxTokens: 2048,
       });
@@ -620,7 +658,9 @@ export class BrowserConnector implements ICapabilityConnector {
 
         return {
           success: true,
-          artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
+          artifacts: [
+            this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies)),
+          ],
           output: { url, cookieCount: cookies.length },
           costUsd: 0.01,
           durationMs: 0,
@@ -679,7 +719,10 @@ export class BrowserConnector implements ICapabilityConnector {
   //  Generic fallback
   // ═══════════════════════════════════════════════════════════
 
-  private async executeGenericBrowser(capId: BrowserCapability, input: ConnectorInput): Promise<ConnectorOutput> {
+  private async executeGenericBrowser(
+    capId: BrowserCapability,
+    input: ConnectorInput,
+  ): Promise<ConnectorOutput> {
     const url = input.parameters.url;
     if (url) {
       // Default: navigate + screenshot
@@ -700,7 +743,12 @@ export class BrowserConnector implements ICapabilityConnector {
   //  Helpers
   // ═══════════════════════════════════════════════════════════
 
-  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, contentOrSize: string | number): GeneratedArtifact {
+  private makeArtifact(
+    name: string,
+    type: GeneratedArtifact['type'],
+    fullPath: string,
+    contentOrSize: string | number,
+  ): GeneratedArtifact {
     const isString = typeof contentOrSize === 'string';
     return {
       name,
@@ -722,7 +770,12 @@ export class BrowserConnector implements ICapabilityConnector {
     };
   }
 
-  private playwrightFallback(input: ConnectorInput, action: string, url: string, error: Error): ConnectorOutput {
+  private playwrightFallback(
+    input: ConnectorInput,
+    action: string,
+    url: string,
+    error: Error,
+  ): ConnectorOutput {
     this.logger.warn(`Playwright ${action} failed for ${url}: ${error.message}`);
 
     const reportPath = path.join(input.workspaceDir, 'docs', `browser-${action}-report.md`);

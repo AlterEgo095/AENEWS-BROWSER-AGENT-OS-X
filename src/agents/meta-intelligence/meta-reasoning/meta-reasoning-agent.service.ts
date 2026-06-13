@@ -5,7 +5,7 @@
  * alternative generation, and inference validation.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -13,6 +13,7 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -158,6 +159,11 @@ export const META_REASONING_AGENT_CONFIG: AgentConfig = {
 
 @Injectable()
 export class MetaReasoningAgentService extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private analyses: Map<string, any> = new Map();
 
   protected defineConfig(): AgentConfig {
@@ -219,6 +225,30 @@ export class MetaReasoningAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+    // Bridge: use LLM for reasoning analysis, bias detection, and logic evaluation
+    if (this.bridge) {
+      try {
+        const llmResult = await this.bridge.callLLM({
+          systemPrompt: `You are the ${this.config.name} agent in the Meta-Intelligence cluster. Analyze the following task and provide detailed reasoning analysis, bias detection, and logic evaluation.`,
+          userPrompt: JSON.stringify(input.payload),
+          temperature: 0.3,
+          maxTokens: 2048,
+        });
+
+        const analysis = llmResult.content;
+
+        return this.createAgentOutput(
+          input.taskId,
+          true,
+          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+          undefined,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
     if (!action)
       return this.createAgentOutput(

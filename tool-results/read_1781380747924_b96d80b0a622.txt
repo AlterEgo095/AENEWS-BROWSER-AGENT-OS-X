@@ -1,0 +1,843 @@
+     1→/**
+     2→ * AENEWS Agent OS X - FileSystem Agent
+     3→ * Handles file system operations: read, write, create, delete, move, copy files and directories.
+     4→ * Simulates a virtual file system for environments without direct OS access.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const FILESYSTEM_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'computer-filesystem',
+    20→  name: 'FileSystem',
+    21→  cluster: AgentCluster.COMPUTER,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Manage file system operations: read, write, create, delete, move, and copy files and directories. Provides a virtualized file system with full path validation, permission checks, and structured error handling.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'readFile',
+    28→      description: 'Read the contents of a file at the specified path',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          path: { type: 'string', description: 'Absolute or relative file path' },
+    33→          encoding: {
+    34→            type: 'string',
+    35→            description: 'File encoding (utf-8, ascii, base64)',
+    36→            default: 'utf-8',
+    37→          },
+    38→        },
+    39→        required: ['path'],
+    40→      },
+    41→      outputSchema: {
+    42→        type: 'object',
+    43→        properties: {
+    44→          content: { type: 'string' },
+    45→          size: { type: 'number' },
+    46→          encoding: { type: 'string' },
+    47→          lastModified: { type: 'string' },
+    48→        },
+    49→      },
+    50→    },
+    51→    {
+    52→      name: 'writeFile',
+    53→      description: 'Write content to a file, creating it if it does not exist',
+    54→      inputSchema: {
+    55→        type: 'object',
+    56→        properties: {
+    57→          path: { type: 'string', description: 'File path to write to' },
+    58→          content: { type: 'string', description: 'Content to write' },
+    59→          encoding: { type: 'string', default: 'utf-8' },
+    60→          overwrite: { type: 'boolean', default: true },
+    61→        },
+    62→        required: ['path', 'content'],
+    63→      },
+    64→      outputSchema: {
+    65→        type: 'object',
+    66→        properties: {
+    67→          path: { type: 'string' },
+    68→          bytesWritten: { type: 'number' },
+    69→          created: { type: 'boolean' },
+    70→        },
+    71→      },
+    72→    },
+    73→    {
+    74→      name: 'createDirectory',
+    75→      description: 'Create a directory at the specified path, including parent directories',
+    76→      inputSchema: {
+    77→        type: 'object',
+    78→        properties: {
+    79→          path: { type: 'string', description: 'Directory path to create' },
+    80→          recursive: { type: 'boolean', default: true },
+    81→        },
+    82→        required: ['path'],
+    83→      },
+    84→      outputSchema: {
+    85→        type: 'object',
+    86→        properties: {
+    87→          path: { type: 'string' },
+    88→          created: { type: 'boolean' },
+    89→        },
+    90→      },
+    91→    },
+    92→    {
+    93→      name: 'deleteFile',
+    94→      description: 'Delete a file or directory at the specified path',
+    95→      inputSchema: {
+    96→        type: 'object',
+    97→        properties: {
+    98→          path: { type: 'string', description: 'Path to delete' },
+    99→          recursive: { type: 'boolean', default: false },
+   100→          force: { type: 'boolean', default: false },
+   101→        },
+   102→        required: ['path'],
+   103→      },
+   104→      outputSchema: {
+   105→        type: 'object',
+   106→        properties: {
+   107→          path: { type: 'string' },
+   108→          deleted: { type: 'boolean' },
+   109→          type: { type: 'string' },
+   110→        },
+   111→      },
+   112→    },
+   113→    {
+   114→      name: 'moveFile',
+   115→      description: 'Move a file or directory from source to destination',
+   116→      inputSchema: {
+   117→        type: 'object',
+   118→        properties: {
+   119→          source: { type: 'string' },
+   120→          destination: { type: 'string' },
+   121→          overwrite: { type: 'boolean', default: false },
+   122→        },
+   123→        required: ['source', 'destination'],
+   124→      },
+   125→      outputSchema: {
+   126→        type: 'object',
+   127→        properties: {
+   128→          source: { type: 'string' },
+   129→          destination: { type: 'string' },
+   130→          moved: { type: 'boolean' },
+   131→        },
+   132→      },
+   133→    },
+   134→    {
+   135→      name: 'copyFile',
+   136→      description: 'Copy a file or directory from source to destination',
+   137→      inputSchema: {
+   138→        type: 'object',
+   139→        properties: {
+   140→          source: { type: 'string' },
+   141→          destination: { type: 'string' },
+   142→          overwrite: { type: 'boolean', default: false },
+   143→          recursive: { type: 'boolean', default: false },
+   144→        },
+   145→        required: ['source', 'destination'],
+   146→      },
+   147→      outputSchema: {
+   148→        type: 'object',
+   149→        properties: {
+   150→          source: { type: 'string' },
+   151→          destination: { type: 'string' },
+   152→          copied: { type: 'boolean' },
+   153→          bytesCopied: { type: 'number' },
+   154→        },
+   155→      },
+   156→    },
+   157→    {
+   158→      name: 'listDirectory',
+   159→      description: 'List the contents of a directory',
+   160→      inputSchema: {
+   161→        type: 'object',
+   162→        properties: {
+   163→          path: { type: 'string' },
+   164→          recursive: { type: 'boolean', default: false },
+   165→          includeHidden: { type: 'boolean', default: false },
+   166→          pattern: { type: 'string', description: 'Glob pattern to filter results' },
+   167→        },
+   168→        required: ['path'],
+   169→      },
+   170→      outputSchema: {
+   171→        type: 'object',
+   172→        properties: {
+   173→          path: { type: 'string' },
+   174→          entries: { type: 'array' },
+   175→          totalFiles: { type: 'number' },
+   176→          totalDirectories: { type: 'number' },
+   177→        },
+   178→      },
+   179→    },
+   180→    {
+   181→      name: 'getFileInfo',
+   182→      description: 'Get detailed metadata about a file or directory',
+   183→      inputSchema: {
+   184→        type: 'object',
+   185→        properties: {
+   186→          path: { type: 'string' },
+   187→        },
+   188→        required: ['path'],
+   189→      },
+   190→      outputSchema: {
+   191→        type: 'object',
+   192→        properties: {
+   193→          path: { type: 'string' },
+   194→          name: { type: 'string' },
+   195→          type: { type: 'string' },
+   196→          size: { type: 'number' },
+   197→          created: { type: 'string' },
+   198→          modified: { type: 'string' },
+   199→          permissions: { type: 'string' },
+   200→        },
+   201→      },
+   202→    },
+   203→  ],
+   204→  permissions: [
+   205→    'execute:task',
+   206→    'read:filesystem',
+   207→    'write:filesystem',
+   208→    'delete:filesystem',
+   209→    'create:directory',
+   210→    'move:filesystem',
+   211→    'copy:filesystem',
+   212→  ],
+   213→  maxConcurrentTasks: 8,
+   214→  timeout: 15000,
+   215→  retryPolicy: {
+   216→    maxRetries: 2,
+   217→    backoffMs: 500,
+   218→    exponentialBackoff: true,
+   219→  },
+   220→};
+   221→
+   222→// ─── Virtual File System Types ────────────────────────────────────
+   223→
+   224→interface VirtualNode {
+   225→  name: string;
+   226→  type: 'file' | 'directory';
+   227→  content?: string;
+   228→  children: Map<string, VirtualNode>;
+   229→  created: Date;
+   230→  modified: Date;
+   231→  permissions: string;
+   232→  size: number;
+   233→}
+   234→
+   235→// ─── Agent Service ────────────────────────────────────────────────
+   236→
+   237→@Injectable()
+   238→export class FileSystemAgentService extends BaseAgentService {
+   239→  private root!: VirtualNode;
+   240→  private operationLog: Array<{
+   241→    operation: string;
+   242→    path: string;
+   243→    timestamp: Date;
+   244→    success: boolean;
+   245→  }> = [];
+   246→
+   247→  protected defineConfig(): AgentConfig {
+   248→    return FILESYSTEM_AGENT_CONFIG;
+   249→  }
+   250→
+   251→  protected async onInitialize(): Promise<void> {
+   252→    // Initialize virtual file system root
+   253→    this.root = this.createDirectoryNode('/');
+   254→
+   255→    // Seed some default directories
+   256→    const homeDir = this.createDirectoryNode('home');
+   257→    const userDir = this.createDirectoryNode('user');
+   258→    const docsDir = this.createDirectoryNode('documents');
+   259→    const tmpDir = this.createDirectoryNode('tmp');
+   260→    userDir.children.set('documents', docsDir);
+   261→    homeDir.children.set('user', userDir);
+   262→    this.root.children.set('home', homeDir);
+   263→    this.root.children.set('tmp', tmpDir);
+   264→
+   265→    // Register tools
+   266→    this.registerTool({
+   267→      name: 'readFile',
+   268→      description: 'Read the contents of a file',
+   269→      execute: async (params: { path: string; encoding?: string }) =>
+   270→        this.readFile(params.path, params.encoding),
+   271→    });
+   272→
+   273→    this.registerTool({
+   274→      name: 'writeFile',
+   275→      description: 'Write content to a file',
+   276→      execute: async (params: {
+   277→        path: string;
+   278→        content: string;
+   279→        encoding?: string;
+   280→        overwrite?: boolean;
+   281→      }) => this.writeFile(params.path, params.content, params.encoding, params.overwrite),
+   282→    });
+   283→
+   284→    this.registerTool({
+   285→      name: 'createDirectory',
+   286→      description: 'Create a directory',
+   287→      execute: async (params: { path: string; recursive?: boolean }) =>
+   288→        this.createDirectory(params.path, params.recursive),
+   289→    });
+   290→
+   291→    this.registerTool({
+   292→      name: 'deleteFile',
+   293→      description: 'Delete a file or directory',
+   294→      execute: async (params: { path: string; recursive?: boolean; force?: boolean }) =>
+   295→        this.deleteFile(params.path, params.recursive, params.force),
+   296→    });
+   297→
+   298→    this.registerTool({
+   299→      name: 'moveFile',
+   300→      description: 'Move a file or directory',
+   301→      execute: async (params: { source: string; destination: string; overwrite?: boolean }) =>
+   302→        this.moveFile(params.source, params.destination, params.overwrite),
+   303→    });
+   304→
+   305→    this.registerTool({
+   306→      name: 'copyFile',
+   307→      description: 'Copy a file or directory',
+   308→      execute: async (params: {
+   309→        source: string;
+   310→        destination: string;
+   311→        overwrite?: boolean;
+   312→        recursive?: boolean;
+   313→      }) => this.copyFile(params.source, params.destination, params.overwrite, params.recursive),
+   314→    });
+   315→
+   316→    this.registerTool({
+   317→      name: 'listDirectory',
+   318→      description: 'List directory contents',
+   319→      execute: async (params: {
+   320→        path: string;
+   321→        recursive?: boolean;
+   322→        includeHidden?: boolean;
+   323→        pattern?: string;
+   324→      }) => this.listDirectory(params.path, params.recursive, params.includeHidden, params.pattern),
+   325→    });
+   326→
+   327→    this.registerTool({
+   328→      name: 'getFileInfo',
+   329→      description: 'Get file or directory metadata',
+   330→      execute: async (params: { path: string }) => this.getFileInfo(params.path),
+   331→    });
+   332→
+   333→    await this.storeInWorkingMemory('fs:initializedAt', new Date().toISOString(), 600000);
+   334→    this.logger.log('FileSystem agent initialized with 8 tools and virtual file system');
+   335→  }
+   336→
+   337→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   338→    const startTime = Date.now();
+   339→    const { action, ...params } = input.payload;
+   340→
+   341→    if (!action) {
+   342→      return this.createAgentOutput(
+   343→        input.taskId,
+   344→        false,
+   345→        null,
+   346→        'Missing required parameter: action',
+   347→        startTime,
+   348→      );
+   349→    }
+   350→
+   351→    const supportedActions = [
+   352→      'readFile',
+   353→      'writeFile',
+   354→      'createDirectory',
+   355→      'deleteFile',
+   356→      'moveFile',
+   357→      'copyFile',
+   358→      'listDirectory',
+   359→      'getFileInfo',
+   360→    ];
+   361→
+   362→    if (!supportedActions.includes(action)) {
+   363→      return this.createAgentOutput(
+   364→        input.taskId,
+   365→        false,
+   366→        null,
+   367→        `Unknown filesystem action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   368→        startTime,
+   369→      );
+   370→    }
+   371→
+   372→    try {
+   373→      const tool = this.getTool(action);
+   374→      if (!tool) {
+   375→        return this.createAgentOutput(
+   376→          input.taskId,
+   377→          false,
+   378→          null,
+   379→          `Tool not found: ${action}`,
+   380→          startTime,
+   381→        );
+   382→      }
+   383→
+   384→      const result = await tool.execute(params);
+   385→
+   386→      this.operationLog.push({
+   387→        operation: action,
+   388→        path: params.path || params.source || '',
+   389→        timestamp: new Date(),
+   390→        success: true,
+   391→      });
+   392→
+   393→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   394→    } catch (error) {
+   395→      const msg = (error as Error).message;
+   396→      this.logger.error(`FileSystem execution failed for ${action}: ${msg}`);
+   397→
+   398→      this.operationLog.push({
+   399→        operation: action,
+   400→        path: params.path || params.source || '',
+   401→        timestamp: new Date(),
+   402→        success: false,
+   403→      });
+   404→
+   405→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   406→    }
+   407→  }
+   408→
+   409→  protected async onDestroy(): Promise<void> {
+   410→    this.root.children.clear();
+   411→    this.operationLog = [];
+   412→    this.logger.log('FileSystem agent destroyed, virtual file system cleared');
+   413→  }
+   414→
+   415→  // ─── Tool Implementations ──────────────────────────────────────
+   416→
+   417→  private async readFile(
+   418→    path: string,
+   419→    encoding: string = 'utf-8',
+   420→  ): Promise<{ content: string; size: number; encoding: string; lastModified: string }> {
+   421→    this.validatePath(path);
+   422→
+   423→    const node = this.resolveNode(path);
+   424→    if (!node) {
+   425→      throw new Error(`File not found: ${path}`);
+   426→    }
+   427→    if (node.type === 'directory') {
+   428→      throw new Error(`Path is a directory, not a file: ${path}`);
+   429→    }
+   430→
+   431→    this.logger.log(`Read file: ${path} (${node.size} bytes)`);
+   432→    return {
+   433→      content: node.content || '',
+   434→      size: node.size,
+   435→      encoding,
+   436→      lastModified: node.modified.toISOString(),
+   437→    };
+   438→  }
+   439→
+   440→  private async writeFile(
+   441→    path: string,
+   442→    content: string,
+   443→    encoding: string = 'utf-8',
+   444→    overwrite: boolean = true,
+   445→  ): Promise<{ path: string; bytesWritten: number; created: boolean }> {
+   446→    this.validatePath(path);
+   447→
+   448→    const parentPath = this.getParentPath(path);
+   449→    const fileName = this.getBaseName(path);
+   450→
+   451→    const parentNode = this.resolveNode(parentPath);
+   452→    if (!parentNode) {
+   453→      throw new Error(`Parent directory not found: ${parentPath}`);
+   454→    }
+   455→    if (parentNode.type !== 'directory') {
+   456→      throw new Error(`Parent path is not a directory: ${parentPath}`);
+   457→    }
+   458→
+   459→    const existingNode = parentNode.children.get(fileName);
+   460→    if (existingNode && existingNode.type === 'directory') {
+   461→      throw new Error(`Cannot write file: a directory exists at ${path}`);
+   462→    }
+   463→    if (existingNode && !overwrite) {
+   464→      throw new Error(`File already exists and overwrite is false: ${path}`);
+   465→    }
+   466→
+   467→    const isCreated = !existingNode;
+   468→    const byteSize = Buffer.byteLength(content, encoding as BufferEncoding);
+   469→
+   470→    const fileNode: VirtualNode = {
+   471→      name: fileName,
+   472→      type: 'file',
+   473→      content,
+   474→      children: new Map(),
+   475→      created: existingNode?.created || new Date(),
+   476→      modified: new Date(),
+   477→      permissions: 'rw-r--r--',
+   478→      size: byteSize,
+   479→    };
+   480→
+   481→    parentNode.children.set(fileName, fileNode);
+   482→    parentNode.modified = new Date();
+   483→
+   484→    this.logger.log(`Wrote file: ${path} (${byteSize} bytes, created: ${isCreated})`);
+   485→    return { path, bytesWritten: byteSize, created: isCreated };
+   486→  }
+   487→
+   488→  private async createDirectory(
+   489→    path: string,
+   490→    recursive: boolean = true,
+   491→  ): Promise<{ path: string; created: boolean }> {
+   492→    this.validatePath(path);
+   493→
+   494→    const segments = this.splitPath(path);
+   495→
+   496→    if (recursive) {
+   497→      let current = this.root;
+   498→      for (const segment of segments) {
+   499→        if (!current.children.has(segment)) {
+   500→          current.children.set(segment, this.createDirectoryNode(segment));
+   501→          current.modified = new Date();
+   502→        }
+   503→        const next = current.children.get(segment)!;
+   504→        if (next.type !== 'directory') {
+   505→          throw new Error(`Path component is not a directory: ${segment}`);
+   506→        }
+   507→        current = next;
+   508→      }
+   509→      this.logger.log(`Created directory (recursive): ${path}`);
+   510→      return { path, created: true };
+   511→    } else {
+   512→      // Non-recursive: parent must exist
+   513→      const parentPath = this.getParentPath(path);
+   514→      const dirName = this.getBaseName(path);
+   515→      const parentNode = this.resolveNode(parentPath);
+   516→
+   517→      if (!parentNode) {
+   518→        throw new Error(
+   519→          `Parent directory not found: ${parentPath}. Use recursive: true to create parents.`,
+   520→        );
+   521→      }
+   522→      if (parentNode.type !== 'directory') {
+   523→        throw new Error(`Parent path is not a directory: ${parentPath}`);
+   524→      }
+   525→      if (parentNode.children.has(dirName)) {
+   526→        throw new Error(`Directory already exists: ${path}`);
+   527→      }
+   528→
+   529→      parentNode.children.set(dirName, this.createDirectoryNode(dirName));
+   530→      parentNode.modified = new Date();
+   531→
+   532→      this.logger.log(`Created directory: ${path}`);
+   533→      return { path, created: true };
+   534→    }
+   535→  }
+   536→
+   537→  private async deleteFile(
+   538→    path: string,
+   539→    recursive: boolean = false,
+   540→    force: boolean = false,
+   541→  ): Promise<{ path: string; deleted: boolean; type: string }> {
+   542→    this.validatePath(path);
+   543→
+   544→    if (path === '/') {
+   545→      throw new Error('Cannot delete root directory');
+   546→    }
+   547→
+   548→    const node = this.resolveNode(path);
+   549→    if (!node) {
+   550→      throw new Error(`Path not found: ${path}`);
+   551→    }
+   552→
+   553→    const parentPath = this.getParentPath(path);
+   554→    const baseName = this.getBaseName(path);
+   555→    const parentNode = this.resolveNode(parentPath);
+   556→
+   557→    if (node.type === 'directory' && node.children.size > 0) {
+   558→      if (!recursive && !force) {
+   559→        throw new Error(`Directory not empty: ${path}. Use recursive: true or force: true.`);
+   560→      }
+   561→    }
+   562→
+   563→    parentNode!.children.delete(baseName);
+   564→    parentNode!.modified = new Date();
+   565→
+   566→    this.logger.log(`Deleted ${node.type}: ${path}`);
+   567→    return { path, deleted: true, type: node.type };
+   568→  }
+   569→
+   570→  private async moveFile(
+   571→    source: string,
+   572→    destination: string,
+   573→    overwrite: boolean = false,
+   574→  ): Promise<{ source: string; destination: string; moved: boolean }> {
+   575→    this.validatePath(source);
+   576→    this.validatePath(destination);
+   577→
+   578→    if (source === '/') {
+   579→      throw new Error('Cannot move root directory');
+   580→    }
+   581→
+   582→    const sourceNode = this.resolveNode(source);
+   583→    if (!sourceNode) {
+   584→      throw new Error(`Source not found: ${source}`);
+   585→    }
+   586→
+   587→    const sourceParentPath = this.getParentPath(source);
+   588→    const sourceBaseName = this.getBaseName(source);
+   589→    const sourceParent = this.resolveNode(sourceParentPath);
+   590→
+   591→    const destParentPath = this.getParentPath(destination);
+   592→    const destBaseName = this.getBaseName(destination);
+   593→    const destParent = this.resolveNode(destParentPath);
+   594→
+   595→    if (!destParent) {
+   596→      throw new Error(`Destination parent directory not found: ${destParentPath}`);
+   597→    }
+   598→    if (destParent.type !== 'directory') {
+   599→      throw new Error(`Destination parent is not a directory: ${destParentPath}`);
+   600→    }
+   601→
+   602→    const existingDest = destParent.children.get(destBaseName);
+   603→    if (existingDest && !overwrite) {
+   604→      throw new Error(`Destination already exists and overwrite is false: ${destination}`);
+   605→    }
+   606→
+   607→    // Perform the move
+   608→    const movedNode = { ...sourceNode, name: destBaseName, modified: new Date() };
+   609→    destParent.children.set(destBaseName, movedNode);
+   610→    sourceParent!.children.delete(sourceBaseName);
+   611→    destParent.modified = new Date();
+   612→    sourceParent!.modified = new Date();
+   613→
+   614→    this.logger.log(`Moved: ${source} → ${destination}`);
+   615→    return { source, destination, moved: true };
+   616→  }
+   617→
+   618→  private async copyFile(
+   619→    source: string,
+   620→    destination: string,
+   621→    overwrite: boolean = false,
+   622→    recursive: boolean = false,
+   623→  ): Promise<{ source: string; destination: string; copied: boolean; bytesCopied: number }> {
+   624→    this.validatePath(source);
+   625→    this.validatePath(destination);
+   626→
+   627→    const sourceNode = this.resolveNode(source);
+   628→    if (!sourceNode) {
+   629→      throw new Error(`Source not found: ${source}`);
+   630→    }
+   631→
+   632→    const destParentPath = this.getParentPath(destination);
+   633→    const destBaseName = this.getBaseName(destination);
+   634→    const destParent = this.resolveNode(destParentPath);
+   635→
+   636→    if (!destParent) {
+   637→      throw new Error(`Destination parent directory not found: ${destParentPath}`);
+   638→    }
+   639→
+   640→    const existingDest = destParent.children.get(destBaseName);
+   641→    if (existingDest && !overwrite) {
+   642→      throw new Error(`Destination already exists and overwrite is false: ${destination}`);
+   643→    }
+   644→
+   645→    const copiedNode = this.deepCloneNode(sourceNode, destBaseName);
+   646→
+   647→    destParent.children.set(destBaseName, copiedNode);
+   648→    destParent.modified = new Date();
+   649→
+   650→    const bytesCopied = this.calculateNodeSize(copiedNode);
+   651→
+   652→    this.logger.log(`Copied: ${source} → ${destination} (${bytesCopied} bytes)`);
+   653→    return { source, destination, copied: true, bytesCopied };
+   654→  }
+   655→
+   656→  private async listDirectory(
+   657→    path: string,
+   658→    recursive: boolean = false,
+   659→    includeHidden: boolean = false,
+   660→    pattern?: string,
+   661→  ): Promise<{
+   662→    path: string;
+   663→    entries: Array<{ name: string; type: string; size: number; modified: string }>;
+   664→    totalFiles: number;
+   665→    totalDirectories: number;
+   666→  }> {
+   667→    this.validatePath(path);
+   668→
+   669→    const node = this.resolveNode(path);
+   670→    if (!node) {
+   671→      throw new Error(`Directory not found: ${path}`);
+   672→    }
+   673→    if (node.type !== 'directory') {
+   674→      throw new Error(`Path is not a directory: ${path}`);
+   675→    }
+   676→
+   677→    const entries: Array<{ name: string; type: string; size: number; modified: string }> = [];
+   678→    let totalFiles = 0;
+   679→    let totalDirectories = 0;
+   680→
+   681→    const collectEntries = (currentNode: VirtualNode, currentPath: string) => {
+   682→      for (const [childName, childNode] of currentNode.children) {
+   683→        // Skip hidden files unless requested
+   684→        if (childName.startsWith('.') && !includeHidden) continue;
+   685→
+   686→        // Apply glob pattern filter
+   687→        if (pattern && !this.matchGlob(childName, pattern)) continue;
+   688→
+   689→        const childPath = currentPath === '/' ? `/${childName}` : `${currentPath}/${childName}`;
+   690→        entries.push({
+   691→          name: childName,
+   692→          type: childNode.type,
+   693→          size: childNode.size,
+   694→          modified: childNode.modified.toISOString(),
+   695→        });
+   696→
+   697→        if (childNode.type === 'file') {
+   698→          totalFiles++;
+   699→        } else {
+   700→          totalDirectories++;
+   701→          if (recursive) {
+   702→            collectEntries(childNode, childPath);
+   703→          }
+   704→        }
+   705→      }
+   706→    };
+   707→
+   708→    collectEntries(node, path);
+   709→
+   710→    this.logger.log(`Listed directory: ${path} (${totalFiles} files, ${totalDirectories} dirs)`);
+   711→    return { path, entries, totalFiles, totalDirectories };
+   712→  }
+   713→
+   714→  private async getFileInfo(path: string): Promise<{
+   715→    path: string;
+   716→    name: string;
+   717→    type: string;
+   718→    size: number;
+   719→    created: string;
+   720→    modified: string;
+   721→    permissions: string;
+   722→  }> {
+   723→    this.validatePath(path);
+   724→
+   725→    const node = this.resolveNode(path);
+   726→    if (!node) {
+   727→      throw new Error(`Path not found: ${path}`);
+   728→    }
+   729→
+   730→    this.logger.log(`Got file info: ${path}`);
+   731→    return {
+   732→      path,
+   733→      name: node.name,
+   734→      type: node.type,
+   735→      size: node.size,
+   736→      created: node.created.toISOString(),
+   737→      modified: node.modified.toISOString(),
+   738→      permissions: node.permissions,
+   739→    };
+   740→  }
+   741→
+   742→  // ─── Virtual File System Helpers ───────────────────────────────
+   743→
+   744→  private createDirectoryNode(name: string): VirtualNode {
+   745→    return {
+   746→      name,
+   747→      type: 'directory',
+   748→      children: new Map(),
+   749→      created: new Date(),
+   750→      modified: new Date(),
+   751→      permissions: 'rwxr-xr-x',
+   752→      size: 4096,
+   753→    };
+   754→  }
+   755→
+   756→  private validatePath(path: string): void {
+   757→    if (!path || typeof path !== 'string') {
+   758→      throw new Error('Path must be a non-empty string');
+   759→    }
+   760→    if (!path.startsWith('/')) {
+   761→      throw new Error('Path must be absolute (start with /)');
+   762→    }
+   763→    // Prevent path traversal
+   764→    const normalized = path.replace(/\/+/g, '/');
+   765→    if (normalized.includes('..')) {
+   766→      throw new Error('Path traversal (..) is not allowed');
+   767→    }
+   768→  }
+   769→
+   770→  private resolveNode(path: string): VirtualNode | null {
+   771→    if (path === '/') return this.root;
+   772→
+   773→    const segments = this.splitPath(path);
+   774→    let current: VirtualNode = this.root;
+   775→
+   776→    for (const segment of segments) {
+   777→      if (!segment) continue;
+   778→      if (current.type !== 'directory') return null;
+   779→      const child = current.children.get(segment);
+   780→      if (!child) return null;
+   781→      current = child;
+   782→    }
+   783→
+   784→    return current;
+   785→  }
+   786→
+   787→  private splitPath(path: string): string[] {
+   788→    return path.split('/').filter((s) => s.length > 0);
+   789→  }
+   790→
+   791→  private getParentPath(path: string): string {
+   792→    const segments = this.splitPath(path);
+   793→    if (segments.length <= 1) return '/';
+   794→    return '/' + segments.slice(0, -1).join('/');
+   795→  }
+   796→
+   797→  private getBaseName(path: string): string {
+   798→    const segments = this.splitPath(path);
+   799→    return segments[segments.length - 1] || '/';
+   800→  }
+   801→
+   802→  private deepCloneNode(node: VirtualNode, newName: string): VirtualNode {
+   803→    const clone: VirtualNode = {
+   804→      name: newName,
+   805→      type: node.type,
+   806→      content: node.content,
+   807→      children: new Map(),
+   808→      created: new Date(),
+   809→      modified: new Date(),
+   810→      permissions: node.permissions,
+   811→      size: node.size,
+   812→    };
+   813→
+   814→    for (const [key, child] of node.children) {
+   815→      clone.children.set(key, this.deepCloneNode(child, child.name));
+   816→    }
+   817→
+   818→    return clone;
+   819→  }
+   820→
+   821→  private calculateNodeSize(node: VirtualNode): number {
+   822→    let size = node.size;
+   823→    for (const [, child] of node.children) {
+   824→      size += this.calculateNodeSize(child);
+   825→    }
+   826→    return size;
+   827→  }
+   828→
+   829→  private matchGlob(name: string, pattern: string): boolean {
+   830→    // Simple glob matching: supports * and ?
+   831→    const regexStr = pattern
+   832→      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+   833→      .replace(/\*/g, '.*')
+   834→      .replace(/\?/g, '.');
+   835→    try {
+   836→      const regex = new RegExp(`^${regexStr}$`);
+   837→      return regex.test(name);
+   838→    } catch {
+   839→      return name.includes(pattern);
+   840→    }
+   841→  }
+   842→}
+   843→

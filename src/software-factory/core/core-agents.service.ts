@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — 10 Core Permanent Agents
- * 
+ *
  * These are the only agents that are ALWAYS active.
  * They manage the platform, not the missions directly.
  * Mission work is done by on-demand agents from Levels 2-7.
@@ -96,7 +96,7 @@ export class MissionPlannerAgent extends CoreAgentBase {
       success: true,
       output: {
         phases: ['research', 'build', 'test', 'certify', 'deliver'],
-        requiredAgents: neededAgents.map(a => a.id),
+        requiredAgents: neededAgents.map((a) => a.id),
         agentCount: neededAgents.length,
       },
       artifacts: [],
@@ -104,7 +104,7 @@ export class MissionPlannerAgent extends CoreAgentBase {
       durationMs: 500,
       logs: [`Plan created: ${neededAgents.length} agents needed`],
       errors: [],
-      nextAgents: [CoreAgent.TASK_SCHEDULER, ...neededAgents.map(a => a.id)],
+      nextAgents: [CoreAgent.TASK_SCHEDULER, ...neededAgents.map((a) => a.id)],
     };
   }
 }
@@ -203,7 +203,11 @@ export class ResourceManagerAgent extends CoreAgentBase {
   /**
    * Select optimal LLM model and tools for a task
    */
-  async allocate(missionId: string, taskType: string, budget: number): Promise<AgentExecutionResult> {
+  async allocate(
+    missionId: string,
+    taskType: string,
+    budget: number,
+  ): Promise<AgentExecutionResult> {
     this.logger.log(`Allocating resources for mission ${missionId}: ${taskType}`);
 
     const modelMap: Record<string, string> = {
@@ -398,7 +402,11 @@ export class RecoveryManagerAgent extends CoreAgentBase {
   /**
    * Handle error recovery with retry/rollback
    */
-  async recover(missionId: string, error: string, strategy: 'retry' | 'rollback' | 'skip' = 'retry'): Promise<AgentExecutionResult> {
+  async recover(
+    missionId: string,
+    error: string,
+    strategy: 'retry' | 'rollback' | 'skip' = 'retry',
+  ): Promise<AgentExecutionResult> {
     this.logger.warn(`Recovery for mission ${missionId}: ${error} (strategy: ${strategy})`);
 
     return {

@@ -7,9 +7,10 @@
  * bridging the gap between weakness detection and patch generation.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -67,7 +68,8 @@ export const SELF_EVOLUTION_REFACTOR_PROPOSER_CONFIG: AgentConfig = {
     },
     {
       name: 'generate-plan',
-      description: 'Generate an execution plan for a refactoring proposal with steps and milestones',
+      description:
+        'Generate an execution plan for a refactoring proposal with steps and milestones',
       inputSchema: {
         type: 'object',
         properties: {
@@ -174,6 +176,11 @@ interface ExecutionPlan {
 
 @Injectable()
 export class RefactorProposerAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private proposals: Map<string, RefactorProposal> = new Map();
   private impactAnalyses: Map<string, ImpactAnalysis> = new Map();
   private executionPlans: Map<string, ExecutionPlan> = new Map();
@@ -187,7 +194,12 @@ export class RefactorProposerAgent extends BaseAgentService {
       name: 'propose-refactor',
       description: 'Generate refactoring proposals to address detected system weaknesses',
       execute: async (params: {
-        weaknesses: Array<{ area: string; component: string; severity: string; description?: string }>;
+        weaknesses: Array<{
+          area: string;
+          component: string;
+          severity: string;
+          description?: string;
+        }>;
         priority?: string;
         constraints?: string[];
       }) => this.proposeRefactor(params),
@@ -205,7 +217,8 @@ export class RefactorProposerAgent extends BaseAgentService {
 
     this.registerTool({
       name: 'generate-plan',
-      description: 'Generate an execution plan for a refactoring proposal with steps and milestones',
+      description:
+        'Generate an execution plan for a refactoring proposal with steps and milestones',
       execute: async (params: {
         proposalId: string;
         includeRollbackPlan?: boolean;
@@ -222,8 +235,32 @@ export class RefactorProposerAgent extends BaseAgentService {
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'execute';
     const startTime = Date.now();
+    // Bridge: use LLM for refactoring proposal generation, impact analysis, and plan creation
+    if (this.bridge) {
+      try {
+        const llmResult = await this.bridge.callLLM({
+          systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed refactoring proposals, impact analysis, and execution plans.`,
+          userPrompt: JSON.stringify(input.payload),
+          temperature: 0.3,
+          maxTokens: 2048,
+        });
+
+        const analysis = llmResult.content;
+
+        return this.createAgentOutput(
+          input.taskId,
+          true,
+          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+          undefined,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'execute';
 
     try {
       let result: any;
@@ -289,16 +326,23 @@ export class RefactorProposerAgent extends BaseAgentService {
     }
 
     // Sort by expected gain / effort ratio
-    refactors.sort((a, b) => (b.expectedGain / b.estimatedEffort) - (a.expectedGain / a.estimatedEffort));
+    refactors.sort(
+      (a, b) => b.expectedGain / b.estimatedEffort - a.expectedGain / a.estimatedEffort,
+    );
 
     const totalExpectedGain = refactors.reduce((sum, r) => sum + r.expectedGain, 0);
     const maxPossibleGain = weaknesses.length * 30;
-    const estimatedImprovement = Math.min(100, Math.round((totalExpectedGain / maxPossibleGain) * 100));
+    const estimatedImprovement = Math.min(
+      100,
+      Math.round((totalExpectedGain / maxPossibleGain) * 100),
+    );
 
     const riskLevel: 'low' | 'medium' | 'high' =
-      weaknesses.some((w) => w.severity === 'critical') || refactors.some((r) => r.estimatedEffort > 8)
+      weaknesses.some((w) => w.severity === 'critical') ||
+      refactors.some((r) => r.estimatedEffort > 8)
         ? 'high'
-        : weaknesses.some((w) => w.severity === 'high') || refactors.some((r) => r.estimatedEffort > 5)
+        : weaknesses.some((w) => w.severity === 'high') ||
+            refactors.some((r) => r.estimatedEffort > 5)
           ? 'medium'
           : 'low';
 
@@ -448,9 +492,10 @@ export class RefactorProposerAgent extends BaseAgentService {
       throw new Error(`Refactor proposal not found: ${proposalId}`);
     }
 
-    const componentsToAnalyze = targetComponents.length > 0
-      ? targetComponents
-      : [...new Set(proposal.refactors.map((r) => r.component))];
+    const componentsToAnalyze =
+      targetComponents.length > 0
+        ? targetComponents
+        : [...new Set(proposal.refactors.map((r) => r.component))];
 
     const affectedComponents = componentsToAnalyze.map((component) => {
       const relatedRefactors = proposal.refactors.filter((r) => r.component === component);
@@ -459,13 +504,18 @@ export class RefactorProposerAgent extends BaseAgentService {
       return {
         component,
         changeType: relatedRefactors.some((r) => r.type === 'replacement')
-          ? 'replaced' as const
+          ? ('replaced' as const)
           : relatedRefactors.some((r) => r.type === 'addition')
-            ? 'added' as const
+            ? ('added' as const)
             : relatedRefactors.some((r) => r.type === 'removal')
-              ? 'removed' as const
-              : 'modified' as const,
-        severity: maxEffort > 6 ? 'major' as const : maxEffort > 3 ? 'moderate' as const : 'minor' as const,
+              ? ('removed' as const)
+              : ('modified' as const),
+        severity:
+          maxEffort > 6
+            ? ('major' as const)
+            : maxEffort > 3
+              ? ('moderate' as const)
+              : ('minor' as const),
         description: `${relatedRefactors.length} refactoring action(s) targeting ${component}`,
         riskOfRegression: Math.round((0.1 + (maxEffort / 10) * 0.5) * 100) / 100,
       };
@@ -480,14 +530,16 @@ export class RefactorProposerAgent extends BaseAgentService {
             ? 'medium'
             : 'low';
 
-    const regressionProbability = Math.round(
-      affectedComponents.reduce((sum, c) => sum + c.riskOfRegression, 0) / affectedComponents.length * 100,
-    ) / 100;
+    const regressionProbability =
+      Math.round(
+        (affectedComponents.reduce((sum, c) => sum + c.riskOfRegression, 0) /
+          affectedComponents.length) *
+          100,
+      ) / 100;
 
-    const blastRadius = [...new Set([
-      ...componentsToAnalyze,
-      ...proposal.refactors.flatMap((r) => r.dependencies),
-    ])];
+    const blastRadius = [
+      ...new Set([...componentsToAnalyze, ...proposal.refactors.flatMap((r) => r.dependencies)]),
+    ];
 
     const mitigations = [
       'Run full certification suite before and after each refactoring phase',
@@ -496,13 +548,11 @@ export class RefactorProposerAgent extends BaseAgentService {
       'Monitor EQI in real-time during refactoring execution',
     ];
 
-    const impactScore = Math.round(
-      (proposal.estimatedImprovement * (1 - regressionProbability)) * 100,
-    ) / 100;
+    const impactScore =
+      Math.round(proposal.estimatedImprovement * (1 - regressionProbability) * 100) / 100;
 
-    const predictedEQIDelta = Math.round(
-      (proposal.estimatedImprovement * 0.3 - regressionProbability * 5) * 100,
-    ) / 100;
+    const predictedEQIDelta =
+      Math.round((proposal.estimatedImprovement * 0.3 - regressionProbability * 5) * 100) / 100;
 
     const analysis: ImpactAnalysis = {
       proposalId,
@@ -592,15 +642,20 @@ export class RefactorProposerAgent extends BaseAgentService {
     const phases: ExecutionPlan['phases'] = [
       {
         name: 'Preparation',
-        steps: preparationSteps.length > 0 ? preparationSteps : [{
-          id: `${planId}-prep-0`,
-          description: 'No dependency preparation required',
-          component: 'system',
-          action: 'noop',
-          estimatedDurationMs: 0,
-          dependencies: [],
-          canRollback: true,
-        }],
+        steps:
+          preparationSteps.length > 0
+            ? preparationSteps
+            : [
+                {
+                  id: `${planId}-prep-0`,
+                  description: 'No dependency preparation required',
+                  component: 'system',
+                  action: 'noop',
+                  estimatedDurationMs: 0,
+                  dependencies: [],
+                  canRollback: true,
+                },
+              ],
         parallelizable: true,
       },
       {

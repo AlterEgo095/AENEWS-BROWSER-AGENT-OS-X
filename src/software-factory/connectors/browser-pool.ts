@@ -19,9 +19,9 @@ import { Logger } from '@nestjs/common';
 import { Browser, BrowserContext, chromium, Page } from 'playwright';
 
 export interface BrowserPoolOptions {
-  maxContexts: number;       // Max concurrent contexts (default: 5)
-  idleTimeoutMs: number;    // Close idle context after N ms (default: 30000)
-  headless: boolean;        // Run headless (default: true)
+  maxContexts: number; // Max concurrent contexts (default: 5)
+  idleTimeoutMs: number; // Close idle context after N ms (default: 30000)
+  headless: boolean; // Run headless (default: true)
   navigationTimeout: number; // Default navigation timeout (default: 30000)
 }
 
@@ -109,7 +109,8 @@ export class BrowserPool {
     const contextId = `ctx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const context = await browser.newContext({
       viewport: { width: 1280, height: 720 },
-      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      userAgent:
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
 
     const page = await context.newPage();
@@ -118,7 +119,9 @@ export class BrowserPool {
 
     this.contexts.set(contextId, { context, lastUsed: Date.now(), id: contextId });
 
-    this.logger.log(`Context acquired: ${contextId} (${this.contexts.size}/${this.options.maxContexts})`);
+    this.logger.log(
+      `Context acquired: ${contextId} (${this.contexts.size}/${this.options.maxContexts})`,
+    );
     return { contextId, page, context };
   }
 
@@ -135,7 +138,9 @@ export class BrowserPool {
       // Context may already be closed
     }
     this.contexts.delete(contextId);
-    this.logger.log(`Context released: ${contextId} (${this.contexts.size}/${this.options.maxContexts})`);
+    this.logger.log(
+      `Context released: ${contextId} (${this.contexts.size}/${this.options.maxContexts})`,
+    );
   }
 
   /**
@@ -156,7 +161,11 @@ export class BrowserPool {
   /**
    * Navigate to a URL and wait for load, with retry
    */
-  async navigate(page: Page, url: string, waitUntil: 'load' | 'domcontentloaded' | 'networkidle' = 'domcontentloaded'): Promise<void> {
+  async navigate(
+    page: Page,
+    url: string,
+    waitUntil: 'load' | 'domcontentloaded' | 'networkidle' = 'domcontentloaded',
+  ): Promise<void> {
     // Use 'domcontentloaded' by default — much faster than 'networkidle'
     // and sufficient for most extraction tasks
     await page.goto(url, { waitUntil, timeout: this.options.navigationTimeout });
@@ -200,7 +209,11 @@ export class BrowserPool {
 
     // Close all contexts
     for (const [id, managed] of this.contexts) {
-      try { await managed.context.close(); } catch { /* already closed */ }
+      try {
+        await managed.context.close();
+      } catch {
+        /* already closed */
+      }
     }
     this.contexts.clear();
 
@@ -209,7 +222,9 @@ export class BrowserPool {
       try {
         await this.browser.close();
         this.logger.log('Shared Playwright browser closed');
-      } catch { /* already closed */ }
+      } catch {
+        /* already closed */
+      }
       this.browser = null;
       this.initPromise = null;
     }

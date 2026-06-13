@@ -1,0 +1,1556 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Debugging Agent
+     3→ * Debugs code issues, traces errors, suggests fixes, applies fixes, and validates them.
+     4→ * Provides systematic error analysis and resolution workflow.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const DEBUGGING_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'coding-debugging',
+    20→  name: 'Debugging',
+    21→  cluster: AgentCluster.CODING,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Debug code issues, trace errors through execution paths, suggest and apply fixes, and validate that fixes resolve the issue. Provides systematic error analysis and resolution.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'analyzeError',
+    28→      description: 'Analyze an error to determine root cause, severity, and affected code paths',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          error: { type: 'object', description: 'Error object with message, stack, and type' },
+    33→          code: { type: 'string', description: 'Source code where error occurred' },
+    34→          language: { type: 'string', description: 'Programming language' },
+    35→          context: { type: 'object', description: 'Additional runtime context' },
+    36→        },
+    37→        required: ['error'],
+    38→      },
+    39→      outputSchema: {
+    40→        type: 'object',
+    41→        properties: {
+    42→          rootCause: { type: 'string' },
+    43→          severity: { type: 'string' },
+    44→          affectedPaths: { type: 'array', items: { type: 'string' } },
+    45→          analysis: { type: 'string' },
+    46→          relatedErrors: { type: 'array', items: { type: 'object' } },
+    47→        },
+    48→      },
+    49→    },
+    50→    {
+    51→      name: 'traceExecution',
+    52→      description: 'Trace the execution path leading to an error',
+    53→      inputSchema: {
+    54→        type: 'object',
+    55→        properties: {
+    56→          code: { type: 'string', description: 'Source code to trace' },
+    57→          entryPoint: { type: 'string', description: 'Function or entry point to start tracing' },
+    58→          language: { type: 'string', description: 'Programming language' },
+    59→          inputs: { type: 'object', description: 'Input values for the trace' },
+    60→          maxDepth: { type: 'number', description: 'Maximum trace depth' },
+    61→        },
+    62→        required: ['code', 'entryPoint', 'language'],
+    63→      },
+    64→      outputSchema: {
+    65→        type: 'object',
+    66→        properties: {
+    67→          traceSteps: { type: 'array', items: { type: 'object' } },
+    68→          errorPoint: { type: 'object' },
+    69→          variablesAtError: { type: 'object' },
+    70→          executionFlow: { type: 'string' },
+    71→        },
+    72→      },
+    73→    },
+    74→    {
+    75→      name: 'suggestFix',
+    76→      description: 'Suggest potential fixes for a given error or code issue',
+    77→      inputSchema: {
+    78→        type: 'object',
+    79→        properties: {
+    80→          error: { type: 'object', description: 'Error description or object' },
+    81→          code: { type: 'string', description: 'Source code' },
+    82→          language: { type: 'string', description: 'Programming language' },
+    83→          maxSuggestions: { type: 'number', default: 3 },
+    84→        },
+    85→        required: ['error', 'code', 'language'],
+    86→      },
+    87→      outputSchema: {
+    88→        type: 'object',
+    89→        properties: {
+    90→          suggestions: { type: 'array', items: { type: 'object' } },
+    91→          confidence: { type: 'number' },
+    92→          autoFixable: { type: 'boolean' },
+    93→        },
+    94→      },
+    95→    },
+    96→    {
+    97→      name: 'applyFix',
+    98→      description: 'Apply a suggested fix to the source code',
+    99→      inputSchema: {
+   100→        type: 'object',
+   101→        properties: {
+   102→          code: { type: 'string', description: 'Source code to fix' },
+   103→          fix: { type: 'object', description: 'Fix object from suggestFix' },
+   104→          language: { type: 'string', description: 'Programming language' },
+   105→          dryRun: { type: 'boolean', default: true },
+   106→        },
+   107→        required: ['code', 'fix', 'language'],
+   108→      },
+   109→      outputSchema: {
+   110→        type: 'object',
+   111→        properties: {
+   112→          fixedCode: { type: 'string' },
+   113→          applied: { type: 'boolean' },
+   114→          changes: { type: 'array', items: { type: 'object' } },
+   115→          dryRun: { type: 'boolean' },
+   116→        },
+   117→      },
+   118→    },
+   119→    {
+   120→      name: 'validateFix',
+   121→      description: 'Validate that an applied fix resolves the original error',
+   122→      inputSchema: {
+   123→        type: 'object',
+   124→        properties: {
+   125→          originalCode: { type: 'string', description: 'Original code before fix' },
+   126→          fixedCode: { type: 'string', description: 'Code after fix was applied' },
+   127→          error: { type: 'object', description: 'Original error to validate against' },
+   128→          language: { type: 'string', description: 'Programming language' },
+   129→        },
+   130→        required: ['originalCode', 'fixedCode', 'error', 'language'],
+   131→      },
+   132→      outputSchema: {
+   133→        type: 'object',
+   134→        properties: {
+   135→          valid: { type: 'boolean' },
+   136→          residualIssues: { type: 'array', items: { type: 'object' } },
+   137→          regressionRisk: { type: 'string' },
+   138→          verificationSteps: { type: 'array', items: { type: 'string' } },
+   139→        },
+   140→      },
+   141→    },
+   142→  ],
+   143→  permissions: ['execute:task', 'read:code', 'write:code', 'read:logs', 'execute:debug'],
+   144→  maxConcurrentTasks: 3,
+   145→  timeout: 90000,
+   146→  retryPolicy: {
+   147→    maxRetries: 3,
+   148→    backoffMs: 1500,
+   149→    exponentialBackoff: true,
+   150→  },
+   151→};
+   152→
+   153→// ─── Internal Types ───────────────────────────────────────────────
+   154→
+   155→interface ErrorAnalysis {
+   156→  errorType: string;
+   157→  message: string;
+   158→  rootCause: string;
+   159→  severity: 'low' | 'medium' | 'high' | 'critical';
+   160→  affectedPaths: string[];
+   161→  analysis: string;
+   162→  relatedErrors: Array<{ type: string; message: string; likelihood: number }>;
+   163→}
+   164→
+   165→interface TraceStep {
+   166→  step: number;
+   167→  location: string;
+   168→  line: number;
+   169→  function: string;
+   170→  action: string;
+   171→  variables: Record<string, any>;
+   172→  timestamp: number;
+   173→}
+   174→
+   175→interface FixSuggestion {
+   176→  id: string;
+   177→  title: string;
+   178→  description: string;
+   179→  codeChange: string;
+   180→  confidence: number;
+   181→  autoFixable: boolean;
+   182→  sideEffects: string[];
+   183→}
+   184→
+   185→interface AppliedChange {
+   186→  type: 'replacement' | 'insertion' | 'deletion';
+   187→  lineStart: number;
+   188→  lineEnd: number;
+   189→  before: string;
+   190→  after: string;
+   191→  description: string;
+   192→}
+   193→
+   194→interface ValidationError {
+   195→  type: string;
+   196→  message: string;
+   197→  severity: 'low' | 'medium' | 'high';
+   198→  line?: number;
+   199→}
+   200→
+   201→// ─── Agent Service ────────────────────────────────────────────────
+   202→
+   203→@Injectable()
+   204→export class DebuggingAgentService extends BaseAgentService {
+   205→  private debugSessions: Map<
+   206→    string,
+   207→    {
+   208→      error: any;
+   209→      analysis?: ErrorAnalysis;
+   210→      suggestions?: FixSuggestion[];
+   211→      appliedFixes: AppliedChange[];
+   212→      validated: boolean;
+   213→    }
+   214→  > = new Map();
+   215→
+   216→  protected defineConfig(): AgentConfig {
+   217→    return DEBUGGING_AGENT_CONFIG;
+   218→  }
+   219→
+   220→  protected async onInitialize(): Promise<void> {
+   221→    this.registerTool({
+   222→      name: 'analyzeError',
+   223→      description: 'Analyze an error to determine root cause and severity',
+   224→      execute: async (params: {
+   225→        error: Record<string, any>;
+   226→        code?: string;
+   227→        language?: string;
+   228→        context?: Record<string, any>;
+   229→      }) => this.analyzeError(params),
+   230→    });
+   231→
+   232→    this.registerTool({
+   233→      name: 'traceExecution',
+   234→      description: 'Trace execution path leading to an error',
+   235→      execute: async (params: {
+   236→        code: string;
+   237→        entryPoint: string;
+   238→        language: string;
+   239→        inputs?: Record<string, any>;
+   240→        maxDepth?: number;
+   241→      }) => this.traceExecution(params),
+   242→    });
+   243→
+   244→    this.registerTool({
+   245→      name: 'suggestFix',
+   246→      description: 'Suggest potential fixes for an error',
+   247→      execute: async (params: {
+   248→        error: Record<string, any>;
+   249→        code: string;
+   250→        language: string;
+   251→        maxSuggestions?: number;
+   252→      }) => this.suggestFix(params),
+   253→    });
+   254→
+   255→    this.registerTool({
+   256→      name: 'applyFix',
+   257→      description: 'Apply a suggested fix to source code',
+   258→      execute: async (params: {
+   259→        code: string;
+   260→        fix: Record<string, any>;
+   261→        language: string;
+   262→        dryRun?: boolean;
+   263→      }) => this.applyFix(params),
+   264→    });
+   265→
+   266→    this.registerTool({
+   267→      name: 'validateFix',
+   268→      description: 'Validate that a fix resolves the original error',
+   269→      execute: async (params: {
+   270→        originalCode: string;
+   271→        fixedCode: string;
+   272→        error: Record<string, any>;
+   273→        language: string;
+   274→      }) => this.validateFix(params),
+   275→    });
+   276→
+   277→    await this.storeInWorkingMemory('debugging:initializedAt', new Date().toISOString(), 600000);
+   278→    this.logger.log('Debugging agent initialized with 5 tools');
+   279→  }
+   280→
+   281→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   282→    const startTime = Date.now();
+   283→    const { action, ...params } = input.payload;
+   284→
+   285→    if (!action) {
+   286→      return this.createAgentOutput(
+   287→        input.taskId,
+   288→        false,
+   289→        null,
+   290→        'Missing required parameter: action',
+   291→        startTime,
+   292→      );
+   293→    }
+   294→
+   295→    const supportedActions = [
+   296→      'analyzeError',
+   297→      'traceExecution',
+   298→      'suggestFix',
+   299→      'applyFix',
+   300→      'validateFix',
+   301→    ];
+   302→
+   303→    if (!supportedActions.includes(action)) {
+   304→      return this.createAgentOutput(
+   305→        input.taskId,
+   306→        false,
+   307→        null,
+   308→        `Unknown debugging action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   309→        startTime,
+   310→      );
+   311→    }
+   312→
+   313→    try {
+   314→      const tool = this.getTool(action);
+   315→      if (!tool) {
+   316→        return this.createAgentOutput(
+   317→          input.taskId,
+   318→          false,
+   319→          null,
+   320→          `Tool not found: ${action}`,
+   321→          startTime,
+   322→        );
+   323→      }
+   324→
+   325→      const result = await tool.execute(params);
+   326→
+   327→      // Store debug session data
+   328→      const sessionId = input.context?.sessionId || input.taskId;
+   329→      if (!this.debugSessions.has(sessionId)) {
+   330→        this.debugSessions.set(sessionId, {
+   331→          error: params.error,
+   332→          appliedFixes: [],
+   333→          validated: false,
+   334→        });
+   335→      }
+   336→      const session = this.debugSessions.get(sessionId)!;
+   337→
+   338→      switch (action) {
+   339→        case 'analyzeError':
+   340→          session.analysis = result as ErrorAnalysis;
+   341→          break;
+   342→        case 'suggestFix':
+   343→          session.suggestions = result.suggestions;
+   344→          break;
+   345→        case 'applyFix':
+   346→          session.appliedFixes.push(...(result.changes || []));
+   347→          break;
+   348→        case 'validateFix':
+   349→          session.validated = result.valid;
+   350→          break;
+   351→      }
+   352→
+   353→      await this.storeInWorkingMemory(
+   354→        `debugging:session:${sessionId}`,
+   355→        { action, result, timestamp: new Date() },
+   356→        600000,
+   357→      );
+   358→
+   359→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   360→    } catch (error) {
+   361→      const msg = (error as Error).message;
+   362→      this.logger.error(`Debugging execution failed for ${action}: ${msg}`);
+   363→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   364→    }
+   365→  }
+   366→
+   367→  protected async onDestroy(): Promise<void> {
+   368→    this.debugSessions.clear();
+   369→    this.logger.log('Debugging agent destroyed, sessions cleared');
+   370→  }
+   371→
+   372→  // ─── Tool Implementations ──────────────────────────────────────
+   373→
+   374→  private async analyzeError(params: {
+   375→    error: Record<string, any>;
+   376→    code?: string;
+   377→    language?: string;
+   378→    context?: Record<string, any>;
+   379→  }): Promise<ErrorAnalysis> {
+   380→    const { error, code, language = 'typescript', context } = params;
+   381→
+   382→    if (!error) {
+   383→      throw new Error('Error object is required for analysis');
+   384→    }
+   385→
+   386→    const errorMessage = error.message || error.msg || error.toString?.() || 'Unknown error';
+   387→    const errorStack = error.stack || '';
+   388→    const errorType = error.name || error.type || this.classifyError(errorMessage);
+   389→
+   390→    // Determine root cause
+   391→    const rootCause = this.determineRootCause(errorMessage, errorStack, code, language);
+   392→
+   393→    // Determine severity
+   394→    const severity = this.determineSeverity(errorType, errorMessage, code);
+   395→
+   396→    // Identify affected code paths
+   397→    const affectedPaths = this.extractAffectedPaths(errorStack, code);
+   398→
+   399→    // Generate analysis text
+   400→    const analysis = this.generateAnalysisText(
+   401→      errorType,
+   402→      errorMessage,
+   403→      rootCause,
+   404→      severity,
+   405→      affectedPaths,
+   406→      language,
+   407→    );
+   408→
+   409→    // Find related errors
+   410→    const relatedErrors = this.findRelatedErrors(errorType, errorMessage, code, language);
+   411→
+   412→    this.logger.log(
+   413→      `Error analyzed: type=${errorType}, severity=${severity}, rootCause=${rootCause.substring(0, 80)}`,
+   414→    );
+   415→
+   416→    return {
+   417→      errorType,
+   418→      message: errorMessage,
+   419→      rootCause,
+   420→      severity,
+   421→      affectedPaths,
+   422→      analysis,
+   423→      relatedErrors,
+   424→    };
+   425→  }
+   426→
+   427→  private async traceExecution(params: {
+   428→    code: string;
+   429→    entryPoint: string;
+   430→    language: string;
+   431→    inputs?: Record<string, any>;
+   432→    maxDepth?: number;
+   433→  }): Promise<{
+   434→    traceSteps: TraceStep[];
+   435→    errorPoint: { line: number; function: string; reason: string } | null;
+   436→    variablesAtError: Record<string, any>;
+   437→    executionFlow: string;
+   438→  }> {
+   439→    const { code, entryPoint, language, inputs = {}, maxDepth = 50 } = params;
+   440→
+   441→    if (!code || typeof code !== 'string') {
+   442→      throw new Error('Source code is required for tracing');
+   443→    }
+   444→    if (!entryPoint || typeof entryPoint !== 'string') {
+   445→      throw new Error('Entry point is required for tracing');
+   446→    }
+   447→
+   448→    const lines = code.split('\n');
+   449→    const traceSteps: TraceStep[] = [];
+   450→    let stepCounter = 0;
+   451→
+   452→    // Find entry point in code
+   453→    const entryLine = this.findFunctionStartLine(lines, entryPoint, language);
+   454→    if (entryLine === -1) {
+   455→      throw new Error(`Entry point "${entryPoint}" not found in code`);
+   456→    }
+   457→
+   458→    // Simulate execution trace
+   459→    let currentLine = entryLine;
+   460→    let currentFunction = entryPoint;
+   461→    const variables: Record<string, any> = { ...inputs };
+   462→    let errorPoint: { line: number; function: string; reason: string } | null = null;
+   463→
+   464→    while (currentLine < lines.length && stepCounter < maxDepth) {
+   465→      const line = lines[currentLine].trim();
+   466→
+   467→      // Skip empty lines and comments
+   468→      if (!line || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*')) {
+   469→        currentLine++;
+   470→        continue;
+   471→      }
+   472→
+   473→      stepCounter++;
+   474→      const traceStep: TraceStep = {
+   475→        step: stepCounter,
+   476→        location: `line ${currentLine + 1}`,
+   477→        line: currentLine + 1,
+   478→        function: currentFunction,
+   479→        action: this.describeLineAction(line, language),
+   480→        variables: { ...variables },
+   481→        timestamp: Date.now(),
+   482→      };
+   483→
+   484→      // Track variable assignments
+   485→      this.trackVariableAssignment(line, variables, language);
+   486→
+   487→      // Check for function calls (enter new function)
+   488→      const funcCall = this.extractFunctionCall(line, language);
+   489→      if (funcCall) {
+   490→        const funcStart = this.findFunctionStartLine(lines, funcCall, language);
+   491→        if (funcStart !== -1) {
+   492→          currentFunction = funcCall;
+   493→        }
+   494→      }
+   495→
+   496→      // Check for potential error points
+   497→      if (this.isErrorPoint(line, language)) {
+   498→        errorPoint = {
+   499→          line: currentLine + 1,
+   500→          function: currentFunction,
+   501→          reason: this.identifyErrorReason(line, language),
+   502→        };
+   503→      }
+   504→
+   505→      // Detect function exit
+   506→      if (line === '}' && currentFunction !== entryPoint) {
+   507→        currentFunction = entryPoint;
+   508→      }
+   509→
+   510→      traceSteps.push(traceStep);
+   511→      currentLine++;
+   512→    }
+   513→
+   514→    // Build execution flow description
+   515→    const executionFlow = this.buildExecutionFlowDescription(traceSteps, entryPoint, errorPoint);
+   516→
+   517→    this.logger.log(
+   518→      `Execution trace complete: ${traceSteps.length} step(s), error at ${errorPoint ? `line ${errorPoint.line}` : 'none'}`,
+   519→    );
+   520→
+   521→    return {
+   522→      traceSteps,
+   523→      errorPoint,
+   524→      variablesAtError: variables,
+   525→      executionFlow,
+   526→    };
+   527→  }
+   528→
+   529→  private async suggestFix(params: {
+   530→    error: Record<string, any>;
+   531→    code: string;
+   532→    language: string;
+   533→    maxSuggestions?: number;
+   534→  }): Promise<{
+   535→    suggestions: FixSuggestion[];
+   536→    confidence: number;
+   537→    autoFixable: boolean;
+   538→  }> {
+   539→    const { error, code, language, maxSuggestions = 3 } = params;
+   540→
+   541→    if (!error) {
+   542→      throw new Error('Error description is required');
+   543→    }
+   544→    if (!code || typeof code !== 'string') {
+   545→      throw new Error('Source code is required');
+   546→    }
+   547→    if (!language || typeof language !== 'string') {
+   548→      throw new Error('Programming language is required');
+   549→    }
+   550→
+   551→    const errorMessage = error.message || error.msg || error.toString?.() || 'Unknown error';
+   552→    const errorType = error.name || error.type || this.classifyError(errorMessage);
+   553→
+   554→    const suggestions: FixSuggestion[] = [];
+   555→    const lines = code.split('\n');
+   556→
+   557→    // Type error fixes
+   558→    if (errorType.toLowerCase().includes('type') || errorMessage.toLowerCase().includes('type')) {
+   559→      suggestions.push(...this.suggestTypeErrorFixes(errorMessage, lines, language));
+   560→    }
+   561→
+   562→    // Reference error fixes
+   563→    if (
+   564→      errorType.toLowerCase().includes('reference') ||
+   565→      errorMessage.toLowerCase().includes('is not defined')
+   566→    ) {
+   567→      suggestions.push(...this.suggestReferenceErrorFixes(errorMessage, lines, language));
+   568→    }
+   569→
+   570→    // Null/undefined error fixes
+   571→    if (
+   572→      errorMessage.toLowerCase().includes('null') ||
+   573→      errorMessage.toLowerCase().includes('undefined') ||
+   574→      errorMessage.toLowerCase().includes('cannot read propert')
+   575→    ) {
+   576→      suggestions.push(...this.suggestNullErrorFixes(errorMessage, lines, language));
+   577→    }
+   578→
+   579→    // Syntax error fixes
+   580→    if (
+   581→      errorType.toLowerCase().includes('syntax') ||
+   582→      errorMessage.toLowerCase().includes('unexpected')
+   583→    ) {
+   584→      suggestions.push(...this.suggestSyntaxErrorFixes(errorMessage, lines, language));
+   585→    }
+   586→
+   587→    // Range error fixes
+   588→    if (
+   589→      errorType.toLowerCase().includes('range') ||
+   590→      errorMessage.toLowerCase().includes('out of range')
+   591→    ) {
+   592→      suggestions.push(...this.suggestRangeErrorFixes(errorMessage, lines, language));
+   593→    }
+   594→
+   595→    // Generic fixes
+   596→    if (suggestions.length === 0) {
+   597→      suggestions.push(...this.suggestGenericFixes(errorMessage, lines, language));
+   598→    }
+   599→
+   600→    // Limit suggestions
+   601→    const limitedSuggestions = suggestions.slice(0, maxSuggestions);
+   602→
+   603→    // Calculate overall confidence
+   604→    const avgConfidence =
+   605→      limitedSuggestions.length > 0
+   606→        ? limitedSuggestions.reduce((sum, s) => sum + s.confidence, 0) / limitedSuggestions.length
+   607→        : 0;
+   608→
+   609→    const autoFixable = limitedSuggestions.some((s) => s.autoFixable);
+   610→
+   611→    this.logger.log(
+   612→      `Suggested ${limitedSuggestions.length} fix(es), confidence=${avgConfidence.toFixed(2)}, autoFixable=${autoFixable}`,
+   613→    );
+   614→
+   615→    return { suggestions: limitedSuggestions, confidence: avgConfidence, autoFixable };
+   616→  }
+   617→
+   618→  private async applyFix(params: {
+   619→    code: string;
+   620→    fix: Record<string, any>;
+   621→    language: string;
+   622→    dryRun?: boolean;
+   623→  }): Promise<{
+   624→    fixedCode: string;
+   625→    applied: boolean;
+   626→    changes: AppliedChange[];
+   627→    dryRun: boolean;
+   628→  }> {
+   629→    const { code, fix, language, dryRun = true } = params;
+   630→
+   631→    if (!code || typeof code !== 'string') {
+   632→      throw new Error('Source code is required');
+   633→    }
+   634→    if (!fix || typeof fix !== 'object') {
+   635→      throw new Error('Fix object is required');
+   636→    }
+   637→
+   638→    const lines = code.split('\n');
+   639→    const changes: AppliedChange[] = [];
+   640→    let fixedCode = code;
+   641→
+   642→    const fixType = fix.type || fix.fixType || 'replacement';
+   643→    const targetLine = fix.line ? fix.line - 1 : this.findTargetLine(lines, fix, language);
+   644→
+   645→    if (targetLine >= 0 && targetLine < lines.length) {
+   646→      switch (fixType) {
+   647→        case 'replacement': {
+   648→          const before = lines[targetLine];
+   649→          let after = before;
+   650→
+   651→          if (fix.search && fix.replace) {
+   652→            after = before.replace(new RegExp(this.escapeRegex(fix.search), 'g'), fix.replace);
+   653→          } else if (fix.newLine) {
+   654→            after = fix.newLine;
+   655→          }
+   656→
+   657→          if (before !== after) {
+   658→            lines[targetLine] = after;
+   659→            changes.push({
+   660→              type: 'replacement',
+   661→              lineStart: targetLine + 1,
+   662→              lineEnd: targetLine + 1,
+   663→              before,
+   664→              after,
+   665→              description: fix.description || `Replaced line ${targetLine + 1}`,
+   666→            });
+   667→          }
+   668→          break;
+   669→        }
+   670→        case 'insertion': {
+   671→          const insertLine = fix.insertBefore ? targetLine : targetLine + 1;
+   672→          const newLine = fix.newLine || fix.code || '';
+   673→          lines.splice(insertLine, 0, newLine);
+   674→          changes.push({
+   675→            type: 'insertion',
+   676→            lineStart: insertLine + 1,
+   677→            lineEnd: insertLine + 1,
+   678→            before: '',
+   679→            after: newLine,
+   680→            description: fix.description || `Inserted line after ${targetLine + 1}`,
+   681→          });
+   682→          break;
+   683→        }
+   684→        case 'deletion': {
+   685→          const deleteCount = fix.deleteCount || 1;
+   686→          const deleted = lines.splice(targetLine, deleteCount);
+   687→          changes.push({
+   688→            type: 'deletion',
+   689→            lineStart: targetLine + 1,
+   690→            lineEnd: targetLine + deleteCount,
+   691→            before: deleted.join('\n'),
+   692→            after: '',
+   693→            description:
+   694→              fix.description || `Deleted line(s) ${targetLine + 1}-${targetLine + deleteCount}`,
+   695→          });
+   696→          break;
+   697→        }
+   698→      }
+   699→    }
+   700→
+   701→    fixedCode = lines.join('\n');
+   702→
+   703→    if (!dryRun) {
+   704→      await this.storeInWorkingMemory(
+   705→        'debugging:lastFix',
+   706→        {
+   707→          fix,
+   708→          changes,
+   709→          timestamp: new Date(),
+   710→          applied: true,
+   711→        },
+   712→        300000,
+   713→      );
+   714→    }
+   715→
+   716→    this.logger.log(
+   717→      `${dryRun ? 'Dry run: ' : ''}Applied fix: ${changes.length} change(s), type=${fixType}`,
+   718→    );
+   719→
+   720→    return { fixedCode, applied: !dryRun && changes.length > 0, changes, dryRun };
+   721→  }
+   722→
+   723→  private async validateFix(params: {
+   724→    originalCode: string;
+   725→    fixedCode: string;
+   726→    error: Record<string, any>;
+   727→    language: string;
+   728→  }): Promise<{
+   729→    valid: boolean;
+   730→    residualIssues: ValidationError[];
+   731→    regressionRisk: 'low' | 'medium' | 'high';
+   732→    verificationSteps: string[];
+   733→  }> {
+   734→    const { originalCode, fixedCode, error, language } = params;
+   735→
+   736→    if (!originalCode || typeof originalCode !== 'string') {
+   737→      throw new Error('Original code is required');
+   738→    }
+   739→    if (!fixedCode || typeof fixedCode !== 'string') {
+   740→      throw new Error('Fixed code is required');
+   741→    }
+   742→    if (!error) {
+   743→      throw new Error('Error object is required for validation');
+   744→    }
+   745→
+   746→    const errorMessage = error.message || error.msg || error.toString?.() || 'Unknown error';
+   747→    const errorType = error.name || error.type || '';
+   748→    const residualIssues: ValidationError[] = [];
+   749→    const verificationSteps: string[] = [];
+   750→
+   751→    // 1. Check that the fixed code is different from original
+   752→    if (originalCode === fixedCode) {
+   753→      residualIssues.push({
+   754→        type: 'no-change',
+   755→        message: 'Fixed code is identical to original code — no fix was applied',
+   756→        severity: 'high',
+   757→      });
+   758→    }
+   759→    verificationSteps.push('Verify that the fixed code differs from the original');
+   760→
+   761→    // 2. Check for syntax validity (basic structural check)
+   762→    const syntaxCheck = this.performBasicSyntaxCheck(fixedCode, language);
+   763→    if (!syntaxCheck.valid) {
+   764→      residualIssues.push({
+   765→        type: 'syntax',
+   766→        message: `Syntax issue after fix: ${syntaxCheck.message}`,
+   767→        severity: 'high',
+   768→      });
+   769→    }
+   770→    verificationSteps.push('Verify syntax correctness of fixed code');
+   771→
+   772→    // 3. Check that the original error pattern is no longer present
+   773→    const errorPatternPresent = this.checkErrorPatternExists(
+   774→      fixedCode,
+   775→      errorMessage,
+   776→      errorType,
+   777→      language,
+   778→    );
+   779→    if (errorPatternPresent) {
+   780→      residualIssues.push({
+   781→        type: 'error-pattern',
+   782→        message: 'The original error pattern may still exist in the fixed code',
+   783→        severity: 'medium',
+   784→      });
+   785→    }
+   786→    verificationSteps.push('Verify that the original error pattern is resolved');
+   787→
+   788→    // 4. Check for new issues introduced by the fix
+   789→    const newIssues = this.detectNewIssues(originalCode, fixedCode, language);
+   790→    residualIssues.push(...newIssues);
+   791→    verificationSteps.push('Check for regressions or new issues introduced by the fix');
+   792→
+   793→    // 5. Check balanced brackets/braces
+   794→    const balanceCheck = this.checkBalancedDelimiters(fixedCode);
+   795→    if (!balanceCheck.balanced) {
+   796→      residualIssues.push({
+   797→        type: 'structure',
+   798→        message: `Unbalanced delimiters: ${balanceCheck.message}`,
+   799→        severity: 'high',
+   800→      });
+   801→    }
+   802→    verificationSteps.push('Verify balanced delimiters (braces, brackets, parentheses)');
+   803→
+   804→    // 6. Verify imports/dependencies are still valid
+   805→    const importCheck = this.checkImportConsistency(originalCode, fixedCode, language);
+   806→    if (!importCheck.consistent) {
+   807→      residualIssues.push({
+   808→        type: 'imports',
+   809→        message: `Import inconsistency: ${importCheck.message}`,
+   810→        severity: 'medium',
+   811→      });
+   812→    }
+   813→    verificationSteps.push('Verify import statements are still valid after fix');
+   814→
+   815→    // Determine overall validity
+   816→    const highSeverityIssues = residualIssues.filter((i) => i.severity === 'high');
+   817→    const valid = highSeverityIssues.length === 0 && !errorPatternPresent;
+   818→
+   819→    // Determine regression risk
+   820→    const totalIssues = residualIssues.length;
+   821→    let regressionRisk: 'low' | 'medium' | 'high' = 'low';
+   822→    if (highSeverityIssues.length > 0) regressionRisk = 'high';
+   823→    else if (totalIssues > 2) regressionRisk = 'medium';
+   824→
+   825→    this.logger.log(
+   826→      `Fix validation: valid=${valid}, ${residualIssues.length} residual issue(s), risk=${regressionRisk}`,
+   827→    );
+   828→
+   829→    return { valid, residualIssues, regressionRisk, verificationSteps };
+   830→  }
+   831→
+   832→  // ─── Error Analysis Helpers ────────────────────────────────────
+   833→
+   834→  private classifyError(message: string): string {
+   835→    const lower = message.toLowerCase();
+   836→
+   837→    if (lower.includes('typeerror') || lower.includes('type error')) return 'TypeError';
+   838→    if (lower.includes('referenceerror') || lower.includes('is not defined'))
+   839→      return 'ReferenceError';
+   840→    if (lower.includes('syntaxerror') || lower.includes('unexpected')) return 'SyntaxError';
+   841→    if (lower.includes('rangeerror') || lower.includes('out of range')) return 'RangeError';
+   842→    if (lower.includes('null') || lower.includes('undefined')) return 'NullReferenceError';
+   843→    if (lower.includes('timeout') || lower.includes('timed out')) return 'TimeoutError';
+   844→    if (lower.includes('permission') || lower.includes('access denied')) return 'PermissionError';
+   845→    if (lower.includes('not found') || lower.includes('enoent')) return 'NotFoundError';
+   846→    if (lower.includes('connection') || lower.includes('econnrefused')) return 'ConnectionError';
+   847→    if (lower.includes('memory') || lower.includes('heap')) return 'MemoryError';
+   848→
+   849→    return 'UnknownError';
+   850→  }
+   851→
+   852→  private determineRootCause(
+   853→    errorMessage: string,
+   854→    stack: string,
+   855→    code?: string,
+   856→    language?: string,
+   857→  ): string {
+   858→    const lower = errorMessage.toLowerCase();
+   859→
+   860→    // Null/undefined access
+   861→    if (lower.includes('cannot read propert') || lower.includes('cannot read properties')) {
+   862→      const match = errorMessage.match(/cannot read (?:properties of|propert[yies])\s+(\w+)/i);
+   863→      const prop = match ? match[1] : 'property';
+   864→      return `Attempting to access "${prop}" on a null or undefined value. The object is likely not initialized or the access path contains a null/undefined intermediate.`;
+   865→    }
+   866→
+   867→    // Not defined
+   868→    if (lower.includes('is not defined')) {
+   869→      const match = errorMessage.match(/(\w+)\s+is not defined/i);
+   870→      const name = match ? match[1] : 'variable';
+   871→      return `"${name}" is referenced but not declared or imported. Check for typos, missing imports, or scope issues.`;
+   872→    }
+   873→
+   874→    // Type mismatch
+   875→    if (lower.includes('is not a function')) {
+   876→      const match = errorMessage.match(/(\w+)\s+is not a function/i);
+   877→      const name = match ? match[1] : 'value';
+   878→      return `"${name}" is being called as a function but is not of callable type. Verify the variable type and method availability.`;
+   879→    }
+   880→
+   881→    // Cannot read properties of undefined
+   882→    if (lower.includes('is not iterable')) {
+   883→      return 'Attempting to iterate over a non-iterable value. Ensure the target is an array, string, or other iterable object.';
+   884→    }
+   885→
+   886→    // Syntax errors
+   887→    if (lower.includes('unexpected token') || lower.includes('unexpected end')) {
+   888→      return 'Syntax error in the code. Check for missing brackets, parentheses, semicolons, or string delimiters.';
+   889→    }
+   890→
+   891→    // Timeout
+   892→    if (lower.includes('timeout') || lower.includes('timed out')) {
+   893→      return 'An operation exceeded its time limit. This may be caused by an infinite loop, unresponsive external service, or insufficient timeout configuration.';
+   894→    }
+   895→
+   896→    // Default
+   897→    return `Error: ${errorMessage}. Analyze the stack trace and code context to identify the specific cause.`;
+   898→  }
+   899→
+   900→  private determineSeverity(
+   901→    errorType: string,
+   902→    errorMessage: string,
+   903→    code?: string,
+   904→  ): 'low' | 'medium' | 'high' | 'critical' {
+   905→    // Critical: unhandled exceptions, security errors
+   906→    if (
+   907→      errorType.includes('Security') ||
+   908→      errorType.includes('Permission') ||
+   909→      errorMessage.toLowerCase().includes('fatal')
+   910→    ) {
+   911→      return 'critical';
+   912→    }
+   913→
+   914→    // High: runtime errors that crash the application
+   915→    if (
+   916→      errorType.includes('TypeError') ||
+   917→      errorType.includes('ReferenceError') ||
+   918→      errorType.includes('NullReference')
+   919→    ) {
+   920→      return 'high';
+   921→    }
+   922→
+   923→    // Medium: recoverable errors
+   924→    if (
+   925→      errorType.includes('RangeError') ||
+   926→      errorType.includes('ConnectionError') ||
+   927→      errorType.includes('Timeout')
+   928→    ) {
+   929→      return 'medium';
+   930→    }
+   931→
+   932→    // Low: syntax errors caught at compile time, warnings
+   933→    if (errorType.includes('SyntaxError')) {
+   934→      return 'low';
+   935→    }
+   936→
+   937→    return 'medium';
+   938→  }
+   939→
+   940→  private extractAffectedPaths(stack: string, code?: string): string[] {
+   941→    const paths: string[] = [];
+   942→
+   943→    if (stack) {
+   944→      const stackLines = stack.split('\n');
+   945→      for (const line of stackLines) {
+   946→        const match = line.match(/at\s+.*?\(([^)]+)\)/);
+   947→        if (match) {
+   948→          paths.push(match[1]);
+   949→        }
+   950→      }
+   951→    }
+   952→
+   953→    if (paths.length === 0 && code) {
+   954→      paths.push('source code (no stack trace available)');
+   955→    }
+   956→
+   957→    return paths.slice(0, 10);
+   958→  }
+   959→
+   960→  private generateAnalysisText(
+   961→    errorType: string,
+   962→    errorMessage: string,
+   963→    rootCause: string,
+   964→    severity: string,
+   965→    affectedPaths: string[],
+   966→    language: string,
+   967→  ): string {
+   968→    let analysis = `Error Analysis Report\n`;
+   969→    analysis += `=====================\n`;
+   970→    analysis += `Type: ${errorType}\n`;
+   971→    analysis += `Message: ${errorMessage}\n`;
+   972→    analysis += `Severity: ${severity}\n`;
+   973→    analysis += `Language: ${language}\n\n`;
+   974→    analysis += `Root Cause: ${rootCause}\n\n`;
+   975→
+   976→    if (affectedPaths.length > 0) {
+   977→      analysis += `Affected Code Paths:\n`;
+   978→      for (const path of affectedPaths) {
+   979→        analysis += `  - ${path}\n`;
+   980→      }
+   981→      analysis += '\n';
+   982→    }
+   983→
+   984→    analysis += `Recommended Next Steps:\n`;
+   985→    analysis += `  1. Use traceExecution to follow the execution path\n`;
+   986→    analysis += `  2. Use suggestFix to get potential fixes\n`;
+   987→    analysis += `  3. Use applyFix to apply a fix\n`;
+   988→    analysis += `  4. Use validateFix to verify the fix\n`;
+   989→
+   990→    return analysis;
+   991→  }
+   992→
+   993→  private findRelatedErrors(
+   994→    errorType: string,
+   995→    errorMessage: string,
+   996→    code?: string,
+   997→    language?: string,
+   998→  ): Array<{ type: string; message: string; likelihood: number }> {
+   999→    const related: Array<{ type: string; message: string; likelihood: number }> = [];
+  1000→    const lower = errorMessage.toLowerCase();
+  1001→
+  1002→    // Null errors often cascade
+  1003→    if (lower.includes('null') || lower.includes('undefined')) {
+  1004→      related.push({
+  1005→        type: 'TypeError',
+  1006→        message: 'Related null/undefined access may exist in the same code path',
+  1007→        likelihood: 0.7,
+  1008→      });
+  1009→    }
+  1010→
+  1011→    // Reference errors may indicate missing imports
+  1012→    if (lower.includes('is not defined')) {
+  1013→      related.push({
+  1014→        type: 'ImportError',
+  1015→        message: 'Missing or incorrect import statement',
+  1016→        likelihood: 0.8,
+  1017→      });
+  1018→    }
+  1019→
+  1020→    // Type errors may have sibling type issues
+  1021→    if (lower.includes('is not a function')) {
+  1022→      related.push({
+  1023→        type: 'TypeError',
+  1024→        message: 'Other method calls on the same object may also fail',
+  1025→        likelihood: 0.5,
+  1026→      });
+  1027→    }
+  1028→
+  1029→    return related;
+  1030→  }
+  1031→
+  1032→  // ─── Trace Execution Helpers ───────────────────────────────────
+  1033→
+  1034→  private findFunctionStartLine(lines: string[], functionName: string, language: string): number {
+  1035→    for (let i = 0; i < lines.length; i++) {
+  1036→      const line = lines[i];
+  1037→      if (language === 'typescript' || language === 'javascript') {
+  1038→        if (
+  1039→          line.includes(`function ${functionName}`) ||
+  1040→          line.includes(`${functionName} =`) ||
+  1041→          line.includes(`${functionName}(`) ||
+  1042→          line.match(new RegExp(`\\b${functionName}\\s*\\(`))
+  1043→        ) {
+  1044→          return i;
+  1045→        }
+  1046→      }
+  1047→      if (language === 'python') {
+  1048→        if (line.includes(`def ${functionName}`)) {
+  1049→          return i;
+  1050→        }
+  1051→      }
+  1052→    }
+  1053→    return -1;
+  1054→  }
+  1055→
+  1056→  private describeLineAction(line: string, language: string): string {
+  1057→    if (line.match(/\bif\s*\(/)) return 'Conditional check';
+  1058→    if (line.match(/\bfor\s*\(/) || line.match(/\bwhile\s*\(/)) return 'Loop iteration';
+  1059→    if (line.match(/\breturn\b/)) return 'Return value';
+  1060→    if (line.match(/\bthrow\b/) || line.match(/\braise\b/)) return 'Throw exception';
+  1061→    if (line.match(/\btry\b/) || line.match(/\bcatch\b/)) return 'Exception handling';
+  1062→    if (line.match(/\bawait\b/)) return 'Await async operation';
+  1063→    if (line.match(/\bnew\b/)) return 'Create new instance';
+  1064→    if (line.match(/=\s*(?:async\s+)?function/)) return 'Define function';
+  1065→    if (line.includes('console.log') || line.includes('print(')) return 'Log output';
+  1066→    if (line.match(/\w+\.\w+\(/)) return 'Method call';
+  1067→    return 'Execute statement';
+  1068→  }
+  1069→
+  1070→  private trackVariableAssignment(
+  1071→    line: string,
+  1072→    variables: Record<string, any>,
+  1073→    language: string,
+  1074→  ): void {
+  1075→    const assignMatch = line.match(/(?:const|let|var)?\s*(\w+)\s*=\s*(.+?)[;,\)]?$/);
+  1076→    if (assignMatch) {
+  1077→      const name = assignMatch[1];
+  1078→      const value = assignMatch[2].trim();
+  1079→      // Store simplified representation
+  1080→      variables[name] =
+  1081→        value.startsWith("'") || value.startsWith('"')
+  1082→          ? 'string'
+  1083→          : /^\d+$/.test(value)
+  1084→            ? 'number'
+  1085→            : value === 'true' || value === 'false'
+  1086→              ? 'boolean'
+  1087→              : value === 'null'
+  1088→                ? null
+  1089→                : value === 'undefined'
+  1090→                  ? undefined
+  1091→                  : 'expression';
+  1092→    }
+  1093→  }
+  1094→
+  1095→  private extractFunctionCall(line: string, language: string): string | null {
+  1096→    const match = line.match(/(\w+)\s*\(/);
+  1097→    return match ? match[1] : null;
+  1098→  }
+  1099→
+  1100→  private isErrorPoint(line: string, language: string): boolean {
+  1101→    if (language === 'typescript' || language === 'javascript') {
+  1102→      return (
+  1103→        line.includes('.null') ||
+  1104→        line.includes('undefined') ||
+  1105→        line.includes('throw ') ||
+  1106→        line.includes('catch (') ||
+  1107→        (line.includes('[') && !line.includes(']')) ||
+  1108→        (line.includes('.length') && line.includes('undefined'))
+  1109→      );
+  1110→    }
+  1111→    return line.includes('raise ') || line.includes('except ') || line.includes('None');
+  1112→  }
+  1113→
+  1114→  private identifyErrorReason(line: string, language: string): string {
+  1115→    if (line.includes('undefined')) return 'Potential undefined access';
+  1116→    if (line.includes('null')) return 'Potential null reference';
+  1117→    if (line.includes('throw')) return 'Explicit exception thrown';
+  1118→    if (line.includes('raise')) return 'Explicit exception raised';
+  1119→    if (line.includes('None')) return 'Potential None reference';
+  1120→    return 'Potential error point detected';
+  1121→  }
+  1122→
+  1123→  private buildExecutionFlowDescription(
+  1124→    steps: TraceStep[],
+  1125→    entryPoint: string,
+  1126→    errorPoint: { line: number; function: string; reason: string } | null,
+  1127→  ): string {
+  1128→    let flow = `Execution flow for ${entryPoint}:\n`;
+  1129→
+  1130→    for (const step of steps) {
+  1131→      flow += `  Step ${step.step}: [Line ${step.line}] ${step.action} in ${step.function}\n`;
+  1132→    }
+  1133→
+  1134→    if (errorPoint) {
+  1135→      flow += `\nError detected at line ${errorPoint.line} in ${errorPoint.function}: ${errorPoint.reason}`;
+  1136→    } else {
+  1137→      flow += '\nNo obvious error point detected in the trace.';
+  1138→    }
+  1139→
+  1140→    return flow;
+  1141→  }
+  1142→
+  1143→  // ─── Fix Suggestion Helpers ────────────────────────────────────
+  1144→
+  1145→  private suggestTypeErrorFixes(
+  1146→    errorMessage: string,
+  1147→    lines: string[],
+  1148→    language: string,
+  1149→  ): FixSuggestion[] {
+  1150→    const suggestions: FixSuggestion[] = [];
+  1151→
+  1152→    // Cannot read properties of undefined
+  1153→    if (
+  1154→      errorMessage.includes('cannot read properties of') ||
+  1155→      errorMessage.includes('cannot read propert')
+  1156→    ) {
+  1157→      suggestions.push({
+  1158→        id: 'fix-null-guard',
+  1159→        title: 'Add null/undefined guard',
+  1160→        description: 'Add optional chaining or null check before accessing properties',
+  1161→        codeChange: 'Replace obj.prop with obj?.prop or add if (obj) check',
+  1162→        confidence: 0.85,
+  1163→        autoFixable: true,
+  1164→        sideEffects: ['May silently return undefined instead of throwing'],
+  1165→      });
+  1166→
+  1167→      suggestions.push({
+  1168→        id: 'fix-default-value',
+  1169→        title: 'Provide default value',
+  1170→        description: 'Use nullish coalescing to provide a default value',
+  1171→        codeChange: 'Replace obj.prop with (obj?.prop) ?? defaultValue',
+  1172→        confidence: 0.7,
+  1173→        autoFixable: true,
+  1174→        sideEffects: ['Behavior changes if the property was intentionally undefined'],
+  1175→      });
+  1176→    }
+  1177→
+  1178→    // is not a function
+  1179→    if (errorMessage.includes('is not a function')) {
+  1180→      suggestions.push({
+  1181→        id: 'fix-method-check',
+  1182→        title: 'Add method existence check',
+  1183→        description: 'Check if the method exists before calling it',
+  1184→        codeChange: 'Replace obj.method() with typeof obj.method === "function" && obj.method()',
+  1185→        confidence: 0.6,
+  1186→        autoFixable: false,
+  1187→        sideEffects: ['Condition may silently skip the method call'],
+  1188→      });
+  1189→    }
+  1190→
+  1191→    return suggestions;
+  1192→  }
+  1193→
+  1194→  private suggestReferenceErrorFixes(
+  1195→    errorMessage: string,
+  1196→    lines: string[],
+  1197→    language: string,
+  1198→  ): FixSuggestion[] {
+  1199→    const suggestions: FixSuggestion[] = [];
+  1200→    const match = errorMessage.match(/(\w+)\s+is not defined/i);
+  1201→    const varName = match ? match[1] : '';
+  1202→
+  1203→    if (varName) {
+  1204→      // Check if it might be a missing import
+  1205→      const hasImportSection = lines.some(
+  1206→        (l) => l.startsWith('import ') || l.startsWith('require('),
+  1207→      );
+  1208→      if (hasImportSection) {
+  1209→        suggestions.push({
+  1210→          id: 'fix-missing-import',
+  1211→          title: `Add missing import for "${varName}"`,
+  1212→          description: `The variable "${varName}" is referenced but not imported. Add an import statement.`,
+  1213→          codeChange: `import { ${varName} } from 'module';`,
+  1214→          confidence: 0.75,
+  1215→          autoFixable: false,
+  1216→          sideEffects: ['Need to determine the correct module path'],
+  1217→        });
+  1218→      }
+  1219→
+  1220→      suggestions.push({
+  1221→        id: 'fix-typo',
+  1222→        title: `Check for typo: "${varName}"`,
+  1223→        description: `"${varName}" may be a typo. Check similar variable names in scope.`,
+  1224→        codeChange: `Search for similar names in the codebase`,
+  1225→        confidence: 0.4,
+  1226→        autoFixable: false,
+  1227→        sideEffects: [],
+  1228→      });
+  1229→
+  1230→      suggestions.push({
+  1231→        id: 'fix-declare',
+  1232→        title: `Declare "${varName}"`,
+  1233→        description: `Add a declaration for "${varName}" if it was intended to be used.`,
+  1234→        codeChange: `const ${varName} = /* provide value */;`,
+  1235→        confidence: 0.3,
+  1236→        autoFixable: false,
+  1237→        sideEffects: ['Must provide the correct initial value'],
+  1238→      });
+  1239→    }
+  1240→
+  1241→    return suggestions;
+  1242→  }
+  1243→
+  1244→  private suggestNullErrorFixes(
+  1245→    errorMessage: string,
+  1246→    lines: string[],
+  1247→    language: string,
+  1248→  ): FixSuggestion[] {
+  1249→    const suggestions: FixSuggestion[] = [];
+  1250→
+  1251→    suggestions.push({
+  1252→      id: 'fix-optional-chaining',
+  1253→      title: 'Use optional chaining',
+  1254→      description:
+  1255→        'Replace property access with optional chaining operator to safely handle null/undefined',
+  1256→      codeChange: 'Replace obj.prop with obj?.prop',
+  1257→      confidence: 0.9,
+  1258→      autoFixable: true,
+  1259→      sideEffects: ['Changes behavior: returns undefined instead of throwing'],
+  1260→    });
+  1261→
+  1262→    suggestions.push({
+  1263→      id: 'fix-null-check',
+  1264→      title: 'Add explicit null check',
+  1265→      description: 'Add an if-statement to check for null/undefined before access',
+  1266→      codeChange: 'Add: if (obj != null) { ... } around the access',
+  1267→      confidence: 0.85,
+  1268→      autoFixable: false,
+  1269→      sideEffects: ['Must handle the null case appropriately'],
+  1270→    });
+  1271→
+  1272→    suggestions.push({
+  1273→      id: 'fix-initialize',
+  1274→      title: 'Initialize with default value',
+  1275→      description: 'Ensure the variable is initialized before use',
+  1276→      codeChange: 'Initialize: const obj = existingObj || {}',
+  1277→      confidence: 0.7,
+  1278→      autoFixable: false,
+  1279→      sideEffects: ['Default value may not match expected type'],
+  1280→    });
+  1281→
+  1282→    return suggestions;
+  1283→  }
+  1284→
+  1285→  private suggestSyntaxErrorFixes(
+  1286→    errorMessage: string,
+  1287→    lines: string[],
+  1288→    language: string,
+  1289→  ): FixSuggestion[] {
+  1290→    const suggestions: FixSuggestion[] = [];
+  1291→
+  1292→    // Missing closing bracket
+  1293→    if (errorMessage.includes('unexpected end') || errorMessage.includes('EOF')) {
+  1294→      suggestions.push({
+  1295→        id: 'fix-missing-bracket',
+  1296→        title: 'Add missing closing bracket',
+  1297→        description: 'The code may be missing a closing bracket, brace, or parenthesis',
+  1298→        codeChange: 'Review and add missing closing delimiters',
+  1299→        confidence: 0.7,
+  1300→        autoFixable: false,
+  1301→        sideEffects: [],
+  1302→      });
+  1303→    }
+  1304→
+  1305→    // Unexpected token
+  1306→    if (errorMessage.includes('unexpected token')) {
+  1307→      const tokenMatch = errorMessage.match(/unexpected token\s+['"]?(\S+)['"]?/i);
+  1308→      const token = tokenMatch ? tokenMatch[1] : '';
+  1309→
+  1310→      suggestions.push({
+  1311→        id: 'fix-unexpected-token',
+  1312→        title: `Fix unexpected token "${token}"`,
+  1313→        description: `The token "${token}" was not expected. Check for missing operators, delimiters, or typos.`,
+  1314→        codeChange: 'Review syntax around the error location',
+  1315→        confidence: 0.5,
+  1316→        autoFixable: false,
+  1317→        sideEffects: [],
+  1318→      });
+  1319→    }
+  1320→
+  1321→    return suggestions;
+  1322→  }
+  1323→
+  1324→  private suggestRangeErrorFixes(
+  1325→    errorMessage: string,
+  1326→    lines: string[],
+  1327→    language: string,
+  1328→  ): FixSuggestion[] {
+  1329→    const suggestions: FixSuggestion[] = [];
+  1330→
+  1331→    suggestions.push({
+  1332→      id: 'fix-bound-check',
+  1333→      title: 'Add boundary check',
+  1334→      description: 'Add range validation before array access or numeric operations',
+  1335→      codeChange: 'Add: if (index >= 0 && index < array.length) before access',
+  1336→      confidence: 0.7,
+  1337→      autoFixable: false,
+  1338→      sideEffects: ['Must handle out-of-range case'],
+  1339→    });
+  1340→
+  1341→    suggestions.push({
+  1342→      id: 'fix-recursive-base',
+  1343→      title: 'Fix recursion base case',
+  1344→      description: 'If this is a RangeError from recursion, check the base case',
+  1345→      codeChange: 'Ensure recursive function has a proper termination condition',
+  1346→      confidence: 0.6,
+  1347→      autoFixable: false,
+  1348→      sideEffects: [],
+  1349→    });
+  1350→
+  1351→    return suggestions;
+  1352→  }
+  1353→
+  1354→  private suggestGenericFixes(
+  1355→    errorMessage: string,
+  1356→    lines: string[],
+  1357→    language: string,
+  1358→  ): FixSuggestion[] {
+  1359→    return [
+  1360→      {
+  1361→        id: 'fix-add-error-handling',
+  1362→        title: 'Add error handling',
+  1363→        description: 'Wrap the error-prone code in a try-catch block',
+  1364→        codeChange: 'Add try-catch around the failing code section',
+  1365→        confidence: 0.5,
+  1366→        autoFixable: false,
+  1367→        sideEffects: ['Error may be silently caught; ensure proper handling'],
+  1368→      },
+  1369→      {
+  1370→        id: 'fix-log-debug',
+  1371→        title: 'Add debug logging',
+  1372→        description: 'Add logging to trace the values leading to the error',
+  1373→        codeChange: 'Add console.log/debug statements before the error point',
+  1374→        confidence: 0.4,
+  1375→        autoFixable: true,
+  1376→        sideEffects: ['Adds temporary debug output that should be removed'],
+  1377→      },
+  1378→    ];
+  1379→  }
+  1380→
+  1381→  // ─── Apply Fix Helpers ─────────────────────────────────────────
+  1382→
+  1383→  private findTargetLine(lines: string[], fix: Record<string, any>, language: string): number {
+  1384→    // Try to find the line based on the fix description
+  1385→    if (fix.search) {
+  1386→      for (let i = 0; i < lines.length; i++) {
+  1387→        if (lines[i].includes(fix.search)) return i;
+  1388→      }
+  1389→    }
+  1390→
+  1391→    if (fix.pattern) {
+  1392→      const regex = new RegExp(fix.pattern);
+  1393→      for (let i = 0; i < lines.length; i++) {
+  1394→        if (regex.test(lines[i])) return i;
+  1395→      }
+  1396→    }
+  1397→
+  1398→    return -1;
+  1399→  }
+  1400→
+  1401→  private escapeRegex(str: string): string {
+  1402→    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  1403→  }
+  1404→
+  1405→  // ─── Validation Helpers ────────────────────────────────────────
+  1406→
+  1407→  private performBasicSyntaxCheck(
+  1408→    code: string,
+  1409→    language: string,
+  1410→  ): { valid: boolean; message: string } {
+  1411→    // Check for obvious syntax issues
+  1412→    const openBraces = (code.match(/{/g) || []).length;
+  1413→    const closeBraces = (code.match(/}/g) || []).length;
+  1414→
+  1415→    if (Math.abs(openBraces - closeBraces) > 1) {
+  1416→      return {
+  1417→        valid: false,
+  1418→        message: `Unbalanced braces: ${openBraces} open, ${closeBraces} close`,
+  1419→      };
+  1420→    }
+  1421→
+  1422→    const openParens = (code.match(/\(/g) || []).length;
+  1423→    const closeParens = (code.match(/\)/g) || []).length;
+  1424→
+  1425→    if (Math.abs(openParens - closeParens) > 1) {
+  1426→      return {
+  1427→        valid: false,
+  1428→        message: `Unbalanced parentheses: ${openParens} open, ${closeParens} close`,
+  1429→      };
+  1430→    }
+  1431→
+  1432→    return { valid: true, message: 'No obvious syntax issues detected' };
+  1433→  }
+  1434→
+  1435→  private checkErrorPatternExists(
+  1436→    code: string,
+  1437→    errorMessage: string,
+  1438→    errorType: string,
+  1439→    language: string,
+  1440→  ): boolean {
+  1441→    const lower = errorMessage.toLowerCase();
+  1442→
+  1443→    if (lower.includes('null') || lower.includes('undefined')) {
+  1444→      // Check for property access without optional chaining
+  1445→      const propAccessWithoutChaining = code.match(/\w+\.\w+/g);
+  1446→      const chainedAccess = code.match(/\w+\?\.\w+/g);
+  1447→      const unchainedCount =
+  1448→        (propAccessWithoutChaining?.length || 0) - (chainedAccess?.length || 0);
+  1449→      return unchainedCount > 5; // If many unchained accesses remain, pattern may still exist
+  1450→    }
+  1451→
+  1452→    return false;
+  1453→  }
+  1454→
+  1455→  private detectNewIssues(
+  1456→    originalCode: string,
+  1457→    fixedCode: string,
+  1458→    language: string,
+  1459→  ): ValidationError[] {
+  1460→    const issues: ValidationError[] = [];
+  1461→
+  1462→    // Check for accidentally deleted code
+  1463→    const originalLines = originalCode.split('\n').filter((l) => l.trim().length > 0);
+  1464→    const fixedLines = fixedCode.split('\n').filter((l) => l.trim().length > 0);
+  1465→
+  1466→    if (originalLines.length - fixedLines.length > 5) {
+  1467→      issues.push({
+  1468→        type: 'deletion',
+  1469→        message: 'Significant code was removed — verify this was intentional',
+  1470→        severity: 'medium',
+  1471→      });
+  1472→    }
+  1473→
+  1474→    // Check for duplicate lines introduced
+  1475→    const lineCounts = new Map<string, number>();
+  1476→    for (const line of fixedLines) {
+  1477→      if (line.trim().length > 10) {
+  1478→        lineCounts.set(line.trim(), (lineCounts.get(line.trim()) || 0) + 1);
+  1479→      }
+  1480→    }
+  1481→    const duplicates = Array.from(lineCounts.entries()).filter(([, count]) => count > 1);
+  1482→    if (duplicates.length > 2) {
+  1483→      issues.push({
+  1484→        type: 'duplication',
+  1485→        message: 'Duplicate lines detected in fixed code',
+  1486→        severity: 'low',
+  1487→      });
+  1488→    }
+  1489→
+  1490→    return issues;
+  1491→  }
+  1492→
+  1493→  private checkBalancedDelimiters(code: string): { balanced: boolean; message: string } {
+  1494→    const stack: string[] = [];
+  1495→    const pairs: Record<string, string> = { '{': '}', '(': ')', '[': ']' };
+  1496→
+  1497→    for (let i = 0; i < code.length; i++) {
+  1498→      const char = code[i];
+  1499→      if (char in pairs) {
+  1500→        stack.push(char);
+  1501→      } else if (Object.values(pairs).includes(char)) {
+  1502→        if (stack.length === 0) {
+  1503→          return {
+  1504→            balanced: false,
+  1505→            message: `Unmatched closing delimiter '${char}' at position ${i}`,
+  1506→          };
+  1507→        }
+  1508→        const last = stack.pop()!;
+  1509→        if (pairs[last] !== char) {
+  1510→          return {
+  1511→            balanced: false,
+  1512→            message: `Mismatched delimiters: '${last}' and '${char}' at position ${i}`,
+  1513→          };
+  1514→        }
+  1515→      }
+  1516→    }
+  1517→
+  1518→    if (stack.length > 0) {
+  1519→      return { balanced: false, message: `Unclosed delimiter(s): ${stack.join(', ')}` };
+  1520→    }
+  1521→
+  1522→    return { balanced: true, message: 'All delimiters are balanced' };
+  1523→  }
+  1524→
+  1525→  private checkImportConsistency(
+  1526→    originalCode: string,
+  1527→    fixedCode: string,
+  1528→    language: string,
+  1529→  ): { consistent: boolean; message: string } {
+  1530→    const originalImports = this.extractImports(originalCode);
+  1531→    const fixedImports = this.extractImports(fixedCode);
+  1532→
+  1533→    // Check that no imports were accidentally removed
+  1534→    const removedImports = originalImports.filter((imp) => !fixedImports.includes(imp));
+  1535→
+  1536→    if (removedImports.length > 0) {
+  1537→      return {
+  1538→        consistent: false,
+  1539→        message: `Imports removed: ${removedImports.join(', ')}`,
+  1540→      };
+  1541→    }
+  1542→
+  1543→    return { consistent: true, message: 'Import statements are consistent' };
+  1544→  }
+  1545→
+  1546→  private extractImports(code: string): string[] {
+  1547→    const imports: string[] = [];
+  1548→    const importRegex = /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g;
+  1549→    let match: RegExpExecArray | null;
+  1550→    while ((match = importRegex.exec(code)) !== null) {
+  1551→      imports.push(match[1]);
+  1552→    }
+  1553→    return imports;
+  1554→  }
+  1555→}
+  1556→

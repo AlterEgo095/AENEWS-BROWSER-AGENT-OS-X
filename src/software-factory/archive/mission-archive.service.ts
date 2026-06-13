@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Mission Archive Service
- * 
+ *
  * Archives completed missions for reproducibility and improvement.
  * Stores: execution trace, timeline, contract, results, agent stats.
  */
@@ -126,7 +126,7 @@ export class MissionArchiveService {
     maxCost?: number;
     since?: Date;
   }): ArchivedMission[] {
-    return Array.from(this.archives.values()).filter(archive => {
+    return Array.from(this.archives.values()).filter((archive) => {
       if (criteria.result && archive.summary.result !== criteria.result) return false;
       if (criteria.minQuality && archive.summary.qualityScore < criteria.minQuality) return false;
       if (criteria.maxCost && archive.summary.totalCostUsd > criteria.maxCost) return false;
@@ -147,10 +147,16 @@ export class MissionArchiveService {
   } {
     const archives = Array.from(this.archives.values());
     if (archives.length === 0) {
-      return { totalMissions: 0, successRate: 0, averageQualityScore: 0, averageCost: 0, averageDurationMs: 0 };
+      return {
+        totalMissions: 0,
+        successRate: 0,
+        averageQualityScore: 0,
+        averageCost: 0,
+        averageDurationMs: 0,
+      };
     }
 
-    const successCount = archives.filter(a => a.summary.result === 'success').length;
+    const successCount = archives.filter((a) => a.summary.result === 'success').length;
     const totalQuality = archives.reduce((sum, a) => sum + a.summary.qualityScore, 0);
     const totalCost = archives.reduce((sum, a) => sum + a.summary.totalCostUsd, 0);
     const totalDuration = archives.reduce((sum, a) => sum + a.summary.totalDurationMs, 0);

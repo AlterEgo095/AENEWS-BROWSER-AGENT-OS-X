@@ -1,0 +1,1120 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Task Management Agent
+     3→ * Manages tasks and projects: create, update, assign, track progress,
+     4→ * generate reports, set deadlines, and prioritize tasks.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const TASK_MANAGEMENT_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'office-task-management',
+    20→  name: 'TaskManagement',
+    21→  cluster: AgentCluster.OFFICE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Task and project management agent that handles creating, updating, assigning, tracking progress, reporting, setting deadlines, and prioritizing tasks.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'createTask',
+    28→      description: 'Create a new task with title, description, priority, and optional assignee',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          title: { type: 'string', description: 'Task title' },
+    33→          description: { type: 'string', description: 'Task description' },
+    34→          projectId: { type: 'string', description: 'Parent project ID' },
+    35→          assignee: { type: 'string', description: 'Assignee user ID or email' },
+    36→          priority: {
+    37→            type: 'string',
+    38→            enum: ['low', 'medium', 'high', 'critical'],
+    39→            description: 'Task priority',
+    40→          },
+    41→          deadline: { type: 'string', description: 'Task deadline (ISO string)' },
+    42→          tags: { type: 'array', items: { type: 'string' }, description: 'Task tags' },
+    43→          subtasks: {
+    44→            type: 'array',
+    45→            items: { type: 'object' },
+    46→            description: 'Initial subtask definitions',
+    47→          },
+    48→          estimatedHours: { type: 'number', description: 'Estimated hours to complete' },
+    49→        },
+    50→        required: ['title'],
+    51→      },
+    52→      outputSchema: {
+    53→        type: 'object',
+    54→        properties: {
+    55→          taskId: { type: 'string' },
+    56→          status: { type: 'string' },
+    57→          createdAt: { type: 'string' },
+    58→        },
+    59→      },
+    60→    },
+    61→    {
+    62→      name: 'updateTask',
+    63→      description: 'Update an existing task with new values',
+    64→      inputSchema: {
+    65→        type: 'object',
+    66→        properties: {
+    67→          taskId: { type: 'string', description: 'ID of the task to update' },
+    68→          title: { type: 'string', description: 'New title' },
+    69→          description: { type: 'string', description: 'New description' },
+    70→          status: {
+    71→            type: 'string',
+    72→            enum: ['todo', 'in_progress', 'review', 'done', 'blocked', 'cancelled'],
+    73→            description: 'New status',
+    74→          },
+    75→          assignee: { type: 'string', description: 'New assignee' },
+    76→          priority: {
+    77→            type: 'string',
+    78→            enum: ['low', 'medium', 'high', 'critical'],
+    79→            description: 'New priority',
+    80→          },
+    81→          progress: { type: 'number', description: 'Progress percentage (0-100)' },
+    82→          tags: { type: 'array', items: { type: 'string' }, description: 'New tags' },
+    83→          actualHours: { type: 'number', description: 'Actual hours spent' },
+    84→        },
+    85→        required: ['taskId'],
+    86→      },
+    87→      outputSchema: {
+    88→        type: 'object',
+    89→        properties: {
+    90→          taskId: { type: 'string' },
+    91→          updatedFields: { type: 'array', items: { type: 'string' } },
+    92→          status: { type: 'string' },
+    93→        },
+    94→      },
+    95→    },
+    96→    {
+    97→      name: 'assignTask',
+    98→      description: 'Assign a task to a user or reassign to a different user',
+    99→      inputSchema: {
+   100→        type: 'object',
+   101→        properties: {
+   102→          taskId: { type: 'string', description: 'ID of the task' },
+   103→          assignee: { type: 'string', description: 'User ID or email to assign to' },
+   104→          message: { type: 'string', description: 'Assignment message or note' },
+   105→          dueDate: { type: 'string', description: 'Reassignment due date (ISO string)' },
+   106→        },
+   107→        required: ['taskId', 'assignee'],
+   108→      },
+   109→      outputSchema: {
+   110→        type: 'object',
+   111→        properties: {
+   112→          taskId: { type: 'string' },
+   113→          assignee: { type: 'string' },
+   114→          previousAssignee: { type: 'string' },
+   115→          status: { type: 'string' },
+   116→        },
+   117→      },
+   118→    },
+   119→    {
+   120→      name: 'trackProgress',
+   121→      description: 'Track progress of tasks, projects, or by assignee',
+   122→      inputSchema: {
+   123→        type: 'object',
+   124→        properties: {
+   125→          projectId: { type: 'string', description: 'Project ID to track' },
+   126→          assignee: { type: 'string', description: 'Assignee to track tasks for' },
+   127→          status: { type: 'string', description: 'Filter by task status' },
+   128→          dateFrom: { type: 'string', description: 'Start date filter (ISO string)' },
+   129→          dateTo: { type: 'string', description: 'End date filter (ISO string)' },
+   130→        },
+   131→      },
+   132→      outputSchema: {
+   133→        type: 'object',
+   134→        properties: {
+   135→          totalTasks: { type: 'number' },
+   136→          completedTasks: { type: 'number' },
+   137→          inProgressTasks: { type: 'number' },
+   138→          overdueTasks: { type: 'number' },
+   139→          averageProgress: { type: 'number' },
+   140→          tasks: { type: 'array', items: { type: 'object' } },
+   141→        },
+   142→      },
+   143→    },
+   144→    {
+   145→      name: 'generateReport',
+   146→      description: 'Generate a summary or detailed report on tasks and projects',
+   147→      inputSchema: {
+   148→        type: 'object',
+   149→        properties: {
+   150→          projectId: { type: 'string', description: 'Project ID for report' },
+   151→          reportType: {
+   152→            type: 'string',
+   153→            enum: ['summary', 'detailed', 'burndown', 'velocity'],
+   154→            description: 'Type of report',
+   155→          },
+   156→          assignee: { type: 'string', description: 'Filter by assignee' },
+   157→          dateFrom: { type: 'string', description: 'Report start date (ISO string)' },
+   158→          dateTo: { type: 'string', description: 'Report end date (ISO string)' },
+   159→        },
+   160→        required: ['reportType'],
+   161→      },
+   162→      outputSchema: {
+   163→        type: 'object',
+   164→        properties: {
+   165→          reportType: { type: 'string' },
+   166→          generatedAt: { type: 'string' },
+   167→          data: { type: 'object' },
+   168→        },
+   169→      },
+   170→    },
+   171→    {
+   172→      name: 'setDeadline',
+   173→      description: 'Set or update the deadline for a task',
+   174→      inputSchema: {
+   175→        type: 'object',
+   176→        properties: {
+   177→          taskId: { type: 'string', description: 'ID of the task' },
+   178→          deadline: { type: 'string', description: 'New deadline (ISO string)' },
+   179→          notifyAssignee: {
+   180→            type: 'boolean',
+   181→            default: true,
+   182→            description: 'Whether to notify the assignee',
+   183→          },
+   184→          reason: { type: 'string', description: 'Reason for deadline change' },
+   185→        },
+   186→        required: ['taskId', 'deadline'],
+   187→      },
+   188→      outputSchema: {
+   189→        type: 'object',
+   190→        properties: {
+   191→          taskId: { type: 'string' },
+   192→          previousDeadline: { type: 'string' },
+   193→          newDeadline: { type: 'string' },
+   194→          status: { type: 'string' },
+   195→        },
+   196→      },
+   197→    },
+   198→    {
+   199→      name: 'prioritizeTask',
+   200→      description: 'Set or update the priority of a task with optional reason',
+   201→      inputSchema: {
+   202→        type: 'object',
+   203→        properties: {
+   204→          taskId: { type: 'string', description: 'ID of the task' },
+   205→          priority: {
+   206→            type: 'string',
+   207→            enum: ['low', 'medium', 'high', 'critical'],
+   208→            description: 'New priority level',
+   209→          },
+   210→          reason: { type: 'string', description: 'Reason for priority change' },
+   211→        },
+   212→        required: ['taskId', 'priority'],
+   213→      },
+   214→      outputSchema: {
+   215→        type: 'object',
+   216→        properties: {
+   217→          taskId: { type: 'string' },
+   218→          previousPriority: { type: 'string' },
+   219→          newPriority: { type: 'string' },
+   220→          status: { type: 'string' },
+   221→        },
+   222→      },
+   223→    },
+   224→  ],
+   225→  permissions: ['execute:task', 'read:task', 'write:task', 'assign:task', 'report:task'],
+   226→  maxConcurrentTasks: 5,
+   227→  timeout: 30000,
+   228→  retryPolicy: {
+   229→    maxRetries: 2,
+   230→    backoffMs: 1000,
+   231→    exponentialBackoff: true,
+   232→  },
+   233→};
+   234→
+   235→// ─── Internal Types ───────────────────────────────────────────────
+   236→
+   237→type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+   238→type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'blocked' | 'cancelled';
+   239→
+   240→interface TaskItem {
+   241→  id: string;
+   242→  title: string;
+   243→  description: string;
+   244→  projectId: string;
+   245→  assignee: string;
+   246→  priority: TaskPriority;
+   247→  status: TaskStatus;
+   248→  progress: number;
+   249→  deadline: Date | null;
+   250→  tags: string[];
+   251→  subtasks: Subtask[];
+   252→  estimatedHours: number;
+   253→  actualHours: number;
+   254→  comments: TaskComment[];
+   255→  createdAt: Date;
+   256→  updatedAt: Date;
+   257→  completedAt: Date | null;
+   258→}
+   259→
+   260→interface Subtask {
+   261→  id: string;
+   262→  title: string;
+   263→  completed: boolean;
+   264→}
+   265→
+   266→interface TaskComment {
+   267→  id: string;
+   268→  author: string;
+   269→  text: string;
+   270→  createdAt: Date;
+   271→}
+   272→
+   273→interface Project {
+   274→  id: string;
+   275→  name: string;
+   276→  description: string;
+   277→  taskIds: string[];
+   278→  createdAt: Date;
+   279→}
+   280→
+   281→// ─── Agent Service ────────────────────────────────────────────────
+   282→
+   283→@Injectable()
+   284→export class TaskManagementAgentService extends BaseAgentService {
+   285→  private tasks: Map<string, TaskItem> = new Map();
+   286→  private projects: Map<string, Project> = new Map();
+   287→  private taskCounter: number = 0;
+   288→
+   289→  protected defineConfig(): AgentConfig {
+   290→    return TASK_MANAGEMENT_AGENT_CONFIG;
+   291→  }
+   292→
+   293→  protected async onInitialize(): Promise<void> {
+   294→    // Register tools
+   295→    this.registerTool({
+   296→      name: 'createTask',
+   297→      description: 'Create a new task',
+   298→      execute: async (params: {
+   299→        title: string;
+   300→        description?: string;
+   301→        projectId?: string;
+   302→        assignee?: string;
+   303→        priority?: string;
+   304→        deadline?: string;
+   305→        tags?: string[];
+   306→        subtasks?: Array<{ title: string }>;
+   307→        estimatedHours?: number;
+   308→      }) => this.createTask(params),
+   309→    });
+   310→
+   311→    this.registerTool({
+   312→      name: 'updateTask',
+   313→      description: 'Update an existing task',
+   314→      execute: async (params: {
+   315→        taskId: string;
+   316→        title?: string;
+   317→        description?: string;
+   318→        status?: string;
+   319→        assignee?: string;
+   320→        priority?: string;
+   321→        progress?: number;
+   322→        tags?: string[];
+   323→        actualHours?: number;
+   324→      }) => this.updateTask(params),
+   325→    });
+   326→
+   327→    this.registerTool({
+   328→      name: 'assignTask',
+   329→      description: 'Assign a task to a user',
+   330→      execute: async (params: {
+   331→        taskId: string;
+   332→        assignee: string;
+   333→        message?: string;
+   334→        dueDate?: string;
+   335→      }) => this.assignTask(params),
+   336→    });
+   337→
+   338→    this.registerTool({
+   339→      name: 'trackProgress',
+   340→      description: 'Track progress of tasks',
+   341→      execute: async (params: {
+   342→        projectId?: string;
+   343→        assignee?: string;
+   344→        status?: string;
+   345→        dateFrom?: string;
+   346→        dateTo?: string;
+   347→      }) => this.trackProgress(params),
+   348→    });
+   349→
+   350→    this.registerTool({
+   351→      name: 'generateReport',
+   352→      description: 'Generate a report on tasks and projects',
+   353→      execute: async (params: {
+   354→        projectId?: string;
+   355→        reportType: string;
+   356→        assignee?: string;
+   357→        dateFrom?: string;
+   358→        dateTo?: string;
+   359→      }) => this.generateReport(params),
+   360→    });
+   361→
+   362→    this.registerTool({
+   363→      name: 'setDeadline',
+   364→      description: 'Set or update the deadline for a task',
+   365→      execute: async (params: {
+   366→        taskId: string;
+   367→        deadline: string;
+   368→        notifyAssignee?: boolean;
+   369→        reason?: string;
+   370→      }) => this.setDeadline(params),
+   371→    });
+   372→
+   373→    this.registerTool({
+   374→      name: 'prioritizeTask',
+   375→      description: 'Set or update the priority of a task',
+   376→      execute: async (params: { taskId: string; priority: string; reason?: string }) =>
+   377→        this.prioritizeTask(params),
+   378→    });
+   379→
+   380→    await this.storeInWorkingMemory('task-mgmt:initializedAt', new Date().toISOString(), 600000);
+   381→    this.logger.log('TaskManagement agent initialized with 7 tools');
+   382→  }
+   383→
+   384→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   385→    const startTime = Date.now();
+   386→    const { action, ...params } = input.payload;
+   387→
+   388→    if (!action) {
+   389→      return this.createAgentOutput(
+   390→        input.taskId,
+   391→        false,
+   392→        null,
+   393→        'Missing required parameter: action',
+   394→        startTime,
+   395→      );
+   396→    }
+   397→
+   398→    const supportedActions = [
+   399→      'createTask',
+   400→      'updateTask',
+   401→      'assignTask',
+   402→      'trackProgress',
+   403→      'generateReport',
+   404→      'setDeadline',
+   405→      'prioritizeTask',
+   406→    ];
+   407→
+   408→    if (!supportedActions.includes(action)) {
+   409→      return this.createAgentOutput(
+   410→        input.taskId,
+   411→        false,
+   412→        null,
+   413→        `Unknown task management action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   414→        startTime,
+   415→      );
+   416→    }
+   417→
+   418→    try {
+   419→      const tool = this.getTool(action);
+   420→      if (!tool) {
+   421→        return this.createAgentOutput(
+   422→          input.taskId,
+   423→          false,
+   424→          null,
+   425→          `Tool not found: ${action}`,
+   426→          startTime,
+   427→        );
+   428→      }
+   429→
+   430→      const result = await tool.execute(params);
+   431→
+   432→      await this.storeInWorkingMemory(
+   433→        `task-mgmt:last:${action}`,
+   434→        { params, result, timestamp: new Date() },
+   435→        300000,
+   436→      );
+   437→
+   438→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   439→    } catch (error) {
+   440→      const msg = (error as Error).message;
+   441→      this.logger.error(`TaskManagement execution failed for ${action}: ${msg}`);
+   442→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   443→    }
+   444→  }
+   445→
+   446→  protected async onDestroy(): Promise<void> {
+   447→    this.tasks.clear();
+   448→    this.projects.clear();
+   449→    this.taskCounter = 0;
+   450→    this.logger.log('TaskManagement agent destroyed, all data cleared');
+   451→  }
+   452→
+   453→  // ─── Tool Implementations ──────────────────────────────────────
+   454→
+   455→  private async createTask(params: {
+   456→    title: string;
+   457→    description?: string;
+   458→    projectId?: string;
+   459→    assignee?: string;
+   460→    priority?: string;
+   461→    deadline?: string;
+   462→    tags?: string[];
+   463→    subtasks?: Array<{ title: string }>;
+   464→    estimatedHours?: number;
+   465→  }): Promise<{
+   466→    taskId: string;
+   467→    status: string;
+   468→    createdAt: string;
+   469→  }> {
+   470→    const {
+   471→      title,
+   472→      description = '',
+   473→      projectId = '',
+   474→      assignee = '',
+   475→      priority = 'medium',
+   476→      deadline,
+   477→      tags = [],
+   478→      subtasks = [],
+   479→      estimatedHours = 0,
+   480→    } = params;
+   481→
+   482→    if (!title || typeof title !== 'string') {
+   483→      throw new Error('A valid task title is required');
+   484→    }
+   485→
+   486→    const validPriorities: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+   487→    if (!validPriorities.includes(priority as TaskPriority)) {
+   488→      throw new Error(`Invalid priority: ${priority}. Supported: ${validPriorities.join(', ')}`);
+   489→    }
+   490→
+   491→    let deadlineDate: Date | null = null;
+   492→    if (deadline) {
+   493→      deadlineDate = new Date(deadline);
+   494→      if (isNaN(deadlineDate.getTime())) {
+   495→        throw new Error('Invalid deadline: must be a valid ISO date string');
+   496→      }
+   497→    }
+   498→
+   499→    const taskId = this.generateTaskId();
+   500→    const taskSubtasks: Subtask[] = subtasks.map((st, i) => ({
+   501→      id: `${taskId}-sub-${i + 1}`,
+   502→      title: st.title,
+   503→      completed: false,
+   504→    }));
+   505→
+   506→    const task: TaskItem = {
+   507→      id: taskId,
+   508→      title,
+   509→      description,
+   510→      projectId,
+   511→      assignee,
+   512→      priority: priority as TaskPriority,
+   513→      status: 'todo',
+   514→      progress: 0,
+   515→      deadline: deadlineDate,
+   516→      tags,
+   517→      subtasks: taskSubtasks,
+   518→      estimatedHours,
+   519→      actualHours: 0,
+   520→      comments: [],
+   521→      createdAt: new Date(),
+   522→      updatedAt: new Date(),
+   523→      completedAt: null,
+   524→    };
+   525→
+   526→    this.tasks.set(taskId, task);
+   527→
+   528→    // Add to project if specified
+   529→    if (projectId) {
+   530→      const project = this.projects.get(projectId);
+   531→      if (project) {
+   532→        project.taskIds.push(taskId);
+   533→      } else {
+   534→        // Auto-create project
+   535→        this.projects.set(projectId, {
+   536→          id: projectId,
+   537→          name: projectId,
+   538→          description: `Project ${projectId}`,
+   539→          taskIds: [taskId],
+   540→          createdAt: new Date(),
+   541→        });
+   542→      }
+   543→    }
+   544→
+   545→    this.logger.log(`Created task: ${taskId}, title="${title}", priority=${priority}`);
+   546→
+   547→    return {
+   548→      taskId,
+   549→      status: 'todo',
+   550→      createdAt: task.createdAt.toISOString(),
+   551→    };
+   552→  }
+   553→
+   554→  private async updateTask(params: {
+   555→    taskId: string;
+   556→    title?: string;
+   557→    description?: string;
+   558→    status?: string;
+   559→    assignee?: string;
+   560→    priority?: string;
+   561→    progress?: number;
+   562→    tags?: string[];
+   563→    actualHours?: number;
+   564→  }): Promise<{
+   565→    taskId: string;
+   566→    updatedFields: string[];
+   567→    status: string;
+   568→  }> {
+   569→    const { taskId, title, description, status, assignee, priority, progress, tags, actualHours } =
+   570→      params;
+   571→
+   572→    if (!taskId || typeof taskId !== 'string') {
+   573→      throw new Error('A valid taskId is required');
+   574→    }
+   575→
+   576→    const task = this.tasks.get(taskId);
+   577→    if (!task) {
+   578→      throw new Error(`Task not found: ${taskId}`);
+   579→    }
+   580→
+   581→    const updatedFields: string[] = [];
+   582→
+   583→    if (title !== undefined) {
+   584→      task.title = title;
+   585→      updatedFields.push('title');
+   586→    }
+   587→    if (description !== undefined) {
+   588→      task.description = description;
+   589→      updatedFields.push('description');
+   590→    }
+   591→    if (status !== undefined) {
+   592→      const validStatuses: TaskStatus[] = [
+   593→        'todo',
+   594→        'in_progress',
+   595→        'review',
+   596→        'done',
+   597→        'blocked',
+   598→        'cancelled',
+   599→      ];
+   600→      if (!validStatuses.includes(status as TaskStatus)) {
+   601→        throw new Error(`Invalid status: ${status}. Supported: ${validStatuses.join(', ')}`);
+   602→      }
+   603→      task.status = status as TaskStatus;
+   604→      updatedFields.push('status');
+   605→
+   606→      // Auto-set progress and completion
+   607→      if (status === 'done') {
+   608→        task.progress = 100;
+   609→        task.completedAt = new Date();
+   610→      } else if (status === 'in_progress' && task.progress === 0) {
+   611→        task.progress = 10;
+   612→      }
+   613→    }
+   614→    if (assignee !== undefined) {
+   615→      task.assignee = assignee;
+   616→      updatedFields.push('assignee');
+   617→    }
+   618→    if (priority !== undefined) {
+   619→      const validPriorities: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+   620→      if (!validPriorities.includes(priority as TaskPriority)) {
+   621→        throw new Error(`Invalid priority: ${priority}. Supported: ${validPriorities.join(', ')}`);
+   622→      }
+   623→      task.priority = priority as TaskPriority;
+   624→      updatedFields.push('priority');
+   625→    }
+   626→    if (progress !== undefined) {
+   627→      if (progress < 0 || progress > 100) {
+   628→        throw new Error('Progress must be between 0 and 100');
+   629→      }
+   630→      task.progress = progress;
+   631→      updatedFields.push('progress');
+   632→
+   633→      // Auto-update status based on progress
+   634→      if (progress === 100 && task.status !== 'done') {
+   635→        task.status = 'done';
+   636→        task.completedAt = new Date();
+   637→      } else if (progress > 0 && task.status === 'todo') {
+   638→        task.status = 'in_progress';
+   639→      }
+   640→    }
+   641→    if (tags !== undefined) {
+   642→      task.tags = tags;
+   643→      updatedFields.push('tags');
+   644→    }
+   645→    if (actualHours !== undefined) {
+   646→      task.actualHours = actualHours;
+   647→      updatedFields.push('actualHours');
+   648→    }
+   649→
+   650→    task.updatedAt = new Date();
+   651→
+   652→    this.logger.log(`Updated task: ${taskId}, fields=[${updatedFields.join(',')}]`);
+   653→
+   654→    return {
+   655→      taskId,
+   656→      updatedFields,
+   657→      status: task.status,
+   658→    };
+   659→  }
+   660→
+   661→  private async assignTask(params: {
+   662→    taskId: string;
+   663→    assignee: string;
+   664→    message?: string;
+   665→    dueDate?: string;
+   666→  }): Promise<{
+   667→    taskId: string;
+   668→    assignee: string;
+   669→    previousAssignee: string;
+   670→    status: string;
+   671→  }> {
+   672→    const { taskId, assignee, message, dueDate } = params;
+   673→
+   674→    if (!taskId || typeof taskId !== 'string') {
+   675→      throw new Error('A valid taskId is required');
+   676→    }
+   677→    if (!assignee || typeof assignee !== 'string') {
+   678→      throw new Error('A valid assignee is required');
+   679→    }
+   680→
+   681→    const task = this.tasks.get(taskId);
+   682→    if (!task) {
+   683→      throw new Error(`Task not found: ${taskId}`);
+   684→    }
+   685→
+   686→    const previousAssignee = task.assignee;
+   687→    task.assignee = assignee;
+   688→    task.updatedAt = new Date();
+   689→
+   690→    // Update deadline if specified
+   691→    if (dueDate) {
+   692→      const deadline = new Date(dueDate);
+   693→      if (!isNaN(deadline.getTime())) {
+   694→        task.deadline = deadline;
+   695→      }
+   696→    }
+   697→
+   698→    // Add assignment comment
+   699→    if (message) {
+   700→      task.comments.push({
+   701→        id: `comment-${task.comments.length + 1}`,
+   702→        author: 'system',
+   703→        text: message,
+   704→        createdAt: new Date(),
+   705→      });
+   706→    }
+   707→
+   708→    this.logger.log(`Assigned task: ${taskId}, from=${previousAssignee || 'none'} to=${assignee}`);
+   709→
+   710→    return {
+   711→      taskId,
+   712→      assignee,
+   713→      previousAssignee,
+   714→      status: 'assigned',
+   715→    };
+   716→  }
+   717→
+   718→  private async trackProgress(params: {
+   719→    projectId?: string;
+   720→    assignee?: string;
+   721→    status?: string;
+   722→    dateFrom?: string;
+   723→    dateTo?: string;
+   724→  }): Promise<{
+   725→    totalTasks: number;
+   726→    completedTasks: number;
+   727→    inProgressTasks: number;
+   728→    overdueTasks: number;
+   729→    averageProgress: number;
+   730→    tasks: TaskItem[];
+   731→  }> {
+   732→    const { projectId, assignee, status, dateFrom, dateTo } = params;
+   733→
+   734→    let filteredTasks = Array.from(this.tasks.values());
+   735→
+   736→    // Filter by project
+   737→    if (projectId) {
+   738→      const project = this.projects.get(projectId);
+   739→      if (project) {
+   740→        const projectTaskIds = new Set(project.taskIds);
+   741→        filteredTasks = filteredTasks.filter((t) => projectTaskIds.has(t.id));
+   742→      }
+   743→    }
+   744→
+   745→    // Filter by assignee
+   746→    if (assignee) {
+   747→      filteredTasks = filteredTasks.filter((t) => t.assignee === assignee);
+   748→    }
+   749→
+   750→    // Filter by status
+   751→    if (status) {
+   752→      filteredTasks = filteredTasks.filter((t) => t.status === status);
+   753→    }
+   754→
+   755→    // Filter by date range
+   756→    if (dateFrom) {
+   757→      const from = new Date(dateFrom);
+   758→      if (!isNaN(from.getTime())) {
+   759→        filteredTasks = filteredTasks.filter((t) => t.createdAt >= from);
+   760→      }
+   761→    }
+   762→    if (dateTo) {
+   763→      const to = new Date(dateTo);
+   764→      if (!isNaN(to.getTime())) {
+   765→        filteredTasks = filteredTasks.filter((t) => t.createdAt <= to);
+   766→      }
+   767→    }
+   768→
+   769→    // Calculate metrics
+   770→    const totalTasks = filteredTasks.length;
+   771→    const completedTasks = filteredTasks.filter((t) => t.status === 'done').length;
+   772→    const inProgressTasks = filteredTasks.filter(
+   773→      (t) => t.status === 'in_progress' || t.status === 'review',
+   774→    ).length;
+   775→
+   776→    const now = new Date();
+   777→    const overdueTasks = filteredTasks.filter(
+   778→      (t) => t.deadline && t.deadline < now && t.status !== 'done' && t.status !== 'cancelled',
+   779→    ).length;
+   780→
+   781→    const averageProgress =
+   782→      totalTasks > 0
+   783→        ? Math.round(filteredTasks.reduce((sum, t) => sum + t.progress, 0) / totalTasks)
+   784→        : 0;
+   785→
+   786→    this.logger.log(
+   787→      `Tracked progress: total=${totalTasks}, done=${completedTasks}, in-progress=${inProgressTasks}, overdue=${overdueTasks}`,
+   788→    );
+   789→
+   790→    return {
+   791→      totalTasks,
+   792→      completedTasks,
+   793→      inProgressTasks,
+   794→      overdueTasks,
+   795→      averageProgress,
+   796→      tasks: filteredTasks,
+   797→    };
+   798→  }
+   799→
+   800→  private async generateReport(params: {
+   801→    projectId?: string;
+   802→    reportType: string;
+   803→    assignee?: string;
+   804→    dateFrom?: string;
+   805→    dateTo?: string;
+   806→  }): Promise<{
+   807→    reportType: string;
+   808→    generatedAt: string;
+   809→    data: any;
+   810→  }> {
+   811→    const { projectId, reportType, assignee, dateFrom, dateTo } = params;
+   812→
+   813→    if (!reportType || typeof reportType !== 'string') {
+   814→      throw new Error('A valid reportType is required');
+   815→    }
+   816→
+   817→    const validReportTypes = ['summary', 'detailed', 'burndown', 'velocity'];
+   818→    if (!validReportTypes.includes(reportType)) {
+   819→      throw new Error(
+   820→        `Invalid reportType: ${reportType}. Supported: ${validReportTypes.join(', ')}`,
+   821→      );
+   822→    }
+   823→
+   824→    // Get filtered tasks
+   825→    let filteredTasks = Array.from(this.tasks.values());
+   826→
+   827→    if (projectId) {
+   828→      const project = this.projects.get(projectId);
+   829→      if (project) {
+   830→        const projectTaskIds = new Set(project.taskIds);
+   831→        filteredTasks = filteredTasks.filter((t) => projectTaskIds.has(t.id));
+   832→      }
+   833→    }
+   834→
+   835→    if (assignee) {
+   836→      filteredTasks = filteredTasks.filter((t) => t.assignee === assignee);
+   837→    }
+   838→
+   839→    if (dateFrom) {
+   840→      const from = new Date(dateFrom);
+   841→      if (!isNaN(from.getTime())) {
+   842→        filteredTasks = filteredTasks.filter((t) => t.createdAt >= from);
+   843→      }
+   844→    }
+   845→
+   846→    if (dateTo) {
+   847→      const to = new Date(dateTo);
+   848→      if (!isNaN(to.getTime())) {
+   849→        filteredTasks = filteredTasks.filter((t) => t.createdAt <= to);
+   850→      }
+   851→    }
+   852→
+   853→    const now = new Date();
+   854→    const generatedAt = now.toISOString();
+   855→
+   856→    let data: any;
+   857→
+   858→    switch (reportType) {
+   859→      case 'summary': {
+   860→        const byStatus: Record<string, number> = {};
+   861→        const byPriority: Record<string, number> = {};
+   862→        const byAssignee: Record<string, number> = {};
+   863→
+   864→        for (const task of filteredTasks) {
+   865→          byStatus[task.status] = (byStatus[task.status] || 0) + 1;
+   866→          byPriority[task.priority] = (byPriority[task.priority] || 0) + 1;
+   867→          if (task.assignee) {
+   868→            byAssignee[task.assignee] = (byAssignee[task.assignee] || 0) + 1;
+   869→          }
+   870→        }
+   871→
+   872→        const totalEstimated = filteredTasks.reduce((s, t) => s + t.estimatedHours, 0);
+   873→        const totalActual = filteredTasks.reduce((s, t) => s + t.actualHours, 0);
+   874→        const overdue = filteredTasks.filter(
+   875→          (t) => t.deadline && t.deadline < now && t.status !== 'done' && t.status !== 'cancelled',
+   876→        ).length;
+   877→
+   878→        data = {
+   879→          totalTasks: filteredTasks.length,
+   880→          byStatus,
+   881→          byPriority,
+   882→          byAssignee,
+   883→          totalEstimatedHours: totalEstimated,
+   884→          totalActualHours: totalActual,
+   885→          varianceHours: totalActual - totalEstimated,
+   886→          overdueTasks: overdue,
+   887→          completionRate:
+   888→            filteredTasks.length > 0
+   889→              ? Math.round(((byStatus['done'] || 0) / filteredTasks.length) * 100)
+   890→              : 0,
+   891→        };
+   892→        break;
+   893→      }
+   894→      case 'detailed': {
+   895→        data = {
+   896→          tasks: filteredTasks.map((t) => ({
+   897→            id: t.id,
+   898→            title: t.title,
+   899→            status: t.status,
+   900→            priority: t.priority,
+   901→            assignee: t.assignee,
+   902→            progress: t.progress,
+   903→            deadline: t.deadline?.toISOString() || null,
+   904→            isOverdue: t.deadline
+   905→              ? t.deadline < now && t.status !== 'done' && t.status !== 'cancelled'
+   906→              : false,
+   907→            estimatedHours: t.estimatedHours,
+   908→            actualHours: t.actualHours,
+   909→            subtaskCompletion:
+   910→              t.subtasks.length > 0
+   911→                ? `${t.subtasks.filter((s) => s.completed).length}/${t.subtasks.length}`
+   912→                : 'N/A',
+   913→            createdAt: t.createdAt.toISOString(),
+   914→            completedAt: t.completedAt?.toISOString() || null,
+   915→          })),
+   916→        };
+   917→        break;
+   918→      }
+   919→      case 'burndown': {
+   920→        // Generate daily burndown data
+   921→        const completedTasksByDay: Record<string, number> = {};
+   922→        const createdTasksByDay: Record<string, number> = {};
+   923→
+   924→        for (const task of filteredTasks) {
+   925→          const createdDay = task.createdAt.toISOString().split('T')[0];
+   926→          createdTasksByDay[createdDay] = (createdTasksByDay[createdDay] || 0) + 1;
+   927→
+   928→          if (task.completedAt) {
+   929→            const completedDay = task.completedAt.toISOString().split('T')[0];
+   930→            completedTasksByDay[completedDay] = (completedTasksByDay[completedDay] || 0) + 1;
+   931→          }
+   932→        }
+   933→
+   934→        data = {
+   935→          totalTasks: filteredTasks.length,
+   936→          completedTasks: filteredTasks.filter((t) => t.status === 'done').length,
+   937→          remainingTasks: filteredTasks.filter(
+   938→            (t) => t.status !== 'done' && t.status !== 'cancelled',
+   939→          ).length,
+   940→          createdTasksByDay,
+   941→          completedTasksByDay,
+   942→          idealBurndownRate:
+   943→            filteredTasks.length > 0
+   944→              ? filteredTasks.length /
+   945→                Math.max(
+   946→                  1,
+   947→                  Math.ceil(
+   948→                    (now.getTime() - Math.min(...filteredTasks.map((t) => t.createdAt.getTime()))) /
+   949→                      86400000,
+   950→                  ),
+   951→                )
+   952→              : 0,
+   953→        };
+   954→        break;
+   955→      }
+   956→      case 'velocity': {
+   957→        // Calculate weekly velocity
+   958→        const weeklyCompleted: Record<string, number> = {};
+   959→
+   960→        for (const task of filteredTasks) {
+   961→          if (task.completedAt) {
+   962→            const weekStart = this.getWeekStart(task.completedAt);
+   963→            const weekKey = weekStart.toISOString().split('T')[0];
+   964→            weeklyCompleted[weekKey] = (weeklyCompleted[weekKey] || 0) + 1;
+   965→          }
+   966→        }
+   967→
+   968→        const completedCounts = Object.values(weeklyCompleted);
+   969→        const avgVelocity =
+   970→          completedCounts.length > 0
+   971→            ? completedCounts.reduce((a, b) => a + b, 0) / completedCounts.length
+   972→            : 0;
+   973→
+   974→        const totalRemaining = filteredTasks.filter(
+   975→          (t) => t.status !== 'done' && t.status !== 'cancelled',
+   976→        ).length;
+   977→
+   978→        data = {
+   979→          weeklyCompleted,
+   980→          averageWeeklyVelocity: Math.round(avgVelocity * 10) / 10,
+   981→          totalRemaining,
+   982→          estimatedWeeksToComplete:
+   983→            avgVelocity > 0 ? Math.ceil(totalRemaining / avgVelocity) : Infinity,
+   984→        };
+   985→        break;
+   986→      }
+   987→    }
+   988→
+   989→    this.logger.log(`Generated ${reportType} report: ${filteredTasks.length} task(s) analyzed`);
+   990→
+   991→    return {
+   992→      reportType,
+   993→      generatedAt,
+   994→      data,
+   995→    };
+   996→  }
+   997→
+   998→  private async setDeadline(params: {
+   999→    taskId: string;
+  1000→    deadline: string;
+  1001→    notifyAssignee?: boolean;
+  1002→    reason?: string;
+  1003→  }): Promise<{
+  1004→    taskId: string;
+  1005→    previousDeadline: string | null;
+  1006→    newDeadline: string;
+  1007→    status: string;
+  1008→  }> {
+  1009→    const { taskId, deadline, notifyAssignee = true, reason } = params;
+  1010→
+  1011→    if (!taskId || typeof taskId !== 'string') {
+  1012→      throw new Error('A valid taskId is required');
+  1013→    }
+  1014→    if (!deadline || typeof deadline !== 'string') {
+  1015→      throw new Error('A valid deadline is required');
+  1016→    }
+  1017→
+  1018→    const task = this.tasks.get(taskId);
+  1019→    if (!task) {
+  1020→      throw new Error(`Task not found: ${taskId}`);
+  1021→    }
+  1022→
+  1023→    const deadlineDate = new Date(deadline);
+  1024→    if (isNaN(deadlineDate.getTime())) {
+  1025→      throw new Error('Invalid deadline: must be a valid ISO date string');
+  1026→    }
+  1027→
+  1028→    const previousDeadline = task.deadline?.toISOString() || null;
+  1029→    task.deadline = deadlineDate;
+  1030→    task.updatedAt = new Date();
+  1031→
+  1032→    // Add comment about deadline change
+  1033→    if (reason) {
+  1034→      task.comments.push({
+  1035→        id: `comment-${task.comments.length + 1}`,
+  1036→        author: 'system',
+  1037→        text: `Deadline changed to ${deadlineDate.toISOString()}. Reason: ${reason}`,
+  1038→        createdAt: new Date(),
+  1039→      });
+  1040→    }
+  1041→
+  1042→    this.logger.log(
+  1043→      `Set deadline for task: ${taskId}, from=${previousDeadline || 'none'} to=${deadlineDate.toISOString()}`,
+  1044→    );
+  1045→
+  1046→    return {
+  1047→      taskId,
+  1048→      previousDeadline,
+  1049→      newDeadline: deadlineDate.toISOString(),
+  1050→      status: 'updated',
+  1051→    };
+  1052→  }
+  1053→
+  1054→  private async prioritizeTask(params: {
+  1055→    taskId: string;
+  1056→    priority: string;
+  1057→    reason?: string;
+  1058→  }): Promise<{
+  1059→    taskId: string;
+  1060→    previousPriority: string;
+  1061→    newPriority: string;
+  1062→    status: string;
+  1063→  }> {
+  1064→    const { taskId, priority, reason } = params;
+  1065→
+  1066→    if (!taskId || typeof taskId !== 'string') {
+  1067→      throw new Error('A valid taskId is required');
+  1068→    }
+  1069→
+  1070→    const validPriorities: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+  1071→    if (!validPriorities.includes(priority as TaskPriority)) {
+  1072→      throw new Error(`Invalid priority: ${priority}. Supported: ${validPriorities.join(', ')}`);
+  1073→    }
+  1074→
+  1075→    const task = this.tasks.get(taskId);
+  1076→    if (!task) {
+  1077→      throw new Error(`Task not found: ${taskId}`);
+  1078→    }
+  1079→
+  1080→    const previousPriority = task.priority;
+  1081→    task.priority = priority as TaskPriority;
+  1082→    task.updatedAt = new Date();
+  1083→
+  1084→    // Add comment about priority change
+  1085→    if (reason) {
+  1086→      task.comments.push({
+  1087→        id: `comment-${task.comments.length + 1}`,
+  1088→        author: 'system',
+  1089→        text: `Priority changed from ${previousPriority} to ${priority}. Reason: ${reason}`,
+  1090→        createdAt: new Date(),
+  1091→      });
+  1092→    }
+  1093→
+  1094→    this.logger.log(`Prioritized task: ${taskId}, from=${previousPriority} to=${priority}`);
+  1095→
+  1096→    return {
+  1097→      taskId,
+  1098→      previousPriority,
+  1099→      newPriority: priority,
+  1100→      status: 'updated',
+  1101→    };
+  1102→  }
+  1103→
+  1104→  // ─── Private Helpers ───────────────────────────────────────────
+  1105→
+  1106→  private generateTaskId(): string {
+  1107→    this.taskCounter++;
+  1108→    return `task-${Date.now()}-${this.taskCounter}`;
+  1109→  }
+  1110→
+  1111→  private getWeekStart(date: Date): Date {
+  1112→    const d = new Date(date);
+  1113→    const day = d.getDay();
+  1114→    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start
+  1115→    d.setDate(diff);
+  1116→    d.setHours(0, 0, 0, 0);
+  1117→    return d;
+  1118→  }
+  1119→}
+  1120→

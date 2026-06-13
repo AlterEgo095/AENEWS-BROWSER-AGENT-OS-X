@@ -273,7 +273,10 @@ export class DocumentationGeneratorService {
             kind = 'class';
             const nameMatch = afterContent.match(/class\s+(\w+)/);
             name = nameMatch?.[1] || 'unknown';
-          } else if (afterContent.startsWith('export interface') || afterContent.startsWith('interface')) {
+          } else if (
+            afterContent.startsWith('export interface') ||
+            afterContent.startsWith('interface')
+          ) {
             kind = 'interface';
             const nameMatch = afterContent.match(/interface\s+(\w+)/);
             name = nameMatch?.[1] || 'unknown';
@@ -281,7 +284,11 @@ export class DocumentationGeneratorService {
             kind = 'enum';
             const nameMatch = afterContent.match(/enum\s+(\w+)/);
             name = nameMatch?.[1] || 'unknown';
-          } else if (afterContent.includes('async ') || afterContent.includes('function ') || afterContent.includes('(')) {
+          } else if (
+            afterContent.includes('async ') ||
+            afterContent.includes('function ') ||
+            afterContent.includes('(')
+          ) {
             kind = 'method';
             const nameMatch = afterContent.match(/(?:async\s+)?(\w+)\s*\(/);
             name = nameMatch?.[1] || 'unknown';
@@ -313,7 +320,9 @@ export class DocumentationGeneratorService {
     return lines.join(' ').trim();
   }
 
-  private extractJSDocParams(comment: string): Array<{ name: string; type: string; description: string }> {
+  private extractJSDocParams(
+    comment: string,
+  ): Array<{ name: string; type: string; description: string }> {
     const params: Array<{ name: string; type: string; description: string }> = [];
     const paramRegex = /@param\s+(?:\{([^}]+)\}\s+)?(\w+)\s*-?\s*(.*)/g;
     let match: RegExpExecArray | null;
@@ -348,7 +357,8 @@ export class DocumentationGeneratorService {
         const relativePath = path.relative(this.srcRoot, file);
 
         // Count public/exported items
-        const exports = (content.match(/export\s+(class|interface|enum|function|const)/g) || []).length;
+        const exports = (content.match(/export\s+(class|interface|enum|function|const)/g) || [])
+          .length;
         totalPublicItems += exports;
 
         if (documentedFiles.has(relativePath)) {
@@ -416,53 +426,125 @@ export class DocumentationGeneratorService {
 
     const clusters: Record<string, string[]> = {
       'Browser Cluster (17 agents)': [
-        'navigation', 'click', 'form-filling', 'screenshot', 'data-extraction',
-        'cookie-management', 'session-management', 'tab-management', 'popup-handling',
-        'iframe-handling', 'file-download', 'file-upload', 'javascript-execution',
-        'wait-strategy', 'captcha-solving', 'network-intercept', 'scroll-management',
+        'navigation',
+        'click',
+        'form-filling',
+        'screenshot',
+        'data-extraction',
+        'cookie-management',
+        'session-management',
+        'tab-management',
+        'popup-handling',
+        'iframe-handling',
+        'file-download',
+        'file-upload',
+        'javascript-execution',
+        'wait-strategy',
+        'captcha-solving',
+        'network-intercept',
+        'scroll-management',
       ],
       'Computer Cluster (7 agents)': [
-        'terminal', 'filesystem', 'clipboard', 'screen-capture', 'process-manager',
-        'notification', 'system-monitor',
+        'terminal',
+        'filesystem',
+        'clipboard',
+        'screen-capture',
+        'process-manager',
+        'notification',
+        'system-monitor',
       ],
       'Coding Cluster (8 agents)': [
-        'code-generation', 'code-review', 'testing', 'debugging', 'documentation',
-        'version-control', 'dependency', 'build',
+        'code-generation',
+        'code-review',
+        'testing',
+        'debugging',
+        'documentation',
+        'version-control',
+        'dependency',
+        'build',
       ],
       'Office Cluster (6 agents)': [
-        'document', 'spreadsheet', 'presentation', 'email', 'calendar', 'task-management',
+        'document',
+        'spreadsheet',
+        'presentation',
+        'email',
+        'calendar',
+        'task-management',
       ],
       'Marketing Cluster (8 agents)': [
-        'social-media', 'seo', 'email-marketing', 'content-creation', 'ad-campaign',
-        'analytics', 'brand', 'influencer',
+        'social-media',
+        'seo',
+        'email-marketing',
+        'content-creation',
+        'ad-campaign',
+        'analytics',
+        'brand',
+        'influencer',
       ],
       'Business Cluster (8 agents)': [
-        'strategy', 'financial-analysis', 'crm', 'hr', 'procurement', 'compliance',
-        'market-research', 'project-management',
+        'strategy',
+        'financial-analysis',
+        'crm',
+        'hr',
+        'procurement',
+        'compliance',
+        'market-research',
+        'project-management',
       ],
       'Infrastructure Cluster (8 agents)': [
-        'deployment', 'container', 'monitoring', 'logging', 'scaling',
-        'configuration', 'backup', 'network',
+        'deployment',
+        'container',
+        'monitoring',
+        'logging',
+        'scaling',
+        'configuration',
+        'backup',
+        'network',
       ],
       'Security Cluster (6 agents)': [
-        'authentication', 'access-control', 'encryption', 'audit',
-        'incident-response', 'threat-detection',
+        'authentication',
+        'access-control',
+        'encryption',
+        'audit',
+        'incident-response',
+        'threat-detection',
       ],
       'Meta Intelligence Cluster (13 agents)': [
-        'orchestrator', 'planner', 'critic', 'judge', 'repair',
-        'learning', 'adaptation', 'self-improvement', 'meta-reasoning',
-        'governance', 'task-router', 'knowledge-synthesis', 'memory-manager',
+        'orchestrator',
+        'planner',
+        'critic',
+        'judge',
+        'repair',
+        'learning',
+        'adaptation',
+        'self-improvement',
+        'meta-reasoning',
+        'governance',
+        'task-router',
+        'knowledge-synthesis',
+        'memory-manager',
       ],
       'Certification Cluster (13 agents)': [
-        'architecture-auditor', 'security-auditor', 'performance-auditor',
-        'memory-auditor', 'plugin-auditor', 'browser-auditor',
-        'orchestrator-auditor', 'documentation-auditor', 'test-auditor',
-        'regression-auditor', 'compliance-auditor', 'observability-auditor',
+        'architecture-auditor',
+        'security-auditor',
+        'performance-auditor',
+        'memory-auditor',
+        'plugin-auditor',
+        'browser-auditor',
+        'orchestrator-auditor',
+        'documentation-auditor',
+        'test-auditor',
+        'regression-auditor',
+        'compliance-auditor',
+        'observability-auditor',
         'ai-quality-auditor',
       ],
       'Self-Evolution Cluster (5 agents)': [
-        'metric-analyzer', 'weakness-detector', 'refactor-proposer',
-        'patch-generator', 'auto-certifier',
+        'metric-analyzer',
+        'weakness-detector',
+        'refactor-proposer',
+        'patch-generator',
+        'auto-certifier',
       ],
     };
 

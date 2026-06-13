@@ -4,7 +4,7 @@
  * Provides structured feedback with severity ratings and actionable suggestions.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { DevCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -132,13 +134,7 @@ export const CODE_REVIEW_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:code',
-    'read:repository',
-    'write:review',
-    'read:security',
-  ],
+  permissions: ['execute:task', 'read:code', 'read:repository', 'write:review', 'read:security'],
   maxConcurrentTasks: 6,
   timeout: 45000,
   retryPolicy: {
@@ -202,6 +198,15 @@ export class CodeReviewAgentService extends BaseAgentService {
     issueCount: number;
   }> = [];
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   protected defineConfig(): AgentConfig {
     return CODE_REVIEW_AGENT_CONFIG;
   }
@@ -221,31 +226,22 @@ export class CodeReviewAgentService extends BaseAgentService {
     this.registerTool({
       name: 'checkBestPractices',
       description: 'Check code against best practices',
-      execute: async (params: {
-        code: string;
-        language: string;
-        framework?: string;
-      }) => this.checkBestPractices(params),
+      execute: async (params: { code: string; language: string; framework?: string }) =>
+        this.checkBestPractices(params),
     });
 
     this.registerTool({
       name: 'findBugs',
       description: 'Detect potential bugs and logic errors',
-      execute: async (params: {
-        code: string;
-        language: string;
-        includeWarnings?: boolean;
-      }) => this.findBugs(params),
+      execute: async (params: { code: string; language: string; includeWarnings?: boolean }) =>
+        this.findBugs(params),
     });
 
     this.registerTool({
       name: 'checkSecurity',
       description: 'Scan code for security vulnerabilities',
-      execute: async (params: {
-        code: string;
-        language: string;
-        owaspCompliance?: boolean;
-      }) => this.checkSecurity(params),
+      execute: async (params: { code: string; language: string; owaspCompliance?: boolean }) =>
+        this.checkSecurity(params),
     });
 
     this.registerTool({
@@ -264,6 +260,29 @@ export class CodeReviewAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Delegate to real connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(DevCapability.DEBUG, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback to local: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
@@ -297,7 +316,13 @@ export class CodeReviewAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -306,7 +331,8 @@ export class CodeReviewAgentService extends BaseAgentService {
         action,
         language: params.language || 'unknown',
         timestamp: new Date(),
-        issueCount: result.issues?.length || result.bugs?.length || result.vulnerabilities?.length || 0,
+        issueCount:
+          result.issues?.length || result.bugs?.length || result.vulnerabilities?.length || 0,
       });
 
       // Store the review result for future reference
@@ -385,7 +411,8 @@ export class CodeReviewAgentService extends BaseAgentService {
     const mediumCount = filteredIssues.filter((i) => i.severity === 'medium').length;
     const lowCount = filteredIssues.filter((i) => i.severity === 'low').length;
 
-    const summary = `Code review complete: ${filteredIssues.length} issue(s) found ` +
+    const summary =
+      `Code review complete: ${filteredIssues.length} issue(s) found ` +
       `(${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low). ` +
       `Score: ${score}/100.`;
 
@@ -413,7 +440,12 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
 
     const lines = code.split('\n');
-    const practices: Array<{ name: string; followed: boolean; details: string; suggestion?: string }> = [];
+    const practices: Array<{
+      name: string;
+      followed: boolean;
+      details: string;
+      suggestion?: string;
+    }> = [];
     const suggestions: string[] = [];
 
     // Language-agnostic best practices
@@ -425,7 +457,7 @@ export class CodeReviewAgentService extends BaseAgentService {
     });
 
     practices.push({
-      name: 'DRY (Don\'t Repeat Yourself)',
+      name: "DRY (Don't Repeat Yourself)",
       followed: this.checkDRY(lines),
       details: 'Avoid code duplication',
       suggestion: 'Extract repeated code into reusable functions or utilities',
@@ -456,7 +488,10 @@ export class CodeReviewAgentService extends BaseAgentService {
     if (language === 'typescript' || language === 'javascript') {
       practices.push({
         name: 'Use Strict Mode',
-        followed: code.includes('"use strict"') || code.includes("'use strict'") || language === 'typescript',
+        followed:
+          code.includes('"use strict"') ||
+          code.includes("'use strict'") ||
+          language === 'typescript',
         details: 'Enable strict mode for better error detection',
         suggestion: 'Add "use strict" directive or use TypeScript strict mode',
       });
@@ -496,7 +531,9 @@ export class CodeReviewAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(`Best practices check: ${followedCount}/${practices.length} followed, ${adherence}% adherence`);
+    this.logger.log(
+      `Best practices check: ${followedCount}/${practices.length} followed, ${adherence}% adherence`,
+    );
 
     return { practices, adherence, suggestions };
   }
@@ -546,7 +583,9 @@ export class CodeReviewAgentService extends BaseAgentService {
     else if (highBugs > 2) riskLevel = 'high';
     else if (highBugs > 0 || bugs.length > 5) riskLevel = 'medium';
 
-    this.logger.log(`Bug detection: ${bugs.length} bug(s), ${warnings.length} warning(s), risk=${riskLevel}`);
+    this.logger.log(
+      `Bug detection: ${bugs.length} bug(s), ${warnings.length} warning(s), risk=${riskLevel}`,
+    );
 
     return { bugs, warnings, riskLevel };
   }
@@ -642,7 +681,7 @@ export class CodeReviewAgentService extends BaseAgentService {
 
     this.logger.log(
       `Complexity analysis: cyclomatic=${cyclomaticComplexity}, cognitive=${cognitiveComplexity}, ` +
-      `nesting=${nestingDepth}, maintainability=${maintainabilityIndex}`,
+        `nesting=${nestingDepth}, maintainability=${maintainabilityIndex}`,
     );
 
     return {
@@ -758,7 +797,11 @@ export class CodeReviewAgentService extends BaseAgentService {
       const line = lines[i];
 
       // Detect function start
-      const funcMatch = line.match(new RegExp('(?:function\\s+(\\w+)|(?:const|let)\\s+(\\w+)\\s*=\\s*(?:async\\s+)?(?:function|\\()'));
+      const funcMatch = line.match(
+        new RegExp(
+          '(?:function\\s+(\\w+)|(?:const|let)\\s+(\\w+)\\s*=\\s*(?:async\\s+)?(?:function|\\()',
+        ),
+      );
       if (funcMatch && functionStart === -1) {
         functionName = funcMatch[1] || funcMatch[2];
         functionStart = i;
@@ -790,7 +833,9 @@ export class CodeReviewAgentService extends BaseAgentService {
     // Check for too many parameters
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const paramMatch = line.match(/(?:function\s+\w+|(?:const|let)\s+\w+\s*=\s*(?:async\s+)?)\(([^)]*)\)/);
+      const paramMatch = line.match(
+        /(?:function\s+\w+|(?:const|let)\s+\w+\s*=\s*(?:async\s+)?)\(([^)]*)\)/,
+      );
       if (paramMatch) {
         const params = paramMatch[1].split(',').filter((p) => p.trim().length > 0);
         if (params.length > 5) {
@@ -847,7 +892,11 @@ export class CodeReviewAgentService extends BaseAgentService {
       }
 
       // Unhandled promise (missing await or .catch)
-      if ((language === 'typescript' || language === 'javascript') && line.includes('.then(') && !line.includes('.catch(')) {
+      if (
+        (language === 'typescript' || language === 'javascript') &&
+        line.includes('.then(') &&
+        !line.includes('.catch(')
+      ) {
         const remainingCode = lines.slice(i).join('\n');
         if (!remainingCode.substring(0, 200).includes('.catch(')) {
           issues.push({
@@ -865,7 +914,11 @@ export class CodeReviewAgentService extends BaseAgentService {
 
   // ─── Performance Anti-Pattern Checks ──────────────────────────
 
-  private checkPerformanceAntiPatterns(lines: string[], issues: ReviewIssue[], language: string): void {
+  private checkPerformanceAntiPatterns(
+    lines: string[],
+    issues: ReviewIssue[],
+    language: string,
+  ): void {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
@@ -906,7 +959,11 @@ export class CodeReviewAgentService extends BaseAgentService {
       if (line.match(/for\s*\(|while\s*\(|\.forEach\(/)) {
         for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
           const innerMatch = lines[j].match(/^(\s*)/);
-          if (innerMatch && innerMatch[1].length > indentLevel && lines[j].match(/for\s*\(|while\s*\(|\.forEach\(/)) {
+          if (
+            innerMatch &&
+            innerMatch[1].length > indentLevel &&
+            lines[j].match(/for\s*\(|while\s*\(|\.forEach\(/)
+          ) {
             issues.push({
               severity: 'medium',
               category: 'performance',
@@ -947,7 +1004,12 @@ export class CodeReviewAgentService extends BaseAgentService {
       const line = lines[i];
 
       // Property access on potentially null/undefined object
-      if (line.match(/\w+\.\w+\.\w+/) && !line.includes('?.') && !line.includes('null') && !line.includes('undefined')) {
+      if (
+        line.match(/\w+\.\w+\.\w+/) &&
+        !line.includes('?.') &&
+        !line.includes('null') &&
+        !line.includes('undefined')
+      ) {
         bugs.push({
           type: 'warning',
           severity: 'medium',
@@ -966,9 +1028,17 @@ export class CodeReviewAgentService extends BaseAgentService {
         const line = lines[i];
 
         // Open file/connection without close
-        if (line.includes('open(') || line.includes('createConnection(') || line.includes('connect(')) {
+        if (
+          line.includes('open(') ||
+          line.includes('createConnection(') ||
+          line.includes('connect(')
+        ) {
           const remainingCode = lines.slice(i + 1).join('\n');
-          if (!remainingCode.includes('.close(') && !remainingCode.includes('.end(') && !remainingCode.includes('finally')) {
+          if (
+            !remainingCode.includes('.close(') &&
+            !remainingCode.includes('.end(') &&
+            !remainingCode.includes('finally')
+          ) {
             bugs.push({
               type: 'bug',
               severity: 'high',
@@ -990,11 +1060,16 @@ export class CodeReviewAgentService extends BaseAgentService {
       // Shared mutable state in async context
       if (line.includes('await ') && i > 0) {
         for (let j = Math.max(0, i - 3); j < i; j++) {
-          if (lines[j].match(/\w+\[\w+\]\s*=/) && !lines[j].includes('const ') && !lines[j].includes('let ')) {
+          if (
+            lines[j].match(/\w+\[\w+\]\s*=/) &&
+            !lines[j].includes('const ') &&
+            !lines[j].includes('let ')
+          ) {
             bugs.push({
               type: 'warning',
               severity: 'high',
-              message: 'Potential race condition: shared mutable state modified around async boundary',
+              message:
+                'Potential race condition: shared mutable state modified around async boundary',
               line: i + 1,
               confidence: 0.4,
               fix: 'Use proper synchronization or make state immutable',
@@ -1016,7 +1091,12 @@ export class CodeReviewAgentService extends BaseAgentService {
         if (floatingPromise) {
           const indent = floatingPromise[1];
           // Check if this is inside an async function and not awaited
-          if (!line.includes('await ') && !line.includes('.then(') && !line.includes('.catch(') && !line.includes('//')) {
+          if (
+            !line.includes('await ') &&
+            !line.includes('.then(') &&
+            !line.includes('.catch(') &&
+            !line.includes('//')
+          ) {
             const surroundingContext = lines.slice(Math.max(0, i - 2), i).join('\n');
             if (surroundingContext.includes('async ')) {
               bugs.push({
@@ -1106,7 +1186,12 @@ export class CodeReviewAgentService extends BaseAgentService {
       // After return/throw/break/continue
       if (line.match(/^(return|throw|break|continue)/)) {
         const nextLine = lines[i + 1].trim();
-        if (nextLine && !nextLine.startsWith('//') && !nextLine.startsWith('}') && !nextLine.startsWith('case')) {
+        if (
+          nextLine &&
+          !nextLine.startsWith('//') &&
+          !nextLine.startsWith('}') &&
+          !nextLine.startsWith('case')
+        ) {
           warnings.push({
             type: 'warning',
             severity: 'medium',
@@ -1120,7 +1205,11 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
   }
 
-  private detectImplicitTypeCoercion(lines: string[], warnings: BugFinding[], language: string): void {
+  private detectImplicitTypeCoercion(
+    lines: string[],
+    warnings: BugFinding[],
+    language: string,
+  ): void {
     if (language === 'typescript' || language === 'javascript') {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -1145,13 +1234,19 @@ export class CodeReviewAgentService extends BaseAgentService {
 
   // ─── Security Detection Methods ────────────────────────────────
 
-  private detectSQLInjection(lines: string[], vulns: SecurityVulnerability[], language: string): void {
+  private detectSQLInjection(
+    lines: string[],
+    vulns: SecurityVulnerability[],
+    language: string,
+  ): void {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
       // String concatenation in SQL queries
-      if (line.match(/(SELECT|INSERT|UPDATE|DELETE|DROP).*\+/i) ||
-          line.match(/(SELECT|INSERT|UPDATE|DELETE|DROP).*\$\{/i)) {
+      if (
+        line.match(/(SELECT|INSERT|UPDATE|DELETE|DROP).*\+/i) ||
+        line.match(/(SELECT|INSERT|UPDATE|DELETE|DROP).*\$\{/i)
+      ) {
         vulns.push({
           id: `SQL-${i + 1}`,
           category: 'Injection',
@@ -1167,7 +1262,11 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
   }
 
-  private detectXSSVulnerabilities(lines: string[], vulns: SecurityVulnerability[], language: string): void {
+  private detectXSSVulnerabilities(
+    lines: string[],
+    vulns: SecurityVulnerability[],
+    language: string,
+  ): void {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
@@ -1182,7 +1281,8 @@ export class CodeReviewAgentService extends BaseAgentService {
           line: i + 1,
           cwe: 'CWE-79',
           owasp: 'A03:2021-Injection',
-          remediation: 'Sanitize user input before rendering or use textContent instead of innerHTML',
+          remediation:
+            'Sanitize user input before rendering or use textContent instead of innerHTML',
         });
       }
 
@@ -1203,7 +1303,11 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
   }
 
-  private detectInsecureDependencies(lines: string[], vulns: SecurityVulnerability[], language: string): void {
+  private detectInsecureDependencies(
+    lines: string[],
+    vulns: SecurityVulnerability[],
+    language: string,
+  ): void {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
@@ -1218,7 +1322,8 @@ export class CodeReviewAgentService extends BaseAgentService {
           line: i + 1,
           cwe: 'CWE-94',
           owasp: 'A03:2021-Injection',
-          remediation: 'Replace eval() with safer alternatives (JSON.parse, Function constructor, etc.)',
+          remediation:
+            'Replace eval() with safer alternatives (JSON.parse, Function constructor, etc.)',
         });
       }
 
@@ -1238,7 +1343,11 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
   }
 
-  private detectHardcodedSecrets(lines: string[], vulns: SecurityVulnerability[], language: string): void {
+  private detectHardcodedSecrets(
+    lines: string[],
+    vulns: SecurityVulnerability[],
+    language: string,
+  ): void {
     const secretPatterns = [
       { pattern: /(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]+['"]/i, name: 'Password' },
       { pattern: /(?:api[_-]?key|apikey)\s*[:=]\s*['"][^'"]+['"]/i, name: 'API Key' },
@@ -1250,7 +1359,12 @@ export class CodeReviewAgentService extends BaseAgentService {
       const line = lines[i];
 
       for (const { pattern, name } of secretPatterns) {
-        if (pattern.test(line) && !line.includes('process.env') && !line.includes('ENV') && !line.includes('config.')) {
+        if (
+          pattern.test(line) &&
+          !line.includes('process.env') &&
+          !line.includes('ENV') &&
+          !line.includes('config.')
+        ) {
           vulns.push({
             id: `SECRET-${i + 1}`,
             category: 'Sensitive Data Exposure',
@@ -1267,7 +1381,11 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
   }
 
-  private detectInsecureCrypto(lines: string[], vulns: SecurityVulnerability[], language: string): void {
+  private detectInsecureCrypto(
+    lines: string[],
+    vulns: SecurityVulnerability[],
+    language: string,
+  ): void {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
@@ -1278,7 +1396,8 @@ export class CodeReviewAgentService extends BaseAgentService {
           category: 'Cryptographic Failure',
           severity: 'high',
           title: 'Weak cryptographic algorithm',
-          description: 'MD5/SHA1 are cryptographically broken and should not be used for security purposes',
+          description:
+            'MD5/SHA1 are cryptographically broken and should not be used for security purposes',
           line: i + 1,
           cwe: 'CWE-328',
           owasp: 'A02:2021-Cryptographic Failures',
@@ -1287,7 +1406,13 @@ export class CodeReviewAgentService extends BaseAgentService {
       }
 
       // Weak random number generation
-      if (line.includes('Math.random()') && (line.includes('token') || line.includes('key') || line.includes('password') || line.includes('secret'))) {
+      if (
+        line.includes('Math.random()') &&
+        (line.includes('token') ||
+          line.includes('key') ||
+          line.includes('password') ||
+          line.includes('secret'))
+      ) {
         vulns.push({
           id: `CRYPTO-RNG-${i + 1}`,
           category: 'Cryptographic Failure',
@@ -1297,18 +1422,29 @@ export class CodeReviewAgentService extends BaseAgentService {
           line: i + 1,
           cwe: 'CWE-338',
           owasp: 'A02:2021-Cryptographic Failures',
-          remediation: 'Use crypto.randomBytes() or window.crypto.getRandomValues() for security-sensitive randomness',
+          remediation:
+            'Use crypto.randomBytes() or window.crypto.getRandomValues() for security-sensitive randomness',
         });
       }
     }
   }
 
-  private detectPathTraversal(lines: string[], vulns: SecurityVulnerability[], language: string): void {
+  private detectPathTraversal(
+    lines: string[],
+    vulns: SecurityVulnerability[],
+    language: string,
+  ): void {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      if ((line.includes('readFile') || line.includes('readFileSync') || line.includes('writeFile')) &&
-          line.includes('req.') && !line.includes('path.normalize') && !line.includes('path.resolve')) {
+      if (
+        (line.includes('readFile') ||
+          line.includes('readFileSync') ||
+          line.includes('writeFile')) &&
+        line.includes('req.') &&
+        !line.includes('path.normalize') &&
+        !line.includes('path.resolve')
+      ) {
         vulns.push({
           id: `PATH-${i + 1}`,
           category: 'Path Traversal',
@@ -1324,12 +1460,18 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
   }
 
-  private detectCommandInjection(lines: string[], vulns: SecurityVulnerability[], language: string): void {
+  private detectCommandInjection(
+    lines: string[],
+    vulns: SecurityVulnerability[],
+    language: string,
+  ): void {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      if ((line.includes('exec(') || line.includes('execSync(') || line.includes('spawn(')) &&
-          (line.includes('req.') || line.includes('params.') || line.includes('body.'))) {
+      if (
+        (line.includes('exec(') || line.includes('execSync(') || line.includes('spawn(')) &&
+        (line.includes('req.') || line.includes('params.') || line.includes('body.'))
+      ) {
         vulns.push({
           id: `CMD-${i + 1}`,
           category: 'Command Injection',
@@ -1339,13 +1481,18 @@ export class CodeReviewAgentService extends BaseAgentService {
           line: i + 1,
           cwe: 'CWE-78',
           owasp: 'A03:2021-Injection',
-          remediation: 'Use parameterized command execution or avoid shell commands with user input',
+          remediation:
+            'Use parameterized command execution or avoid shell commands with user input',
         });
       }
     }
   }
 
-  private checkOWASPCompliance(code: string, vulns: SecurityVulnerability[], issues: string[]): void {
+  private checkOWASPCompliance(
+    code: string,
+    vulns: SecurityVulnerability[],
+    issues: string[],
+  ): void {
     const owaspTop10 = [
       'A01:2021-Broken Access Control',
       'A02:2021-Cryptographic Failures',
@@ -1368,8 +1515,14 @@ export class CodeReviewAgentService extends BaseAgentService {
     }
 
     // Check for missing security headers/patterns
-    if (!code.includes('helmet') && !code.includes('cors') && (code.includes('express') || code.includes('app.use'))) {
-      issues.push('OWASP A05: Security Misconfiguration - Missing security middleware (helmet, cors)');
+    if (
+      !code.includes('helmet') &&
+      !code.includes('cors') &&
+      (code.includes('express') || code.includes('app.use'))
+    ) {
+      issues.push(
+        'OWASP A05: Security Misconfiguration - Missing security middleware (helmet, cors)',
+      );
     }
 
     if (!code.includes('rate') && !code.includes('throttle') && code.includes('app.post')) {
@@ -1383,8 +1536,15 @@ export class CodeReviewAgentService extends BaseAgentService {
     let complexity = 1; // Base complexity
 
     const branchKeywords = [
-      /\bif\b/, /\belse\s+if\b/, /\bfor\b/, /\bwhile\b/, /\bcase\b/,
-      /\bcatch\b/, /\?.*:/, /\&\&/, /\|\|/,
+      /\bif\b/,
+      /\belse\s+if\b/,
+      /\bfor\b/,
+      /\bwhile\b/,
+      /\bcase\b/,
+      /\bcatch\b/,
+      /\?.*:/,
+      /\&\&/,
+      /\|\|/,
     ];
 
     for (const line of lines) {
@@ -1410,8 +1570,14 @@ export class CodeReviewAgentService extends BaseAgentService {
       if (trimmed.includes('{')) nestingLevel += (trimmed.match(/{/g) || []).length;
 
       // Cognitive complexity adds nesting level for each branch
-      if (trimmed.match(/\bif\b/) || trimmed.match(/\belse\b/) || trimmed.match(/\bfor\b/) ||
-          trimmed.match(/\bwhile\b/) || trimmed.match(/\bcatch\b/) || trimmed.match(/\bswitch\b/)) {
+      if (
+        trimmed.match(/\bif\b/) ||
+        trimmed.match(/\belse\b/) ||
+        trimmed.match(/\bfor\b/) ||
+        trimmed.match(/\bwhile\b/) ||
+        trimmed.match(/\bcatch\b/) ||
+        trimmed.match(/\bswitch\b/)
+      ) {
         complexity += 1 + Math.max(0, nestingLevel - 1);
       }
 
@@ -1445,8 +1611,12 @@ export class CodeReviewAgentService extends BaseAgentService {
     // Simplified Maintainability Index (Microsoft formula approximation)
     const avgLineLength = 40; // Assumed average
     const halsteadVolume = linesOfCode * avgLineLength;
-    const mi = Math.max(0,
-      171 - 5.2 * Math.log(halsteadVolume + 1) - 0.23 * cyclomaticComplexity - 16.2 * Math.log(linesOfCode + 1),
+    const mi = Math.max(
+      0,
+      171 -
+        5.2 * Math.log(halsteadVolume + 1) -
+        0.23 * cyclomaticComplexity -
+        16.2 * Math.log(linesOfCode + 1),
     );
     return Math.round(Math.min(100, Math.max(0, mi)));
   }
@@ -1464,7 +1634,9 @@ export class CodeReviewAgentService extends BaseAgentService {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      const funcMatch = line.match(/(?:function\s+(\w+)|(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:function|\())/);
+      const funcMatch = line.match(
+        /(?:function\s+(\w+)|(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:function|\())/,
+      );
       if (funcMatch && funcStart === -1) {
         funcName = funcMatch[1] || funcMatch[2];
         funcStart = i;
@@ -1481,7 +1653,11 @@ export class CodeReviewAgentService extends BaseAgentService {
           const cognitive = this.calculateCognitiveComplexity(funcLines, language);
           const nesting = this.calculateMaxNesting(funcLines, language);
 
-          if (cyclomatic > thresholds.maxCyclomatic || cognitive > thresholds.maxCognitive || nesting > thresholds.maxNesting) {
+          if (
+            cyclomatic > thresholds.maxCyclomatic ||
+            cognitive > thresholds.maxCognitive ||
+            nesting > thresholds.maxNesting
+          ) {
             hotspots.push({
               functionName: funcName,
               startLine: funcStart + 1,
@@ -1533,8 +1709,12 @@ export class CodeReviewAgentService extends BaseAgentService {
   }
 
   private checkConsistentNaming(lines: string[], language: string): boolean {
-    const camelCase = lines.filter((l) => l.match(/(?:const|let|function)\s+[a-z][a-zA-Z0-9]*\s*[=(]/));
-    const snakeCase = lines.filter((l) => l.match(/(?:const|let|function|def)\s+[a-z][a-z_0-9]*\s*[=(]/));
+    const camelCase = lines.filter((l) =>
+      l.match(/(?:const|let|function)\s+[a-z][a-zA-Z0-9]*\s*[=(]/),
+    );
+    const snakeCase = lines.filter((l) =>
+      l.match(/(?:const|let|function|def)\s+[a-z][a-z_0-9]*\s*[=(]/),
+    );
     const pascalCase = lines.filter((l) => l.match(/(?:class|interface)\s+[A-Z][a-zA-Z0-9]*\s*{/));
 
     // If mixing styles significantly
@@ -1569,10 +1749,18 @@ export class CodeReviewAgentService extends BaseAgentService {
 
     for (const issue of issues) {
       switch (issue.severity) {
-        case 'critical': score -= 15; break;
-        case 'high': score -= 8; break;
-        case 'medium': score -= 3; break;
-        case 'low': score -= 1; break;
+        case 'critical':
+          score -= 15;
+          break;
+        case 'high':
+          score -= 8;
+          break;
+        case 'medium':
+          score -= 3;
+          break;
+        case 'low':
+          score -= 1;
+          break;
       }
     }
 
@@ -1584,10 +1772,18 @@ export class CodeReviewAgentService extends BaseAgentService {
 
     for (const vuln of vulns) {
       switch (vuln.severity) {
-        case 'critical': score += 25; break;
-        case 'high': score += 15; break;
-        case 'medium': score += 8; break;
-        case 'low': score += 3; break;
+        case 'critical':
+          score += 25;
+          break;
+        case 'high':
+          score += 15;
+          break;
+        case 'medium':
+          score += 8;
+          break;
+        case 'low':
+          score += 3;
+          break;
       }
     }
 

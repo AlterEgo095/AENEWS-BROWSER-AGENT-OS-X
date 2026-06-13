@@ -19,11 +19,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  CapabilityId,
-  CapabilityPack,
-  BusinessCapability,
-} from '../interfaces';
+import { CapabilityId, CapabilityPack, BusinessCapability } from '../interfaces';
 import {
   ICapabilityConnector,
   ConnectorInput,
@@ -38,20 +34,32 @@ export class BusinessConnector implements ICapabilityConnector {
   private readonly logger = new Logger(BusinessConnector.name);
   private readonly llm = new LLMHelper();
 
-  private static readonly BUSINESS_CAPABILITIES = new Set<string>(Object.values(BusinessCapability));
+  private static readonly BUSINESS_CAPABILITIES = new Set<string>(
+    Object.values(BusinessCapability),
+  );
 
   /** System prompts per capability — specialized for each business domain */
   private static readonly SYSTEM_PROMPTS: Record<string, string> = {
-    [BusinessCapability.SEO]: 'You are an SEO expert. Generate comprehensive SEO strategies with keywords, meta descriptions, and optimization recommendations.',
-    [BusinessCapability.MARKETING]: 'You are a marketing strategist. Create detailed marketing plans with channels, budgets, timelines, and KPIs.',
-    [BusinessCapability.COPYWRITING]: 'You are an expert copywriter. Write compelling, persuasive content that converts.',
-    [BusinessCapability.BRANDING]: 'You are a brand strategist. Develop brand guidelines including voice, tone, visual direction, and positioning.',
-    [BusinessCapability.CRM]: 'You are a CRM specialist. Design customer relationship strategies and data structures.',
-    [BusinessCapability.ANALYTICS]: 'You are a data analyst. Generate analytical reports with insights, metrics, and recommendations.',
-    [BusinessCapability.FINANCE]: 'You are a financial analyst. Produce financial analyses with projections, risk assessments, and recommendations.',
-    [BusinessCapability.SALES]: 'You are a sales strategist. Create sales materials including pitch decks, objection handling, and closing strategies.',
-    [BusinessCapability.LEGAL]: 'You are a legal document specialist. Draft professional legal documents and contracts. Note: always include a disclaimer that this is not legal advice.',
-    [BusinessCapability.PARTNERSHIP]: 'You are a partnership strategist. Create partnership proposals with mutual value propositions and terms.',
+    [BusinessCapability.SEO]:
+      'You are an SEO expert. Generate comprehensive SEO strategies with keywords, meta descriptions, and optimization recommendations.',
+    [BusinessCapability.MARKETING]:
+      'You are a marketing strategist. Create detailed marketing plans with channels, budgets, timelines, and KPIs.',
+    [BusinessCapability.COPYWRITING]:
+      'You are an expert copywriter. Write compelling, persuasive content that converts.',
+    [BusinessCapability.BRANDING]:
+      'You are a brand strategist. Develop brand guidelines including voice, tone, visual direction, and positioning.',
+    [BusinessCapability.CRM]:
+      'You are a CRM specialist. Design customer relationship strategies and data structures.',
+    [BusinessCapability.ANALYTICS]:
+      'You are a data analyst. Generate analytical reports with insights, metrics, and recommendations.',
+    [BusinessCapability.FINANCE]:
+      'You are a financial analyst. Produce financial analyses with projections, risk assessments, and recommendations.',
+    [BusinessCapability.SALES]:
+      'You are a sales strategist. Create sales materials including pitch decks, objection handling, and closing strategies.',
+    [BusinessCapability.LEGAL]:
+      'You are a legal document specialist. Draft professional legal documents and contracts. Note: always include a disclaimer that this is not legal advice.',
+    [BusinessCapability.PARTNERSHIP]:
+      'You are a partnership strategist. Create partnership proposals with mutual value propositions and terms.',
   };
 
   supports(capabilityId: CapabilityId): boolean {
@@ -65,7 +73,8 @@ export class BusinessConnector implements ICapabilityConnector {
     this.logger.log(`Business connector executing: ${capId} for mission ${input.missionId}`);
 
     try {
-      const systemPrompt = BusinessConnector.SYSTEM_PROMPTS[capId] ||
+      const systemPrompt =
+        BusinessConnector.SYSTEM_PROMPTS[capId] ||
         'You are a business consultant. Generate professional business content.';
 
       const userPrompt = `Generate content for: "${input.instruction}"
@@ -107,7 +116,18 @@ Be specific, actionable, and professional. Use markdown formatting.`;
     }
   }
 
-  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, content: string): GeneratedArtifact {
-    return { name, type, path: fullPath, size: Buffer.byteLength(content), content: content.substring(0, 500) };
+  private makeArtifact(
+    name: string,
+    type: GeneratedArtifact['type'],
+    fullPath: string,
+    content: string,
+  ): GeneratedArtifact {
+    return {
+      name,
+      type,
+      path: fullPath,
+      size: Buffer.byteLength(content),
+      content: content.substring(0, 500),
+    };
   }
 }

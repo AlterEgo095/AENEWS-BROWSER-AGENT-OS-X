@@ -43,7 +43,7 @@ export interface Alert {
 
 export interface PhaseProgress {
   phaseType: string;
-  progress: number;       // 0–100
+  progress: number; // 0–100
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
   startedAt: Date | null;
   lastUpdatedAt: Date | null;
@@ -116,7 +116,12 @@ export class MissionMonitorService {
 
     const now = new Date();
     const defaultPhases: PhaseProgress[] = [
-      'PLANNING', 'BROWSER', 'DEVELOPMENT', 'BUSINESS', 'CERTIFICATION', 'DELIVERY',
+      'PLANNING',
+      'BROWSER',
+      'DEVELOPMENT',
+      'BUSINESS',
+      'CERTIFICATION',
+      'DELIVERY',
     ].map((phase) => ({
       phaseType: phase,
       progress: 0,
@@ -187,7 +192,9 @@ export class MissionMonitorService {
 
     const phase = state.progress.phases.find((p) => p.phaseType === phaseType);
     if (!phase) {
-      this.logger.warn(`Mission "${missionId}": phase "${phaseType}" not found for progress update`);
+      this.logger.warn(
+        `Mission "${missionId}": phase "${phaseType}" not found for progress update`,
+      );
       return;
     }
 
@@ -237,7 +244,12 @@ export class MissionMonitorService {
    *   - ERROR → UNHEALTHY
    *   - CRITICAL → CRITICAL
    */
-  recordAlert(missionId: string, severity: AlertSeverity, message: string, metadata?: Record<string, unknown>): Alert {
+  recordAlert(
+    missionId: string,
+    severity: AlertSeverity,
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Alert {
     const state = this.getMonitorStateOrThrow(missionId);
     this.alertIdCounter++;
 
@@ -266,9 +278,7 @@ export class MissionMonitorService {
       state.health.errorAlerts++;
     }
 
-    this.logger.warn(
-      `Mission "${missionId}" alert [${severity}]: ${message}`,
-    );
+    this.logger.warn(`Mission "${missionId}" alert [${severity}]: ${message}`);
 
     return alert;
   }
@@ -413,7 +423,10 @@ export class MissionMonitorService {
     }
 
     // Record a corresponding alert
-    this.recordAlert(missionId, AlertSeverity.ERROR, `Phase "${phaseType}" failed: ${error}`, { phaseType, error });
+    this.recordAlert(missionId, AlertSeverity.ERROR, `Phase "${phaseType}" failed: ${error}`, {
+      phaseType,
+      error,
+    });
 
     this.logger.error(`Mission "${missionId}": phase "${phaseType}" FAILED — ${error}`);
   }
@@ -423,7 +436,9 @@ export class MissionMonitorService {
   private getMonitorStateOrThrow(missionId: string): MissionMonitorState {
     const state = this.states.get(missionId);
     if (!state) {
-      throw new Error(`Mission "${missionId}" is not being monitored. Call startMonitoring() first.`);
+      throw new Error(
+        `Mission "${missionId}" is not being monitored. Call startMonitoring() first.`,
+      );
     }
     return state;
   }

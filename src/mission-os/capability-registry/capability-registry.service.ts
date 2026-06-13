@@ -149,10 +149,7 @@ export class CapabilityRegistryService implements OnModuleInit {
    * Register a listener for a registry event.
    * Returns an unsubscribe function.
    */
-  on(
-    event: string,
-    listener: (payload: CapabilityEventPayload) => void,
-  ): () => void {
+  on(event: string, listener: (payload: CapabilityEventPayload) => void): () => void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);
     }
@@ -381,9 +378,7 @@ export class CapabilityRegistryService implements OnModuleInit {
       timestamp: Date.now(),
     });
 
-    this.logger.log(
-      `Agent "${agentId}" updated capability "${capabilityName}"`,
-    );
+    this.logger.log(`Agent "${agentId}" updated capability "${capabilityName}"`);
   }
 
   // -----------------------------------------------------------------------
@@ -426,9 +421,7 @@ export class CapabilityRegistryService implements OnModuleInit {
       timestamp: Date.now(),
     });
 
-    this.logger.warn(
-      `Capability "${capabilityName}" deprecated for agent "${agentId}"`,
-    );
+    this.logger.warn(`Capability "${capabilityName}" deprecated for agent "${agentId}"`);
   }
 
   // -----------------------------------------------------------------------
@@ -591,7 +584,12 @@ export class CapabilityRegistryService implements OnModuleInit {
   findBestAgentForCapability(
     capabilityName: string,
     criteria?: AgentSelectionCriteria,
-  ): { agentId: string; agentName: string; descriptor: CapabilityDescriptor; score: number } | null {
+  ): {
+    agentId: string;
+    agentName: string;
+    descriptor: CapabilityDescriptor;
+    score: number;
+  } | null {
     const agents = this.getAgentsWithCapability(capabilityName);
     if (agents.length === 0) return null;
 

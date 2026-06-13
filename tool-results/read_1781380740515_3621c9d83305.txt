@@ -1,0 +1,837 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Meta Governance Agent
+     3→ * System governance, policy enforcement, and compliance for the Meta Intelligence cluster.
+     4→ * Handles policy enforcement, compliance auditing, governance review,
+     5→ * policy updates, governance reporting, and exception management.
+     6→ */
+     7→
+     8→import { Injectable } from '@nestjs/common';
+     9→import { BaseAgentService } from '../../base/base-agent.service';
+    10→import {
+    11→  AgentConfig,
+    12→  AgentCluster,
+    13→  AgentInput,
+    14→  AgentOutput,
+    15→} from '../../interfaces/agent.interface';
+    16→
+    17→// ─── Agent Configuration ──────────────────────────────────────────
+    18→
+    19→export const META_GOVERNANCE_AGENT_CONFIG: AgentConfig = {
+    20→  id: 'meta-governance',
+    21→  name: 'MetaGovernance',
+    22→  cluster: AgentCluster.META_INTELLIGENCE,
+    23→  version: '1.0.0',
+    24→  description:
+    25→    'Governance agent that enforces policies, audits compliance, reviews governance, updates policies, generates governance reports, and manages exceptions across the Meta Intelligence cluster.',
+    26→  capabilities: [
+    27→    {
+    28→      name: 'enforcePolicy',
+    29→      description: 'Enforce a specific policy on agent behavior',
+    30→      inputSchema: {
+    31→        type: 'object',
+    32→        properties: {
+    33→          policyId: { type: 'string' },
+    34→          target: { type: 'string' },
+    35→          action: { type: 'string' },
+    36→        },
+    37→        required: ['policyId'],
+    38→      },
+    39→      outputSchema: {
+    40→        type: 'object',
+    41→        properties: {
+    42→          enforced: { type: 'boolean' },
+    43→          policyId: { type: 'string' },
+    44→          violations: { type: 'number' },
+    45→          enforcementId: { type: 'string' },
+    46→        },
+    47→      },
+    48→    },
+    49→    {
+    50→      name: 'auditCompliance',
+    51→      description: 'Audit compliance across agents and operations',
+    52→      inputSchema: {
+    53→        type: 'object',
+    54→        properties: {
+    55→          scope: { type: 'string' },
+    56→          policies: { type: 'array', items: { type: 'string' } },
+    57→        },
+    58→        required: [],
+    59→      },
+    60→      outputSchema: {
+    61→        type: 'object',
+    62→        properties: {
+    63→          auditId: { type: 'string' },
+    64→          complianceScore: { type: 'number' },
+    65→          violations: { type: 'array', items: { type: 'object' } },
+    66→          compliant: { type: 'boolean' },
+    67→        },
+    68→      },
+    69→    },
+    70→    {
+    71→      name: 'reviewGovernance',
+    72→      description: 'Review the overall governance framework',
+    73→      inputSchema: {
+    74→        type: 'object',
+    75→        properties: { scope: { type: 'string' }, depth: { type: 'string' } },
+    76→        required: [],
+    77→      },
+    78→      outputSchema: {
+    79→        type: 'object',
+    80→        properties: {
+    81→          reviewId: { type: 'string' },
+    82→          findings: { type: 'array', items: { type: 'object' } },
+    83→          recommendations: { type: 'array', items: { type: 'string' } },
+    84→          overallRating: { type: 'string' },
+    85→        },
+    86→      },
+    87→    },
+    88→    {
+    89→      name: 'updatePolicy',
+    90→      description: 'Update an existing policy or create a new one',
+    91→      inputSchema: {
+    92→        type: 'object',
+    93→        properties: {
+    94→          policyId: { type: 'string' },
+    95→          changes: { type: 'object' },
+    96→          reason: { type: 'string' },
+    97→        },
+    98→        required: ['policyId', 'changes'],
+    99→      },
+   100→      outputSchema: {
+   101→        type: 'object',
+   102→        properties: {
+   103→          updated: { type: 'boolean' },
+   104→          policyId: { type: 'string' },
+   105→          version: { type: 'string' },
+   106→          updateId: { type: 'string' },
+   107→        },
+   108→      },
+   109→    },
+   110→    {
+   111→      name: 'generateGovernanceReport',
+   112→      description: 'Generate a comprehensive governance report',
+   113→      inputSchema: {
+   114→        type: 'object',
+   115→        properties: {
+   116→          period: { type: 'string' },
+   117→          includeViolations: { type: 'boolean' },
+   118→          includeRecommendations: { type: 'boolean' },
+   119→        },
+   120→        required: [],
+   121→      },
+   122→      outputSchema: {
+   123→        type: 'object',
+   124→        properties: {
+   125→          reportId: { type: 'string' },
+   126→          summary: { type: 'object' },
+   127→          metrics: { type: 'object' },
+   128→          recommendations: { type: 'array', items: { type: 'string' } },
+   129→        },
+   130→      },
+   131→    },
+   132→    {
+   133→      name: 'manageExceptions',
+   134→      description: 'Manage policy exceptions and exemptions',
+   135→      inputSchema: {
+   136→        type: 'object',
+   137→        properties: {
+   138→          operation: { type: 'string' },
+   139→          exceptionId: { type: 'string' },
+   140→          details: { type: 'object' },
+   141→        },
+   142→        required: ['operation'],
+   143→      },
+   144→      outputSchema: {
+   145→        type: 'object',
+   146→        properties: {
+   147→          success: { type: 'boolean' },
+   148→          exceptionId: { type: 'string' },
+   149→          status: { type: 'string' },
+   150→          operation: { type: 'string' },
+   151→        },
+   152→      },
+   153→    },
+   154→  ],
+   155→  permissions: [
+   156→    'execute:task',
+   157→    'read:policy',
+   158→    'write:policy',
+   159→    'read:compliance',
+   160→    'write:violation',
+   161→    'admin:governance',
+   162→  ],
+   163→  maxConcurrentTasks: 3,
+   164→  timeout: 60000,
+   165→  retryPolicy: { maxRetries: 2, backoffMs: 2500, exponentialBackoff: true },
+   166→};
+   167→
+   168→// ─── Internal Types ───────────────────────────────────────────────
+   169→
+   170→interface Policy {
+   171→  id: string;
+   172→  name: string;
+   173→  description: string;
+   174→  rules: Array<{ id: string; condition: string; action: string; severity: string }>;
+   175→  version: string;
+   176→  active: boolean;
+   177→  createdAt: Date;
+   178→  updatedAt: Date;
+   179→}
+   180→
+   181→interface Violation {
+   182→  id: string;
+   183→  policyId: string;
+   184→  ruleId: string;
+   185→  target: string;
+   186→  severity: string;
+   187→  description: string;
+   188→  timestamp: Date;
+   189→  resolved: boolean;
+   190→}
+   191→
+   192→interface Exception {
+   193→  id: string;
+   194→  policyId: string;
+   195→  target: string;
+   196→  reason: string;
+   197→  grantedAt: Date;
+   198→  expiresAt: Date;
+   199→  status: 'active' | 'expired' | 'revoked';
+   200→}
+   201→
+   202→// ─── Agent Service ────────────────────────────────────────────────
+   203→
+   204→@Injectable()
+   205→export class GovernanceAgentService extends BaseAgentService {
+   206→  private policies: Map<string, Policy> = new Map();
+   207→  private violations: Violation[] = [];
+   208→  private exceptions: Map<string, Exception> = new Map();
+   209→
+   210→  protected defineConfig(): AgentConfig {
+   211→    return META_GOVERNANCE_AGENT_CONFIG;
+   212→  }
+   213→
+   214→  protected async onInitialize(): Promise<void> {
+   215→    this.registerTool({
+   216→      name: 'enforcePolicy',
+   217→      description: 'Enforce a specific policy',
+   218→      execute: async (params: { policyId: string; target?: string; action?: string }) =>
+   219→        this.enforcePolicy(params),
+   220→    });
+   221→    this.registerTool({
+   222→      name: 'auditCompliance',
+   223→      description: 'Audit compliance',
+   224→      execute: async (params: { scope?: string; policies?: string[] }) =>
+   225→        this.auditCompliance(params),
+   226→    });
+   227→    this.registerTool({
+   228→      name: 'reviewGovernance',
+   229→      description: 'Review governance framework',
+   230→      execute: async (params: { scope?: string; depth?: string }) => this.reviewGovernance(params),
+   231→    });
+   232→    this.registerTool({
+   233→      name: 'updatePolicy',
+   234→      description: 'Update or create a policy',
+   235→      execute: async (params: {
+   236→        policyId: string;
+   237→        changes: Record<string, any>;
+   238→        reason?: string;
+   239→      }) => this.updatePolicy(params),
+   240→    });
+   241→    this.registerTool({
+   242→      name: 'generateGovernanceReport',
+   243→      description: 'Generate governance report',
+   244→      execute: async (params: {
+   245→        period?: string;
+   246→        includeViolations?: boolean;
+   247→        includeRecommendations?: boolean;
+   248→      }) => this.generateGovernanceReport(params),
+   249→    });
+   250→    this.registerTool({
+   251→      name: 'manageExceptions',
+   252→      description: 'Manage policy exceptions',
+   253→      execute: async (params: {
+   254→        operation: string;
+   255→        exceptionId?: string;
+   256→        details?: Record<string, any>;
+   257→      }) => this.manageExceptions(params),
+   258→    });
+   259→
+   260→    this.seedPolicies();
+   261→    await this.storeInWorkingMemory('governance:initializedAt', new Date().toISOString(), 600000);
+   262→    this.logger.log('MetaGovernance agent initialized with 6 tools');
+   263→  }
+   264→
+   265→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   266→    const startTime = Date.now();
+   267→    const { action, ...params } = input.payload;
+   268→    if (!action)
+   269→      return this.createAgentOutput(
+   270→        input.taskId,
+   271→        false,
+   272→        null,
+   273→        'Missing required parameter: action',
+   274→        startTime,
+   275→      );
+   276→    const supportedActions = [
+   277→      'enforcePolicy',
+   278→      'auditCompliance',
+   279→      'reviewGovernance',
+   280→      'updatePolicy',
+   281→      'generateGovernanceReport',
+   282→      'manageExceptions',
+   283→    ];
+   284→    if (!supportedActions.includes(action))
+   285→      return this.createAgentOutput(
+   286→        input.taskId,
+   287→        false,
+   288→        null,
+   289→        `Unknown governance action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   290→        startTime,
+   291→      );
+   292→    try {
+   293→      const tool = this.getTool(action);
+   294→      if (!tool)
+   295→        return this.createAgentOutput(
+   296→          input.taskId,
+   297→          false,
+   298→          null,
+   299→          `Tool not found: ${action}`,
+   300→          startTime,
+   301→        );
+   302→      const result = await tool.execute(params);
+   303→      await this.storeInWorkingMemory(
+   304→        `governance:last:${action}`,
+   305→        { params, result, timestamp: new Date() },
+   306→        300000,
+   307→      );
+   308→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   309→    } catch (error) {
+   310→      const msg = (error as Error).message;
+   311→      this.logger.error(`MetaGovernance execution failed for ${action}: ${msg}`);
+   312→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   313→    }
+   314→  }
+   315→
+   316→  protected async onDestroy(): Promise<void> {
+   317→    this.policies.clear();
+   318→    this.violations = [];
+   319→    this.exceptions.clear();
+   320→    this.logger.log('MetaGovernance agent destroyed, policies, violations, and exceptions cleared');
+   321→  }
+   322→
+   323→  private async enforcePolicy(params: {
+   324→    policyId: string;
+   325→    target?: string;
+   326→    action?: string;
+   327→  }): Promise<{ enforced: boolean; policyId: string; violations: number; enforcementId: string }> {
+   328→    const { policyId, target = 'all', action = 'check' } = params;
+   329→    if (!policyId || typeof policyId !== 'string')
+   330→      throw new Error('Valid policyId string is required');
+   331→    const policy = this.policies.get(policyId);
+   332→    if (!policy) throw new Error(`Policy not found: ${policyId}`);
+   333→    if (!policy.active) throw new Error(`Policy is not active: ${policyId}`);
+   334→    const enforcementId = this.generateId();
+   335→
+   336→    // Check for existing exceptions
+   337→    const hasException = Array.from(this.exceptions.values()).some(
+   338→      (e) => e.policyId === policyId && e.target === target && e.status === 'active',
+   339→    );
+   340→
+   341→    if (hasException) {
+   342→      this.logger.log(
+   343→        `Policy enforcement skipped: exception exists for policy=${policyId}, target=${target}`,
+   344→      );
+   345→      return { enforced: true, policyId, violations: 0, enforcementId };
+   346→    }
+   347→
+   348→    // Simulate violation detection
+   349→    let violationCount = 0;
+   350→    for (const rule of policy.rules) {
+   351→      const violationChance = Math.random();
+   352→      if (violationChance > 0.8) {
+   353→        violationCount++;
+   354→        this.violations.push({
+   355→          id: this.generateId(),
+   356→          policyId,
+   357→          ruleId: rule.id,
+   358→          target,
+   359→          severity: rule.severity,
+   360→          description: `Rule "${rule.condition}" violated for target "${target}"`,
+   361→          timestamp: new Date(),
+   362→          resolved: false,
+   363→        });
+   364→      }
+   365→    }
+   366→
+   367→    if (action === 'enforce' && violationCount > 0) {
+   368→      // Mark violations for resolution
+   369→      const recentViolations = this.violations.filter(
+   370→        (v) => !v.resolved && v.policyId === policyId,
+   371→      );
+   372→      for (const v of recentViolations.slice(-violationCount)) {
+   373→        v.resolved = true;
+   374→      }
+   375→    }
+   376→
+   377→    this.logger.log(
+   378→      `Policy enforced: policyId=${policyId}, target=${target}, violations=${violationCount}`,
+   379→    );
+   380→    return { enforced: true, policyId, violations: violationCount, enforcementId };
+   381→  }
+   382→
+   383→  private async auditCompliance(params: { scope?: string; policies?: string[] }): Promise<{
+   384→    auditId: string;
+   385→    complianceScore: number;
+   386→    violations: Array<{ policyId: string; severity: string; description: string }>;
+   387→    compliant: boolean;
+   388→  }> {
+   389→    const { scope = 'all', policies: policyIds = [] } = params;
+   390→    const auditId = this.generateId();
+   391→    const targetPolicies =
+   392→      policyIds.length > 0
+   393→        ? Array.from(this.policies.values()).filter((p) => policyIds.includes(p.id))
+   394→        : Array.from(this.policies.values()).filter((p) => p.active);
+   395→
+   396→    const recentViolations = this.violations.filter((v) => {
+   397→      const isRecent = Date.now() - v.timestamp.getTime() < 24 * 60 * 60 * 1000;
+   398→      const inScope = scope === 'all' || v.target.includes(scope);
+   399→      const inPolicies = policyIds.length === 0 || policyIds.includes(v.policyId);
+   400→      return isRecent && inScope && inPolicies;
+   401→    });
+   402→
+   403→    const criticalViolations = recentViolations.filter(
+   404→      (v) => v.severity === 'critical' && !v.resolved,
+   405→    );
+   406→    const warningViolations = recentViolations.filter((v) => v.severity === 'warning');
+   407→
+   408→    const complianceScore = Math.max(
+   409→      0,
+   410→      Math.round(100 - criticalViolations.length * 20 - warningViolations.length * 5),
+   411→    );
+   412→    const compliant = complianceScore >= 80 && criticalViolations.length === 0;
+   413→
+   414→    const violationSummary = recentViolations.slice(0, 10).map((v) => ({
+   415→      policyId: v.policyId,
+   416→      severity: v.severity,
+   417→      description: v.description,
+   418→    }));
+   419→
+   420→    this.logger.log(
+   421→      `Compliance audited: scope=${scope}, score=${complianceScore}, violations=${recentViolations.length}, compliant=${compliant}`,
+   422→    );
+   423→    return { auditId, complianceScore, violations: violationSummary, compliant };
+   424→  }
+   425→
+   426→  private async reviewGovernance(params: { scope?: string; depth?: string }): Promise<{
+   427→    reviewId: string;
+   428→    findings: Array<{ area: string; status: string; description: string; priority: string }>;
+   429→    recommendations: string[];
+   430→    overallRating: string;
+   431→  }> {
+   432→    const { scope = 'all', depth = 'standard' } = params;
+   433→    const reviewId = this.generateId();
+   434→    const findings: Array<{ area: string; status: string; description: string; priority: string }> =
+   435→      [];
+   436→    const recommendations: string[] = [];
+   437→
+   438→    // Policy coverage
+   439→    const activePolicies = Array.from(this.policies.values()).filter((p) => p.active);
+   440→    if (activePolicies.length < 5) {
+   441→      findings.push({
+   442→        area: 'policy-coverage',
+   443→        status: 'warning',
+   444→        description: `Only ${activePolicies.length} active policies; consider expanding coverage`,
+   445→        priority: 'medium',
+   446→      });
+   447→      recommendations.push('Add policies for security, data handling, and resource management');
+   448→    } else {
+   449→      findings.push({
+   450→        area: 'policy-coverage',
+   451→        status: 'good',
+   452→        description: `${activePolicies.length} active policies covering key areas`,
+   453→        priority: 'low',
+   454→      });
+   455→    }
+   456→
+   457→    // Violation trends
+   458→    const unresolvedViolations = this.violations.filter((v) => !v.resolved);
+   459→    if (unresolvedViolations.length > 5) {
+   460→      findings.push({
+   461→        area: 'violation-resolution',
+   462→        status: 'warning',
+   463→        description: `${unresolvedViolations.length} unresolved violations`,
+   464→        priority: 'high',
+   465→      });
+   466→      recommendations.push('Establish a violation resolution SLA and escalation process');
+   467→    } else {
+   468→      findings.push({
+   469→        area: 'violation-resolution',
+   470→        status: 'good',
+   471→        description: 'Low number of unresolved violations',
+   472→        priority: 'low',
+   473→      });
+   474→    }
+   475→
+   476→    // Exception management
+   477→    const activeExceptions = Array.from(this.exceptions.values()).filter(
+   478→      (e) => e.status === 'active',
+   479→    );
+   480→    if (activeExceptions.length > 10) {
+   481→      findings.push({
+   482→        area: 'exception-management',
+   483→        status: 'warning',
+   484→        description: `${activeExceptions.length} active exceptions may indicate governance gaps`,
+   485→        priority: 'medium',
+   486→      });
+   487→      recommendations.push('Review and reduce policy exceptions; update policies instead');
+   488→    } else {
+   489→      findings.push({
+   490→        area: 'exception-management',
+   491→        status: 'good',
+   492→        description: 'Exception count within acceptable range',
+   493→        priority: 'low',
+   494→      });
+   495→    }
+   496→
+   497→    if (depth === 'comprehensive') {
+   498→      findings.push({
+   499→        area: 'policy-versioning',
+   500→        status: 'good',
+   501→        description: 'All policies have version tracking',
+   502→        priority: 'low',
+   503→      });
+   504→      findings.push({
+   505→        area: 'audit-trail',
+   506→        status: 'good',
+   507→        description: 'Violation audit trail is maintained',
+   508→        priority: 'low',
+   509→      });
+   510→      recommendations.push('Implement automated compliance monitoring');
+   511→      recommendations.push('Create policy change approval workflow');
+   512→    }
+   513→
+   514→    const highPriorityFindings = findings.filter((f) => f.priority === 'high');
+   515→    const overallRating =
+   516→      highPriorityFindings.length > 0
+   517→        ? 'needs-improvement'
+   518→        : findings.some((f) => f.status === 'warning')
+   519→          ? 'acceptable'
+   520→          : 'excellent';
+   521→
+   522→    this.logger.log(
+   523→      `Governance reviewed: findings=${findings.length}, rating=${overallRating}, scope=${scope}`,
+   524→    );
+   525→    return { reviewId, findings, recommendations, overallRating };
+   526→  }
+   527→
+   528→  private async updatePolicy(params: {
+   529→    policyId: string;
+   530→    changes: Record<string, any>;
+   531→    reason?: string;
+   532→  }): Promise<{ updated: boolean; policyId: string; version: string; updateId: string }> {
+   533→    const { policyId, changes, reason = '' } = params;
+   534→    if (!policyId || typeof policyId !== 'string')
+   535→      throw new Error('Valid policyId string is required');
+   536→    if (!changes || typeof changes !== 'object')
+   537→      throw new Error('Valid changes object is required');
+   538→    const updateId = this.generateId();
+   539→
+   540→    const existing = this.policies.get(policyId);
+   541→    if (existing) {
+   542→      const versionParts = existing.version.split('.');
+   543→      const minor = parseInt(versionParts[1] || '0', 10) + 1;
+   544→      const newVersion = `${versionParts[0]}.${minor}`;
+   545→
+   546→      if (changes.name) existing.name = changes.name;
+   547→      if (changes.description) existing.description = changes.description;
+   548→      if (changes.rules) existing.rules = changes.rules;
+   549→      if (changes.active !== undefined) existing.active = changes.active;
+   550→      existing.version = newVersion;
+   551→      existing.updatedAt = new Date();
+   552→
+   553→      this.logger.log(
+   554→        `Policy updated: id=${policyId}, version=${newVersion}, reason="${reason.substring(0, 50)}"`,
+   555→      );
+   556→      return { updated: true, policyId, version: newVersion, updateId };
+   557→    } else {
+   558→      // Create new policy
+   559→      const newPolicy: Policy = {
+   560→        id: policyId,
+   561→        name: changes.name || policyId,
+   562→        description: changes.description || 'Auto-generated policy',
+   563→        rules: changes.rules || [
+   564→          { id: `${policyId}-rule-1`, condition: 'default', action: 'allow', severity: 'info' },
+   565→        ],
+   566→        version: '1.0',
+   567→        active: changes.active !== undefined ? changes.active : true,
+   568→        createdAt: new Date(),
+   569→        updatedAt: new Date(),
+   570→      };
+   571→      this.policies.set(policyId, newPolicy);
+   572→
+   573→      this.logger.log(`Policy created: id=${policyId}, version=1.0`);
+   574→      return { updated: true, policyId, version: '1.0', updateId };
+   575→    }
+   576→  }
+   577→
+   578→  private async generateGovernanceReport(params: {
+   579→    period?: string;
+   580→    includeViolations?: boolean;
+   581→    includeRecommendations?: boolean;
+   582→  }): Promise<{
+   583→    reportId: string;
+   584→    summary: Record<string, any>;
+   585→    metrics: Record<string, number>;
+   586→    recommendations: string[];
+   587→  }> {
+   588→    const { period = '30d', includeViolations = true, includeRecommendations = true } = params;
+   589→    const reportId = this.generateId();
+   590→
+   591→    const periodMs =
+   592→      period === '7d' ? 7 * 86400000 : period === '30d' ? 30 * 86400000 : 90 * 86400000;
+   593→    const cutoff = new Date(Date.now() - periodMs);
+   594→    const periodViolations = this.violations.filter((v) => v.timestamp >= cutoff);
+   595→
+   596→    const summary: Record<string, any> = {
+   597→      period,
+   598→      totalPolicies: this.policies.size,
+   599→      activePolicies: Array.from(this.policies.values()).filter((p) => p.active).length,
+   600→      totalViolations: periodViolations.length,
+   601→      unresolvedViolations: periodViolations.filter((v) => !v.resolved).length,
+   602→      activeExceptions: Array.from(this.exceptions.values()).filter((e) => e.status === 'active')
+   603→        .length,
+   604→      generatedAt: new Date().toISOString(),
+   605→    };
+   606→
+   607→    if (includeViolations) {
+   608→      summary.violationsBySeverity = {
+   609→        critical: periodViolations.filter((v) => v.severity === 'critical').length,
+   610→        warning: periodViolations.filter((v) => v.severity === 'warning').length,
+   611→        info: periodViolations.filter((v) => v.severity === 'info').length,
+   612→      };
+   613→    }
+   614→
+   615→    const metrics: Record<string, number> = {
+   616→      complianceRate:
+   617→        periodViolations.length > 0
+   618→          ? Math.round(
+   619→              (1 - periodViolations.filter((v) => !v.resolved).length / periodViolations.length) *
+   620→                100,
+   621→            )
+   622→          : 100,
+   623→      policyCoverage:
+   624→        this.policies.size > 0
+   625→          ? Math.round(
+   626→              (Array.from(this.policies.values()).filter((p) => p.active).length /
+   627→                this.policies.size) *
+   628→                100,
+   629→            )
+   630→          : 0,
+   631→      violationResolutionRate:
+   632→        periodViolations.length > 0
+   633→          ? Math.round(
+   634→              (periodViolations.filter((v) => v.resolved).length / periodViolations.length) * 100,
+   635→            )
+   636→          : 100,
+   637→    };
+   638→
+   639→    const recommendations: string[] = [];
+   640→    if (includeRecommendations) {
+   641→      if (metrics.complianceRate < 80)
+   642→        recommendations.push('Improve violation resolution processes to increase compliance rate');
+   643→      if (summary.unresolvedViolations > 10)
+   644→        recommendations.push('Prioritize resolution of unresolved violations');
+   645→      if (summary.activeExceptions > 5)
+   646→        recommendations.push('Review and reduce active policy exceptions');
+   647→      if (summary.activePolicies < 3)
+   648→        recommendations.push('Expand policy coverage for better governance');
+   649→      if (recommendations.length === 0)
+   650→        recommendations.push('Governance is in good standing; continue regular reviews');
+   651→    }
+   652→
+   653→    this.logger.log(
+   654→      `Governance report generated: id=${reportId}, period=${period}, violations=${periodViolations.length}`,
+   655→    );
+   656→    return { reportId, summary, metrics, recommendations };
+   657→  }
+   658→
+   659→  private async manageExceptions(params: {
+   660→    operation: string;
+   661→    exceptionId?: string;
+   662→    details?: Record<string, any>;
+   663→  }): Promise<{ success: boolean; exceptionId: string; status: string; operation: string }> {
+   664→    const { operation, exceptionId, details = {} } = params;
+   665→    if (!operation || typeof operation !== 'string')
+   666→      throw new Error('Valid operation string is required');
+   667→
+   668→    const validOperations = ['create', 'revoke', 'extend', 'list'];
+   669→    if (!validOperations.includes(operation)) {
+   670→      throw new Error(`Invalid operation: ${operation}. Supported: ${validOperations.join(', ')}`);
+   671→    }
+   672→
+   673→    switch (operation) {
+   674→      case 'create': {
+   675→        const id = this.generateId();
+   676→        const exception: Exception = {
+   677→          id,
+   678→          policyId: details.policyId || 'unknown',
+   679→          target: details.target || 'all',
+   680→          reason: details.reason || 'No reason provided',
+   681→          grantedAt: new Date(),
+   682→          expiresAt: new Date(Date.now() + (details.durationDays || 30) * 86400000),
+   683→          status: 'active',
+   684→        };
+   685→        this.exceptions.set(id, exception);
+   686→        this.logger.log(
+   687→          `Exception created: id=${id}, policy=${exception.policyId}, target=${exception.target}`,
+   688→        );
+   689→        return { success: true, exceptionId: id, status: 'active', operation };
+   690→      }
+   691→
+   692→      case 'revoke': {
+   693→        if (!exceptionId) throw new Error('exceptionId is required for revoke operation');
+   694→        const exception = this.exceptions.get(exceptionId);
+   695→        if (!exception) throw new Error(`Exception not found: ${exceptionId}`);
+   696→        exception.status = 'revoked';
+   697→        this.logger.log(`Exception revoked: id=${exceptionId}`);
+   698→        return { success: true, exceptionId, status: 'revoked', operation };
+   699→      }
+   700→
+   701→      case 'extend': {
+   702→        if (!exceptionId) throw new Error('exceptionId is required for extend operation');
+   703→        const exception = this.exceptions.get(exceptionId);
+   704→        if (!exception) throw new Error(`Exception not found: ${exceptionId}`);
+   705→        const extendDays = details.durationDays || 30;
+   706→        exception.expiresAt = new Date(exception.expiresAt.getTime() + extendDays * 86400000);
+   707→        this.logger.log(
+   708→          `Exception extended: id=${exceptionId}, new expiry=${exception.expiresAt.toISOString()}`,
+   709→        );
+   710→        return { success: true, exceptionId, status: exception.status, operation };
+   711→      }
+   712→
+   713→      case 'list': {
+   714→        const active = Array.from(this.exceptions.values()).filter((e) => e.status === 'active');
+   715→        this.logger.log(`Exceptions listed: active=${active.length}`);
+   716→        return {
+   717→          success: true,
+   718→          exceptionId: 'list',
+   719→          status: `${active.length} active exceptions`,
+   720→          operation,
+   721→        };
+   722→      }
+   723→
+   724→      default:
+   725→        return {
+   726→          success: false,
+   727→          exceptionId: exceptionId || '',
+   728→          status: 'unknown-operation',
+   729→          operation,
+   730→        };
+   731→    }
+   732→  }
+   733→
+   734→  // ─── Private Helpers ───────────────────────────────────────────
+   735→
+   736→  private seedPolicies(): void {
+   737→    const defaultPolicies: Policy[] = [
+   738→      {
+   739→        id: 'policy-resource-limits',
+   740→        name: 'Resource Limits Policy',
+   741→        description: 'Enforces resource usage limits across all agents',
+   742→        rules: [
+   743→          {
+   744→            id: 'rule-max-concurrent',
+   745→            condition: 'maxConcurrentTasks <= 10',
+   746→            action: 'enforce',
+   747→            severity: 'warning',
+   748→          },
+   749→          {
+   750→            id: 'rule-timeout-limit',
+   751→            condition: 'timeout <= 300000',
+   752→            action: 'enforce',
+   753→            severity: 'critical',
+   754→          },
+   755→        ],
+   756→        version: '1.0',
+   757→        active: true,
+   758→        createdAt: new Date(),
+   759→        updatedAt: new Date(),
+   760→      },
+   761→      {
+   762→        id: 'policy-data-handling',
+   763→        name: 'Data Handling Policy',
+   764→        description: 'Regulates how agents handle and process data',
+   765→        rules: [
+   766→          {
+   767→            id: 'rule-no-sensitive-logging',
+   768→            condition: 'No sensitive data in logs',
+   769→            action: 'block',
+   770→            severity: 'critical',
+   771→          },
+   772→          {
+   773→            id: 'rule-data-retention',
+   774→            condition: 'Data retention within limits',
+   775→            action: 'warn',
+   776→            severity: 'warning',
+   777→          },
+   778→        ],
+   779→        version: '1.0',
+   780→        active: true,
+   781→        createdAt: new Date(),
+   782→        updatedAt: new Date(),
+   783→      },
+   784→      {
+   785→        id: 'policy-error-handling',
+   786→        name: 'Error Handling Policy',
+   787→        description: 'Defines how agents should handle errors and failures',
+   788→        rules: [
+   789→          {
+   790→            id: 'rule-error-reporting',
+   791→            condition: 'All errors must be reported',
+   792→            action: 'enforce',
+   793→            severity: 'warning',
+   794→          },
+   795→          {
+   796→            id: 'rule-retry-limits',
+   797→            condition: 'maxRetries <= 5',
+   798→            action: 'enforce',
+   799→            severity: 'info',
+   800→          },
+   801→        ],
+   802→        version: '1.0',
+   803→        active: true,
+   804→        createdAt: new Date(),
+   805→        updatedAt: new Date(),
+   806→      },
+   807→      {
+   808→        id: 'policy-security',
+   809→        name: 'Security Policy',
+   810→        description: 'Security requirements for agent operations',
+   811→        rules: [
+   812→          {
+   813→            id: 'rule-auth-required',
+   814→            condition: 'Authentication required for execution',
+   815→            action: 'block',
+   816→            severity: 'critical',
+   817→          },
+   818→          {
+   819→            id: 'rule-permission-check',
+   820→            condition: 'Permission check before operations',
+   821→            action: 'enforce',
+   822→            severity: 'critical',
+   823→          },
+   824→        ],
+   825→        version: '1.0',
+   826→        active: true,
+   827→        createdAt: new Date(),
+   828→        updatedAt: new Date(),
+   829→      },
+   830→    ];
+   831→
+   832→    for (const policy of defaultPolicies) {
+   833→      this.policies.set(policy.id, policy);
+   834→    }
+   835→  }
+   836→}
+   837→

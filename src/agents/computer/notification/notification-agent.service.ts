@@ -4,7 +4,7 @@
  * Simulates notification management for environments without direct OS notification access.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { DeliveryCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -31,10 +33,21 @@ export const NOTIFICATION_AGENT_CONFIG: AgentConfig = {
         properties: {
           title: { type: 'string', description: 'Notification title' },
           body: { type: 'string', description: 'Notification body text' },
-          priority: { type: 'string', enum: ['low', 'normal', 'high', 'critical'], default: 'normal' },
-          category: { type: 'string', description: 'Notification category (e.g., system, task, alert)' },
+          priority: {
+            type: 'string',
+            enum: ['low', 'normal', 'high', 'critical'],
+            default: 'normal',
+          },
+          category: {
+            type: 'string',
+            description: 'Notification category (e.g., system, task, alert)',
+          },
           icon: { type: 'string', description: 'Icon path or name' },
-          actions: { type: 'array', items: { type: 'string' }, description: 'Action button labels' },
+          actions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Action button labels',
+          },
           silent: { type: 'boolean', default: false, description: 'Suppress sound' },
           scheduleAt: { type: 'string', description: 'ISO timestamp for scheduled delivery' },
         },
@@ -79,7 +92,11 @@ export const NOTIFICATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           clearAll: { type: 'boolean', default: false, description: 'Clear all notifications' },
-          notificationIds: { type: 'array', items: { type: 'string' }, description: 'Specific IDs to clear' },
+          notificationIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Specific IDs to clear',
+          },
           olderThan: { type: 'string', description: 'ISO timestamp - clear older than this' },
           category: { type: 'string', description: 'Clear by category' },
         },
@@ -108,7 +125,11 @@ export const NOTIFICATION_AGENT_CONFIG: AgentConfig = {
             default: 'none',
             description: 'Recurrence pattern',
           },
-          priority: { type: 'string', enum: ['low', 'normal', 'high', 'critical'], default: 'normal' },
+          priority: {
+            type: 'string',
+            enum: ['low', 'normal', 'high', 'critical'],
+            default: 'normal',
+          },
           category: { type: 'string', default: 'reminder' },
         },
         required: ['title', 'triggerAt'],
@@ -179,6 +200,15 @@ interface ReminderEntry {
 @Injectable()
 export class NotificationAgentService extends BaseAgentService {
   private notifications: Map<string, NotificationEntry> = new Map();
+
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
   private reminders: Map<string, ReminderEntry> = new Map();
   private notificationCounter = 0;
   private reminderCounter = 0;
@@ -281,6 +311,28 @@ export class NotificationAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation — use real connector if available
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(DeliveryCapability.NOTIFICATION, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
@@ -294,7 +346,10 @@ export class NotificationAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'sendNotification', 'listNotifications', 'clearNotifications', 'setReminder',
+      'sendNotification',
+      'listNotifications',
+      'clearNotifications',
+      'setReminder',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -310,7 +365,13 @@ export class NotificationAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -360,7 +421,9 @@ export class NotificationAgentService extends BaseAgentService {
     // Validate priority
     const validPriorities: NotificationPriority[] = ['low', 'normal', 'high', 'critical'];
     if (!validPriorities.includes(priority)) {
-      throw new Error(`Invalid priority: ${priority}. Must be one of: ${validPriorities.join(', ')}`);
+      throw new Error(
+        `Invalid priority: ${priority}. Must be one of: ${validPriorities.join(', ')}`,
+      );
     }
 
     // Handle scheduling
@@ -374,14 +437,7 @@ export class NotificationAgentService extends BaseAgentService {
       }
 
       // Store as a reminder that will trigger a notification
-      const reminder = await this.setReminder(
-        title,
-        body,
-        scheduleAt,
-        'none',
-        priority,
-        category,
-      );
+      const reminder = await this.setReminder(title, body, scheduleAt, 'none', priority, category);
 
       this.logger.log(`Notification scheduled as reminder: ${reminder.reminderId}`);
       return {
@@ -575,7 +631,9 @@ export class NotificationAgentService extends BaseAgentService {
 
     const validRecurrences: RecurrencePattern[] = ['none', 'daily', 'weekly', 'monthly'];
     if (!validRecurrences.includes(recurrence)) {
-      throw new Error(`Invalid recurrence: ${recurrence}. Must be one of: ${validRecurrences.join(', ')}`);
+      throw new Error(
+        `Invalid recurrence: ${recurrence}. Must be one of: ${validRecurrences.join(', ')}`,
+      );
     }
 
     const reminderId = `rem-${++this.reminderCounter}-${Date.now()}`;
@@ -599,7 +657,9 @@ export class NotificationAgentService extends BaseAgentService {
       86400000, // 24h TTL
     );
 
-    this.logger.log(`Reminder set: ${reminderId} ("${title}", trigger: ${triggerTime.toISOString()}, recurrence: ${recurrence})`);
+    this.logger.log(
+      `Reminder set: ${reminderId} ("${title}", trigger: ${triggerTime.toISOString()}, recurrence: ${recurrence})`,
+    );
     return {
       reminderId,
       title,
@@ -647,8 +707,13 @@ export class NotificationAgentService extends BaseAgentService {
 
         // Handle recurrence
         if (reminder.recurrence !== 'none') {
-          reminder.triggerAt = this.calculateNextOccurrence(reminder.triggerAt, reminder.recurrence);
-          this.logger.log(`Recurring reminder triggered: ${id}, next: ${reminder.triggerAt.toISOString()}`);
+          reminder.triggerAt = this.calculateNextOccurrence(
+            reminder.triggerAt,
+            reminder.recurrence,
+          );
+          this.logger.log(
+            `Recurring reminder triggered: ${id}, next: ${reminder.triggerAt.toISOString()}`,
+          );
         } else {
           reminder.status = 'triggered';
           this.logger.log(`Reminder triggered: ${id} ("${reminder.title}")`);

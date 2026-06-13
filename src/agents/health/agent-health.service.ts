@@ -6,10 +6,7 @@
  */
 
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import {
-  AgentStatus,
-  AgentHealthState,
-} from '../interfaces/agent.interface';
+import { AgentStatus, AgentHealthState } from '../interfaces/agent.interface';
 import { AgentRegistryService } from '../registry/agent-registry.service';
 import { EventBusService } from '../events/event-bus.service';
 import { AgentEventType, AgentHealthChangedPayload } from '../interfaces/agent-event.interface';
@@ -101,14 +98,12 @@ export class AgentHealthService implements OnModuleInit, OnModuleDestroy {
 
     try {
       // Check agent status
-      const isStatusHealthy = [
-        AgentStatus.IDLE,
-        AgentStatus.RUNNING,
-        AgentStatus.PAUSED,
-      ].includes(state.status);
+      const isStatusHealthy = [AgentStatus.IDLE, AgentStatus.RUNNING, AgentStatus.PAUSED].includes(
+        state.status,
+      );
 
       // Check agent's custom health check
-      const customHealthy = await (agent as any).performHealthCheck?.() ?? true;
+      const customHealthy = (await (agent as any).performHealthCheck?.()) ?? true;
 
       isHealthy = isStatusHealthy && customHealthy;
 
@@ -129,9 +124,7 @@ export class AgentHealthService implements OnModuleInit, OnModuleDestroy {
 
     // Update consecutive failures tracking
     const previousResult = this.healthResults.get(agentId);
-    const consecutiveFailures = isHealthy
-      ? 0
-      : (previousResult?.consecutiveFailures || 0) + 1;
+    const consecutiveFailures = isHealthy ? 0 : (previousResult?.consecutiveFailures || 0) + 1;
 
     // Alert on consecutive failures
     if (consecutiveFailures > 0 && consecutiveFailures % 3 === 0) {
@@ -207,8 +200,9 @@ export class AgentHealthService implements OnModuleInit, OnModuleDestroy {
     const maintenanceCount = Object.values(results).filter(
       (r) => r.status === AgentStatus.MAINTENANCE,
     ).length;
-    const openBreakers = Array.from(this.circuitBreakers.values())
-      .filter((cb) => cb.state === 'open').length;
+    const openBreakers = Array.from(this.circuitBreakers.values()).filter(
+      (cb) => cb.state === 'open',
+    ).length;
 
     let status: SystemHealth['status'];
     if (unhealthyCount === 0 && openBreakers === 0) {
@@ -258,14 +252,16 @@ export class AgentHealthService implements OnModuleInit, OnModuleDestroy {
    * Get the overall system health (from cached results).
    */
   getSystemHealth(): SystemHealth {
-    const healthyCount = Array.from(this.healthResults.values())
-      .filter((r) => r.isHealthy).length;
-    const unhealthyCount = Array.from(this.healthResults.values())
-      .filter((r) => !r.isHealthy).length;
-    const maintenanceCount = Array.from(this.healthResults.values())
-      .filter((r) => r.status === AgentStatus.MAINTENANCE).length;
-    const openBreakers = Array.from(this.circuitBreakers.values())
-      .filter((cb) => cb.state === 'open').length;
+    const healthyCount = Array.from(this.healthResults.values()).filter((r) => r.isHealthy).length;
+    const unhealthyCount = Array.from(this.healthResults.values()).filter(
+      (r) => !r.isHealthy,
+    ).length;
+    const maintenanceCount = Array.from(this.healthResults.values()).filter(
+      (r) => r.status === AgentStatus.MAINTENANCE,
+    ).length;
+    const openBreakers = Array.from(this.circuitBreakers.values()).filter(
+      (cb) => cb.state === 'open',
+    ).length;
 
     let status: SystemHealth['status'];
     if (unhealthyCount === 0 && openBreakers === 0) {
@@ -320,9 +316,7 @@ export class AgentHealthService implements OnModuleInit, OnModuleDestroy {
 
       return recovered;
     } catch (error) {
-      this.logger.error(
-        `Failed to recover agent ${agentId}: ${(error as Error).message}`,
-      );
+      this.logger.error(`Failed to recover agent ${agentId}: ${(error as Error).message}`);
       return false;
     }
   }
@@ -370,19 +364,21 @@ export class AgentHealthService implements OnModuleInit, OnModuleDestroy {
         cb.nextRetryTime = null;
         this.logger.log(`Circuit breaker CLOSED for agent ${agentId}`);
 
-        this.eventBus.publish({
-          type: AgentEventType.CIRCUIT_BREAKER_CLOSED,
-          sourceAgentId: 'health-service',
-          payload: {
-            agentId,
-            state: cb.state,
-            failureCount: cb.failureCount,
-            lastFailureTime: cb.lastFailureTime || new Date(),
-          },
-          priority: 1,
-          correlationId: agentId,
-          metadata: {},
-        }).catch(() => {});
+        this.eventBus
+          .publish({
+            type: AgentEventType.CIRCUIT_BREAKER_CLOSED,
+            sourceAgentId: 'health-service',
+            payload: {
+              agentId,
+              state: cb.state,
+              failureCount: cb.failureCount,
+              lastFailureTime: cb.lastFailureTime || new Date(),
+            },
+            priority: 1,
+            correlationId: agentId,
+            metadata: {},
+          })
+          .catch(() => {});
       }
     } else {
       cb.failureCount++;
@@ -403,19 +399,21 @@ export class AgentHealthService implements OnModuleInit, OnModuleDestroy {
         );
 
         // Emit circuit breaker event
-        this.eventBus.publish({
-          type: AgentEventType.CIRCUIT_BREAKER_OPENED,
-          sourceAgentId: 'health-service',
-          payload: {
-            agentId,
-            state: cb.state,
-            failureCount: cb.failureCount,
-            lastFailureTime: cb.lastFailureTime || new Date(),
-          },
-          priority: 2,
-          correlationId: agentId,
-          metadata: {},
-        }).catch(() => {});
+        this.eventBus
+          .publish({
+            type: AgentEventType.CIRCUIT_BREAKER_OPENED,
+            sourceAgentId: 'health-service',
+            payload: {
+              agentId,
+              state: cb.state,
+              failureCount: cb.failureCount,
+              lastFailureTime: cb.lastFailureTime || new Date(),
+            },
+            priority: 2,
+            correlationId: agentId,
+            metadata: {},
+          })
+          .catch(() => {});
       }
     }
   }

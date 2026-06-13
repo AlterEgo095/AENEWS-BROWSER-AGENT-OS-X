@@ -14,10 +14,10 @@ import { v4 as uuidv4 } from 'uuid';
 // ─── Type Definitions ──────────────────────────────────────────────
 
 export enum PlanningLevelType {
-  STRATEGIC = 'strategic',      // Top-level: mission goals, timeline, budget
-  OPERATIONAL = 'operational',   // Mid-level: sub-objectives, milestones
-  TACTICAL = 'tactical',         // Low-level: tasks, assignments
-  EXECUTION = 'execution',       // Bottom: atomic actions
+  STRATEGIC = 'strategic', // Top-level: mission goals, timeline, budget
+  OPERATIONAL = 'operational', // Mid-level: sub-objectives, milestones
+  TACTICAL = 'tactical', // Low-level: tasks, assignments
+  EXECUTION = 'execution', // Bottom: atomic actions
 }
 
 export interface PlanningLevel {
@@ -28,7 +28,7 @@ export interface PlanningLevel {
   objectives: PlanningObjective[];
   subPlans: LongHorizonPlan[];
   taskGraph: TaskGraphSnapshot | null;
-  dependencies: string[];        // IDs of other plans this depends on
+  dependencies: string[]; // IDs of other plans this depends on
   estimatedDurationMs: number;
   status: PlanStatus;
 }
@@ -48,8 +48,8 @@ export interface PlanningObjective {
   description: string;
   successCriteria: string[];
   priority: number;
-  assignedTo: string[];           // Agent IDs
-  dependencies: string[];         // Objective IDs
+  assignedTo: string[]; // Agent IDs
+  dependencies: string[]; // Objective IDs
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
 }
 
@@ -82,7 +82,7 @@ export interface ResourceRequirement {
 }
 
 export interface RiskAssessment {
-  overallRisk: number;           // 0-1
+  overallRisk: number; // 0-1
   risks: RiskItem[];
   mitigations: string[];
 }
@@ -105,10 +105,10 @@ export interface SimulationSnapshot {
 // ─── Internal / Extended Types ──────────────────────────────────────
 
 interface PlanConfig {
-  maxDepth?: number;             // Maximum decomposition depth (default 4)
-  defaultAgentId?: string;       // Fallback agent for assignments
-  timeBudgetMs?: number;         // Overall time budget
-  costBudget?: number;           // Overall cost budget
+  maxDepth?: number; // Maximum decomposition depth (default 4)
+  defaultAgentId?: string; // Fallback agent for assignments
+  timeBudgetMs?: number; // Overall time budget
+  costBudget?: number; // Overall cost budget
   monteCarloIterations?: number; // Simulation iterations (default 1000)
 }
 
@@ -167,17 +167,32 @@ interface FusionResult {
 // ─── Constants ──────────────────────────────────────────────────────
 
 const CONJUNCTION_MARKERS = [
-  ' and ', ' then ', ' after ', ' followed by ', ' before ',
-  ' while ', ' alongside ', ' once ', ' upon ',
+  ' and ',
+  ' then ',
+  ' after ',
+  ' followed by ',
+  ' before ',
+  ' while ',
+  ' alongside ',
+  ' once ',
+  ' upon ',
 ];
 const TEMPORAL_MARKERS = [
-  'first', 'second', 'third', 'finally', 'lastly',
-  'initially', 'subsequently', 'next', 'afterwards',
-  'before', 'after', 'during', 'meanwhile',
+  'first',
+  'second',
+  'third',
+  'finally',
+  'lastly',
+  'initially',
+  'subsequently',
+  'next',
+  'afterwards',
+  'before',
+  'after',
+  'during',
+  'meanwhile',
 ];
-const RESOURCE_BOUNDARIES = [
-  'using', 'with', 'requiring', 'utilizing', 'via', 'through',
-];
+const RESOURCE_BOUNDARIES = ['using', 'with', 'requiring', 'utilizing', 'via', 'through'];
 const DEFAULT_MAX_DEPTH = 4;
 const DEFAULT_MONTE_CARLO_ITERATIONS = 1000;
 const HISTORICAL_BASE_SUCCESS_RATE = 0.85;
@@ -206,11 +221,7 @@ export class LongHorizonPlanningService {
    * @param config          Optional planning configuration
    * @returns LongHorizonPlan  The newly created plan with all levels
    */
-  createPlan(
-    missionId: string,
-    missionDescription: string,
-    config?: PlanConfig,
-  ): LongHorizonPlan {
+  createPlan(missionId: string, missionDescription: string, config?: PlanConfig): LongHorizonPlan {
     const maxDepth = config?.maxDepth ?? DEFAULT_MAX_DEPTH;
     const planId = uuidv4();
 
@@ -229,7 +240,8 @@ export class LongHorizonPlanningService {
       subPlans: [],
       taskGraph: null,
       dependencies: [],
-      estimatedDurationMs: config?.timeBudgetMs ?? this.estimateObjectiveDuration(strategicObjectives),
+      estimatedDurationMs:
+        config?.timeBudgetMs ?? this.estimateObjectiveDuration(strategicObjectives),
       status: PlanStatus.DRAFT,
     };
 
@@ -267,9 +279,7 @@ export class LongHorizonPlanningService {
     }
 
     // Step 4: Build initial task graph for the execution level
-    const executionLevel = levels.find(
-      (l) => l.type === PlanningLevelType.EXECUTION,
-    );
+    const executionLevel = levels.find((l) => l.type === PlanningLevelType.EXECUTION);
     if (executionLevel) {
       executionLevel.taskGraph = this.buildTaskGraph(executionLevel.objectives);
     }
@@ -315,9 +325,7 @@ export class LongHorizonPlanningService {
    * @returns PlanningObjective[]  Array of child objectives
    */
   decomposeObjective(objective: PlanningObjective, depth: number): PlanningObjective[] {
-    this.logger.debug?.(
-      `Decomposing objective "${objective.description}" at depth ${depth}`,
-    );
+    this.logger.debug?.(`Decomposing objective "${objective.description}" at depth ${depth}`);
 
     const description = objective.description;
     const subDescriptions: string[] = [];
@@ -327,12 +335,18 @@ export class LongHorizonPlanningService {
 
     // Heuristic 2: If only one part, try temporal markers
     if (parts.length <= 1) {
-      parts = this.splitByMarkers(description, TEMPORAL_MARKERS.map((m) => ` ${m} `));
+      parts = this.splitByMarkers(
+        description,
+        TEMPORAL_MARKERS.map((m) => ` ${m} `),
+      );
     }
 
     // Heuristic 3: If still only one part, try resource boundaries
     if (parts.length <= 1) {
-      parts = this.splitByMarkers(description, RESOURCE_BOUNDARIES.map((m) => ` ${m} `));
+      parts = this.splitByMarkers(
+        description,
+        RESOURCE_BOUNDARIES.map((m) => ` ${m} `),
+      );
     }
 
     // Heuristic 4: If all heuristics fail, split by sentence boundaries
@@ -356,7 +370,8 @@ export class LongHorizonPlanningService {
         successCriteria: this.inferSuccessCriteria(desc),
         priority: Math.max(1, objective.priority - 1),
         assignedTo: [...objective.assignedTo],
-        dependencies: index > 0 ? [subObjectives[index - 1]?.id ?? objective.id].filter(Boolean) : [],
+        dependencies:
+          index > 0 ? [subObjectives[index - 1]?.id ?? objective.id].filter(Boolean) : [],
         status: 'pending' as const,
       };
     });
@@ -403,9 +418,7 @@ export class LongHorizonPlanningService {
 
     this.rebuildObjectiveIndex(plan);
 
-    this.logger.log(
-      `Level "${level.name}" added to plan ${planId} at position ${insertAt}`,
-    );
+    this.logger.log(`Level "${level.name}" added to plan ${planId} at position ${insertAt}`);
   }
 
   // ─── 4. refineLevel ───────────────────────────────────────────────
@@ -459,7 +472,9 @@ export class LongHorizonPlanningService {
           },
         ],
         totalEstimatedDurationMs: this.estimateObjectiveDuration(subObjectives),
-        resourceRequirements: this.estimateLevelResources([{ objectives: subObjectives } as PlanningLevel]),
+        resourceRequirements: this.estimateLevelResources([
+          { objectives: subObjectives } as PlanningLevel,
+        ]),
         riskAssessment: {
           overallRisk: 0.3,
           risks: [],
@@ -674,9 +689,7 @@ export class LongHorizonPlanningService {
     // Detect conflicts: same resource type needed at overlapping time windows
     const conflicts = this.detectResourceConflicts(merged);
     if (conflicts.length > 0) {
-      this.logger.warn(
-        `Resource conflicts detected in plan ${planId}: ${conflicts.join('; ')}`,
-      );
+      this.logger.warn(`Resource conflicts detected in plan ${planId}: ${conflicts.join('; ')}`);
     }
 
     // Update plan
@@ -802,12 +815,13 @@ export class LongHorizonPlanningService {
     }
 
     // Calculate overall risk score
-    const overallRisk = risks.length > 0
-      ? Math.min(
-          1,
-          risks.reduce((sum, r) => sum + r.probability * r.impact, 0) / Math.max(1, risks.length),
-        )
-      : 0.1;
+    const overallRisk =
+      risks.length > 0
+        ? Math.min(
+            1,
+            risks.reduce((sum, r) => sum + r.probability * r.impact, 0) / Math.max(1, risks.length),
+          )
+        : 0.1;
 
     const assessment: RiskAssessment = {
       overallRisk,
@@ -896,7 +910,8 @@ export class LongHorizonPlanningService {
         }
 
         // Account for parallelism within a level
-        const parallelism = level.taskGraph?.parallelismFactor ?? Math.max(1, level.objectives.length / 3);
+        const parallelism =
+          level.taskGraph?.parallelismFactor ?? Math.max(1, level.objectives.length / 3);
         levelTime = levelTime / parallelism;
 
         totalTime += levelTime;
@@ -1221,9 +1236,7 @@ export class LongHorizonPlanningService {
       throw new Error(`Plan with id "${planId}" not found`);
     }
 
-    this.logger.log(
-      `Fusing ${partialResults.size} partial results for plan ${planId}`,
-    );
+    this.logger.log(`Fusing ${partialResults.size} partial results for plan ${planId}`);
 
     const mergedObjectives: PlanningObjective[] = [];
     const conflicts: FusionResult['conflicts'] = [];
@@ -1414,8 +1427,17 @@ export class LongHorizonPlanningService {
 
     // Look for action verbs
     const actionVerbs = [
-      'create', 'build', 'deploy', 'implement', 'design', 'test',
-      'verify', 'validate', 'optimize', 'migrate', 'configure',
+      'create',
+      'build',
+      'deploy',
+      'implement',
+      'design',
+      'test',
+      'verify',
+      'validate',
+      'optimize',
+      'migrate',
+      'configure',
     ];
     for (const verb of actionVerbs) {
       if (description.toLowerCase().includes(verb)) {
@@ -1643,7 +1665,9 @@ export class LongHorizonPlanningService {
     // Priority increases focus (slightly faster for high priority)
     const priorityMultiplier = 1.2 - objective.priority * 0.05;
 
-    return Math.round(baseDuration * complexityMultiplier * criteriaMultiplier * Math.max(0.5, priorityMultiplier));
+    return Math.round(
+      baseDuration * complexityMultiplier * criteriaMultiplier * Math.max(0.5, priorityMultiplier),
+    );
   }
 
   /**
@@ -1651,7 +1675,7 @@ export class LongHorizonPlanningService {
    */
   private estimateSingleObjectiveCost(objective: PlanningObjective): number {
     // Base cost: $0.10 per objective, scaled by complexity
-    const baseCost = 0.10;
+    const baseCost = 0.1;
     const complexityMultiplier = 1 + Math.min(objective.description.length / 300, 2);
     const criteriaMultiplier = 1 + objective.successCriteria.length * 0.05;
     return baseCost * complexityMultiplier * criteriaMultiplier;
@@ -1799,10 +1823,7 @@ export class LongHorizonPlanningService {
           const b = entries[j];
 
           // Check for time window overlap
-          if (
-            a.timeWindow.start < b.timeWindow.end &&
-            b.timeWindow.start < a.timeWindow.end
-          ) {
+          if (a.timeWindow.start < b.timeWindow.end && b.timeWindow.start < a.timeWindow.end) {
             conflicts.push(
               `${type}: needed during overlapping windows ` +
                 `[${a.timeWindow.start}-${a.timeWindow.end}] and ` +
@@ -1960,10 +1981,7 @@ export class LongHorizonPlanningService {
   /**
    * Resolve a conflict between objectives with different outcomes.
    */
-  private resolveConflict(
-    objIds: string[],
-    objectives: PlanningObjective[],
-  ): string {
+  private resolveConflict(objIds: string[], objectives: PlanningObjective[]): string {
     const objs = objIds
       .map((id) => objectives.find((o) => o.id === id))
       .filter(Boolean) as PlanningObjective[];

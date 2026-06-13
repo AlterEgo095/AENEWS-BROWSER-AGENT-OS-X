@@ -31,11 +31,17 @@ import {
 // ─── Gateway-Specific Types ────────────────────────────────────────
 
 export const MEMORY_TIERS = [
-  'working', 'session', 'conversation', 'long_term',
-  'semantic', 'knowledge_graph', 'vector', 'archive',
+  'working',
+  'session',
+  'conversation',
+  'long_term',
+  'semantic',
+  'knowledge_graph',
+  'vector',
+  'archive',
 ] as const;
 
-export type MemoryGatewayTier = typeof MEMORY_TIERS[number];
+export type MemoryGatewayTier = (typeof MEMORY_TIERS)[number];
 
 export interface MemoryGatewayStoreOptions extends MemoryStoreOptions {
   autoTier?: boolean;
@@ -111,12 +117,17 @@ export class MemoryGatewayService implements IMemoryService {
         break;
       case 'knowledge_graph':
         this.kgNodes.set(entry.id, {
-          id: entry.id, label: key, properties: { agentId, value },
-          createdAt: new Date(), updatedAt: new Date(),
+          id: entry.id,
+          label: key,
+          properties: { agentId, value },
+          createdAt: new Date(),
+          updatedAt: new Date(),
         });
         break;
       case 'vector':
-        const vector = this.generateEmbedding(typeof value === 'string' ? value : JSON.stringify(value));
+        const vector = this.generateEmbedding(
+          typeof value === 'string' ? value : JSON.stringify(value),
+        );
         this.vectorIndex.set(entry.id, { vector, payload: { agentId, key, value, tier: tierStr } });
         break;
       case 'archive':
@@ -174,10 +185,16 @@ export class MemoryGatewayService implements IMemoryService {
         tier: this.toMemoryTier(vr.payload?.tier || 'vector'),
         agentId: vr.payload?.agentId || agentId || 'unknown',
         metadata: {
-          source: 'vector_search', confidence: vr.score || 0, tags: [],
-          accessCount: 0, lastAccessedAt: new Date(), size: 0, encoding: MemoryEncoding.JSON,
+          source: 'vector_search',
+          confidence: vr.score || 0,
+          tags: [],
+          accessCount: 0,
+          lastAccessedAt: new Date(),
+          size: 0,
+          encoding: MemoryEncoding.JSON,
         },
-        createdAt: new Date(), updatedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
     }
 
@@ -186,9 +203,10 @@ export class MemoryGatewayService implements IMemoryService {
     results.push(...keywordResults);
 
     const deduped = this.deduplicateResults(results).slice(0, limit);
-    const fusedScore = deduped.length > 0
-      ? deduped.reduce((sum, r) => sum + r.metadata.confidence, 0) / deduped.length
-      : 0;
+    const fusedScore =
+      deduped.length > 0
+        ? deduped.reduce((sum, r) => sum + r.metadata.confidence, 0) / deduped.length
+        : 0;
 
     return {
       entries: deduped,
@@ -198,10 +216,7 @@ export class MemoryGatewayService implements IMemoryService {
     };
   }
 
-  async summarize(
-    agentId: string,
-    key: string | string[],
-  ): Promise<MemorySummarizationResult> {
+  async summarize(agentId: string, key: string | string[]): Promise<MemorySummarizationResult> {
     const keys = Array.isArray(key) ? key : [key];
     const allEntries: MemoryEntry[] = [];
 
@@ -211,19 +226,37 @@ export class MemoryGatewayService implements IMemoryService {
     }
 
     if (allEntries.length === 0) {
-      const emptyEntry = this.createEntry(agentId, 'summary:empty', { summary: 'No data found', keyPoints: [] }, MemoryTier.WORKING);
-      return { originalCount: 0, summary: 'No data found', keyPoints: [], compressedEntry: emptyEntry };
+      const emptyEntry = this.createEntry(
+        agentId,
+        'summary:empty',
+        { summary: 'No data found', keyPoints: [] },
+        MemoryTier.WORKING,
+      );
+      return {
+        originalCount: 0,
+        summary: 'No data found',
+        keyPoints: [],
+        compressedEntry: emptyEntry,
+      };
     }
 
     const values = allEntries.map((e) => {
-      try { return typeof e.value === 'string' ? e.value : JSON.stringify(e.value); }
-      catch { return '[non-serializable]'; }
+      try {
+        return typeof e.value === 'string' ? e.value : JSON.stringify(e.value);
+      } catch {
+        return '[non-serializable]';
+      }
     });
 
     const summaryText = `Summary of ${allEntries.length} entries for [${keys.join(', ')}]: ${values.slice(0, 10).join('; ')}`;
     const keyPoints = values.slice(0, 5).map((v, i) => `Point ${i + 1}: ${v.substring(0, 200)}`);
 
-    const compressedEntry = this.createEntry(agentId, `summary:${keys.join(':')}`, { summary: summaryText, keyPoints, entryCount: allEntries.length }, MemoryTier.LONG_TERM);
+    const compressedEntry = this.createEntry(
+      agentId,
+      `summary:${keys.join(':')}`,
+      { summary: summaryText, keyPoints, entryCount: allEntries.length },
+      MemoryTier.LONG_TERM,
+    );
     this.storeInMap(this.longTermStore, agentId, `summary:${keys.join(':')}`, compressedEntry);
 
     return { originalCount: allEntries.length, summary: summaryText, keyPoints, compressedEntry };
@@ -238,23 +271,25 @@ export class MemoryGatewayService implements IMemoryService {
     const entry = await this.retrieveFromTier(agentId, key, from);
     if (!entry) return { from, to, key, success: false };
 
-    await this.store(agentId, key, entry.value, to as MemoryGatewayTier, { tags: entry.metadata.tags, confidence: entry.metadata.confidence });
+    await this.store(agentId, key, entry.value, to as MemoryGatewayTier, {
+      tags: entry.metadata.tags,
+      confidence: entry.metadata.confidence,
+    });
     await this.deleteFromTier(agentId, key, from);
 
     this.logger.log(`Promoted ${key} from ${from} to ${to} for agent ${agentId}`);
     return { from, to, key, success: true };
   }
 
-  async archive(
-    agentId: string,
-    key: string,
-    sourceTier?: string,
-  ): Promise<boolean> {
+  async archive(agentId: string, key: string, sourceTier?: string): Promise<boolean> {
     const tier = sourceTier || 'long_term';
     const entry = await this.retrieveFromTier(agentId, key, tier);
     if (!entry) return false;
 
-    await this.store(agentId, `archived:${key}`, entry.value, 'archive' as MemoryGatewayTier, { tags: [...(entry.metadata.tags || []), 'archived'], confidence: entry.metadata.confidence });
+    await this.store(agentId, `archived:${key}`, entry.value, 'archive' as MemoryGatewayTier, {
+      tags: [...(entry.metadata.tags || []), 'archived'],
+      confidence: entry.metadata.confidence,
+    });
     await this.deleteFromTier(agentId, key, tier);
 
     this.logger.log(`Archived ${key} from ${tier} for agent ${agentId}`);
@@ -317,10 +352,22 @@ export class MemoryGatewayService implements IMemoryService {
       for (const [, node] of this.kgNodes) {
         if (node.properties?.agentId === agentId && this.nodeMatchesQuery(node, query)) {
           results.push({
-            id: node.id, key: node.label, value: node.properties?.value,
-            tier: MemoryTier.KNOWLEDGE_GRAPH, agentId,
-            metadata: { source: 'knowledge_graph', confidence: 0.8, tags: [], accessCount: 0, lastAccessedAt: new Date(), size: 0, encoding: MemoryEncoding.JSON },
-            createdAt: node.createdAt, updatedAt: node.updatedAt,
+            id: node.id,
+            key: node.label,
+            value: node.properties?.value,
+            tier: MemoryTier.KNOWLEDGE_GRAPH,
+            agentId,
+            metadata: {
+              source: 'knowledge_graph',
+              confidence: 0.8,
+              tags: [],
+              accessCount: 0,
+              lastAccessedAt: new Date(),
+              size: 0,
+              encoding: MemoryEncoding.JSON,
+            },
+            createdAt: node.createdAt,
+            updatedAt: node.updatedAt,
           });
         }
       }
@@ -335,10 +382,22 @@ export class MemoryGatewayService implements IMemoryService {
       for (const vr of vectorResults) {
         if (vr.score && vr.score >= minConfidence) {
           results.push({
-            id: vr.id, key: vr.payload?.key || 'vector', value: vr.payload?.value,
-            tier: MemoryTier.VECTOR, agentId: vr.payload?.agentId || agentId,
-            metadata: { source: 'vector_search', confidence: vr.score, tags: [], accessCount: 0, lastAccessedAt: new Date(), size: 0, encoding: MemoryEncoding.EMBEDDING },
-            createdAt: new Date(), updatedAt: new Date(),
+            id: vr.id,
+            key: vr.payload?.key || 'vector',
+            value: vr.payload?.value,
+            tier: MemoryTier.VECTOR,
+            agentId: vr.payload?.agentId || agentId,
+            metadata: {
+              source: 'vector_search',
+              confidence: vr.score,
+              tags: [],
+              accessCount: 0,
+              lastAccessedAt: new Date(),
+              size: 0,
+              encoding: MemoryEncoding.EMBEDDING,
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
           });
         }
       }
@@ -346,8 +405,13 @@ export class MemoryGatewayService implements IMemoryService {
       totalSearched += this.vectorIndex.size;
     }
 
-    const fused = this.deduplicateResults(results).sort((a, b) => b.metadata.confidence - a.metadata.confidence);
-    const fusedScore = fused.length > 0 ? fused.reduce((sum, r) => sum + r.metadata.confidence, 0) / fused.length : 0;
+    const fused = this.deduplicateResults(results).sort(
+      (a, b) => b.metadata.confidence - a.metadata.confidence,
+    );
+    const fusedScore =
+      fused.length > 0
+        ? fused.reduce((sum, r) => sum + r.metadata.confidence, 0) / fused.length
+        : 0;
 
     return { entries: fused, fusedScore, sourceTiers: searchedTiers, totalSearched };
   }
@@ -379,10 +443,18 @@ export class MemoryGatewayService implements IMemoryService {
     const total = results.length;
     const offset = query.offset || 0;
     const limit = query.limit || 50;
-    return { entries: results.slice(offset, offset + limit), total, hasMore: offset + limit < total };
+    return {
+      entries: results.slice(offset, offset + limit),
+      total,
+      hasMore: offset + limit < total,
+    };
   }
 
-  async delete(agentId: string, key: string, tier?: MemoryTier | MemoryGatewayTier): Promise<boolean> {
+  async delete(
+    agentId: string,
+    key: string,
+    tier?: MemoryTier | MemoryGatewayTier,
+  ): Promise<boolean> {
     const tiers = tier ? [tier as string] : ['working', 'session', 'long_term'];
     let deleted = false;
     for (const t of tiers) {
@@ -399,7 +471,10 @@ export class MemoryGatewayService implements IMemoryService {
 
     for (const store of stores) {
       const data = store?.get(agentId);
-      if (data) { count += data.size; data.clear(); }
+      if (data) {
+        count += data.size;
+        data.clear();
+      }
     }
     return count;
   }
@@ -411,14 +486,26 @@ export class MemoryGatewayService implements IMemoryService {
     return {
       agentId,
       tierStats: {
-        [MemoryTier.WORKING]: { entryCount: working?.size || 0, totalSizeBytes: (working?.size || 0) * 1024 },
+        [MemoryTier.WORKING]: {
+          entryCount: working?.size || 0,
+          totalSizeBytes: (working?.size || 0) * 1024,
+        },
         [MemoryTier.SESSION]: { entryCount: 0, totalSizeBytes: 0 },
-        [MemoryTier.LONG_TERM]: { entryCount: longTerm?.size || 0, totalSizeBytes: (longTerm?.size || 0) * 2048 },
-        [MemoryTier.KNOWLEDGE_GRAPH]: { entryCount: this.kgNodes.size, totalSizeBytes: this.kgNodes.size * 4096 },
-        [MemoryTier.VECTOR]: { entryCount: this.vectorIndex.size, totalSizeBytes: this.vectorIndex.size * 4096 },
+        [MemoryTier.LONG_TERM]: {
+          entryCount: longTerm?.size || 0,
+          totalSizeBytes: (longTerm?.size || 0) * 2048,
+        },
+        [MemoryTier.KNOWLEDGE_GRAPH]: {
+          entryCount: this.kgNodes.size,
+          totalSizeBytes: this.kgNodes.size * 4096,
+        },
+        [MemoryTier.VECTOR]: {
+          entryCount: this.vectorIndex.size,
+          totalSizeBytes: this.vectorIndex.size * 4096,
+        },
       },
       totalEntries: (working?.size || 0) + (longTerm?.size || 0),
-      totalSizeBytes: ((working?.size || 0) * 1024) + ((longTerm?.size || 0) * 2048),
+      totalSizeBytes: (working?.size || 0) * 1024 + (longTerm?.size || 0) * 2048,
     };
   }
 
@@ -437,7 +524,12 @@ export class MemoryGatewayService implements IMemoryService {
     return mapping[tierStr] || MemoryTier.WORKING;
   }
 
-  private selectTier<T>(agentId: string, key: string, value: T, options?: MemoryGatewayStoreOptions): string {
+  private selectTier<T>(
+    agentId: string,
+    key: string,
+    value: T,
+    options?: MemoryGatewayStoreOptions,
+  ): string {
     if (options?.ttlMs && options.ttlMs <= 5 * 60 * 1000) return 'working';
     if (options?.sessionId) return 'session';
     if (options?.importance && options.importance >= 0.8) return 'semantic';
@@ -448,24 +540,51 @@ export class MemoryGatewayService implements IMemoryService {
     return 'long_term';
   }
 
-  private createEntry<T>(agentId: string, key: string, value: T, tier: MemoryTier, options?: MemoryGatewayStoreOptions): MemoryEntry<T> {
+  private createEntry<T>(
+    agentId: string,
+    key: string,
+    value: T,
+    tier: MemoryTier,
+    options?: MemoryGatewayStoreOptions,
+  ): MemoryEntry<T> {
     const now = new Date();
     return {
-      id: uuidv4(), key, value, tier, agentId,
-      sessionId: options?.sessionId, correlationId: options?.correlationId,
-      metadata: { source: `memory_gateway:${tier}`, confidence: options?.confidence ?? 1.0, tags: options?.tags || [], accessCount: 0, lastAccessedAt: now, size: this.estimateSize(value), encoding: options?.encoding || MemoryEncoding.JSON },
-      createdAt: now, updatedAt: now, expiresAt: options?.ttlMs ? new Date(now.getTime() + options.ttlMs) : undefined,
+      id: uuidv4(),
+      key,
+      value,
+      tier,
+      agentId,
+      sessionId: options?.sessionId,
+      correlationId: options?.correlationId,
+      metadata: {
+        source: `memory_gateway:${tier}`,
+        confidence: options?.confidence ?? 1.0,
+        tags: options?.tags || [],
+        accessCount: 0,
+        lastAccessedAt: now,
+        size: this.estimateSize(value),
+        encoding: options?.encoding || MemoryEncoding.JSON,
+      },
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: options?.ttlMs ? new Date(now.getTime() + options.ttlMs) : undefined,
     };
   }
 
-  private storeInMap(store: Map<string, Map<string, any>>, agentId: string, key: string, entry: any): void {
+  private storeInMap(
+    store: Map<string, Map<string, any>>,
+    agentId: string,
+    key: string,
+    entry: any,
+  ): void {
     if (!store.has(agentId)) store.set(agentId, new Map());
     store.get(agentId)!.set(key, entry);
   }
 
   private storeInSessionMap(sessionId: string, agentId: string, key: string, entry: any): void {
     if (!this.sessionStore.has(sessionId)) this.sessionStore.set(sessionId, new Map());
-    if (!this.sessionStore.get(sessionId)!.has(agentId)) this.sessionStore.get(sessionId)!.set(agentId, new Map());
+    if (!this.sessionStore.get(sessionId)!.has(agentId))
+      this.sessionStore.get(sessionId)!.set(agentId, new Map());
     this.sessionStore.get(sessionId)!.get(agentId)!.set(key, entry);
   }
 
@@ -474,42 +593,63 @@ export class MemoryGatewayService implements IMemoryService {
     this.conversationStore.get(conversationId)!.push(entry);
   }
 
-  private async retrieveFromTier<T>(agentId: string, key: string, tier: string): Promise<MemoryEntry<T> | null> {
+  private async retrieveFromTier<T>(
+    agentId: string,
+    key: string,
+    tier: string,
+  ): Promise<MemoryEntry<T> | null> {
     switch (tier) {
-      case 'working': return this.workingStore.get(agentId)?.get(key) || null;
-      case 'long_term': return this.longTermStore.get(agentId)?.get(key) || null;
-      case 'semantic': return this.semanticStore.get(agentId)?.get(key) || null;
-      case 'archive': return this.archiveStore.get(agentId)?.get(key) || null;
+      case 'working':
+        return this.workingStore.get(agentId)?.get(key) || null;
+      case 'long_term':
+        return this.longTermStore.get(agentId)?.get(key) || null;
+      case 'semantic':
+        return this.semanticStore.get(agentId)?.get(key) || null;
+      case 'archive':
+        return this.archiveStore.get(agentId)?.get(key) || null;
       case 'session':
         for (const [, agentMap] of this.sessionStore) {
           const data = agentMap.get(agentId);
           if (data?.has(key)) return data.get(key);
-        } return null;
-      default: return null;
+        }
+        return null;
+      default:
+        return null;
     }
   }
 
   private deleteFromTier(agentId: string, key: string, tier: string): boolean {
     switch (tier) {
-      case 'working': return this.workingStore.get(agentId)?.delete(key) || false;
-      case 'long_term': return this.longTermStore.get(agentId)?.delete(key) || false;
-      case 'semantic': return this.semanticStore.get(agentId)?.delete(key) || false;
-      case 'archive': return this.archiveStore.get(agentId)?.delete(key) || false;
+      case 'working':
+        return this.workingStore.get(agentId)?.delete(key) || false;
+      case 'long_term':
+        return this.longTermStore.get(agentId)?.delete(key) || false;
+      case 'semantic':
+        return this.semanticStore.get(agentId)?.delete(key) || false;
+      case 'archive':
+        return this.archiveStore.get(agentId)?.delete(key) || false;
       case 'session':
         for (const [, agentMap] of this.sessionStore) {
           if (agentMap.get(agentId)?.delete(key)) return true;
-        } return false;
-      default: return false;
+        }
+        return false;
+      default:
+        return false;
     }
   }
 
   private getStoreForTier(tier: string): Map<string, Map<string, any>> | null {
     switch (tier) {
-      case 'working': return this.workingStore;
-      case 'long_term': return this.longTermStore;
-      case 'semantic': return this.semanticStore;
-      case 'archive': return this.archiveStore;
-      default: return null;
+      case 'working':
+        return this.workingStore;
+      case 'long_term':
+        return this.longTermStore;
+      case 'semantic':
+        return this.semanticStore;
+      case 'archive':
+        return this.archiveStore;
+      default:
+        return null;
     }
   }
 
@@ -518,14 +658,19 @@ export class MemoryGatewayService implements IMemoryService {
     const dim = 128;
     for (let i = 0; i < dim; i++) {
       let hash = 0;
-      for (let j = 0; j < text.length; j++) { hash = ((hash << 5) - hash + text.charCodeAt(j) + i) | 0; }
+      for (let j = 0; j < text.length; j++) {
+        hash = ((hash << 5) - hash + text.charCodeAt(j) + i) | 0;
+      }
       vector.push((Math.abs(hash) % 1000) / 1000);
     }
     const magnitude = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0)) || 1;
     return vector.map((v) => v / magnitude);
   }
 
-  private searchVectorIndex(queryVector: number[], limit: number): Array<{ id: string; score: number; payload: any }> {
+  private searchVectorIndex(
+    queryVector: number[],
+    limit: number,
+  ): Array<{ id: string; score: number; payload: any }> {
     const results: Array<{ id: string; score: number; payload: any }> = [];
     for (const [id, { vector, payload }] of this.vectorIndex) {
       results.push({ id, score: this.cosineSimilarity(queryVector, vector), payload });
@@ -535,8 +680,14 @@ export class MemoryGatewayService implements IMemoryService {
 
   private cosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) return 0;
-    let dot = 0, normA = 0, normB = 0;
-    for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; normA += a[i] * a[i]; normB += b[i] * b[i]; }
+    let dot = 0,
+      normA = 0,
+      normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
     return dot / (Math.sqrt(normA) * Math.sqrt(normB) || 1);
   }
 
@@ -548,7 +699,10 @@ export class MemoryGatewayService implements IMemoryService {
     const ltData = agentId ? this.longTermStore.get(agentId) : undefined;
     if (ltData) {
       for (const [, entry] of ltData) {
-        const valueStr = typeof entry.value === 'string' ? entry.value.toLowerCase() : JSON.stringify(entry.value).toLowerCase();
+        const valueStr =
+          typeof entry.value === 'string'
+            ? entry.value.toLowerCase()
+            : JSON.stringify(entry.value).toLowerCase();
         if (entry.key?.toLowerCase().includes(queryLower) || valueStr.includes(queryLower)) {
           results.push(entry);
           if (results.length >= maxResults) return results;
@@ -562,21 +716,37 @@ export class MemoryGatewayService implements IMemoryService {
     const queryLower = query.toLowerCase();
     try {
       const valueStr = typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value);
-      return entry.key?.toLowerCase().includes(queryLower) || valueStr.toLowerCase().includes(queryLower);
-    } catch { return false; }
+      return (
+        entry.key?.toLowerCase().includes(queryLower) || valueStr.toLowerCase().includes(queryLower)
+      );
+    } catch {
+      return false;
+    }
   }
 
   private nodeMatchesQuery(node: KnowledgeNode, query: string): boolean {
     const queryLower = query.toLowerCase();
-    return node.label.toLowerCase().includes(queryLower) || JSON.stringify(node.properties).toLowerCase().includes(queryLower);
+    return (
+      node.label.toLowerCase().includes(queryLower) ||
+      JSON.stringify(node.properties).toLowerCase().includes(queryLower)
+    );
   }
 
   private deduplicateResults(results: MemoryEntry[]): MemoryEntry[] {
     const seen = new Set<string>();
-    return results.filter((r) => { const key = `${r.agentId}:${r.key}`; if (seen.has(key)) return false; seen.add(key); return true; });
+    return results.filter((r) => {
+      const key = `${r.agentId}:${r.key}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   private estimateSize(value: any): number {
-    try { return JSON.stringify(value).length * 2; } catch { return 1024; }
+    try {
+      return JSON.stringify(value).length * 2;
+    } catch {
+      return 1024;
+    }
   }
 }

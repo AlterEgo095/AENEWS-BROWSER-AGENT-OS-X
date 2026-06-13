@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Interface Barrel Export
- * 
+ *
  * 3 concepts: Mission, Capabilities, Ephemeral Workers
  * 10 kernel services, 64 capabilities in 6 packs, dynamic worker creation
  */

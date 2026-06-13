@@ -4,13 +4,11 @@
  * cross-tier retrieval, cache efficiency, and memory lifecycle management.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const MEMORY_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Memory tier or system to audit' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -107,7 +109,12 @@ export const MEMORY_AUDITOR_CONFIG: AgentConfig = {
 interface MemoryIssue {
   id: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  category: 'tier_consistency' | 'gateway_routing' | 'ttl_violation' | 'eviction_policy' | 'retrieval_accuracy';
+  category:
+    | 'tier_consistency'
+    | 'gateway_routing'
+    | 'ttl_violation'
+    | 'eviction_policy'
+    | 'retrieval_accuracy';
   description: string;
   tier: string;
 }
@@ -116,6 +123,11 @@ interface MemoryIssue {
 
 @Injectable()
 export class MemoryAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private memoryAuditLog: MemoryIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -126,8 +138,7 @@ export class MemoryAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-memory',
       description: 'Perform a comprehensive memory system audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
@@ -140,23 +151,42 @@ export class MemoryAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-gateway',
       description: 'Audit memory gateway operations and routing',
-      execute: async (gatewayId?: string) =>
-        this.auditGateway(gatewayId),
+      execute: async (gatewayId?: string) => this.auditGateway(gatewayId),
     });
 
     this.registerTool({
       name: 'audit-cross-tier-retrieval',
       description: 'Audit cross-tier memory retrieval accuracy and latency',
-      execute: async (testQueries?: number) =>
-        this.auditCrossTierRetrieval(testQueries),
+      execute: async (testQueries?: number) => this.auditCrossTierRetrieval(testQueries),
     });
 
     this.logger.log('MemoryAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real data privacy connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.DATA_PRIVACY, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -178,13 +208,7 @@ export class MemoryAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -201,7 +225,13 @@ export class MemoryAuditorAgent extends BaseAgentService {
     const recommendations: string[] = [];
 
     const tiers = ['working', 'session', 'long_term'] as const;
-    const categories = ['tier_consistency', 'gateway_routing', 'ttl_violation', 'eviction_policy', 'retrieval_accuracy'] as const;
+    const categories = [
+      'tier_consistency',
+      'gateway_routing',
+      'ttl_violation',
+      'eviction_policy',
+      'retrieval_accuracy',
+    ] as const;
     const auditDepth = depth === 'exhaustive' ? 8 : depth === 'deep' ? 5 : 3;
 
     for (let i = 0; i < auditDepth; i++) {
@@ -216,19 +246,36 @@ export class MemoryAuditorAgent extends BaseAgentService {
       this.memoryAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'tier_consistency')) {
-      recommendations.push('Ensure data consistency across memory tiers with write-through or write-behind strategies');
+      recommendations.push(
+        'Ensure data consistency across memory tiers with write-through or write-behind strategies',
+      );
     }
     if (issues.some((i) => i.category === 'ttl_violation')) {
-      recommendations.push('Enforce TTL policies and implement automated cleanup for expired entries');
+      recommendations.push(
+        'Enforce TTL policies and implement automated cleanup for expired entries',
+      );
     }
     if (issues.some((i) => i.category === 'retrieval_accuracy')) {
-      recommendations.push('Improve vector search indexing and query optimization for cross-tier retrieval');
+      recommendations.push(
+        'Improve vector search indexing and query optimization for cross-tier retrieval',
+      );
     }
 
     this.logger.log(
@@ -243,9 +290,21 @@ export class MemoryAuditorAgent extends BaseAgentService {
     checkEviction: boolean = true,
   ): Promise<{ tierHealth: Record<string, any>; consistencyScore: number }> {
     const tierHealth: Record<string, any> = {
-      working: { entries: Math.floor(Math.random() * 500), hitRate: Math.round(Math.random() * 40 + 60), avgTTL: 300 },
-      session: { entries: Math.floor(Math.random() * 200), hitRate: Math.round(Math.random() * 30 + 50), avgTTL: 1800 },
-      long_term: { entries: Math.floor(Math.random() * 1000), hitRate: Math.round(Math.random() * 20 + 40), avgTTL: Infinity },
+      working: {
+        entries: Math.floor(Math.random() * 500),
+        hitRate: Math.round(Math.random() * 40 + 60),
+        avgTTL: 300,
+      },
+      session: {
+        entries: Math.floor(Math.random() * 200),
+        hitRate: Math.round(Math.random() * 30 + 50),
+        avgTTL: 1800,
+      },
+      long_term: {
+        entries: Math.floor(Math.random() * 1000),
+        hitRate: Math.round(Math.random() * 20 + 40),
+        avgTTL: Infinity,
+      },
     };
 
     if (checkTTL) {
@@ -294,9 +353,7 @@ export class MemoryAuditorAgent extends BaseAgentService {
     return { gatewayScore, routingIssues };
   }
 
-  private async auditCrossTierRetrieval(
-    testQueries: number = 50,
-  ): Promise<{
+  private async auditCrossTierRetrieval(testQueries: number = 50): Promise<{
     retrievalAccuracy: number;
     avgRetrievalTimeMs: number;
     tierHitRates: Record<string, number>;
@@ -307,9 +364,10 @@ export class MemoryAuditorAgent extends BaseAgentService {
       long_term: Math.round(Math.random() * 20 + 30),
     };
 
-    const retrievalAccuracy = Math.round(
-      ((tierHitRates.working + tierHitRates.session + tierHitRates.long_term) / 3) * 100,
-    ) / 100;
+    const retrievalAccuracy =
+      Math.round(
+        ((tierHitRates.working + tierHitRates.session + tierHitRates.long_term) / 3) * 100,
+      ) / 100;
 
     const avgRetrievalTimeMs = Math.round(
       (tierHitRates.working * 2 + tierHitRates.session * 10 + tierHitRates.long_term * 50) / 3,

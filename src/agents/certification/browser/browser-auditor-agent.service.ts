@@ -4,13 +4,11 @@
  * and browser resource lifecycle across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const BROWSER_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Browser agent or system to audit' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -48,7 +50,11 @@ export const BROWSER_AUDITOR_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          testUrls: { type: 'array', items: { type: 'string' }, description: 'URLs to test navigation' },
+          testUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'URLs to test navigation',
+          },
         },
       },
       outputSchema: {
@@ -116,6 +122,11 @@ interface BrowserIssue {
 
 @Injectable()
 export class BrowserAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private browserAuditLog: BrowserIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -126,15 +137,13 @@ export class BrowserAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-browser',
       description: 'Perform a comprehensive browser agent system audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
       name: 'audit-navigation',
       description: 'Audit browser navigation agent behavior',
-      execute: async (testUrls?: string[]) =>
-        this.auditNavigation(testUrls),
+      execute: async (testUrls?: string[]) => this.auditNavigation(testUrls),
     });
 
     this.registerTool({
@@ -147,16 +156,36 @@ export class BrowserAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-cookie-management',
       description: 'Audit cookie handling and security',
-      execute: async (domain?: string) =>
-        this.auditCookieManagement(domain),
+      execute: async (domain?: string) => this.auditCookieManagement(domain),
     });
 
     this.logger.log('BrowserAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real accessibility connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.ACCESSIBILITY, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -178,13 +207,7 @@ export class BrowserAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -201,7 +224,14 @@ export class BrowserAuditorAgent extends BaseAgentService {
     const recommendations: string[] = [];
 
     const categories = ['navigation', 'session', 'cookie', 'resource', 'security'] as const;
-    const browserAgents = ['navigation', 'click', 'screenshot', 'form-filling', 'session-management', 'data-extraction'];
+    const browserAgents = [
+      'navigation',
+      'click',
+      'screenshot',
+      'form-filling',
+      'session-management',
+      'data-extraction',
+    ];
     const auditDepth = depth === 'exhaustive' ? 8 : depth === 'deep' ? 5 : 3;
 
     for (let i = 0; i < auditDepth; i++) {
@@ -216,10 +246,21 @@ export class BrowserAuditorAgent extends BaseAgentService {
       this.browserAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'navigation')) {
       recommendations.push('Implement retry logic and timeout handling for navigation failures');
@@ -249,14 +290,19 @@ export class BrowserAuditorAgent extends BaseAgentService {
       if (!success) {
         failedNavigations.push({
           url,
-          error: ['timeout', 'dns_failure', 'ssl_error', 'redirect_loop'][Math.floor(Math.random() * 4)],
+          error: ['timeout', 'dns_failure', 'ssl_error', 'redirect_loop'][
+            Math.floor(Math.random() * 4)
+          ],
           timestamp: new Date(),
           retryable: Math.random() > 0.3,
         });
       }
     }
 
-    const navigationScore = Math.max(0, Math.round((1 - failedNavigations.length / urls.length) * 100));
+    const navigationScore = Math.max(
+      0,
+      Math.round((1 - failedNavigations.length / urls.length) * 100),
+    );
 
     this.logger.log(
       `Navigation audit: score ${navigationScore}, ${failedNavigations.length} failed`,

@@ -213,13 +213,8 @@ export class MissionGraphService {
   ): MissionObjective {
     const mission = this.getMissionOrThrow(missionId);
 
-    if (
-      mission.status !== MissionStatus.DRAFT &&
-      mission.status !== MissionStatus.SIMULATING
-    ) {
-      throw new Error(
-        `Cannot add objective to mission ${missionId}: status is ${mission.status}`,
-      );
+    if (mission.status !== MissionStatus.DRAFT && mission.status !== MissionStatus.SIMULATING) {
+      throw new Error(`Cannot add objective to mission ${missionId}: status is ${mission.status}`);
     }
 
     const fullObjective: MissionObjective = {
@@ -252,10 +247,7 @@ export class MissionGraphService {
   ): MissionObjective {
     const mission = this.getMissionOrThrow(missionId);
 
-    if (
-      mission.status !== MissionStatus.DRAFT &&
-      mission.status !== MissionStatus.SIMULATING
-    ) {
+    if (mission.status !== MissionStatus.DRAFT && mission.status !== MissionStatus.SIMULATING) {
       throw new Error(
         `Cannot add sub-objective to mission ${missionId}: status is ${mission.status}`,
       );
@@ -263,9 +255,7 @@ export class MissionGraphService {
 
     const parent = this.findObjectiveRecursive(mission.objectives, parentObjectiveId);
     if (!parent) {
-      throw new Error(
-        `Parent objective ${parentObjectiveId} not found in mission ${missionId}`,
-      );
+      throw new Error(`Parent objective ${parentObjectiveId} not found in mission ${missionId}`);
     }
 
     const fullSubObjective: MissionObjective = {
@@ -303,9 +293,7 @@ export class MissionGraphService {
     const mission = this.getMissionOrThrow(missionId);
 
     if (mission.objectives.length === 0) {
-      throw new Error(
-        `Cannot build task graph for mission ${missionId}: no objectives defined`,
-      );
+      throw new Error(`Cannot build task graph for mission ${missionId}: no objectives defined`);
     }
 
     const nodes = new Map<string, MissionTaskNode>();
@@ -406,10 +394,7 @@ export class MissionGraphService {
     mission.updatedAt = new Date();
 
     // Transition status if appropriate
-    if (
-      mission.status === MissionStatus.DRAFT ||
-      mission.status === MissionStatus.SIMULATING
-    ) {
+    if (mission.status === MissionStatus.DRAFT || mission.status === MissionStatus.SIMULATING) {
       mission.status = MissionStatus.APPROVED;
       this.logger.log(`Mission ${missionId} status → APPROVED`);
     }
@@ -441,17 +426,11 @@ export class MissionGraphService {
    *
    * If the entire mission is complete, builds the result graph automatically.
    */
-  advanceExecution(
-    missionId: string,
-    completedNodeId: string,
-    result: any,
-  ): string[] {
+  advanceExecution(missionId: string, completedNodeId: string, result: any): string[] {
     const mission = this.getMissionOrThrow(missionId);
 
     if (!mission.taskGraph || !mission.executionGraph) {
-      throw new Error(
-        `Mission ${missionId} has no task graph or execution graph`,
-      );
+      throw new Error(`Mission ${missionId} has no task graph or execution graph`);
     }
 
     if (mission.status !== MissionStatus.APPROVED && mission.status !== MissionStatus.IN_PROGRESS) {
@@ -495,8 +474,8 @@ export class MissionGraphService {
 
     // Check if current level is fully complete
     const currentLevelNodes = executionGraph.executionOrder[executionGraph.currentLevel] ?? [];
-    const allCurrentLevelComplete = currentLevelNodes.every((nid) =>
-      executionGraph.completedNodes.has(nid) || executionGraph.failedNodes.has(nid),
+    const allCurrentLevelComplete = currentLevelNodes.every(
+      (nid) => executionGraph.completedNodes.has(nid) || executionGraph.failedNodes.has(nid),
     );
 
     if (!allCurrentLevelComplete) {
@@ -592,9 +571,7 @@ export class MissionGraphService {
 
     mission.updatedAt = new Date();
 
-    this.logger.warn(
-      `Node ${nodeId} failed in mission ${missionId}: ${JSON.stringify(error)}`,
-    );
+    this.logger.warn(`Node ${nodeId} failed in mission ${missionId}: ${JSON.stringify(error)}`);
 
     // --- Cascade failure to dependent nodes ---
     const dependentEdges = taskGraph.edges.filter((e) => e.fromId === nodeId);
@@ -613,9 +590,7 @@ export class MissionGraphService {
         ) {
           dependentNode.status = MissionTaskStatus.BLOCKED;
           cascadeQueue.push(edge.toId);
-          this.logger.warn(
-            `Node ${edge.toId} BLOCKED due to hard dependency failure on ${nodeId}`,
-          );
+          this.logger.warn(`Node ${edge.toId} BLOCKED due to hard dependency failure on ${nodeId}`);
         }
       } else {
         // Soft / resource dependency: warn but don't block
@@ -644,9 +619,7 @@ export class MissionGraphService {
         ) {
           depNode.status = MissionTaskStatus.BLOCKED;
           cascadeQueue.push(edge.toId);
-          this.logger.warn(
-            `Node ${edge.toId} BLOCKED (cascaded from ${blockedNodeId})`,
-          );
+          this.logger.warn(`Node ${edge.toId} BLOCKED (cascaded from ${blockedNodeId})`);
         }
       }
     }
@@ -669,9 +642,7 @@ export class MissionGraphService {
       mission.status = MissionStatus.FAILED;
       mission.completedAt = new Date();
       mission.updatedAt = new Date();
-      this.logger.error(
-        `Mission ${missionId} status → FAILED due to objective failure`,
-      );
+      this.logger.error(`Mission ${missionId} status → FAILED due to objective failure`);
     }
   }
 
@@ -734,7 +705,8 @@ export class MissionGraphService {
     }
 
     // Overall success: all root objectives are completed (progress >= 1)
-    const overallSuccess = mission.objectives.length > 0 && completedObjectives === mission.objectives.length;
+    const overallSuccess =
+      mission.objectives.length > 0 && completedObjectives === mission.objectives.length;
 
     const resultGraph: ResultGraph = {
       results,
@@ -894,15 +866,10 @@ export class MissionGraphService {
 
     const objective = this.findObjectiveRecursive(mission.objectives, objectiveId);
     if (!objective) {
-      throw new Error(
-        `Objective ${objectiveId} not found in mission ${missionId}`,
-      );
+      throw new Error(`Objective ${objectiveId} not found in mission ${missionId}`);
     }
 
-    const progress = this.calculateObjectiveProgress(
-      objective,
-      mission.taskGraph,
-    );
+    const progress = this.calculateObjectiveProgress(objective, mission.taskGraph);
 
     objective.progress = Math.round(progress * 1000) / 1000;
 
@@ -929,13 +896,8 @@ export class MissionGraphService {
   cancelMission(missionId: string): MissionDefinition {
     const mission = this.getMissionOrThrow(missionId);
 
-    if (
-      mission.status === MissionStatus.COMPLETED ||
-      mission.status === MissionStatus.CANCELLED
-    ) {
-      throw new Error(
-        `Cannot cancel mission ${missionId}: already ${mission.status}`,
-      );
+    if (mission.status === MissionStatus.COMPLETED || mission.status === MissionStatus.CANCELLED) {
+      throw new Error(`Cannot cancel mission ${missionId}: already ${mission.status}`);
     }
 
     // Mark all running/ready/pending nodes as SKIPPED
@@ -1107,10 +1069,7 @@ export class MissionGraphService {
    * Topological sort using Kahn's algorithm.
    * Returns an array of node IDs in topological order.
    */
-  private topologicalSort(
-    nodes: Map<string, MissionTaskNode>,
-    edges: MissionTaskEdge[],
-  ): string[] {
+  private topologicalSort(nodes: Map<string, MissionTaskNode>, edges: MissionTaskEdge[]): string[] {
     const inDegree = new Map<string, number>();
     const adjacency = new Map<string, string[]>();
 
@@ -1277,9 +1236,7 @@ export class MissionGraphService {
       if (incoming.length === 0) {
         level.set(nodeId, 0);
       } else {
-        const maxPredLevel = Math.max(
-          ...incoming.map((e) => level.get(e.fromId) ?? 0),
-        );
+        const maxPredLevel = Math.max(...incoming.map((e) => level.get(e.fromId) ?? 0));
         level.set(nodeId, maxPredLevel + 1);
       }
     }

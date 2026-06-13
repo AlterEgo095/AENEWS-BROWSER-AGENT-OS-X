@@ -4,13 +4,11 @@
  * test configuration, and test infrastructure across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const TEST_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Module or system to audit tests' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -49,7 +51,11 @@ export const TEST_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           module: { type: 'string', description: 'Module to check coverage' },
-          coverageType: { type: 'string', enum: ['line', 'branch', 'function', 'statement'], description: 'Coverage type' },
+          coverageType: {
+            type: 'string',
+            enum: ['line', 'branch', 'function', 'statement'],
+            description: 'Coverage type',
+          },
         },
       },
       outputSchema: {
@@ -116,6 +122,11 @@ interface TestIssue {
 
 @Injectable()
 export class TestAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private testAuditLog: TestIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -126,8 +137,7 @@ export class TestAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-tests',
       description: 'Perform a comprehensive test infrastructure audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
@@ -140,23 +150,42 @@ export class TestAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-test-quality',
       description: 'Audit test quality including assertions and mocking',
-      execute: async (testSuite?: string) =>
-        this.auditTestQuality(testSuite),
+      execute: async (testSuite?: string) => this.auditTestQuality(testSuite),
     });
 
     this.registerTool({
       name: 'audit-e2e',
       description: 'Audit E2E test coverage and reliability',
-      execute: async (feature?: string) =>
-        this.auditE2E(feature),
+      execute: async (feature?: string) => this.auditE2E(feature),
     });
 
     this.logger.log('TestAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real test coverage connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.TEST_COVERAGE, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -178,13 +207,7 @@ export class TestAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -215,10 +238,21 @@ export class TestAuditorAgent extends BaseAgentService {
       this.testAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'coverage')) {
       recommendations.push('Increase test coverage to at least 80% for all critical modules');
@@ -230,9 +264,7 @@ export class TestAuditorAgent extends BaseAgentService {
       recommendations.push('Add E2E tests for critical user journeys and reduce flaky tests');
     }
 
-    this.logger.log(
-      `Test audit completed for ${target}: score ${score}, ${issues.length} issues`,
-    );
+    this.logger.log(`Test audit completed for ${target}: score ${score}, ${issues.length} issues`);
 
     return { score, issues, recommendations };
   }
@@ -272,8 +304,12 @@ export class TestAuditorAgent extends BaseAgentService {
   ): Promise<{ qualityScore: number; antiPatterns: any[] }> {
     const antiPatterns = [];
     const patternTypes = [
-      'flaky_test', 'hardcoded_values', 'missing_assertions',
-      'test_interdependency', 'over_mocking', 'sleep_in_test',
+      'flaky_test',
+      'hardcoded_values',
+      'missing_assertions',
+      'test_interdependency',
+      'over_mocking',
+      'sleep_in_test',
     ];
 
     for (let i = 0; i < Math.floor(Math.random() * 4) + 1; i++) {
@@ -295,9 +331,7 @@ export class TestAuditorAgent extends BaseAgentService {
     return { qualityScore, antiPatterns };
   }
 
-  private async auditE2E(
-    feature?: string,
-  ): Promise<{ e2eCoverage: number; flakyTests: any[] }> {
+  private async auditE2E(feature?: string): Promise<{ e2eCoverage: number; flakyTests: any[] }> {
     const flakyTests = [];
     const totalE2eTests = Math.floor(Math.random() * 30) + 20;
     const flakyCount = Math.floor(Math.random() * 5);

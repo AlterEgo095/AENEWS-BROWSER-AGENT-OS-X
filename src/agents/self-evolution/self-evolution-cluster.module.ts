@@ -12,6 +12,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { MetricAnalyzerAgent } from './metric-analyzer.agent';
 import { WeaknessDetectorAgent } from './weakness-detector.agent';
 import { RefactorProposerAgent } from './refactor-proposer.agent';
@@ -19,7 +20,7 @@ import { PatchGeneratorAgent } from './patch-generator.agent';
 import { AutoCertifierAgent } from './auto-certifier.agent';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Metric Analyzer — analyzes production metrics, collects baselines, detects anomalies
     MetricAnalyzerAgent,

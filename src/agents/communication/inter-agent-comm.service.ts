@@ -8,10 +8,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { AgentCluster } from '../interfaces/agent.interface';
-import {
-  AgentEventType,
-  AgentEvent,
-} from '../interfaces/agent-event.interface';
+import { AgentEventType, AgentEvent } from '../interfaces/agent-event.interface';
 import { EventBusService } from '../events/event-bus.service';
 import { AgentRegistryService } from '../registry/agent-registry.service';
 
@@ -128,9 +125,7 @@ export class InterAgentCommService implements OnModuleInit, OnModuleDestroy {
 
     await this.publishMessage(message);
 
-    this.logger.debug?.(
-      `Direct message sent from ${sourceAgentId} to ${targetAgentId}`,
-    );
+    this.logger.debug?.(`Direct message sent from ${sourceAgentId} to ${targetAgentId}`);
 
     return message.id;
   }
@@ -203,7 +198,9 @@ export class InterAgentCommService implements OnModuleInit, OnModuleDestroy {
     return new Promise<AgentMessage<TResponse>>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(correlationId);
-        reject(new Error(`Request timed out after ${timeoutMs}ms (correlationId: ${correlationId})`));
+        reject(
+          new Error(`Request timed out after ${timeoutMs}ms (correlationId: ${correlationId})`),
+        );
       }, timeoutMs);
 
       this.pendingRequests.set(correlationId, {
@@ -260,11 +257,7 @@ export class InterAgentCommService implements OnModuleInit, OnModuleDestroy {
   /**
    * Send a notification (fire-and-forget).
    */
-  async notify<T>(
-    sourceAgentId: string,
-    targetAgentId: string,
-    payload: T,
-  ): Promise<string> {
+  async notify<T>(sourceAgentId: string, targetAgentId: string, payload: T): Promise<string> {
     const message: AgentMessage<T> = {
       id: uuidv4(),
       type: MessageType.NOTIFICATION,
@@ -312,9 +305,7 @@ export class InterAgentCommService implements OnModuleInit, OnModuleDestroy {
       messages = messages.filter((m) => m.sourceAgentId === filter.sourceAgentId);
     }
     if (filter?.targetAgentId) {
-      messages = messages.filter(
-        (m) => m.targetAgentId === filter.targetAgentId,
-      );
+      messages = messages.filter((m) => m.targetAgentId === filter.targetAgentId);
     }
     if (filter?.type) {
       messages = messages.filter((m) => m.type === filter.type);

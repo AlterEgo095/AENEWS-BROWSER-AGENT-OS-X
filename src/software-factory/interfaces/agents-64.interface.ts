@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Complete Agent Architecture
- * 
+ *
  * 7 Levels, 64 Agents:
  *   Level 1: Core Orchestration (10 permanent)
  *   Level 2: Browser Team (12 on-demand)
@@ -9,7 +9,7 @@
  *   Level 5: Business Team (8 on-demand)
  *   Level 6: Certification Team (8 on-demand)
  *   Level 7: Delivery Team (8 on-demand)
- * 
+ *
  * Philosophy: Minimum permanent agents, maximum specialized on-demand.
  * Typical mission: 15-25 agents active simultaneously.
  */
@@ -17,13 +17,13 @@
 // ─── Agent Levels ──────────────────────────────────────────────
 
 export enum AgentLevel {
-  CORE = 'CORE',           // 10 permanent agents
-  BROWSER = 'BROWSER',     // 12 browser specialists
+  CORE = 'CORE', // 10 permanent agents
+  BROWSER = 'BROWSER', // 12 browser specialists
   DEVELOPMENT = 'DEVELOPMENT', // 12 dev specialists
-  OFFICE = 'OFFICE',       // 6 office specialists
-  BUSINESS = 'BUSINESS',   // 8 business specialists
+  OFFICE = 'OFFICE', // 6 office specialists
+  BUSINESS = 'BUSINESS', // 8 business specialists
   CERTIFICATION = 'CERTIFICATION', // 8 cert specialists
-  DELIVERY = 'DELIVERY',   // 8 delivery specialists
+  DELIVERY = 'DELIVERY', // 8 delivery specialists
 }
 
 // ─── Core Agents (Level 1) — 10 Permanent ─────────────────────

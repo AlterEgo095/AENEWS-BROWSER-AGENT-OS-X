@@ -7,9 +7,10 @@
  * and systemic weaknesses that feed into the refactoring proposal pipeline.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -45,7 +46,8 @@ export const SELF_EVOLUTION_WEAKNESS_DETECTOR_CONFIG: AgentConfig = {
     },
     {
       name: 'analyze-eqi-trends',
-      description: 'Analyze EQI (Evolutionary Quality Index) trends over time to detect regression patterns',
+      description:
+        'Analyze EQI (Evolutionary Quality Index) trends over time to detect regression patterns',
       inputSchema: {
         type: 'object',
         properties: {
@@ -141,6 +143,11 @@ interface BottleneckRecord {
 
 @Injectable()
 export class WeaknessDetectorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private weaknesses: Map<string, WeaknessRecord> = new Map();
   private eqiHistory: EQITrendPoint[] = [];
   private bottlenecks: Map<string, BottleneckRecord> = new Map();
@@ -189,8 +196,32 @@ export class WeaknessDetectorAgent extends BaseAgentService {
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'execute';
     const startTime = Date.now();
+    // Bridge: use LLM for weakness detection, EQI trend analysis, and bottleneck identification
+    if (this.bridge) {
+      try {
+        const llmResult = await this.bridge.callLLM({
+          systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed weakness detection, EQI trend analysis, and bottleneck identification.`,
+          userPrompt: JSON.stringify(input.payload),
+          temperature: 0.3,
+          maxTokens: 2048,
+        });
+
+        const analysis = llmResult.content;
+
+        return this.createAgentOutput(
+          input.taskId,
+          true,
+          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+          undefined,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'execute';
 
     try {
       let result: any;
@@ -241,11 +272,7 @@ export class WeaknessDetectorAgent extends BaseAgentService {
     overallRisk: 'low' | 'medium' | 'high' | 'critical';
     recommendations: string[];
   }> {
-    const {
-      scope = 'all',
-      includeCertificationData = true,
-      severityThreshold = 'medium',
-    } = params;
+    const { scope = 'all', includeCertificationData = true, severityThreshold = 'medium' } = params;
 
     const possibleWeaknesses: WeaknessRecord[] = [
       {
@@ -331,9 +358,7 @@ export class WeaknessDetectorAgent extends BaseAgentService {
 
     const severityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
     const thresholdLevel = severityOrder[severityThreshold] ?? 2;
-    const filtered = possibleWeaknesses.filter(
-      (w) => severityOrder[w.severity] >= thresholdLevel,
-    );
+    const filtered = possibleWeaknesses.filter((w) => severityOrder[w.severity] >= thresholdLevel);
 
     // Store detected weaknesses
     for (const w of filtered) {
@@ -344,14 +369,15 @@ export class WeaknessDetectorAgent extends BaseAgentService {
       (w) => w.severity === 'critical' || w.severity === 'high',
     ).length;
 
-    const overallRisk: 'low' | 'medium' | 'high' | 'critical' =
-      filtered.some((w) => w.severity === 'critical')
-        ? 'critical'
-        : criticalCount > 0
-          ? 'high'
-          : filtered.length > 2
-            ? 'medium'
-            : 'low';
+    const overallRisk: 'low' | 'medium' | 'high' | 'critical' = filtered.some(
+      (w) => w.severity === 'critical',
+    )
+      ? 'critical'
+      : criticalCount > 0
+        ? 'high'
+        : filtered.length > 2
+          ? 'medium'
+          : 'low';
 
     const recommendations = [
       ...filtered
@@ -398,7 +424,7 @@ export class WeaknessDetectorAgent extends BaseAgentService {
     this.eqiHistory = [];
     for (let i = dataPoints; i >= 0; i--) {
       const delta = (Math.random() - 0.45) * 4;
-      const eqi = Math.max(0, Math.min(100, baseEQI + delta * (dataPoints - i) / 10));
+      const eqi = Math.max(0, Math.min(100, baseEQI + (delta * (dataPoints - i)) / 10));
       this.eqiHistory.push({
         timestamp: new Date(Date.now() - i * 86400000).toISOString(),
         eqi: Math.round(eqi * 100) / 100,
@@ -468,7 +494,8 @@ export class WeaknessDetectorAgent extends BaseAgentService {
         maxCapacity: 1000,
         utilizationPercent: 85,
         affectedAgents: ['orchestrator', 'task-executor', 'task-planner'],
-        recommendedAction: 'Implement priority queue with backpressure; scale queue capacity to 1500',
+        recommendedAction:
+          'Implement priority queue with backpressure; scale queue capacity to 1500',
       },
       {
         id: this.generateId(),

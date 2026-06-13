@@ -4,13 +4,11 @@
  * prompt injection prevention, and model output reliability across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const AI_QUALITY_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'AI model or system to audit quality' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -67,7 +69,11 @@ export const AI_QUALITY_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           model: { type: 'string', description: 'Model to assess for bias' },
-          biasTypes: { type: 'array', items: { type: 'string' }, description: 'Bias types to check' },
+          biasTypes: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Bias types to check',
+          },
         },
       },
       outputSchema: {
@@ -133,6 +139,11 @@ interface AIQualityIssue {
 
 @Injectable()
 export class AIQualityAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private aiQualityAuditLog: AIQualityIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -143,8 +154,7 @@ export class AIQualityAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-ai-quality',
       description: 'Perform a comprehensive AI quality audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
@@ -157,30 +167,48 @@ export class AIQualityAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'assess-bias',
       description: 'Assess bias in AI model outputs and training data',
-      execute: async (model?: string, biasTypes?: string[]) =>
-        this.assessBias(model, biasTypes),
+      execute: async (model?: string, biasTypes?: string[]) => this.assessBias(model, biasTypes),
     });
 
     this.registerTool({
       name: 'check-prompt-injection',
       description: 'Check for prompt injection vulnerability',
-      execute: async (target?: string) =>
-        this.checkPromptInjection(target),
+      execute: async (target?: string) => this.checkPromptInjection(target),
     });
 
     this.registerTool({
       name: 'audit-output-reliability',
       description: 'Audit model output reliability and consistency',
-      execute: async (model?: string) =>
-        this.auditOutputReliability(model),
+      execute: async (model?: string) => this.auditOutputReliability(model),
     });
 
     this.logger.log('AIQualityAuditor agent initialized with 5 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real data privacy connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.DATA_PRIVACY, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -205,13 +233,7 @@ export class AIQualityAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -227,7 +249,13 @@ export class AIQualityAuditorAgent extends BaseAgentService {
     const issues: AIQualityIssue[] = [];
     const recommendations: string[] = [];
 
-    const categories = ['hallucination', 'bias', 'prompt_injection', 'reliability', 'safety'] as const;
+    const categories = [
+      'hallucination',
+      'bias',
+      'prompt_injection',
+      'reliability',
+      'safety',
+    ] as const;
     const auditDepth = depth === 'exhaustive' ? 10 : depth === 'deep' ? 6 : 3;
 
     for (let i = 0; i < auditDepth; i++) {
@@ -242,22 +270,41 @@ export class AIQualityAuditorAgent extends BaseAgentService {
       this.aiQualityAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'hallucination')) {
-      recommendations.push('Implement RAG-based grounding and factual verification for model outputs');
+      recommendations.push(
+        'Implement RAG-based grounding and factual verification for model outputs',
+      );
     }
     if (issues.some((i) => i.category === 'bias')) {
-      recommendations.push('Conduct regular bias audits and implement fairness constraints in model outputs');
+      recommendations.push(
+        'Conduct regular bias audits and implement fairness constraints in model outputs',
+      );
     }
     if (issues.some((i) => i.category === 'prompt_injection')) {
-      recommendations.push('Add input sanitization, output filtering, and prompt boundary enforcement');
+      recommendations.push(
+        'Add input sanitization, output filtering, and prompt boundary enforcement',
+      );
     }
     if (issues.some((i) => i.category === 'reliability')) {
-      recommendations.push('Implement output validation, consistency checks, and deterministic modes');
+      recommendations.push(
+        'Implement output validation, consistency checks, and deterministic modes',
+      );
     }
 
     this.logger.log(
@@ -272,8 +319,11 @@ export class AIQualityAuditorAgent extends BaseAgentService {
     sampleSize: number = 50,
   ): Promise<{ hallucinationRate: number; flaggedOutputs: any[] }> {
     const hallucinationTypes = [
-      'factual_error', 'fabricated_reference', 'temporal_inconsistency',
-      'logical_contradiction', 'unsupported_claim',
+      'factual_error',
+      'fabricated_reference',
+      'temporal_inconsistency',
+      'logical_contradiction',
+      'unsupported_claim',
     ];
 
     const flaggedOutputs = [];
@@ -287,7 +337,8 @@ export class AIQualityAuditorAgent extends BaseAgentService {
         input: `Sample prompt ${i}`,
         output: `Generated output with ${hallucinationTypes[i % hallucinationTypes.length]}`,
         confidence: Math.round(Math.random() * 40 + 60),
-        severity: hallucinationTypes[i % hallucinationTypes.length] === 'factual_error' ? 'high' : 'medium',
+        severity:
+          hallucinationTypes[i % hallucinationTypes.length] === 'factual_error' ? 'high' : 'medium',
         groundTruth: `Expected accurate response for sample ${i}`,
       });
     }
@@ -337,9 +388,14 @@ export class AIQualityAuditorAgent extends BaseAgentService {
   ): Promise<{ injectionScore: number; vulnerabilities: any[] }> {
     const vulnerabilities = [];
     const attackVectors = [
-      'direct_injection', 'indirect_injection', 'role_manipulation',
-      'output_leaking', 'system_prompt_extraction', 'jailbreak',
-      'data_exfiltration', 'encoding_bypass',
+      'direct_injection',
+      'indirect_injection',
+      'role_manipulation',
+      'output_leaking',
+      'system_prompt_extraction',
+      'jailbreak',
+      'data_exfiltration',
+      'encoding_bypass',
     ];
 
     for (const vector of attackVectors) {
@@ -348,7 +404,9 @@ export class AIQualityAuditorAgent extends BaseAgentService {
         vulnerabilities.push({
           vector,
           target: target || 'default-agent',
-          severity: ['system_prompt_extraction', 'jailbreak', 'data_exfiltration'].includes(vector) ? 'critical' : 'high',
+          severity: ['system_prompt_extraction', 'jailbreak', 'data_exfiltration'].includes(vector)
+            ? 'critical'
+            : 'high',
           description: `Prompt injection vulnerability: ${vector.replace('_', ' ')}`,
           examplePayload: `Test payload for ${vector}`,
           mitigations: this.getMitigations(vector),
@@ -370,9 +428,14 @@ export class AIQualityAuditorAgent extends BaseAgentService {
   ): Promise<{ reliabilityScore: number; consistencyIssues: any[] }> {
     const consistencyIssues = [];
     const checks = [
-      'determinism', 'format_consistency', 'factual_consistency',
-      'length_variance', 'sentiment_variance', 'repetition_rate',
-      'coherence_score', 'completeness',
+      'determinism',
+      'format_consistency',
+      'factual_consistency',
+      'length_variance',
+      'sentiment_variance',
+      'repetition_rate',
+      'coherence_score',
+      'completeness',
     ];
 
     for (const check of checks) {
@@ -418,7 +481,11 @@ export class AIQualityAuditorAgent extends BaseAgentService {
       system_prompt_extraction: ['Prompt obfuscation', 'Access controls', 'Response filtering'],
       jailbreak: ['Safety layers', 'Content policy enforcement', 'Input validation'],
       data_exfiltration: ['Network isolation', 'Output monitoring', 'Data loss prevention'],
-      encoding_bypass: ['Encoding normalization', 'Input canonicalization', 'Multi-layer validation'],
+      encoding_bypass: [
+        'Encoding normalization',
+        'Input canonicalization',
+        'Multi-layer validation',
+      ],
     };
     return mitigations[vector] || ['Review and implement appropriate safeguards'];
   }

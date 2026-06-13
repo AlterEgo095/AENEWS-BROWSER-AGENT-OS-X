@@ -4,13 +4,11 @@
  * task routing, and pipeline resilience across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const ORCHESTRATOR_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Pipeline or orchestrator to audit' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -94,7 +96,12 @@ export const ORCHESTRATOR_AUDITOR_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['certification:audit', 'certification:orchestrator', 'read:orchestrator', 'read:pipeline'],
+  permissions: [
+    'certification:audit',
+    'certification:orchestrator',
+    'read:orchestrator',
+    'read:pipeline',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
@@ -105,7 +112,15 @@ export const ORCHESTRATOR_AUDITOR_CONFIG: AgentConfig = {
 interface OrchestratorIssue {
   id: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  category: 'decompose' | 'plan' | 'execute' | 'critique' | 'repair' | 'deliver' | 'routing' | 'resilience';
+  category:
+    | 'decompose'
+    | 'plan'
+    | 'execute'
+    | 'critique'
+    | 'repair'
+    | 'deliver'
+    | 'routing'
+    | 'resilience';
   description: string;
   stage: string;
 }
@@ -114,6 +129,11 @@ interface OrchestratorIssue {
 
 @Injectable()
 export class OrchestratorAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private orchestratorAuditLog: OrchestratorIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -124,37 +144,54 @@ export class OrchestratorAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-orchestrator',
       description: 'Perform a comprehensive orchestration pipeline audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
       name: 'audit-pipeline',
       description: 'Audit each pipeline stage for correctness and error handling',
-      execute: async (taskId?: string) =>
-        this.auditPipeline(taskId),
+      execute: async (taskId?: string) => this.auditPipeline(taskId),
     });
 
     this.registerTool({
       name: 'audit-routing',
       description: 'Audit task routing accuracy and agent selection',
-      execute: async (sampleSize?: number) =>
-        this.auditRouting(sampleSize),
+      execute: async (sampleSize?: number) => this.auditRouting(sampleSize),
     });
 
     this.registerTool({
       name: 'audit-resilience',
       description: 'Audit pipeline resilience and failure recovery',
-      execute: async (simulateFailures?: boolean) =>
-        this.auditResilience(simulateFailures),
+      execute: async (simulateFailures?: boolean) => this.auditResilience(simulateFailures),
     });
 
     this.logger.log('OrchestratorAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real integration connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.INTEGRATION, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -176,13 +213,7 @@ export class OrchestratorAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -215,10 +246,21 @@ export class OrchestratorAuditorAgent extends BaseAgentService {
       this.orchestratorAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => ['decompose', 'plan'].includes(i.category))) {
       recommendations.push('Improve task decomposition heuristics and planning accuracy');
@@ -259,9 +301,7 @@ export class OrchestratorAuditorAgent extends BaseAgentService {
       stageResults.reduce((sum, r) => sum + r.qualityScore, 0) / stageResults.length,
     );
 
-    this.logger.log(
-      `Pipeline audit for ${taskId || 'sample'}: score ${pipelineScore}`,
-    );
+    this.logger.log(`Pipeline audit for ${taskId || 'sample'}: score ${pipelineScore}`);
 
     return { stageResults, pipelineScore };
   }
@@ -296,7 +336,12 @@ export class OrchestratorAuditorAgent extends BaseAgentService {
     const failureRecoveries = [];
 
     if (simulateFailures) {
-      const failureTypes = ['agent_timeout', 'agent_error', 'network_failure', 'resource_exhaustion'];
+      const failureTypes = [
+        'agent_timeout',
+        'agent_error',
+        'network_failure',
+        'resource_exhaustion',
+      ];
       for (const failureType of failureTypes) {
         const recovered = Math.random() > 0.3;
         failureRecoveries.push({
@@ -304,13 +349,17 @@ export class OrchestratorAuditorAgent extends BaseAgentService {
           detected: true,
           recovered,
           recoveryTimeMs: recovered ? Math.floor(Math.random() * 5000 + 500) : null,
-          recoveryStrategy: recovered ? ['retry', 'fallback', 'circuit_breaker'][Math.floor(Math.random() * 3)] : null,
+          recoveryStrategy: recovered
+            ? ['retry', 'fallback', 'circuit_breaker'][Math.floor(Math.random() * 3)]
+            : null,
         });
       }
     }
 
     const resilienceScore = Math.round(
-      (failureRecoveries.filter((f) => f.recovered).length / Math.max(failureRecoveries.length, 1)) * 100,
+      (failureRecoveries.filter((f) => f.recovered).length /
+        Math.max(failureRecoveries.length, 1)) *
+        100,
     );
 
     this.logger.log(

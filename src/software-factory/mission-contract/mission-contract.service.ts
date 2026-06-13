@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Mission Contract Service
- * 
+ *
  * Creates, validates, and tracks mission contracts.
  * A contract is the single source of truth for any mission.
  */
@@ -52,7 +52,9 @@ export class MissionContractService {
       deadline: {
         deadline: params.deadline || new Date(now.getTime() + 48 * 60 * 60 * 1000), // default 48h
         estimatedDuration: '48h',
-        milestones: this.generateDefaultMilestones(params.deadline || new Date(now.getTime() + 48 * 60 * 60 * 1000)),
+        milestones: this.generateDefaultMilestones(
+          params.deadline || new Date(now.getTime() + 48 * 60 * 60 * 1000),
+        ),
       },
       budget: {
         maxApiCostUsd: params.budgetMaxUsd || 20,
@@ -63,15 +65,15 @@ export class MissionContractService {
         currentAgentInstances: 0,
       },
       deliverables: this.inferDeliverables(params.deliverables, params.mission),
-      acceptanceCriteria: (params.acceptanceCriteria || this.generateDefaultCriteria(params.mission)).map(
-        (desc, idx) => ({
-          id: `ac-${id}-${idx}`,
-          description: typeof desc === 'string' ? desc : (desc as AcceptanceCriterion).description,
-          category: 'functional' as const,
-          mandatory: true,
-          verified: false,
-        }),
-      ),
+      acceptanceCriteria: (
+        params.acceptanceCriteria || this.generateDefaultCriteria(params.mission)
+      ).map((desc, idx) => ({
+        id: `ac-${id}-${idx}`,
+        description: typeof desc === 'string' ? desc : (desc as AcceptanceCriterion).description,
+        category: 'functional' as const,
+        mandatory: true,
+        verified: false,
+      })),
       constraints: params.constraints || [],
       createdAt: now,
       updatedAt: now,
@@ -104,16 +106,20 @@ export class MissionContractService {
 
     const estimatedCost = qualityCostMap[contract.quality] || 10;
     if (estimatedCost > contract.budget.maxApiCostUsd) {
-      warnings.push(`Budget $${contract.budget.maxApiCostUsd} may be insufficient for ${contract.quality} quality (est. $${estimatedCost})`);
+      warnings.push(
+        `Budget $${contract.budget.maxApiCostUsd} may be insufficient for ${contract.quality} quality (est. $${estimatedCost})`,
+      );
       feasibilityScore -= 30;
     }
 
     // Check deadline feasibility
     const deadlineMs = contract.deadline.deadline.getTime() - Date.now();
-    const deliverableCount = contract.deliverables.filter(d => d.required).length;
+    const deliverableCount = contract.deliverables.filter((d) => d.required).length;
     const estimatedDurationMs = deliverableCount * 2 * 60 * 60 * 1000; // ~2h per deliverable
     if (deadlineMs < estimatedDurationMs) {
-      warnings.push(`Deadline may be too tight for ${deliverableCount} deliverables (est. ${estimatedDurationMs / 3600000}h)`);
+      warnings.push(
+        `Deadline may be too tight for ${deliverableCount} deliverables (est. ${estimatedDurationMs / 3600000}h)`,
+      );
       feasibilityScore -= 25;
     }
 
@@ -149,7 +155,10 @@ export class MissionContractService {
   /**
    * Update contract (e.g., after negotiation or during execution)
    */
-  updateContract(contractId: string, updates: Partial<MissionContract>): MissionContract | undefined {
+  updateContract(
+    contractId: string,
+    updates: Partial<MissionContract>,
+  ): MissionContract | undefined {
     const contract = this.contracts.get(contractId);
     if (!contract) return undefined;
 
@@ -161,7 +170,11 @@ export class MissionContractService {
   /**
    * Track spending against contract budget
    */
-  trackSpend(contractId: string, amountUsd: number, computeHours: number = 0): ContractViolation | null {
+  trackSpend(
+    contractId: string,
+    amountUsd: number,
+    computeHours: number = 0,
+  ): ContractViolation | null {
     const contract = this.contracts.get(contractId);
     if (!contract) return null;
 
@@ -197,7 +210,7 @@ export class MissionContractService {
     const contract = this.contracts.get(contractId);
     if (!contract) return false;
 
-    const deliverable = contract.deliverables.find(d => d.type === deliverableType);
+    const deliverable = contract.deliverables.find((d) => d.type === deliverableType);
     if (deliverable) {
       deliverable.validated = true;
       deliverable.path = path;
@@ -211,11 +224,16 @@ export class MissionContractService {
   /**
    * Verify acceptance criterion
    */
-  verifyAcceptanceCriterion(contractId: string, criterionId: string, verifiedBy: string, notes?: string): boolean {
+  verifyAcceptanceCriterion(
+    contractId: string,
+    criterionId: string,
+    verifiedBy: string,
+    notes?: string,
+  ): boolean {
     const contract = this.contracts.get(contractId);
     if (!contract) return false;
 
-    const criterion = contract.acceptanceCriteria.find(c => c.id === criterionId);
+    const criterion = contract.acceptanceCriteria.find((c) => c.id === criterionId);
     if (criterion) {
       criterion.verified = true;
       criterion.verifiedBy = verifiedBy;
@@ -240,9 +258,7 @@ export class MissionContractService {
   areDeliverablesComplete(contractId: string): boolean {
     const contract = this.contracts.get(contractId);
     if (!contract) return false;
-    return contract.deliverables
-      .filter(d => d.required)
-      .every(d => d.validated);
+    return contract.deliverables.filter((d) => d.required).every((d) => d.validated);
   }
 
   /**
@@ -251,9 +267,7 @@ export class MissionContractService {
   areCriteriaMet(contractId: string): boolean {
     const contract = this.contracts.get(contractId);
     if (!contract) return false;
-    return contract.acceptanceCriteria
-      .filter(c => c.mandatory)
-      .every(c => c.verified);
+    return contract.acceptanceCriteria.filter((c) => c.mandatory).every((c) => c.verified);
   }
 
   /**
@@ -263,9 +277,16 @@ export class MissionContractService {
     const contract = this.contracts.get(contractId);
     if (!contract) return 0;
 
-    const deliverableScore = contract.deliverables.filter(d => d.validated).length / Math.max(contract.deliverables.length, 1);
-    const criteriaScore = contract.acceptanceCriteria.filter(c => c.verified).length / Math.max(contract.acceptanceCriteria.length, 1);
-    const budgetScore = Math.min(1, contract.budget.currentSpendUsd / Math.max(contract.budget.maxApiCostUsd, 1));
+    const deliverableScore =
+      contract.deliverables.filter((d) => d.validated).length /
+      Math.max(contract.deliverables.length, 1);
+    const criteriaScore =
+      contract.acceptanceCriteria.filter((c) => c.verified).length /
+      Math.max(contract.acceptanceCriteria.length, 1);
+    const budgetScore = Math.min(
+      1,
+      contract.budget.currentSpendUsd / Math.max(contract.budget.maxApiCostUsd, 1),
+    );
 
     return Math.round((deliverableScore * 0.4 + criteriaScore * 0.4 + budgetScore * 0.2) * 100);
   }
@@ -273,9 +294,12 @@ export class MissionContractService {
   /**
    * Infer deliverables from mission description
    */
-  private inferDeliverables(requested: DeliverableType[] | undefined, mission: string): DeliverableSpec[] {
+  private inferDeliverables(
+    requested: DeliverableType[] | undefined,
+    mission: string,
+  ): DeliverableSpec[] {
     if (requested && requested.length > 0) {
-      return requested.map(type => ({
+      return requested.map((type) => ({
         type,
         description: `${type} for: ${mission}`,
         required: true,
@@ -289,37 +313,96 @@ export class MissionContractService {
 
     // Always include README and documentation
     deliverables.push(
-      { type: DeliverableType.README, description: 'Project README', required: true, validated: false },
-      { type: DeliverableType.DOCUMENTATION, description: 'Technical documentation', required: true, validated: false },
+      {
+        type: DeliverableType.README,
+        description: 'Project README',
+        required: true,
+        validated: false,
+      },
+      {
+        type: DeliverableType.DOCUMENTATION,
+        description: 'Technical documentation',
+        required: true,
+        validated: false,
+      },
     );
 
-    if (missionLower.includes('saas') || missionLower.includes('application') || missionLower.includes('app') || missionLower.includes('développ') || missionLower.includes('créer') || missionLower.includes('create')) {
+    if (
+      missionLower.includes('saas') ||
+      missionLower.includes('application') ||
+      missionLower.includes('app') ||
+      missionLower.includes('développ') ||
+      missionLower.includes('créer') ||
+      missionLower.includes('create')
+    ) {
       deliverables.push(
-        { type: DeliverableType.SOURCE_CODE, description: 'Application source code', required: true, validated: false },
-        { type: DeliverableType.TEST_SUITE, description: 'Automated test suite', required: true, validated: false },
-        { type: DeliverableType.DOCKER_IMAGE, description: 'Docker configuration', required: true, validated: false },
-        { type: DeliverableType.DEPLOYMENT, description: 'Deployment scripts and configuration', required: false, validated: false },
+        {
+          type: DeliverableType.SOURCE_CODE,
+          description: 'Application source code',
+          required: true,
+          validated: false,
+        },
+        {
+          type: DeliverableType.TEST_SUITE,
+          description: 'Automated test suite',
+          required: true,
+          validated: false,
+        },
+        {
+          type: DeliverableType.DOCKER_IMAGE,
+          description: 'Docker configuration',
+          required: true,
+          validated: false,
+        },
+        {
+          type: DeliverableType.DEPLOYMENT,
+          description: 'Deployment scripts and configuration',
+          required: false,
+          validated: false,
+        },
       );
     }
 
-    if (missionLower.includes('rapport') || missionLower.includes('report') || missionLower.includes('audit') || missionLower.includes('analyse') || missionLower.includes('analyze')) {
-      deliverables.push(
-        { type: DeliverableType.PDF_REPORT, description: 'Analysis report (PDF)', required: true, validated: false },
-      );
+    if (
+      missionLower.includes('rapport') ||
+      missionLower.includes('report') ||
+      missionLower.includes('audit') ||
+      missionLower.includes('analyse') ||
+      missionLower.includes('analyze')
+    ) {
+      deliverables.push({
+        type: DeliverableType.PDF_REPORT,
+        description: 'Analysis report (PDF)',
+        required: true,
+        validated: false,
+      });
     }
 
     if (missionLower.includes('api') || missionLower.includes('backend')) {
       deliverables.push(
-        { type: DeliverableType.API_SPEC, description: 'API specification', required: true, validated: false },
-        { type: DeliverableType.DATABASE_SCRIPT, description: 'Database migration scripts', required: false, validated: false },
+        {
+          type: DeliverableType.API_SPEC,
+          description: 'API specification',
+          required: true,
+          validated: false,
+        },
+        {
+          type: DeliverableType.DATABASE_SCRIPT,
+          description: 'Database migration scripts',
+          required: false,
+          validated: false,
+        },
       );
     }
 
     // Default: at minimum source code + tests
-    if (!deliverables.find(d => d.type === DeliverableType.SOURCE_CODE)) {
-      deliverables.push(
-        { type: DeliverableType.SOURCE_CODE, description: 'Generated source code', required: true, validated: false },
-      );
+    if (!deliverables.find((d) => d.type === DeliverableType.SOURCE_CODE)) {
+      deliverables.push({
+        type: DeliverableType.SOURCE_CODE,
+        description: 'Generated source code',
+        required: true,
+        validated: false,
+      });
     }
 
     return deliverables;
@@ -331,7 +414,15 @@ export class MissionContractService {
   private generateDefaultMilestones(deadline: Date): any[] {
     const totalMs = deadline.getTime() - Date.now();
     const now = Date.now();
-    const states = ['PLANNED', 'RESEARCH', 'BUILDING', 'TESTING', 'AUDITING', 'CERTIFYING', 'DELIVERING'];
+    const states = [
+      'PLANNED',
+      'RESEARCH',
+      'BUILDING',
+      'TESTING',
+      'AUDITING',
+      'CERTIFYING',
+      'DELIVERING',
+    ];
     const weights = [0.05, 0.15, 0.35, 0.15, 0.1, 0.1, 0.1];
 
     return states.map((state, idx) => {
@@ -360,7 +451,11 @@ export class MissionContractService {
       criteria.push('Test coverage meets minimum threshold (80%)');
       criteria.push('All test cases pass successfully');
     }
-    if (missionLower.includes('sécur') || missionLower.includes('security') || missionLower.includes('audit')) {
+    if (
+      missionLower.includes('sécur') ||
+      missionLower.includes('security') ||
+      missionLower.includes('audit')
+    ) {
       criteria.push('Security audit passes with no critical findings');
       criteria.push('No sensitive data exposed in deliverables');
     }

@@ -1,0 +1,966 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Email Agent
+     3→ * Manages email operations: compose, send, read, reply, forward, search, organize.
+     4→ * Provides full email lifecycle management with folder organization and search capabilities.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const EMAIL_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'office-email',
+    20→  name: 'Email',
+    21→  cluster: AgentCluster.OFFICE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Email management agent that handles composing, sending, reading, replying, forwarding, searching, and organizing emails with folder-based organization.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'compose',
+    28→      description: 'Compose a new email with recipients, subject, body, and optional attachments',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          to: {
+    33→            type: 'array',
+    34→            items: { type: 'string' },
+    35→            description: 'List of recipient email addresses',
+    36→          },
+    37→          cc: { type: 'array', items: { type: 'string' }, description: 'CC recipients' },
+    38→          bcc: { type: 'array', items: { type: 'string' }, description: 'BCC recipients' },
+    39→          subject: { type: 'string', description: 'Email subject line' },
+    40→          body: { type: 'string', description: 'Email body content (plain text or HTML)' },
+    41→          attachments: {
+    42→            type: 'array',
+    43→            items: { type: 'object' },
+    44→            description: 'List of attachments',
+    45→          },
+    46→          priority: {
+    47→            type: 'string',
+    48→            enum: ['low', 'normal', 'high'],
+    49→            description: 'Email priority',
+    50→          },
+    51→        },
+    52→        required: ['to', 'subject', 'body'],
+    53→      },
+    54→      outputSchema: {
+    55→        type: 'object',
+    56→        properties: {
+    57→          emailId: { type: 'string' },
+    58→          status: { type: 'string' },
+    59→          composedAt: { type: 'string' },
+    60→        },
+    61→      },
+    62→    },
+    63→    {
+    64→      name: 'send',
+    65→      description: 'Send a composed or draft email',
+    66→      inputSchema: {
+    67→        type: 'object',
+    68→        properties: {
+    69→          emailId: { type: 'string', description: 'ID of the email to send' },
+    70→          scheduleAt: { type: 'string', description: 'ISO timestamp for scheduled sending' },
+    71→        },
+    72→        required: ['emailId'],
+    73→      },
+    74→      outputSchema: {
+    75→        type: 'object',
+    76→        properties: {
+    77→          emailId: { type: 'string' },
+    78→          sentAt: { type: 'string' },
+    79→          status: { type: 'string' },
+    80→        },
+    81→      },
+    82→    },
+    83→    {
+    84→      name: 'read',
+    85→      description: 'Read an email by ID, marking it as read',
+    86→      inputSchema: {
+    87→        type: 'object',
+    88→        properties: {
+    89→          emailId: { type: 'string', description: 'ID of the email to read' },
+    90→          markAsRead: {
+    91→            type: 'boolean',
+    92→            default: true,
+    93→            description: 'Whether to mark the email as read',
+    94→          },
+    95→        },
+    96→        required: ['emailId'],
+    97→      },
+    98→      outputSchema: {
+    99→        type: 'object',
+   100→        properties: {
+   101→          email: { type: 'object' },
+   102→          readAt: { type: 'string' },
+   103→        },
+   104→      },
+   105→    },
+   106→    {
+   107→      name: 'reply',
+   108→      description: 'Reply to an existing email',
+   109→      inputSchema: {
+   110→        type: 'object',
+   111→        properties: {
+   112→          emailId: { type: 'string', description: 'ID of the email to reply to' },
+   113→          body: { type: 'string', description: 'Reply body content' },
+   114→          replyAll: {
+   115→            type: 'boolean',
+   116→            default: false,
+   117→            description: 'Whether to reply to all recipients',
+   118→          },
+   119→          attachments: {
+   120→            type: 'array',
+   121→            items: { type: 'object' },
+   122→            description: 'Attachments for the reply',
+   123→          },
+   124→        },
+   125→        required: ['emailId', 'body'],
+   126→      },
+   127→      outputSchema: {
+   128→        type: 'object',
+   129→        properties: {
+   130→          replyId: { type: 'string' },
+   131→          status: { type: 'string' },
+   132→        },
+   133→      },
+   134→    },
+   135→    {
+   136→      name: 'forward',
+   137→      description: 'Forward an email to other recipients',
+   138→      inputSchema: {
+   139→        type: 'object',
+   140→        properties: {
+   141→          emailId: { type: 'string', description: 'ID of the email to forward' },
+   142→          to: { type: 'array', items: { type: 'string' }, description: 'Recipients to forward to' },
+   143→          message: { type: 'string', description: 'Additional message for the forwarded email' },
+   144→        },
+   145→        required: ['emailId', 'to'],
+   146→      },
+   147→      outputSchema: {
+   148→        type: 'object',
+   149→        properties: {
+   150→          forwardedId: { type: 'string' },
+   151→          status: { type: 'string' },
+   152→        },
+   153→      },
+   154→    },
+   155→    {
+   156→      name: 'search',
+   157→      description: 'Search emails by query, sender, date range, or folder',
+   158→      inputSchema: {
+   159→        type: 'object',
+   160→        properties: {
+   161→          query: { type: 'string', description: 'Search query string' },
+   162→          from: { type: 'string', description: 'Filter by sender' },
+   163→          to: { type: 'string', description: 'Filter by recipient' },
+   164→          subject: { type: 'string', description: 'Filter by subject' },
+   165→          folder: { type: 'string', description: 'Filter by folder' },
+   166→          dateFrom: { type: 'string', description: 'Start date for search (ISO string)' },
+   167→          dateTo: { type: 'string', description: 'End date for search (ISO string)' },
+   168→          limit: { type: 'number', description: 'Maximum number of results' },
+   169→          offset: { type: 'number', description: 'Offset for pagination' },
+   170→        },
+   171→        required: ['query'],
+   172→      },
+   173→      outputSchema: {
+   174→        type: 'object',
+   175→        properties: {
+   176→          results: { type: 'array', items: { type: 'object' } },
+   177→          total: { type: 'number' },
+   178→          hasMore: { type: 'boolean' },
+   179→        },
+   180→      },
+   181→    },
+   182→    {
+   183→      name: 'deleteEmail',
+   184→      description: 'Delete or trash an email',
+   185→      inputSchema: {
+   186→        type: 'object',
+   187→        properties: {
+   188→          emailId: { type: 'string', description: 'ID of the email to delete' },
+   189→          permanent: {
+   190→            type: 'boolean',
+   191→            default: false,
+   192→            description: 'Whether to permanently delete (bypass trash)',
+   193→          },
+   194→        },
+   195→        required: ['emailId'],
+   196→      },
+   197→      outputSchema: {
+   198→        type: 'object',
+   199→        properties: {
+   200→          emailId: { type: 'string' },
+   201→          status: { type: 'string' },
+   202→        },
+   203→      },
+   204→    },
+   205→    {
+   206→      name: 'organizeInFolder',
+   207→      description: 'Move an email to a specified folder or apply labels',
+   208→      inputSchema: {
+   209→        type: 'object',
+   210→        properties: {
+   211→          emailId: { type: 'string', description: 'ID of the email to organize' },
+   212→          folder: { type: 'string', description: 'Target folder name' },
+   213→          labels: { type: 'array', items: { type: 'string' }, description: 'Labels to apply' },
+   214→          markAsRead: { type: 'boolean', description: 'Mark as read when organizing' },
+   215→          markAsImportant: { type: 'boolean', description: 'Mark as important' },
+   216→        },
+   217→        required: ['emailId'],
+   218→      },
+   219→      outputSchema: {
+   220→        type: 'object',
+   221→        properties: {
+   222→          emailId: { type: 'string' },
+   223→          folder: { type: 'string' },
+   224→          labels: { type: 'array', items: { type: 'string' } },
+   225→          status: { type: 'string' },
+   226→        },
+   227→      },
+   228→    },
+   229→  ],
+   230→  permissions: [
+   231→    'execute:task',
+   232→    'read:email',
+   233→    'write:email',
+   234→    'send:email',
+   235→    'delete:email',
+   236→    'organize:email',
+   237→  ],
+   238→  maxConcurrentTasks: 5,
+   239→  timeout: 30000,
+   240→  retryPolicy: {
+   241→    maxRetries: 2,
+   242→    backoffMs: 1000,
+   243→    exponentialBackoff: true,
+   244→  },
+   245→};
+   246→
+   247→// ─── Internal Types ───────────────────────────────────────────────
+   248→
+   249→interface EmailMessage {
+   250→  id: string;
+   251→  from: string;
+   252→  to: string[];
+   253→  cc: string[];
+   254→  bcc: string[];
+   255→  subject: string;
+   256→  body: string;
+   257→  htmlBody?: string;
+   258→  attachments: EmailAttachment[];
+   259→  folder: string;
+   260→  labels: string[];
+   261→  isRead: boolean;
+   262→  isImportant: boolean;
+   263→  priority: 'low' | 'normal' | 'high';
+   264→  status: 'draft' | 'sent' | 'received' | 'trashed' | 'deleted';
+   265→  replyToId?: string;
+   266→  forwardedFromId?: string;
+   267→  threadId?: string;
+   268→  createdAt: Date;
+   269→  sentAt?: Date;
+   270→  readAt?: Date;
+   271→}
+   272→
+   273→interface EmailAttachment {
+   274→  filename: string;
+   275→  mimeType: string;
+   276→  size: number;
+   277→  content?: string;
+   278→}
+   279→
+   280→interface EmailFolder {
+   281→  name: string;
+   282→  emailIds: string[];
+   283→  isSystem: boolean;
+   284→}
+   285→
+   286→// ─── Agent Service ────────────────────────────────────────────────
+   287→
+   288→@Injectable()
+   289→export class EmailAgentService extends BaseAgentService {
+   290→  private emails: Map<string, EmailMessage> = new Map();
+   291→  private folders: Map<string, EmailFolder> = new Map();
+   292→  private emailCounter: number = 0;
+   293→
+   294→  protected defineConfig(): AgentConfig {
+   295→    return EMAIL_AGENT_CONFIG;
+   296→  }
+   297→
+   298→  protected async onInitialize(): Promise<void> {
+   299→    // Seed default folders
+   300→    this.seedDefaultFolders();
+   301→
+   302→    // Register tools
+   303→    this.registerTool({
+   304→      name: 'compose',
+   305→      description: 'Compose a new email with recipients, subject, body, and optional attachments',
+   306→      execute: async (params: {
+   307→        to: string[];
+   308→        cc?: string[];
+   309→        bcc?: string[];
+   310→        subject: string;
+   311→        body: string;
+   312→        attachments?: EmailAttachment[];
+   313→        priority?: 'low' | 'normal' | 'high';
+   314→      }) => this.compose(params),
+   315→    });
+   316→
+   317→    this.registerTool({
+   318→      name: 'send',
+   319→      description: 'Send a composed or draft email',
+   320→      execute: async (params: { emailId: string; scheduleAt?: string }) => this.send(params),
+   321→    });
+   322→
+   323→    this.registerTool({
+   324→      name: 'read',
+   325→      description: 'Read an email by ID, marking it as read',
+   326→      execute: async (params: { emailId: string; markAsRead?: boolean }) => this.read(params),
+   327→    });
+   328→
+   329→    this.registerTool({
+   330→      name: 'reply',
+   331→      description: 'Reply to an existing email',
+   332→      execute: async (params: {
+   333→        emailId: string;
+   334→        body: string;
+   335→        replyAll?: boolean;
+   336→        attachments?: EmailAttachment[];
+   337→      }) => this.reply(params),
+   338→    });
+   339→
+   340→    this.registerTool({
+   341→      name: 'forward',
+   342→      description: 'Forward an email to other recipients',
+   343→      execute: async (params: { emailId: string; to: string[]; message?: string }) =>
+   344→        this.forward(params),
+   345→    });
+   346→
+   347→    this.registerTool({
+   348→      name: 'search',
+   349→      description: 'Search emails by query, sender, date range, or folder',
+   350→      execute: async (params: {
+   351→        query: string;
+   352→        from?: string;
+   353→        to?: string;
+   354→        subject?: string;
+   355→        folder?: string;
+   356→        dateFrom?: string;
+   357→        dateTo?: string;
+   358→        limit?: number;
+   359→        offset?: number;
+   360→      }) => this.search(params),
+   361→    });
+   362→
+   363→    this.registerTool({
+   364→      name: 'deleteEmail',
+   365→      description: 'Delete or trash an email',
+   366→      execute: async (params: { emailId: string; permanent?: boolean }) => this.deleteEmail(params),
+   367→    });
+   368→
+   369→    this.registerTool({
+   370→      name: 'organizeInFolder',
+   371→      description: 'Move an email to a specified folder or apply labels',
+   372→      execute: async (params: {
+   373→        emailId: string;
+   374→        folder?: string;
+   375→        labels?: string[];
+   376→        markAsRead?: boolean;
+   377→        markAsImportant?: boolean;
+   378→      }) => this.organizeInFolder(params),
+   379→    });
+   380→
+   381→    await this.storeInWorkingMemory('email:initializedAt', new Date().toISOString(), 600000);
+   382→    this.logger.log('Email agent initialized with 8 tools');
+   383→  }
+   384→
+   385→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   386→    const startTime = Date.now();
+   387→    const { action, ...params } = input.payload;
+   388→
+   389→    if (!action) {
+   390→      return this.createAgentOutput(
+   391→        input.taskId,
+   392→        false,
+   393→        null,
+   394→        'Missing required parameter: action',
+   395→        startTime,
+   396→      );
+   397→    }
+   398→
+   399→    const supportedActions = [
+   400→      'compose',
+   401→      'send',
+   402→      'read',
+   403→      'reply',
+   404→      'forward',
+   405→      'search',
+   406→      'deleteEmail',
+   407→      'organizeInFolder',
+   408→    ];
+   409→
+   410→    if (!supportedActions.includes(action)) {
+   411→      return this.createAgentOutput(
+   412→        input.taskId,
+   413→        false,
+   414→        null,
+   415→        `Unknown email action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   416→        startTime,
+   417→      );
+   418→    }
+   419→
+   420→    try {
+   421→      const tool = this.getTool(action);
+   422→      if (!tool) {
+   423→        return this.createAgentOutput(
+   424→          input.taskId,
+   425→          false,
+   426→          null,
+   427→          `Tool not found: ${action}`,
+   428→          startTime,
+   429→        );
+   430→      }
+   431→
+   432→      const result = await tool.execute(params);
+   433→
+   434→      // Store result in working memory for quick access
+   435→      await this.storeInWorkingMemory(
+   436→        `email:last:${action}`,
+   437→        { params, result, timestamp: new Date() },
+   438→        300000,
+   439→      );
+   440→
+   441→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   442→    } catch (error) {
+   443→      const msg = (error as Error).message;
+   444→      this.logger.error(`Email execution failed for ${action}: ${msg}`);
+   445→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   446→    }
+   447→  }
+   448→
+   449→  protected async onDestroy(): Promise<void> {
+   450→    this.emails.clear();
+   451→    this.folders.clear();
+   452→    this.emailCounter = 0;
+   453→    this.logger.log('Email agent destroyed, emails and folders cleared');
+   454→  }
+   455→
+   456→  // ─── Tool Implementations ──────────────────────────────────────
+   457→
+   458→  private async compose(params: {
+   459→    to: string[];
+   460→    cc?: string[];
+   461→    bcc?: string[];
+   462→    subject: string;
+   463→    body: string;
+   464→    attachments?: EmailAttachment[];
+   465→    priority?: 'low' | 'normal' | 'high';
+   466→  }): Promise<{
+   467→    emailId: string;
+   468→    status: string;
+   469→    composedAt: string;
+   470→  }> {
+   471→    const { to, cc = [], bcc = [], subject, body, attachments = [], priority = 'normal' } = params;
+   472→
+   473→    if (!to || !Array.isArray(to) || to.length === 0) {
+   474→      throw new Error('At least one recipient is required');
+   475→    }
+   476→    if (!subject || typeof subject !== 'string') {
+   477→      throw new Error('A valid subject is required');
+   478→    }
+   479→    if (!body || typeof body !== 'string') {
+   480→      throw new Error('A valid body is required');
+   481→    }
+   482→
+   483→    // Validate email addresses
+   484→    for (const addr of [...to, ...cc, ...bcc]) {
+   485→      if (!this.isValidEmail(addr)) {
+   486→        throw new Error(`Invalid email address: ${addr}`);
+   487→      }
+   488→    }
+   489→
+   490→    const emailId = this.generateEmailId();
+   491→    const email: EmailMessage = {
+   492→      id: emailId,
+   493→      from: 'agent@aenews.system',
+   494→      to,
+   495→      cc,
+   496→      bcc,
+   497→      subject,
+   498→      body,
+   499→      attachments,
+   500→      folder: 'drafts',
+   501→      labels: [],
+   502→      isRead: true,
+   503→      isImportant: false,
+   504→      priority,
+   505→      status: 'draft',
+   506→      createdAt: new Date(),
+   507→    };
+   508→
+   509→    this.emails.set(emailId, email);
+   510→
+   511→    // Add to drafts folder
+   512→    this.addEmailToFolder(emailId, 'drafts');
+   513→
+   514→    this.logger.log(
+   515→      `Composed email: ${emailId}, to=${to.join(',')}, subject="${subject.substring(0, 50)}"`,
+   516→    );
+   517→
+   518→    return {
+   519→      emailId,
+   520→      status: 'draft',
+   521→      composedAt: new Date().toISOString(),
+   522→    };
+   523→  }
+   524→
+   525→  private async send(params: { emailId: string; scheduleAt?: string }): Promise<{
+   526→    emailId: string;
+   527→    sentAt: string;
+   528→    status: string;
+   529→  }> {
+   530→    const { emailId, scheduleAt } = params;
+   531→
+   532→    if (!emailId || typeof emailId !== 'string') {
+   533→      throw new Error('A valid emailId is required');
+   534→    }
+   535→
+   536→    const email = this.emails.get(emailId);
+   537→    if (!email) {
+   538→      throw new Error(`Email not found: ${emailId}`);
+   539→    }
+   540→
+   541→    if (email.status === 'sent') {
+   542→      throw new Error(`Email ${emailId} has already been sent`);
+   543→    }
+   544→
+   545→    if (email.status === 'trashed' || email.status === 'deleted') {
+   546→      throw new Error(`Cannot send email in ${email.status} status`);
+   547→    }
+   548→
+   549→    // If scheduled, store the schedule but don't send now
+   550→    if (scheduleAt) {
+   551→      const scheduledTime = new Date(scheduleAt);
+   552→      if (isNaN(scheduledTime.getTime())) {
+   553→        throw new Error('Invalid scheduleAt timestamp');
+   554→      }
+   555→      this.logger.log(`Email ${emailId} scheduled for ${scheduleAt}`);
+   556→    }
+   557→
+   558→    // Update email status
+   559→    email.status = 'sent';
+   560→    email.sentAt = new Date();
+   561→
+   562→    // Move from drafts to sent
+   563→    this.removeEmailFromFolder(emailId, 'drafts');
+   564→    this.addEmailToFolder(emailId, 'sent');
+   565→
+   566→    this.logger.log(`Sent email: ${emailId}, to=${email.to.join(',')}`);
+   567→
+   568→    return {
+   569→      emailId,
+   570→      sentAt: email.sentAt.toISOString(),
+   571→      status: 'sent',
+   572→    };
+   573→  }
+   574→
+   575→  private async read(params: { emailId: string; markAsRead?: boolean }): Promise<{
+   576→    email: EmailMessage;
+   577→    readAt: string;
+   578→  }> {
+   579→    const { emailId, markAsRead = true } = params;
+   580→
+   581→    if (!emailId || typeof emailId !== 'string') {
+   582→      throw new Error('A valid emailId is required');
+   583→    }
+   584→
+   585→    const email = this.emails.get(emailId);
+   586→    if (!email) {
+   587→      throw new Error(`Email not found: ${emailId}`);
+   588→    }
+   589→
+   590→    if (email.status === 'deleted') {
+   591→      throw new Error(`Email ${emailId} has been permanently deleted`);
+   592→    }
+   593→
+   594→    const readAt = new Date().toISOString();
+   595→
+   596→    if (markAsRead && !email.isRead) {
+   597→      email.isRead = true;
+   598→      email.readAt = new Date();
+   599→    }
+   600→
+   601→    this.logger.log(`Read email: ${emailId}, markAsRead=${markAsRead}`);
+   602→
+   603→    return {
+   604→      email: { ...email },
+   605→      readAt,
+   606→    };
+   607→  }
+   608→
+   609→  private async reply(params: {
+   610→    emailId: string;
+   611→    body: string;
+   612→    replyAll?: boolean;
+   613→    attachments?: EmailAttachment[];
+   614→  }): Promise<{
+   615→    replyId: string;
+   616→    status: string;
+   617→  }> {
+   618→    const { emailId, body, replyAll = false, attachments = [] } = params;
+   619→
+   620→    if (!emailId || typeof emailId !== 'string') {
+   621→      throw new Error('A valid emailId is required');
+   622→    }
+   623→    if (!body || typeof body !== 'string') {
+   624→      throw new Error('A valid body is required for the reply');
+   625→    }
+   626→
+   627→    const originalEmail = this.emails.get(emailId);
+   628→    if (!originalEmail) {
+   629→      throw new Error(`Email not found: ${emailId}`);
+   630→    }
+   631→
+   632→    // Build recipient list
+   633→    const to = replyAll
+   634→      ? [originalEmail.from, ...originalEmail.to.filter((addr) => addr !== 'agent@aenews.system')]
+   635→      : [originalEmail.from];
+   636→
+   637→    const cc = replyAll ? originalEmail.cc : [];
+   638→    const subject = originalEmail.subject.startsWith('Re:')
+   639→      ? originalEmail.subject
+   640→      : `Re: ${originalEmail.subject}`;
+   641→
+   642→    const replyId = this.generateEmailId();
+   643→    const reply: EmailMessage = {
+   644→      id: replyId,
+   645→      from: 'agent@aenews.system',
+   646→      to,
+   647→      cc,
+   648→      bcc: [],
+   649→      subject,
+   650→      body,
+   651→      attachments,
+   652→      folder: 'sent',
+   653→      labels: [],
+   654→      isRead: true,
+   655→      isImportant: false,
+   656→      priority: originalEmail.priority,
+   657→      status: 'sent',
+   658→      replyToId: emailId,
+   659→      threadId: originalEmail.threadId || emailId,
+   660→      createdAt: new Date(),
+   661→      sentAt: new Date(),
+   662→    };
+   663→
+   664→    this.emails.set(replyId, reply);
+   665→    this.addEmailToFolder(replyId, 'sent');
+   666→
+   667→    this.logger.log(`Replied to email: ${emailId}, replyId=${replyId}, replyAll=${replyAll}`);
+   668→
+   669→    return {
+   670→      replyId,
+   671→      status: 'sent',
+   672→    };
+   673→  }
+   674→
+   675→  private async forward(params: { emailId: string; to: string[]; message?: string }): Promise<{
+   676→    forwardedId: string;
+   677→    status: string;
+   678→  }> {
+   679→    const { emailId, to, message = '' } = params;
+   680→
+   681→    if (!emailId || typeof emailId !== 'string') {
+   682→      throw new Error('A valid emailId is required');
+   683→    }
+   684→    if (!to || !Array.isArray(to) || to.length === 0) {
+   685→      throw new Error('At least one recipient is required for forwarding');
+   686→    }
+   687→
+   688→    for (const addr of to) {
+   689→      if (!this.isValidEmail(addr)) {
+   690→        throw new Error(`Invalid email address: ${addr}`);
+   691→      }
+   692→    }
+   693→
+   694→    const originalEmail = this.emails.get(emailId);
+   695→    if (!originalEmail) {
+   696→      throw new Error(`Email not found: ${emailId}`);
+   697→    }
+   698→
+   699→    const subject = originalEmail.subject.startsWith('Fwd:')
+   700→      ? originalEmail.subject
+   701→      : `Fwd: ${originalEmail.subject}`;
+   702→
+   703→    const forwardedBody = message
+   704→      ? `${message}\n\n---------- Forwarded message ----------\nFrom: ${originalEmail.from}\nDate: ${originalEmail.createdAt.toISOString()}\nSubject: ${originalEmail.subject}\n\n${originalEmail.body}`
+   705→      : `---------- Forwarded message ----------\nFrom: ${originalEmail.from}\nDate: ${originalEmail.createdAt.toISOString()}\nSubject: ${originalEmail.subject}\n\n${originalEmail.body}`;
+   706→
+   707→    const forwardedId = this.generateEmailId();
+   708→    const forwarded: EmailMessage = {
+   709→      id: forwardedId,
+   710→      from: 'agent@aenews.system',
+   711→      to,
+   712→      cc: [],
+   713→      bcc: [],
+   714→      subject,
+   715→      body: forwardedBody,
+   716→      attachments: [...originalEmail.attachments],
+   717→      folder: 'sent',
+   718→      labels: [],
+   719→      isRead: true,
+   720→      isImportant: false,
+   721→      priority: originalEmail.priority,
+   722→      status: 'sent',
+   723→      forwardedFromId: emailId,
+   724→      threadId: originalEmail.threadId || emailId,
+   725→      createdAt: new Date(),
+   726→      sentAt: new Date(),
+   727→    };
+   728→
+   729→    this.emails.set(forwardedId, forwarded);
+   730→    this.addEmailToFolder(forwardedId, 'sent');
+   731→
+   732→    this.logger.log(`Forwarded email: ${emailId}, forwardedId=${forwardedId}, to=${to.join(',')}`);
+   733→
+   734→    return {
+   735→      forwardedId,
+   736→      status: 'sent',
+   737→    };
+   738→  }
+   739→
+   740→  private async search(params: {
+   741→    query: string;
+   742→    from?: string;
+   743→    to?: string;
+   744→    subject?: string;
+   745→    folder?: string;
+   746→    dateFrom?: string;
+   747→    dateTo?: string;
+   748→    limit?: number;
+   749→    offset?: number;
+   750→  }): Promise<{
+   751→    results: EmailMessage[];
+   752→    total: number;
+   753→    hasMore: boolean;
+   754→  }> {
+   755→    const { query, from, to, subject, folder, dateFrom, dateTo, limit = 20, offset = 0 } = params;
+   756→
+   757→    if (!query || typeof query !== 'string') {
+   758→      throw new Error('A valid search query is required');
+   759→    }
+   760→
+   761→    const queryLower = query.toLowerCase();
+   762→
+   763→    let results = Array.from(this.emails.values()).filter((email) => {
+   764→      // Skip deleted emails
+   765→      if (email.status === 'deleted') return false;
+   766→
+   767→      // Text matching on subject and body
+   768→      const matchesQuery =
+   769→        email.subject.toLowerCase().includes(queryLower) ||
+   770→        email.body.toLowerCase().includes(queryLower) ||
+   771→        email.from.toLowerCase().includes(queryLower);
+   772→
+   773→      // Filter by sender
+   774→      const matchesFrom = !from || email.from.toLowerCase().includes(from.toLowerCase());
+   775→
+   776→      // Filter by recipient
+   777→      const matchesTo = !to || email.to.some((r) => r.toLowerCase().includes(to!.toLowerCase()));
+   778→
+   779→      // Filter by subject
+   780→      const matchesSubject =
+   781→        !subject || email.subject.toLowerCase().includes(subject.toLowerCase());
+   782→
+   783→      // Filter by folder
+   784→      const matchesFolder = !folder || email.folder === folder;
+   785→
+   786→      // Filter by date range
+   787→      let matchesDate = true;
+   788→      if (dateFrom) {
+   789→        const fromDate = new Date(dateFrom);
+   790→        if (!isNaN(fromDate.getTime())) {
+   791→          matchesDate = matchesDate && email.createdAt >= fromDate;
+   792→        }
+   793→      }
+   794→      if (dateTo) {
+   795→        const toDate = new Date(dateTo);
+   796→        if (!isNaN(toDate.getTime())) {
+   797→          matchesDate = matchesDate && email.createdAt <= toDate;
+   798→        }
+   799→      }
+   800→
+   801→      return (
+   802→        matchesQuery && matchesFrom && matchesTo && matchesSubject && matchesFolder && matchesDate
+   803→      );
+   804→    });
+   805→
+   806→    // Sort by date, newest first
+   807→    results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+   808→
+   809→    const total = results.length;
+   810→    const hasMore = offset + limit < total;
+   811→    results = results.slice(offset, offset + limit);
+   812→
+   813→    this.logger.log(`Email search: query="${query}", results=${total}, returned=${results.length}`);
+   814→
+   815→    return { results, total, hasMore };
+   816→  }
+   817→
+   818→  private async deleteEmail(params: { emailId: string; permanent?: boolean }): Promise<{
+   819→    emailId: string;
+   820→    status: string;
+   821→  }> {
+   822→    const { emailId, permanent = false } = params;
+   823→
+   824→    if (!emailId || typeof emailId !== 'string') {
+   825→      throw new Error('A valid emailId is required');
+   826→    }
+   827→
+   828→    const email = this.emails.get(emailId);
+   829→    if (!email) {
+   830→      throw new Error(`Email not found: ${emailId}`);
+   831→    }
+   832→
+   833→    if (permanent) {
+   834→      // Permanently delete
+   835→      this.removeEmailFromFolder(emailId, email.folder);
+   836→      email.status = 'deleted';
+   837→      email.folder = 'deleted';
+   838→      this.emails.delete(emailId);
+   839→
+   840→      this.logger.log(`Permanently deleted email: ${emailId}`);
+   841→      return { emailId, status: 'deleted' };
+   842→    }
+   843→
+   844→    // Move to trash
+   845→    this.removeEmailFromFolder(emailId, email.folder);
+   846→    email.status = 'trashed';
+   847→    email.folder = 'trash';
+   848→    this.addEmailToFolder(emailId, 'trash');
+   849→
+   850→    this.logger.log(`Moved email to trash: ${emailId}`);
+   851→    return { emailId, status: 'trashed' };
+   852→  }
+   853→
+   854→  private async organizeInFolder(params: {
+   855→    emailId: string;
+   856→    folder?: string;
+   857→    labels?: string[];
+   858→    markAsRead?: boolean;
+   859→    markAsImportant?: boolean;
+   860→  }): Promise<{
+   861→    emailId: string;
+   862→    folder: string;
+   863→    labels: string[];
+   864→    status: string;
+   865→  }> {
+   866→    const { emailId, folder, labels = [], markAsRead, markAsImportant } = params;
+   867→
+   868→    if (!emailId || typeof emailId !== 'string') {
+   869→      throw new Error('A valid emailId is required');
+   870→    }
+   871→
+   872→    const email = this.emails.get(emailId);
+   873→    if (!email) {
+   874→      throw new Error(`Email not found: ${emailId}`);
+   875→    }
+   876→
+   877→    // Move to folder if specified
+   878→    if (folder) {
+   879→      this.removeEmailFromFolder(emailId, email.folder);
+   880→      email.folder = folder;
+   881→      this.addEmailToFolder(emailId, folder);
+   882→
+   883→      // Create folder if it doesn't exist
+   884→      if (!this.folders.has(folder)) {
+   885→        this.folders.set(folder, {
+   886→          name: folder,
+   887→          emailIds: [emailId],
+   888→          isSystem: false,
+   889→        });
+   890→      }
+   891→    }
+   892→
+   893→    // Apply labels
+   894→    for (const label of labels) {
+   895→      if (!email.labels.includes(label)) {
+   896→        email.labels.push(label);
+   897→      }
+   898→    }
+   899→
+   900→    // Mark as read
+   901→    if (markAsRead !== undefined) {
+   902→      email.isRead = markAsRead;
+   903→      if (markAsRead) {
+   904→        email.readAt = new Date();
+   905→      }
+   906→    }
+   907→
+   908→    // Mark as important
+   909→    if (markAsImportant !== undefined) {
+   910→      email.isImportant = markAsImportant;
+   911→    }
+   912→
+   913→    this.logger.log(
+   914→      `Organized email: ${emailId}, folder=${folder || email.folder}, labels=[${labels.join(',')}]`,
+   915→    );
+   916→
+   917→    return {
+   918→      emailId,
+   919→      folder: email.folder,
+   920→      labels: [...email.labels],
+   921→      status: 'organized',
+   922→    };
+   923→  }
+   924→
+   925→  // ─── Private Helpers ───────────────────────────────────────────
+   926→
+   927→  private seedDefaultFolders(): void {
+   928→    const defaultFolders: EmailFolder[] = [
+   929→      { name: 'inbox', emailIds: [], isSystem: true },
+   930→      { name: 'drafts', emailIds: [], isSystem: true },
+   931→      { name: 'sent', emailIds: [], isSystem: true },
+   932→      { name: 'trash', emailIds: [], isSystem: true },
+   933→      { name: 'spam', emailIds: [], isSystem: true },
+   934→      { name: 'archive', emailIds: [], isSystem: true },
+   935→    ];
+   936→
+   937→    for (const folder of defaultFolders) {
+   938→      this.folders.set(folder.name, folder);
+   939→    }
+   940→  }
+   941→
+   942→  private generateEmailId(): string {
+   943→    this.emailCounter++;
+   944→    return `email-${Date.now()}-${this.emailCounter}`;
+   945→  }
+   946→
+   947→  private addEmailToFolder(emailId: string, folderName: string): void {
+   948→    const folder = this.folders.get(folderName);
+   949→    if (folder && !folder.emailIds.includes(emailId)) {
+   950→      folder.emailIds.push(emailId);
+   951→    }
+   952→  }
+   953→
+   954→  private removeEmailFromFolder(emailId: string, folderName: string): void {
+   955→    const folder = this.folders.get(folderName);
+   956→    if (folder) {
+   957→      folder.emailIds = folder.emailIds.filter((id) => id !== emailId);
+   958→    }
+   959→  }
+   960→
+   961→  private isValidEmail(address: string): boolean {
+   962→    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+   963→    return emailRegex.test(address);
+   964→  }
+   965→}
+   966→

@@ -10,15 +10,7 @@ import { SecurityGatewayService } from './security/security-gateway.service';
 import { DocumentationGeneratorService } from './documentation/documentation-generator.service';
 
 @Module({
-  providers: [
-    MemoryGatewayService,
-    SecurityGatewayService,
-    DocumentationGeneratorService,
-  ],
-  exports: [
-    MemoryGatewayService,
-    SecurityGatewayService,
-    DocumentationGeneratorService,
-  ],
+  providers: [MemoryGatewayService, SecurityGatewayService, DocumentationGeneratorService],
+  exports: [MemoryGatewayService, SecurityGatewayService, DocumentationGeneratorService],
 })
 export class GatewayModule {}

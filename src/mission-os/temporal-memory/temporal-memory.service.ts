@@ -14,15 +14,15 @@ import { v4 as uuidv4 } from 'uuid';
 // ─── Type Definitions ──────────────────────────────────────────────
 
 export enum TimeGranularity {
-  MOMENT = 'moment',     // Specific point in time
+  MOMENT = 'moment', // Specific point in time
   HOUR = 'hour',
   DAY = 'day',
   WEEK = 'week',
   MONTH = 'month',
   QUARTER = 'quarter',
   YEAR = 'year',
-  PROJECT = 'project',   // Project-scoped
-  ARCHIVE = 'archive',   // Long-term archive
+  PROJECT = 'project', // Project-scoped
+  ARCHIVE = 'archive', // Long-term archive
 }
 
 export interface TemporalMemoryEntry {
@@ -34,10 +34,10 @@ export interface TemporalMemoryEntry {
   timeGranularity: TimeGranularity;
   project: string | null;
   tags: string[];
-  importance: number;         // 0-1
+  importance: number; // 0-1
   accessCount: number;
   lastAccessedAt: Date;
-  relatedEntries: string[];   // IDs of related entries
+  relatedEntries: string[]; // IDs of related entries
   expiresAt: Date | null;
   promotedFrom: TimeGranularity | null;
   createdAt: Date;
@@ -53,16 +53,16 @@ export interface TemporalQuery {
   importanceThreshold?: number;
   limit?: number;
   offset?: number;
-  contentFilter?: string;   // Text search in summary
+  contentFilter?: string; // Text search in summary
 }
 
 export interface TemporalBucket {
   granularity: TimeGranularity;
-  period: string;           // e.g. "2024-01-15", "2024-W03", "2024-Q1"
+  period: string; // e.g. "2024-01-15", "2024-W03", "2024-Q1"
   startDate: Date;
   endDate: Date;
   entries: TemporalMemoryEntry[];
-  summary: string;          // Auto-generated summary of the bucket
+  summary: string; // Auto-generated summary of the bucket
   entryCount: number;
   averageImportance: number;
 }
@@ -146,8 +146,7 @@ export class TemporalMemoryService {
 
     // Determine granularity if not explicitly set to MOMENT
     const timestamp = entry.timestamp ?? now;
-    const granularity =
-      entry.timeGranularity ?? this.inferGranularity(timestamp);
+    const granularity = entry.timeGranularity ?? this.inferGranularity(timestamp);
 
     // Auto-generate summary if empty
     const summary =
@@ -248,24 +247,18 @@ export class TemporalMemoryService {
 
     // Tags filter (entry must contain ALL specified tags)
     if (query.tags && query.tags.length > 0) {
-      results = results.filter((e) =>
-        query.tags!.every((tag) => e.tags.includes(tag)),
-      );
+      results = results.filter((e) => query.tags!.every((tag) => e.tags.includes(tag)));
     }
 
     // Importance threshold
     if (query.importanceThreshold !== undefined) {
-      results = results.filter(
-        (e) => e.importance >= query.importanceThreshold!,
-      );
+      results = results.filter((e) => e.importance >= query.importanceThreshold!);
     }
 
     // Content text search in summary
     if (query.contentFilter && query.contentFilter.trim().length > 0) {
       const filterLower = query.contentFilter.toLowerCase();
-      results = results.filter((e) =>
-        e.summary.toLowerCase().includes(filterLower),
-      );
+      results = results.filter((e) => e.summary.toLowerCase().includes(filterLower));
     }
 
     // Sort: importance DESC, then timestamp DESC
@@ -287,13 +280,8 @@ export class TemporalMemoryService {
    * Get or create a temporal summary bucket for a time range.
    * Aggregates entries, computes average importance, generates a summary.
    */
-  summarize(
-    from: Date,
-    to: Date,
-    granularity?: TimeGranularity,
-  ): TemporalBucket {
-    const effectiveGranularity =
-      granularity ?? this.inferGranularityForRange(from, to);
+  summarize(from: Date, to: Date, granularity?: TimeGranularity): TemporalBucket {
+    const effectiveGranularity = granularity ?? this.inferGranularityForRange(from, to);
     const period = this.computePeriodKey(from, effectiveGranularity);
 
     // Check cache
@@ -365,9 +353,7 @@ export class TemporalMemoryService {
     // Invalidate cached buckets
     this.invalidateBucketsForEntry(entry);
 
-    this.logger.log(
-      `Promoted entry ${entryId}: ${previousGranularity} → ${toGranularity}`,
-    );
+    this.logger.log(`Promoted entry ${entryId}: ${previousGranularity} → ${toGranularity}`);
 
     return entry;
   }
@@ -393,9 +379,7 @@ export class TemporalMemoryService {
     // Invalidate cached buckets
     this.invalidateBucketsForEntry(entry);
 
-    this.logger.log(
-      `Archived entry ${entryId}: ${previousGranularity} → ARCHIVE`,
-    );
+    this.logger.log(`Archived entry ${entryId}: ${previousGranularity} → ARCHIVE`);
 
     return entry;
   }
@@ -406,11 +390,7 @@ export class TemporalMemoryService {
    * Get a temporal timeline — series of buckets for the time range
    * at the specified granularity.
    */
-  getTimeline(
-    from: Date,
-    to: Date,
-    granularity: TimeGranularity,
-  ): TemporalTimeline {
+  getTimeline(from: Date, to: Date, granularity: TimeGranularity): TemporalTimeline {
     const buckets = this.generateBucketSequence(from, to, granularity);
     const allEntries = buckets.flatMap((b) => b.entries);
 
@@ -622,8 +602,7 @@ export class TemporalMemoryService {
       byGranularity[g] = 0;
     }
     for (const entry of allEntries) {
-      byGranularity[entry.timeGranularity] =
-        (byGranularity[entry.timeGranularity] ?? 0) + 1;
+      byGranularity[entry.timeGranularity] = (byGranularity[entry.timeGranularity] ?? 0) + 1;
     }
 
     // By agent
@@ -642,23 +621,14 @@ export class TemporalMemoryService {
 
     // Average importance
     const averageImportance =
-      total > 0
-        ? allEntries.reduce((sum, e) => sum + e.importance, 0) / total
-        : 0;
+      total > 0 ? allEntries.reduce((sum, e) => sum + e.importance, 0) / total : 0;
 
     // Total access count
-    const totalAccessCount = allEntries.reduce(
-      (sum, e) => sum + e.accessCount,
-      0,
-    );
+    const totalAccessCount = allEntries.reduce((sum, e) => sum + e.accessCount, 0);
 
     // Most accessed entry
     const mostAccessedEntry =
-      total > 0
-        ? allEntries.reduce((a, b) =>
-            a.accessCount >= b.accessCount ? a : b,
-          )
-        : null;
+      total > 0 ? allEntries.reduce((a, b) => (a.accessCount >= b.accessCount ? a : b)) : null;
 
     // Oldest and newest
     const sortedByTime = [...allEntries].sort(
@@ -869,9 +839,7 @@ export class TemporalMemoryService {
       parts.push(`tags: [${topTags.join(', ')}]`);
     }
 
-    parts.push(
-      `avg importance: ${this.computeAverageImportance(entries).toFixed(2)}`,
-    );
+    parts.push(`avg importance: ${this.computeAverageImportance(entries).toFixed(2)}`);
     parts.push(`top: "${topImportance.summary}"`);
 
     return `[${granularity}:${period}] ${parts.join('; ')}`;
@@ -925,29 +893,38 @@ export class TemporalMemoryService {
     // Content richness
     if (typeof content === 'string') {
       if (content.length > 500) score += 0.15;
-      else if (content.length > 200) score += 0.10;
+      else if (content.length > 200) score += 0.1;
       else if (content.length > 50) score += 0.05;
     } else if (typeof content === 'object' && content !== null) {
       const keys = Object.keys(content);
-      if (keys.length > 10) score += 0.20;
+      if (keys.length > 10) score += 0.2;
       else if (keys.length > 5) score += 0.15;
-      else if (keys.length > 2) score += 0.10;
+      else if (keys.length > 2) score += 0.1;
     }
 
     // Tag richness
     if (tags.length >= 5) score += 0.15;
-    else if (tags.length >= 3) score += 0.10;
+    else if (tags.length >= 3) score += 0.1;
     else if (tags.length >= 1) score += 0.05;
 
     // Critical keyword detection
     const criticalKeywords = [
-      'critical', 'urgent', 'important', 'blocker', 'failure',
-      'error', 'deadline', 'release', 'production', 'security',
-      'decision', 'milestone', 'breaking',
+      'critical',
+      'urgent',
+      'important',
+      'blocker',
+      'failure',
+      'error',
+      'deadline',
+      'release',
+      'production',
+      'security',
+      'decision',
+      'milestone',
+      'breaking',
     ];
-    const contentStr = typeof content === 'string'
-      ? content.toLowerCase()
-      : JSON.stringify(content).toLowerCase();
+    const contentStr =
+      typeof content === 'string' ? content.toLowerCase() : JSON.stringify(content).toLowerCase();
     const tagStr = tags.join(' ').toLowerCase();
     const combined = `${contentStr} ${tagStr}`;
 
@@ -1063,10 +1040,7 @@ export class TemporalMemoryService {
 
     for (const [key, bucket] of this.buckets) {
       const entryTime = entry.timestamp.getTime();
-      if (
-        entryTime >= bucket.startDate.getTime() &&
-        entryTime <= bucket.endDate.getTime()
-      ) {
+      if (entryTime >= bucket.startDate.getTime() && entryTime <= bucket.endDate.getTime()) {
         keysToRemove.push(key);
       }
     }

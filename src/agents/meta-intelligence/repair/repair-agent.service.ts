@@ -5,7 +5,7 @@
  * repair verification, and learning from failures.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -13,6 +13,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -206,6 +208,12 @@ interface FailureLesson {
 
 @Injectable()
 export class RepairAgentService extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
+
   private repairHistory: RepairRecord[] = [];
   private failureLessons: FailureLesson[] = [];
 
@@ -273,6 +281,41 @@ export class RepairAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge: try CertCapability.REGRESSION + LLM for repair analysis
+    if (this.bridge) {
+      try {
+        // First try capability delegation for regression data
+        const capResult = await this.bridge.executeCapability(CertCapability.REGRESSION, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        // Then use LLM for intelligent repair reasoning
+        const llmResult = await this.bridge.callLLM({
+          systemPrompt: `You are the ${this.config.name} agent in the Meta-Intelligence cluster. Analyze the regression data and provide a detailed repair strategy.`,
+          userPrompt: JSON.stringify({ payload: input.payload, regressionData: capResult.output }),
+          temperature: 0.3,
+          maxTokens: 2048,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          true,
+          {
+            regressionData: capResult.output,
+            repairAnalysis: llmResult.content,
+            costUsd: (capResult.costUsd || 0) + (llmResult.costUsd || 0),
+            tokensUsed: llmResult.tokenCount,
+          },
+          undefined,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {

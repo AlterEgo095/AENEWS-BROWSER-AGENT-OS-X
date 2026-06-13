@@ -7,9 +7,10 @@
  * with trend data that feed into the self-improvement loop.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -23,7 +24,8 @@ export const SELF_EVOLUTION_METRIC_ANALYZER_CONFIG: AgentConfig = {
   capabilities: [
     {
       name: 'analyze-metrics',
-      description: 'Analyze production metrics and generate a comprehensive analysis report with trend data',
+      description:
+        'Analyze production metrics and generate a comprehensive analysis report with trend data',
       inputSchema: {
         type: 'object',
         properties: {
@@ -156,6 +158,11 @@ interface MetricAnalysisReport {
 
 @Injectable()
 export class MetricAnalyzerAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private baselines: Map<string, MetricBaseline> = new Map();
   private analysisReports: Map<string, MetricAnalysisReport> = new Map();
   private anomalyHistory: AnomalyRecord[] = [];
@@ -167,7 +174,8 @@ export class MetricAnalyzerAgent extends BaseAgentService {
   protected async onInitialize(): Promise<void> {
     this.registerTool({
       name: 'analyze-metrics',
-      description: 'Analyze production metrics and generate a comprehensive analysis report with trend data',
+      description:
+        'Analyze production metrics and generate a comprehensive analysis report with trend data',
       execute: async (params: {
         metricNames: string[];
         timeRange?: string;
@@ -205,8 +213,32 @@ export class MetricAnalyzerAgent extends BaseAgentService {
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'execute';
     const startTime = Date.now();
+    // Bridge: use LLM for metric analysis, baseline collection, and anomaly detection
+    if (this.bridge) {
+      try {
+        const llmResult = await this.bridge.callLLM({
+          systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed metric analysis, baseline collection, and anomaly detection.`,
+          userPrompt: JSON.stringify(input.payload),
+          temperature: 0.3,
+          maxTokens: 2048,
+        });
+
+        const analysis = llmResult.content;
+
+        return this.createAgentOutput(
+          input.taskId,
+          true,
+          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+          undefined,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'execute';
 
     try {
       let result: any;
@@ -285,7 +317,7 @@ export class MetricAnalyzerAgent extends BaseAgentService {
       const slope = (Math.random() - 0.4) * 10;
       return {
         metricName: name,
-        direction: slope > 1 ? 'up' as const : slope < -1 ? 'down' as const : 'flat' as const,
+        direction: slope > 1 ? ('up' as const) : slope < -1 ? ('down' as const) : ('flat' as const),
         slope: Math.round(slope * 100) / 100,
         confidence: Math.round((0.6 + Math.random() * 0.35) * 100) / 100,
       };
@@ -293,7 +325,11 @@ export class MetricAnalyzerAgent extends BaseAgentService {
 
     const degradingCount = metrics.filter((m) => m.trend === 'degrading').length;
     const overallHealth: 'healthy' | 'warning' | 'critical' =
-      degradingCount === 0 ? 'healthy' : degradingCount < metricNames.length / 2 ? 'warning' : 'critical';
+      degradingCount === 0
+        ? 'healthy'
+        : degradingCount < metricNames.length / 2
+          ? 'warning'
+          : 'critical';
 
     const report: MetricAnalysisReport = {
       reportId,
@@ -323,11 +359,7 @@ export class MetricAnalyzerAgent extends BaseAgentService {
     collectedAt: string;
     sampleSize: number;
   }> {
-    const {
-      metricNames,
-      windowSize = '7d',
-      percentiles = [50, 90, 95, 99],
-    } = params;
+    const { metricNames, windowSize = '7d', percentiles = [50, 90, 95, 99] } = params;
 
     if (!metricNames || !Array.isArray(metricNames) || metricNames.length === 0) {
       throw new Error('Non-empty metricNames array is required');
@@ -339,7 +371,7 @@ export class MetricAnalyzerAgent extends BaseAgentService {
       const standardDeviation = mean * (0.05 + Math.random() * 0.15);
       const percentileValues: Record<number, number> = {};
       for (const p of percentiles) {
-        const zScore = p <= 50 ? -(1 - p / 100) * 2 : ((p / 100) - 0.5) * 2;
+        const zScore = p <= 50 ? -(1 - p / 100) * 2 : (p / 100 - 0.5) * 2;
         percentileValues[p] = Math.round((mean + zScore * standardDeviation) * 100) / 100;
       }
 
@@ -379,11 +411,7 @@ export class MetricAnalyzerAgent extends BaseAgentService {
     severity: 'low' | 'medium' | 'high' | 'critical';
     affectedMetrics: string[];
   }> {
-    const {
-      metricName,
-      sensitivity = 2.0,
-      lookbackWindow = '1h',
-    } = params;
+    const { metricName, sensitivity = 2.0, lookbackWindow = '1h' } = params;
 
     if (!metricName || typeof metricName !== 'string') {
       throw new Error('Valid metricName string is required');
@@ -428,14 +456,15 @@ export class MetricAnalyzerAgent extends BaseAgentService {
 
     this.anomalyHistory.push(...anomalies);
 
-    const overallSeverity: 'low' | 'medium' | 'high' | 'critical' =
-      anomalies.some((a) => a.severity === 'critical')
-        ? 'critical'
-        : anomalies.some((a) => a.severity === 'high')
-          ? 'high'
-          : anomalies.some((a) => a.severity === 'medium')
-            ? 'medium'
-            : 'low';
+    const overallSeverity: 'low' | 'medium' | 'high' | 'critical' = anomalies.some(
+      (a) => a.severity === 'critical',
+    )
+      ? 'critical'
+      : anomalies.some((a) => a.severity === 'high')
+        ? 'high'
+        : anomalies.some((a) => a.severity === 'medium')
+          ? 'medium'
+          : 'low';
 
     this.logger.log(
       `Anomaly detection: metric=${metricName}, anomalies=${anomalies.length}, severity=${overallSeverity}, window=${lookbackWindow}`,

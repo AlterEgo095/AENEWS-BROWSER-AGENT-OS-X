@@ -4,7 +4,7 @@
  * audit report generation, change tracking, and permission reviews.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -240,6 +242,15 @@ interface AuditRecord {
 @Injectable()
 export class AuditAgentService extends BaseAgentService {
   private auditHistory: AuditRecord[] = [];
+
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
   private changeLog: ChangeRecord[] = [];
   private findingCounter: number = 0;
 
@@ -298,6 +309,28 @@ export class AuditAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation — use real connector if available
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.COMPLIANCE, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {

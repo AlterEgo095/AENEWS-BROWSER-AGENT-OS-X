@@ -4,13 +4,11 @@
  * alerting configuration, and observability infrastructure across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const OBSERVABILITY_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'System or service to audit observability' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -111,7 +113,13 @@ export const OBSERVABILITY_AUDITOR_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['certification:audit', 'certification:observability', 'read:metrics', 'read:logs', 'read:traces'],
+  permissions: [
+    'certification:audit',
+    'certification:observability',
+    'read:metrics',
+    'read:logs',
+    'read:traces',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
@@ -131,6 +139,11 @@ interface ObservabilityIssue {
 
 @Injectable()
 export class ObservabilityAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private observabilityAuditLog: ObservabilityIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -141,44 +154,60 @@ export class ObservabilityAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-observability',
       description: 'Perform a comprehensive observability audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
       name: 'audit-metrics',
       description: 'Audit metrics collection coverage and quality',
-      execute: async (service?: string) =>
-        this.auditMetrics(service),
+      execute: async (service?: string) => this.auditMetrics(service),
     });
 
     this.registerTool({
       name: 'audit-tracing',
       description: 'Audit distributed tracing coverage',
-      execute: async (service?: string) =>
-        this.auditTracing(service),
+      execute: async (service?: string) => this.auditTracing(service),
     });
 
     this.registerTool({
       name: 'audit-logging',
       description: 'Audit logging practices and structure',
-      execute: async (service?: string) =>
-        this.auditLogging(service),
+      execute: async (service?: string) => this.auditLogging(service),
     });
 
     this.registerTool({
       name: 'audit-alerting',
       description: 'Audit alerting rules and notification channels',
-      execute: async (service?: string) =>
-        this.auditAlerting(service),
+      execute: async (service?: string) => this.auditAlerting(service),
     });
 
     this.logger.log('ObservabilityAuditor agent initialized with 5 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real performance connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.PERFORMANCE, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -203,13 +232,7 @@ export class ObservabilityAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -240,22 +263,41 @@ export class ObservabilityAuditorAgent extends BaseAgentService {
       this.observabilityAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 20 : issue.severity === 'high' ? 12 : issue.severity === 'medium' ? 6 : 2;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 20
+              : issue.severity === 'high'
+                ? 12
+                : issue.severity === 'medium'
+                  ? 6
+                  : 2;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'metrics')) {
-      recommendations.push('Implement RED metrics (Rate, Errors, Duration) for all critical services');
+      recommendations.push(
+        'Implement RED metrics (Rate, Errors, Duration) for all critical services',
+      );
     }
     if (issues.some((i) => i.category === 'tracing')) {
-      recommendations.push('Add distributed tracing with proper span propagation across service boundaries');
+      recommendations.push(
+        'Add distributed tracing with proper span propagation across service boundaries',
+      );
     }
     if (issues.some((i) => i.category === 'logging')) {
-      recommendations.push('Adopt structured logging with correlation IDs and consistent log levels');
+      recommendations.push(
+        'Adopt structured logging with correlation IDs and consistent log levels',
+      );
     }
     if (issues.some((i) => i.category === 'alerting')) {
-      recommendations.push('Configure alerting for SLO violations, error rate spikes, and latency degradation');
+      recommendations.push(
+        'Configure alerting for SLO violations, error rate spikes, and latency degradation',
+      );
     }
 
     this.logger.log(
@@ -269,9 +311,16 @@ export class ObservabilityAuditorAgent extends BaseAgentService {
     service?: string,
   ): Promise<{ metricsScore: number; missingMetrics: string[] }> {
     const requiredMetrics = [
-      'request_rate', 'error_rate', 'latency_p50', 'latency_p99',
-      'cpu_usage', 'memory_usage', 'active_connections',
-      'queue_depth', 'throughput', 'saturation',
+      'request_rate',
+      'error_rate',
+      'latency_p50',
+      'latency_p99',
+      'cpu_usage',
+      'memory_usage',
+      'active_connections',
+      'queue_depth',
+      'throughput',
+      'saturation',
     ];
 
     const missingMetrics = requiredMetrics.filter(() => Math.random() > 0.6);
@@ -290,8 +339,12 @@ export class ObservabilityAuditorAgent extends BaseAgentService {
     service?: string,
   ): Promise<{ tracingScore: number; coverageGaps: any[] }> {
     const criticalPaths = [
-      'agent_execution', 'task_orchestration', 'memory_operations',
-      'event_bus_publish', 'security_validation', 'plugin_lifecycle',
+      'agent_execution',
+      'task_orchestration',
+      'memory_operations',
+      'event_bus_publish',
+      'security_validation',
+      'plugin_lifecycle',
     ];
 
     const coverageGaps = criticalPaths
@@ -319,9 +372,14 @@ export class ObservabilityAuditorAgent extends BaseAgentService {
   ): Promise<{ loggingScore: number; logIssues: any[] }> {
     const logIssues = [];
     const checks = [
-      'structured_format', 'correlation_id', 'log_level_consistency',
-      'pii_redaction', 'log_rotation', 'centralized_collection',
-      'error_context', 'request_response_logging',
+      'structured_format',
+      'correlation_id',
+      'log_level_consistency',
+      'pii_redaction',
+      'log_rotation',
+      'centralized_collection',
+      'error_context',
+      'request_response_logging',
     ];
 
     for (const check of checks) {
@@ -348,9 +406,15 @@ export class ObservabilityAuditorAgent extends BaseAgentService {
     service?: string,
   ): Promise<{ alertingScore: number; missingAlerts: string[] }> {
     const requiredAlerts = [
-      'high_error_rate', 'elevated_latency', 'service_down',
-      'disk_space_low', 'memory_pressure', 'queue_backlog',
-      'certificate_expiry', 'anomalous_traffic', 'circuit_breaker_open',
+      'high_error_rate',
+      'elevated_latency',
+      'service_down',
+      'disk_space_low',
+      'memory_pressure',
+      'queue_backlog',
+      'certificate_expiry',
+      'anomalous_traffic',
+      'circuit_breaker_open',
     ];
 
     const missingAlerts = requiredAlerts.filter(() => Math.random() > 0.5);

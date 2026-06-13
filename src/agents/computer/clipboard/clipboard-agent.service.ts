@@ -4,7 +4,7 @@
  * Simulates clipboard operations for environments without direct OS clipboard access.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { DevCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -60,7 +62,11 @@ export const CLIPBOARD_AGENT_CONFIG: AgentConfig = {
             default: 'text',
             description: 'Content format',
           },
-          clearBefore: { type: 'boolean', default: true, description: 'Clear clipboard before writing' },
+          clearBefore: {
+            type: 'boolean',
+            default: true,
+            description: 'Clear clipboard before writing',
+          },
         },
         required: ['content'],
       },
@@ -159,6 +165,15 @@ export class ClipboardAgentService extends BaseAgentService {
     updatedAt: new Date(),
   };
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   private changeHistory: Array<{
     content: string;
     format: ClipboardFormat;
@@ -183,7 +198,11 @@ export class ClipboardAgentService extends BaseAgentService {
     this.registerTool({
       name: 'writeClipboard',
       description: 'Write content to the clipboard',
-      execute: async (params: { content: string; format?: ClipboardFormat; clearBefore?: boolean }) =>
+      execute: async (params: {
+        content: string;
+        format?: ClipboardFormat;
+        clearBefore?: boolean;
+      }) =>
         this.writeClipboard(params.content, params.format || 'text', params.clearBefore !== false),
     });
 
@@ -206,6 +225,28 @@ export class ClipboardAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation — use real connector if available
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(DevCapability.DEBUG, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
@@ -219,7 +260,10 @@ export class ClipboardAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'readClipboard', 'writeClipboard', 'clearClipboard', 'watchClipboard',
+      'readClipboard',
+      'writeClipboard',
+      'clearClipboard',
+      'watchClipboard',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -235,7 +279,13 @@ export class ClipboardAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);

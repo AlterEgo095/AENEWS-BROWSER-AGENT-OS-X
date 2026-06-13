@@ -52,10 +52,7 @@ export interface PluginDependency {
 
 export interface PluginManifest {
   manifestVersion: string;
-  plugin: Omit<
-    MarketplacePlugin,
-    'installed' | 'installedAt' | 'enabled' | 'rating' | 'downloads'
-  >;
+  plugin: Omit<MarketplacePlugin, 'installed' | 'installedAt' | 'enabled' | 'rating' | 'downloads'>;
   entryPoint: string;
   permissions: string[];
   checksum: string;
@@ -118,9 +115,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Web browsing, navigation, scraping, and automation capabilities. ' +
       'Agents can navigate the web, extract content, fill forms, and interact with web applications.',
     capabilities: [
-      { name: 'web.navigation', description: 'Navigate to URLs and follow links', inputSchema: { url: 'string' }, outputSchema: { page: 'object' } },
-      { name: 'web.scraping', description: 'Extract structured data from web pages', inputSchema: { selector: 'string' }, outputSchema: { data: 'object' } },
-      { name: 'web.automation', description: 'Automate browser interactions and form submissions', inputSchema: { actions: 'array' }, outputSchema: { result: 'object' } },
+      {
+        name: 'web.navigation',
+        description: 'Navigate to URLs and follow links',
+        inputSchema: { url: 'string' },
+        outputSchema: { page: 'object' },
+      },
+      {
+        name: 'web.scraping',
+        description: 'Extract structured data from web pages',
+        inputSchema: { selector: 'string' },
+        outputSchema: { data: 'object' },
+      },
+      {
+        name: 'web.automation',
+        description: 'Automate browser interactions and form submissions',
+        inputSchema: { actions: 'array' },
+        outputSchema: { result: 'object' },
+      },
     ],
     size: '24.5 MB',
     tags: ['web', 'browser', 'scraping', 'automation'],
@@ -132,10 +144,30 @@ const BUILT_IN_CLUSTERS: Array<{
       'Document creation, editing, and management. Supports Word, Excel, ' +
       'PowerPoint, and PDF operations for comprehensive office automation.',
     capabilities: [
-      { name: 'doc.create', description: 'Create new documents in various formats', inputSchema: { format: 'string', template: 'string' }, outputSchema: { document: 'object' } },
-      { name: 'doc.edit', description: 'Edit existing documents with tracked changes', inputSchema: { documentId: 'string', changes: 'array' }, outputSchema: { document: 'object' } },
-      { name: 'doc.convert', description: 'Convert between document formats', inputSchema: { source: 'string', targetFormat: 'string' }, outputSchema: { converted: 'object' } },
-      { name: 'spreadsheet.analyze', description: 'Analyze and process spreadsheet data', inputSchema: { range: 'string', operation: 'string' }, outputSchema: { result: 'object' } },
+      {
+        name: 'doc.create',
+        description: 'Create new documents in various formats',
+        inputSchema: { format: 'string', template: 'string' },
+        outputSchema: { document: 'object' },
+      },
+      {
+        name: 'doc.edit',
+        description: 'Edit existing documents with tracked changes',
+        inputSchema: { documentId: 'string', changes: 'array' },
+        outputSchema: { document: 'object' },
+      },
+      {
+        name: 'doc.convert',
+        description: 'Convert between document formats',
+        inputSchema: { source: 'string', targetFormat: 'string' },
+        outputSchema: { converted: 'object' },
+      },
+      {
+        name: 'spreadsheet.analyze',
+        description: 'Analyze and process spreadsheet data',
+        inputSchema: { range: 'string', operation: 'string' },
+        outputSchema: { result: 'object' },
+      },
     ],
     size: '18.2 MB',
     tags: ['office', 'documents', 'spreadsheets', 'pdf'],
@@ -147,9 +179,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'SEO analysis, content strategy, social media management, and campaign ' +
       'automation. Enables data-driven marketing operations.',
     capabilities: [
-      { name: 'seo.analyze', description: 'Analyze SEO metrics and provide recommendations', inputSchema: { url: 'string' }, outputSchema: { report: 'object' } },
-      { name: 'content.strategy', description: 'Generate content strategy and calendars', inputSchema: { audience: 'string', goals: 'array' }, outputSchema: { strategy: 'object' } },
-      { name: 'social.manage', description: 'Manage social media posts and engagement', inputSchema: { platform: 'string', content: 'object' }, outputSchema: { result: 'object' } },
+      {
+        name: 'seo.analyze',
+        description: 'Analyze SEO metrics and provide recommendations',
+        inputSchema: { url: 'string' },
+        outputSchema: { report: 'object' },
+      },
+      {
+        name: 'content.strategy',
+        description: 'Generate content strategy and calendars',
+        inputSchema: { audience: 'string', goals: 'array' },
+        outputSchema: { strategy: 'object' },
+      },
+      {
+        name: 'social.manage',
+        description: 'Manage social media posts and engagement',
+        inputSchema: { platform: 'string', content: 'object' },
+        outputSchema: { result: 'object' },
+      },
     ],
     size: '12.8 MB',
     tags: ['marketing', 'seo', 'social-media', 'content'],
@@ -161,9 +208,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Financial analysis, reporting, risk assessment, and portfolio management. ' +
       'Provides quantitative tools for financial decision-making.',
     capabilities: [
-      { name: 'finance.analyze', description: 'Perform financial analysis on datasets', inputSchema: { data: 'object', metrics: 'array' }, outputSchema: { analysis: 'object' } },
-      { name: 'finance.report', description: 'Generate financial reports and summaries', inputSchema: { period: 'string', type: 'string' }, outputSchema: { report: 'object' } },
-      { name: 'finance.risk', description: 'Assess financial risk and exposure', inputSchema: { portfolio: 'object' }, outputSchema: { riskAssessment: 'object' } },
+      {
+        name: 'finance.analyze',
+        description: 'Perform financial analysis on datasets',
+        inputSchema: { data: 'object', metrics: 'array' },
+        outputSchema: { analysis: 'object' },
+      },
+      {
+        name: 'finance.report',
+        description: 'Generate financial reports and summaries',
+        inputSchema: { period: 'string', type: 'string' },
+        outputSchema: { report: 'object' },
+      },
+      {
+        name: 'finance.risk',
+        description: 'Assess financial risk and exposure',
+        inputSchema: { portfolio: 'object' },
+        outputSchema: { riskAssessment: 'object' },
+      },
     ],
     size: '15.6 MB',
     tags: ['finance', 'accounting', 'risk', 'reporting'],
@@ -175,9 +237,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Clinical decision support, medical record analysis, diagnostic assistance, ' +
       'and healthcare workflow automation with HIPAA-aware data handling.',
     capabilities: [
-      { name: 'clinical.decision-support', description: 'Provide clinical decision support based on patient data', inputSchema: { patientData: 'object' }, outputSchema: { recommendations: 'array' } },
-      { name: 'medical.record-analysis', description: 'Analyze medical records and extract key findings', inputSchema: { records: 'array' }, outputSchema: { findings: 'array' } },
-      { name: 'diagnostic.assist', description: 'Assist with differential diagnosis', inputSchema: { symptoms: 'array', history: 'object' }, outputSchema: { differentials: 'array' } },
+      {
+        name: 'clinical.decision-support',
+        description: 'Provide clinical decision support based on patient data',
+        inputSchema: { patientData: 'object' },
+        outputSchema: { recommendations: 'array' },
+      },
+      {
+        name: 'medical.record-analysis',
+        description: 'Analyze medical records and extract key findings',
+        inputSchema: { records: 'array' },
+        outputSchema: { findings: 'array' },
+      },
+      {
+        name: 'diagnostic.assist',
+        description: 'Assist with differential diagnosis',
+        inputSchema: { symptoms: 'array', history: 'object' },
+        outputSchema: { differentials: 'array' },
+      },
     ],
     size: '21.3 MB',
     tags: ['medical', 'healthcare', 'clinical', 'diagnostics'],
@@ -189,9 +266,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Legal document analysis, contract review, compliance checking, and ' +
       'regulatory research. Streamlines legal operations with AI assistance.',
     capabilities: [
-      { name: 'legal.document-analysis', description: 'Analyze legal documents for key clauses and risks', inputSchema: { document: 'object' }, outputSchema: { analysis: 'object' } },
-      { name: 'legal.contract-review', description: 'Review contracts and flag issues', inputSchema: { contract: 'object' }, outputSchema: { review: 'object' } },
-      { name: 'legal.compliance', description: 'Check compliance with regulations and standards', inputSchema: { context: 'object', regulation: 'string' }, outputSchema: { compliance: 'object' } },
+      {
+        name: 'legal.document-analysis',
+        description: 'Analyze legal documents for key clauses and risks',
+        inputSchema: { document: 'object' },
+        outputSchema: { analysis: 'object' },
+      },
+      {
+        name: 'legal.contract-review',
+        description: 'Review contracts and flag issues',
+        inputSchema: { contract: 'object' },
+        outputSchema: { review: 'object' },
+      },
+      {
+        name: 'legal.compliance',
+        description: 'Check compliance with regulations and standards',
+        inputSchema: { context: 'object', regulation: 'string' },
+        outputSchema: { compliance: 'object' },
+      },
     ],
     size: '14.7 MB',
     tags: ['legal', 'compliance', 'contracts', 'regulatory'],
@@ -203,9 +295,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Robot control, path planning, sensor fusion, and physical world ' +
       'interaction. Bridges AI agents with robotic systems.',
     capabilities: [
-      { name: 'robot.control', description: 'Control robot movements and actions', inputSchema: { commands: 'array' }, outputSchema: { status: 'object' } },
-      { name: 'robot.path-planning', description: 'Plan optimal paths for robot navigation', inputSchema: { map: 'object', start: 'object', end: 'object' }, outputSchema: { path: 'array' } },
-      { name: 'robot.sensor-fusion', description: 'Fuse data from multiple robot sensors', inputSchema: { sensorData: 'object' }, outputSchema: { fusedState: 'object' } },
+      {
+        name: 'robot.control',
+        description: 'Control robot movements and actions',
+        inputSchema: { commands: 'array' },
+        outputSchema: { status: 'object' },
+      },
+      {
+        name: 'robot.path-planning',
+        description: 'Plan optimal paths for robot navigation',
+        inputSchema: { map: 'object', start: 'object', end: 'object' },
+        outputSchema: { path: 'array' },
+      },
+      {
+        name: 'robot.sensor-fusion',
+        description: 'Fuse data from multiple robot sensors',
+        inputSchema: { sensorData: 'object' },
+        outputSchema: { fusedState: 'object' },
+      },
     ],
     size: '28.9 MB',
     tags: ['robotics', 'automation', 'path-planning', 'sensors'],
@@ -217,10 +324,30 @@ const BUILT_IN_CLUSTERS: Array<{
       'Image recognition, object detection, OCR, video analysis, and visual ' +
       'understanding. Enables agents to perceive and interpret visual data.',
     capabilities: [
-      { name: 'vision.recognize', description: 'Recognize objects and scenes in images', inputSchema: { image: 'object' }, outputSchema: { labels: 'array' } },
-      { name: 'vision.detect', description: 'Detect and localize objects in images', inputSchema: { image: 'object', target: 'string' }, outputSchema: { detections: 'array' } },
-      { name: 'vision.ocr', description: 'Extract text from images via OCR', inputSchema: { image: 'object' }, outputSchema: { text: 'string' } },
-      { name: 'vision.video-analysis', description: 'Analyze video content and extract key frames', inputSchema: { video: 'object' }, outputSchema: { analysis: 'object' } },
+      {
+        name: 'vision.recognize',
+        description: 'Recognize objects and scenes in images',
+        inputSchema: { image: 'object' },
+        outputSchema: { labels: 'array' },
+      },
+      {
+        name: 'vision.detect',
+        description: 'Detect and localize objects in images',
+        inputSchema: { image: 'object', target: 'string' },
+        outputSchema: { detections: 'array' },
+      },
+      {
+        name: 'vision.ocr',
+        description: 'Extract text from images via OCR',
+        inputSchema: { image: 'object' },
+        outputSchema: { text: 'string' },
+      },
+      {
+        name: 'vision.video-analysis',
+        description: 'Analyze video content and extract key frames',
+        inputSchema: { video: 'object' },
+        outputSchema: { analysis: 'object' },
+      },
     ],
     size: '32.1 MB',
     tags: ['vision', 'image', 'ocr', 'video', 'detection'],
@@ -232,9 +359,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Data pipeline orchestration, ETL operations, database management, and ' +
       'data quality monitoring. The backbone for data-driven agent workflows.',
     capabilities: [
-      { name: 'data.etl', description: 'Extract, transform, and load data pipelines', inputSchema: { source: 'object', transform: 'object', target: 'object' }, outputSchema: { result: 'object' } },
-      { name: 'data.quality', description: 'Monitor and validate data quality', inputSchema: { dataset: 'object', rules: 'array' }, outputSchema: { qualityReport: 'object' } },
-      { name: 'data.orchestrate', description: 'Orchestrate multi-step data workflows', inputSchema: { workflow: 'object' }, outputSchema: { execution: 'object' } },
+      {
+        name: 'data.etl',
+        description: 'Extract, transform, and load data pipelines',
+        inputSchema: { source: 'object', transform: 'object', target: 'object' },
+        outputSchema: { result: 'object' },
+      },
+      {
+        name: 'data.quality',
+        description: 'Monitor and validate data quality',
+        inputSchema: { dataset: 'object', rules: 'array' },
+        outputSchema: { qualityReport: 'object' },
+      },
+      {
+        name: 'data.orchestrate',
+        description: 'Orchestrate multi-step data workflows',
+        inputSchema: { workflow: 'object' },
+        outputSchema: { execution: 'object' },
+      },
     ],
     size: '19.4 MB',
     tags: ['data', 'etl', 'pipeline', 'quality'],
@@ -246,9 +388,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Vulnerability scanning, threat detection, incident response, and security ' +
       'auditing. Protects agent operations and infrastructure.',
     capabilities: [
-      { name: 'security.scan', description: 'Scan for vulnerabilities and misconfigurations', inputSchema: { target: 'string', type: 'string' }, outputSchema: { findings: 'array' } },
-      { name: 'security.threat-detect', description: 'Detect threats and anomalies in real-time', inputSchema: { telemetry: 'object' }, outputSchema: { threats: 'array' } },
-      { name: 'security.incident-response', description: 'Automate incident response playbooks', inputSchema: { incident: 'object' }, outputSchema: { actions: 'array' } },
+      {
+        name: 'security.scan',
+        description: 'Scan for vulnerabilities and misconfigurations',
+        inputSchema: { target: 'string', type: 'string' },
+        outputSchema: { findings: 'array' },
+      },
+      {
+        name: 'security.threat-detect',
+        description: 'Detect threats and anomalies in real-time',
+        inputSchema: { telemetry: 'object' },
+        outputSchema: { threats: 'array' },
+      },
+      {
+        name: 'security.incident-response',
+        description: 'Automate incident response playbooks',
+        inputSchema: { incident: 'object' },
+        outputSchema: { actions: 'array' },
+      },
     ],
     size: '16.8 MB',
     tags: ['security', 'vulnerability', 'threat', 'incident-response'],
@@ -260,9 +417,24 @@ const BUILT_IN_CLUSTERS: Array<{
       'Email, messaging, notification, and multi-channel communication. ' +
       'Enables agents to interact with humans and other systems via various channels.',
     capabilities: [
-      { name: 'comm.email', description: 'Send and manage email communications', inputSchema: { to: 'string', subject: 'string', body: 'string' }, outputSchema: { status: 'object' } },
-      { name: 'comm.message', description: 'Send messages across platforms', inputSchema: { platform: 'string', message: 'object' }, outputSchema: { result: 'object' } },
-      { name: 'comm.notify', description: 'Send notifications and alerts', inputSchema: { channel: 'string', alert: 'object' }, outputSchema: { delivery: 'object' } },
+      {
+        name: 'comm.email',
+        description: 'Send and manage email communications',
+        inputSchema: { to: 'string', subject: 'string', body: 'string' },
+        outputSchema: { status: 'object' },
+      },
+      {
+        name: 'comm.message',
+        description: 'Send messages across platforms',
+        inputSchema: { platform: 'string', message: 'object' },
+        outputSchema: { result: 'object' },
+      },
+      {
+        name: 'comm.notify',
+        description: 'Send notifications and alerts',
+        inputSchema: { channel: 'string', alert: 'object' },
+        outputSchema: { delivery: 'object' },
+      },
     ],
     size: '11.5 MB',
     tags: ['communication', 'email', 'messaging', 'notifications'],
@@ -383,10 +555,7 @@ export class MarketplaceService implements OnModuleInit {
       }
 
       // Register active capabilities for built-in plugins
-      this.activeCapabilities.set(
-        pluginId,
-        new Set(capabilities.map((c) => c.name)),
-      );
+      this.activeCapabilities.set(pluginId, new Set(capabilities.map((c) => c.name)));
     }
 
     this.logger.log(
@@ -405,9 +574,7 @@ export class MarketplaceService implements OnModuleInit {
     // --- Validate manifest structure ---
     const validationErrors = this.validateManifest(manifest);
     if (validationErrors.length > 0) {
-      throw new Error(
-        `Manifest validation failed: ${validationErrors.join('; ')}`,
-      );
+      throw new Error(`Manifest validation failed: ${validationErrors.join('; ')}`);
     }
 
     const pluginData = manifest.plugin;
@@ -415,9 +582,7 @@ export class MarketplaceService implements OnModuleInit {
 
     // --- Check for duplicate ---
     if (this.registry.plugins.has(pluginId)) {
-      throw new Error(
-        `Plugin with id "${pluginId}" is already registered in the marketplace`,
-      );
+      throw new Error(`Plugin with id "${pluginId}" is already registered in the marketplace`);
     }
 
     // --- Check compatibility with current OS version ---
@@ -537,9 +702,7 @@ export class MarketplaceService implements OnModuleInit {
       timestamp: Date.now(),
     });
 
-    this.logger.log(
-      `Plugin unregistered: "${plugin.name}" (${pluginId})`,
-    );
+    this.logger.log(`Plugin unregistered: "${plugin.name}" (${pluginId})`);
   }
 
   // ─── 4. installPlugin ─────────────────────────────────────────────
@@ -550,10 +713,7 @@ export class MarketplaceService implements OnModuleInit {
    * if available, registers the plugin's capabilities, and marks it as
    * installed. Returns a PluginInstallResult with detailed outcome info.
    */
-  installPlugin(
-    pluginId: string,
-    config?: Record<string, any>,
-  ): PluginInstallResult {
+  installPlugin(pluginId: string, config?: Record<string, any>): PluginInstallResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -598,9 +758,7 @@ export class MarketplaceService implements OnModuleInit {
 
       if (!depPlugin) {
         if (dep.required) {
-          errors.push(
-            `Required dependency "${dep.pluginId}" is not available in the marketplace`,
-          );
+          errors.push(`Required dependency "${dep.pluginId}" is not available in the marketplace`);
         } else {
           warnings.push(
             `Optional dependency "${dep.pluginId}" is not available — some features may be limited`,
@@ -612,18 +770,14 @@ export class MarketplaceService implements OnModuleInit {
       if (!depPlugin.installed) {
         if (dep.required) {
           // Attempt to install the required dependency first
-          this.logger.log(
-            `Installing required dependency "${dep.pluginId}" for "${pluginId}"...`,
-          );
+          this.logger.log(`Installing required dependency "${dep.pluginId}" for "${pluginId}"...`);
           const depResult = this.installPlugin(dep.pluginId);
           if (!depResult.success) {
             errors.push(
               `Failed to install required dependency "${dep.pluginId}": ${depResult.message}`,
             );
           } else {
-            warnings.push(
-              `Required dependency "${dep.pluginId}" was auto-installed`,
-            );
+            warnings.push(`Required dependency "${dep.pluginId}" was auto-installed`);
           }
         } else {
           warnings.push(
@@ -634,12 +788,7 @@ export class MarketplaceService implements OnModuleInit {
       }
 
       // Dependency is installed — check version compatibility
-      if (
-        !this.isVersionInRange(
-          depPlugin.version,
-          dep.versionRange,
-        )
-      ) {
+      if (!this.isVersionInRange(depPlugin.version, dep.versionRange)) {
         if (dep.required) {
           errors.push(
             `Required dependency "${dep.pluginId}" version ${depPlugin.version} ` +
@@ -685,9 +834,7 @@ export class MarketplaceService implements OnModuleInit {
       timestamp: Date.now(),
     });
 
-    this.logger.log(
-      `Plugin installed: "${plugin.name}" (${pluginId}) v${plugin.version}`,
-    );
+    this.logger.log(`Plugin installed: "${plugin.name}" (${pluginId}) v${plugin.version}`);
 
     return {
       success: true,
@@ -787,9 +934,7 @@ export class MarketplaceService implements OnModuleInit {
       timestamp: Date.now(),
     });
 
-    this.logger.log(
-      `Plugin uninstalled: "${plugin.name}" (${pluginId})`,
-    );
+    this.logger.log(`Plugin uninstalled: "${plugin.name}" (${pluginId})`);
 
     return {
       success: true,
@@ -813,9 +958,7 @@ export class MarketplaceService implements OnModuleInit {
     }
 
     if (!plugin.installed) {
-      throw new Error(
-        `Cannot enable plugin "${pluginId}" — it is not installed`,
-      );
+      throw new Error(`Cannot enable plugin "${pluginId}" — it is not installed`);
     }
 
     if (plugin.enabled) {
@@ -837,9 +980,7 @@ export class MarketplaceService implements OnModuleInit {
     // Enable the plugin and register its capabilities
     plugin.enabled = true;
 
-    const capabilityNames = new Set(
-      plugin.capabilities.map((c) => c.name),
-    );
+    const capabilityNames = new Set(plugin.capabilities.map((c) => c.name));
     this.activeCapabilities.set(pluginId, capabilityNames);
 
     this.emitEvent('marketplace.plugin.enabled', {
@@ -867,9 +1008,7 @@ export class MarketplaceService implements OnModuleInit {
     }
 
     if (!plugin.installed) {
-      throw new Error(
-        `Cannot disable plugin "${pluginId}" — it is not installed`,
-      );
+      throw new Error(`Cannot disable plugin "${pluginId}" — it is not installed`);
     }
 
     if (!plugin.enabled) {
@@ -903,9 +1042,7 @@ export class MarketplaceService implements OnModuleInit {
       timestamp: Date.now(),
     });
 
-    this.logger.log(
-      `Plugin disabled: "${plugin.name}" (${pluginId})`,
-    );
+    this.logger.log(`Plugin disabled: "${plugin.name}" (${pluginId})`);
   }
 
   // ─── 8. configurePlugin ───────────────────────────────────────────
@@ -914,19 +1051,14 @@ export class MarketplaceService implements OnModuleInit {
    * Update the configuration of an installed plugin. Merges the new
    * config with the existing configuration.
    */
-  configurePlugin(
-    pluginId: string,
-    config: Record<string, any>,
-  ): Record<string, any> {
+  configurePlugin(pluginId: string, config: Record<string, any>): Record<string, any> {
     const plugin = this.registry.plugins.get(pluginId);
     if (!plugin) {
       throw new Error(`Plugin "${pluginId}" not found in marketplace`);
     }
 
     if (!plugin.installed) {
-      throw new Error(
-        `Cannot configure plugin "${pluginId}" — it is not installed`,
-      );
+      throw new Error(`Cannot configure plugin "${pluginId}" — it is not installed`);
     }
 
     // Deep merge configuration
@@ -973,9 +1105,7 @@ export class MarketplaceService implements OnModuleInit {
 
       if (filters?.tags && filters.tags.length > 0) {
         const pluginTagsLower = plugin.tags.map((t) => t.toLowerCase());
-        const hasAllTags = filters.tags.every((ft) =>
-          pluginTagsLower.includes(ft.toLowerCase()),
-        );
+        const hasAllTags = filters.tags.every((ft) => pluginTagsLower.includes(ft.toLowerCase()));
         if (!hasAllTags) continue;
       }
 
@@ -1270,9 +1400,7 @@ export class MarketplaceService implements OnModuleInit {
         plugin.compatibility.maxVersion,
       )
     ) {
-      errors.push(
-        `Updated version would not be compatible with OS version ${CURRENT_OS_VERSION}`,
-      );
+      errors.push(`Updated version would not be compatible with OS version ${CURRENT_OS_VERSION}`);
     }
 
     // Check dependencies still work with the "updated" version
@@ -1447,7 +1575,8 @@ export class MarketplaceService implements OnModuleInit {
         const cap = p.capabilities[i];
         if (!cap.name) errors.push(`plugin.capabilities[${i}].name is required`);
         if (!cap.description) errors.push(`plugin.capabilities[${i}].description is required`);
-        if (typeof cap.agentCount !== 'number') errors.push(`plugin.capabilities[${i}].agentCount must be a number`);
+        if (typeof cap.agentCount !== 'number')
+          errors.push(`plugin.capabilities[${i}].agentCount must be a number`);
       }
     }
 
@@ -1490,11 +1619,7 @@ export class MarketplaceService implements OnModuleInit {
   /**
    * Add a value to a Map<string, string[]> index.
    */
-  private addToIndex(
-    index: Map<string, string[]>,
-    key: string,
-    value: string,
-  ): void {
+  private addToIndex(index: Map<string, string[]>, key: string, value: string): void {
     if (!index.has(key)) {
       index.set(key, []);
     }
@@ -1507,11 +1632,7 @@ export class MarketplaceService implements OnModuleInit {
   /**
    * Remove a value from a Map<string, string[]> index.
    */
-  private removeFromIndex(
-    index: Map<string, string[]>,
-    key: string,
-    value: string,
-  ): void {
+  private removeFromIndex(index: Map<string, string[]>, key: string, value: string): void {
     const list = index.get(key);
     if (!list) return;
 
@@ -1529,14 +1650,9 @@ export class MarketplaceService implements OnModuleInit {
    * Check if a version falls within a min/max compatibility range.
    * Uses simple semver comparison (major.minor.patch).
    */
-  private isVersionCompatible(
-    version: string,
-    minVersion: string,
-    maxVersion: string,
-  ): boolean {
+  private isVersionCompatible(version: string, minVersion: string, maxVersion: string): boolean {
     return (
-      this.compareSemver(version, minVersion) >= 0 &&
-      this.compareSemver(version, maxVersion) <= 0
+      this.compareSemver(version, minVersion) >= 0 && this.compareSemver(version, maxVersion) <= 0
     );
   }
 
@@ -1613,9 +1729,7 @@ export class MarketplaceService implements OnModuleInit {
   /**
    * Parse a semver string into its components.
    */
-  private parseSemver(
-    version: string,
-  ): { major: number; minor: number; patch: number } | null {
+  private parseSemver(version: string): { major: number; minor: number; patch: number } | null {
     const match = version.match(/^(\d+)\.(\d+)\.(\d+)/);
     if (!match) return null;
     return {
@@ -1653,10 +1767,7 @@ export class MarketplaceService implements OnModuleInit {
   /**
    * Deep merge two objects. Arrays are replaced, not concatenated.
    */
-  private deepMerge(
-    target: Record<string, any>,
-    source: Record<string, any>,
-  ): Record<string, any> {
+  private deepMerge(target: Record<string, any>, source: Record<string, any>): Record<string, any> {
     const result = { ...target };
 
     for (const key of Object.keys(source)) {

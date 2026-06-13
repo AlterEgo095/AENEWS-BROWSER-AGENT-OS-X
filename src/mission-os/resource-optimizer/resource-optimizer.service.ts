@@ -20,14 +20,14 @@ export interface ResourceCandidate {
   resourceType: ResourceType;
   provider: string;
   config: Record<string, any>;
-  costPerUnit: number;         // Cost per execution/hour
-  latencyMs: number;           // Average latency
-  availability: number;        // 0-1, current availability
-  quality: number;             // 0-1, quality score
+  costPerUnit: number; // Cost per execution/hour
+  latencyMs: number; // Average latency
+  availability: number; // 0-1, current availability
+  quality: number; // 0-1, quality score
   maxConcurrency: number;
-  currentLoad: number;         // 0-1
+  currentLoad: number; // 0-1
   region: string;
-  capabilities: string[];      // e.g., for LLM: 'code', 'chat', 'vision'
+  capabilities: string[]; // e.g., for LLM: 'code', 'chat', 'vision'
   metadata: Record<string, any>;
 }
 
@@ -138,9 +138,9 @@ interface DemandForecast {
 // ---------------------------------------------------------------------------
 
 const WEIGHT_PROFILES: Record<OptimizationCriteria['prioritize'], WeightProfile> = {
-  cost:     { cost: 0.50, latency: 0.20, quality: 0.20, availability: 0.10 },
-  latency:  { cost: 0.20, latency: 0.50, quality: 0.20, availability: 0.10 },
-  quality:  { cost: 0.20, latency: 0.20, quality: 0.50, availability: 0.10 },
+  cost: { cost: 0.5, latency: 0.2, quality: 0.2, availability: 0.1 },
+  latency: { cost: 0.2, latency: 0.5, quality: 0.2, availability: 0.1 },
+  quality: { cost: 0.2, latency: 0.2, quality: 0.5, availability: 0.1 },
   balanced: { cost: 0.25, latency: 0.25, quality: 0.25, availability: 0.25 },
 };
 
@@ -194,9 +194,7 @@ export class ResourceOptimizerService implements OnModuleInit {
     const { id, resourceType } = candidate;
 
     if (this.resourceIndex.has(id)) {
-      this.logger.warn(
-        `Resource "${id}" is already registered — replacing with new candidate`,
-      );
+      this.logger.warn(`Resource "${id}" is already registered — replacing with new candidate`);
       this.unregisterResource(id);
     }
 
@@ -272,7 +270,12 @@ export class ResourceOptimizerService implements OnModuleInit {
    */
   updateResourceMetrics(
     resourceId: string,
-    metrics: Partial<Pick<ResourceCandidate, 'availability' | 'currentLoad' | 'latencyMs' | 'quality' | 'costPerUnit' | 'maxConcurrency'>>,
+    metrics: Partial<
+      Pick<
+        ResourceCandidate,
+        'availability' | 'currentLoad' | 'latencyMs' | 'quality' | 'costPerUnit' | 'maxConcurrency'
+      >
+    >,
   ): boolean {
     const candidate = this.resourceIndex.get(resourceId);
     if (!candidate) {
@@ -305,9 +308,7 @@ export class ResourceOptimizerService implements OnModuleInit {
       this.recalculatePoolMetrics(pool);
     }
 
-    this.logger.debug(
-      `Updated metrics for resource "${resourceId}": ${JSON.stringify(metrics)}`,
-    );
+    this.logger.debug(`Updated metrics for resource "${resourceId}": ${JSON.stringify(metrics)}`);
     return true;
   }
 
@@ -336,9 +337,7 @@ export class ResourceOptimizerService implements OnModuleInit {
   ): OptimizationResult | null {
     const pool = this.pools.get(resourceType);
     if (!pool || pool.candidates.length === 0) {
-      this.logger.warn(
-        `No resource candidates available for type "${resourceType}"`,
-      );
+      this.logger.warn(`No resource candidates available for type "${resourceType}"`);
       return null;
     }
 
@@ -727,10 +726,7 @@ export class ResourceOptimizerService implements OnModuleInit {
    * If utilization exceeds the target threshold, suggest scaling actions
    * (add more resources, distribute load, or scale down).
    */
-  scaleIfNeeded(
-    resourceType: ResourceType,
-    targetUtilization: number = 0.7,
-  ): ScalingSuggestion {
+  scaleIfNeeded(resourceType: ResourceType, targetUtilization: number = 0.7): ScalingSuggestion {
     const pool = this.pools.get(resourceType);
     const currentUtilization = pool?.currentUtilization ?? 0;
     const totalCapacity = pool?.totalCapacity ?? 0;
@@ -820,7 +816,7 @@ export class ResourceOptimizerService implements OnModuleInit {
    * date range.
    */
   getCostReport(from?: Date, to?: Date): CostReport {
-    let entries: CostReportEntry[] = [];
+    const entries: CostReportEntry[] = [];
 
     for (const allocation of this.allocations.values()) {
       // Date filtering
@@ -849,8 +845,7 @@ export class ResourceOptimizerService implements OnModuleInit {
     for (const entry of entries) {
       costByResourceType[entry.resourceType] =
         (costByResourceType[entry.resourceType] ?? 0) + entry.costEstimate;
-      costByProvider[entry.provider] =
-        (costByProvider[entry.provider] ?? 0) + entry.costEstimate;
+      costByProvider[entry.provider] = (costByProvider[entry.provider] ?? 0) + entry.costEstimate;
     }
 
     return {
@@ -924,13 +919,9 @@ export class ResourceOptimizerService implements OnModuleInit {
 
     pool.totalCapacity = candidates.reduce((sum, c) => sum + c.maxConcurrency, 0);
 
-    const currentLoad = candidates.reduce(
-      (sum, c) => sum + c.currentLoad * c.maxConcurrency,
-      0,
-    );
+    const currentLoad = candidates.reduce((sum, c) => sum + c.currentLoad * c.maxConcurrency, 0);
 
-    pool.currentUtilization =
-      pool.totalCapacity > 0 ? currentLoad / pool.totalCapacity : 0;
+    pool.currentUtilization = pool.totalCapacity > 0 ? currentLoad / pool.totalCapacity : 0;
   }
 
   /**
@@ -990,7 +981,9 @@ export class ResourceOptimizerService implements OnModuleInit {
     }
 
     if (selected.currentLoad > 0.7) {
-      parts.push(`Warning: selected resource is under high load (${(selected.currentLoad * 100).toFixed(0)}%).`);
+      parts.push(
+        `Warning: selected resource is under high load (${(selected.currentLoad * 100).toFixed(0)}%).`,
+      );
     }
 
     return parts.join(' ');

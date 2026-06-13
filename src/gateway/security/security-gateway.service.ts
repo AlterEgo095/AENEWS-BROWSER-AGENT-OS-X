@@ -93,26 +93,67 @@ export class SecurityGatewayService {
   private readonly rateCounters: Map<string, { count: number; windowStart: number }> = new Map();
 
   /** Blacklisted patterns for injection detection */
-  private readonly injectionPatterns: Array<{ pattern: RegExp; type: SecurityThreatType; severity: 'low' | 'medium' | 'high' | 'critical' }> = [
+  private readonly injectionPatterns: Array<{
+    pattern: RegExp;
+    type: SecurityThreatType;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+  }> = [
     // Prompt injection patterns
-    { pattern: /ignore\s+(previous|all|above)\s+(instructions|prompts|rules)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'critical' },
+    {
+      pattern: /ignore\s+(previous|all|above)\s+(instructions|prompts|rules)/i,
+      type: SecurityThreatType.PROMPT_INJECTION,
+      severity: 'critical',
+    },
     { pattern: /you\s+are\s+now\s+/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
     { pattern: /system\s*:\s*/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
-    { pattern: /forget\s+(everything|all|previous)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
-    { pattern: /new\s+instructions?\s*:/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'medium' },
-    { pattern: /disregard\s+(your|the)\s+(training|rules|guidelines)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'critical' },
-    { pattern: /act\s+as\s+(if\s+you\s+(are|were)|a\s+different)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
+    {
+      pattern: /forget\s+(everything|all|previous)/i,
+      type: SecurityThreatType.PROMPT_INJECTION,
+      severity: 'high',
+    },
+    {
+      pattern: /new\s+instructions?\s*:/i,
+      type: SecurityThreatType.PROMPT_INJECTION,
+      severity: 'medium',
+    },
+    {
+      pattern: /disregard\s+(your|the)\s+(training|rules|guidelines)/i,
+      type: SecurityThreatType.PROMPT_INJECTION,
+      severity: 'critical',
+    },
+    {
+      pattern: /act\s+as\s+(if\s+you\s+(are|were)|a\s+different)/i,
+      type: SecurityThreatType.PROMPT_INJECTION,
+      severity: 'high',
+    },
 
     // Command injection patterns
-    { pattern: /;\s*(rm|del|format|shutdown|reboot|kill|sudo)\b/i, type: SecurityThreatType.COMMAND_INJECTION, severity: 'critical' },
+    {
+      pattern: /;\s*(rm|del|format|shutdown|reboot|kill|sudo)\b/i,
+      type: SecurityThreatType.COMMAND_INJECTION,
+      severity: 'critical',
+    },
     { pattern: /\$\{.*\}/, type: SecurityThreatType.COMMAND_INJECTION, severity: 'high' },
-    { pattern: /\|\s*(bash|sh|cmd|powershell)\b/i, type: SecurityThreatType.COMMAND_INJECTION, severity: 'critical' },
+    {
+      pattern: /\|\s*(bash|sh|cmd|powershell)\b/i,
+      type: SecurityThreatType.COMMAND_INJECTION,
+      severity: 'critical',
+    },
     { pattern: /`[^`]*`/, type: SecurityThreatType.COMMAND_INJECTION, severity: 'medium' },
     { pattern: /\bexec\s*\(/i, type: SecurityThreatType.COMMAND_INJECTION, severity: 'high' },
 
     // SQL injection patterns
-    { pattern: /(\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b.*\b(FROM|INTO|TABLE|WHERE)\b)/i, type: SecurityThreatType.SQL_INJECTION, severity: 'critical' },
-    { pattern: /'\s*(OR|AND)\s+'[^']*'\s*=\s*'/i, type: SecurityThreatType.SQL_INJECTION, severity: 'critical' },
+    {
+      pattern:
+        /(\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b.*\b(FROM|INTO|TABLE|WHERE)\b)/i,
+      type: SecurityThreatType.SQL_INJECTION,
+      severity: 'critical',
+    },
+    {
+      pattern: /'\s*(OR|AND)\s+'[^']*'\s*=\s*'/i,
+      type: SecurityThreatType.SQL_INJECTION,
+      severity: 'critical',
+    },
     { pattern: /;\s*DROP\s+TABLE/i, type: SecurityThreatType.SQL_INJECTION, severity: 'critical' },
     { pattern: /--\s*$/m, type: SecurityThreatType.SQL_INJECTION, severity: 'medium' },
 
@@ -129,9 +170,21 @@ export class SecurityGatewayService {
     { pattern: /%252e/i, type: SecurityThreatType.PATH_TRAVERSAL, severity: 'medium' },
 
     // Sensitive data exposure
-    { pattern: /\b(password|secret|token|api[_-]?key|private[_-]?key)\s*[:=]\s*['"][^'"]{8,}/i, type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE, severity: 'critical' },
-    { pattern: /\bAKIA[0-9A-Z]{16}\b/, type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE, severity: 'critical' },
-    { pattern: /\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b/, type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE, severity: 'high' },
+    {
+      pattern: /\b(password|secret|token|api[_-]?key|private[_-]?key)\s*[:=]\s*['"][^'"]{8,}/i,
+      type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE,
+      severity: 'critical',
+    },
+    {
+      pattern: /\bAKIA[0-9A-Z]{16}\b/,
+      type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE,
+      severity: 'critical',
+    },
+    {
+      pattern: /\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b/,
+      type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE,
+      severity: 'high',
+    },
   ];
 
   constructor() {
@@ -214,10 +267,18 @@ export class SecurityGatewayService {
     // Calculate total risk score
     for (const threat of threats) {
       switch (threat.severity) {
-        case 'critical': riskScore += 30; break;
-        case 'high': riskScore += 20; break;
-        case 'medium': riskScore += 10; break;
-        case 'low': riskScore += 5; break;
+        case 'critical':
+          riskScore += 30;
+          break;
+        case 'high':
+          riskScore += 20;
+          break;
+        case 'medium':
+          riskScore += 10;
+          break;
+        case 'low':
+          riskScore += 5;
+          break;
       }
     }
     riskScore = Math.min(100, riskScore);
@@ -241,7 +302,8 @@ export class SecurityGatewayService {
       agentId,
       action,
       resource,
-      result: resultAction === 'allow' ? 'allowed' : resultAction === 'block' ? 'blocked' : 'sanitized',
+      result:
+        resultAction === 'allow' ? 'allowed' : resultAction === 'block' ? 'blocked' : 'sanitized',
       threats,
       riskScore,
       policy,
@@ -431,7 +493,8 @@ export class SecurityGatewayService {
   ): boolean {
     switch (rule.type) {
       case 'pattern':
-        const targetValue = rule.field === 'action' ? action : rule.field === 'resource' ? resource : String(input);
+        const targetValue =
+          rule.field === 'action' ? action : rule.field === 'resource' ? resource : String(input);
         return rule.pattern ? new RegExp(rule.pattern).test(targetValue) : false;
 
       case 'blacklist':

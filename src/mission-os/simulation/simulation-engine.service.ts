@@ -238,9 +238,7 @@ export class SimulationEngineService {
     const overallSuccessProbability = successCount / iterations;
 
     const costs = iterationResults.map((r) => r.totalCost).sort((a, b) => a - b);
-    const durations = iterationResults
-      .map((r) => r.totalDurationMs)
-      .sort((a, b) => a - b);
+    const durations = iterationResults.map((r) => r.totalDurationMs).sort((a, b) => a - b);
 
     const costEstimate = this.computeCostEstimate(costs, iterations);
     const durationEstimate = this.computeDurationEstimate(durations, iterations);
@@ -663,7 +661,9 @@ export class SimulationEngineService {
       for (const [resource, amount] of Object.entries(node.resourceRequirements)) {
         const totalForResource = totalResourceDemand.get(resource) ?? 0;
         if (amount > totalForResource * 0.5 && totalForResource > 0) {
-          reasons.push(`High demand for resource "${resource}" (${amount} of ${totalForResource} total)`);
+          reasons.push(
+            `High demand for resource "${resource}" (${amount} of ${totalForResource} total)`,
+          );
           suggestions.push(`Consider acquiring more "${resource}" capacity or scheduling off-peak`);
         }
       }
@@ -826,9 +826,7 @@ export class SimulationEngineService {
 
     // 3. Bottleneck-specific recommendations
     for (const bottleneck of result.bottlenecks.slice(0, 5)) {
-      recommendations.push(
-        `Bottleneck at "${bottleneck.nodeId}": ${bottleneck.suggestion}`,
-      );
+      recommendations.push(`Bottleneck at "${bottleneck.nodeId}": ${bottleneck.suggestion}`);
     }
 
     // 4. Resource conflict recommendations
@@ -838,9 +836,8 @@ export class SimulationEngineService {
 
     // 5. Critical path optimization
     if (result.criticalPathAnalysis.criticalNodes.length > 0) {
-      const longCriticalNodes = result.criticalPathAnalysis.criticalNodes.filter(
-        (nodeId) =>
-          result.bottlenecks.some((b) => b.nodeId === nodeId),
+      const longCriticalNodes = result.criticalPathAnalysis.criticalNodes.filter((nodeId) =>
+        result.bottlenecks.some((b) => b.nodeId === nodeId),
       );
       if (longCriticalNodes.length > 0) {
         recommendations.push(
@@ -875,7 +872,10 @@ export class SimulationEngineService {
     }
 
     // 9. Parallelization opportunities
-    if (result.criticalPathAnalysis.slackTimeMs > result.criticalPathAnalysis.totalDurationMs * 0.3) {
+    if (
+      result.criticalPathAnalysis.slackTimeMs >
+      result.criticalPathAnalysis.totalDurationMs * 0.3
+    ) {
       recommendations.push(
         `Significant slack time detected (${result.criticalPathAnalysis.slackTimeMs.toFixed(0)}ms avg). ` +
           `Non-critical tasks can be delayed or resources can be reallocated to critical path tasks.`,
@@ -883,9 +883,7 @@ export class SimulationEngineService {
     }
 
     // 10. Add fallback agent recommendation for risky nodes
-    const riskyNodes = result.riskFactors.filter(
-      (r) => r.probability > 0.3 && r.impact > 0.5,
-    );
+    const riskyNodes = result.riskFactors.filter((r) => r.probability > 0.3 && r.impact > 0.5);
     if (riskyNodes.length > 0) {
       recommendations.push(
         `Add fallback agents for high-impact risk factors: ${riskyNodes.map((r) => r.name).join(', ')}`,
@@ -901,13 +899,8 @@ export class SimulationEngineService {
    * Run simulation with different resource/priority configurations.
    * Returns comparison of results across all variations.
    */
-  compareScenarios(
-    input: SimulationInput,
-    variations: ScenarioVariation[],
-  ): ScenarioComparison {
-    this.logger.log(
-      `Comparing ${variations.length} scenarios for mission ${input.missionId}`,
-    );
+  compareScenarios(input: SimulationInput, variations: ScenarioVariation[]): ScenarioComparison {
+    this.logger.log(`Comparing ${variations.length} scenarios for mission ${input.missionId}`);
 
     const variationResults: ScenarioComparison['variations'] = [];
 
@@ -955,9 +948,7 @@ export class SimulationEngineService {
     // Generate recommendation for best scenario
     const recommendation = this.generateScenarioRecommendation(variationResults);
 
-    this.logger.log(
-      `Scenario comparison complete. Recommendation: ${recommendation}`,
-    );
+    this.logger.log(`Scenario comparison complete. Recommendation: ${recommendation}`);
 
     return {
       variations: variationResults,
@@ -1103,10 +1094,7 @@ export class SimulationEngineService {
   /**
    * Compute DurationEstimate from sorted duration array.
    */
-  private computeDurationEstimate(
-    sortedDurations: number[],
-    iterations: number,
-  ): DurationEstimate {
+  private computeDurationEstimate(sortedDurations: number[], iterations: number): DurationEstimate {
     const min = sortedDurations[0] ?? 0;
     const max = sortedDurations[sortedDurations.length - 1] ?? 0;
     const expected = sortedDurations.reduce((s, d) => s + d, 0) / iterations;
@@ -1153,9 +1141,7 @@ export class SimulationEngineService {
       if (failureProb < 0.05) continue;
 
       // Impact: based on how many nodes depend on this one
-      const dependentCount = taskGraph.nodes.filter((n) =>
-        n.dependencies.includes(node.id),
-      ).length;
+      const dependentCount = taskGraph.nodes.filter((n) => n.dependencies.includes(node.id)).length;
       const impact = Math.min(1, dependentCount / Math.max(taskGraph.nodes.length * 0.3, 1));
       const riskScore = failureProb * impact;
 
@@ -1197,7 +1183,8 @@ export class SimulationEngineService {
     // Risk factor: cost overrun
     const successfulResults = iterationResults.filter((r) => r.success);
     if (successfulResults.length > 0) {
-      const avgCost = successfulResults.reduce((s, r) => s + r.totalCost, 0) / successfulResults.length;
+      const avgCost =
+        successfulResults.reduce((s, r) => s + r.totalCost, 0) / successfulResults.length;
       const overruns = successfulResults.filter((r) => r.totalCost > avgCost * 1.5).length;
       const overrunProb = overruns / successfulResults.length;
       if (overrunProb > 0.1) {
@@ -1214,8 +1201,11 @@ export class SimulationEngineService {
 
     // Risk factor: duration overrun
     if (successfulResults.length > 0) {
-      const avgDuration = successfulResults.reduce((s, r) => s + r.totalDurationMs, 0) / successfulResults.length;
-      const durationOverruns = successfulResults.filter((r) => r.totalDurationMs > avgDuration * 1.5).length;
+      const avgDuration =
+        successfulResults.reduce((s, r) => s + r.totalDurationMs, 0) / successfulResults.length;
+      const durationOverruns = successfulResults.filter(
+        (r) => r.totalDurationMs > avgDuration * 1.5,
+      ).length;
       const durationOverrunProb = durationOverruns / successfulResults.length;
       if (durationOverrunProb > 0.1) {
         riskFactors.push({
@@ -1251,9 +1241,7 @@ export class SimulationEngineService {
 
       if (failureProb < 0.05) continue;
 
-      const dependentCount = taskGraph.nodes.filter((n) =>
-        n.dependencies.includes(node.id),
-      ).length;
+      const dependentCount = taskGraph.nodes.filter((n) => n.dependencies.includes(node.id)).length;
       const impact = Math.min(1, dependentCount / Math.max(taskGraph.nodes.length * 0.3, 1));
       const riskScore = failureProb * impact;
 
@@ -1295,9 +1283,7 @@ export class SimulationEngineService {
     }
 
     const successCosts = successful.map((r) => r.totalCost).sort((a, b) => a - b);
-    const successDurations = successful
-      .map((r) => r.totalDurationMs)
-      .sort((a, b) => a - b);
+    const successDurations = successful.map((r) => r.totalDurationMs).sort((a, b) => a - b);
 
     // Optimistic: P25 of successful iterations
     const optimisticIdx = Math.floor(successful.length * 0.25);
@@ -1364,9 +1350,8 @@ export class SimulationEngineService {
     riskScore += (1 - successProbability) * 0.4;
 
     // Weight: max risk factor score (30%)
-    const maxRiskScore = riskFactors.length > 0
-      ? Math.max(...riskFactors.map((r) => r.riskScore))
-      : 0;
+    const maxRiskScore =
+      riskFactors.length > 0 ? Math.max(...riskFactors.map((r) => r.riskScore)) : 0;
     riskScore += maxRiskScore * 0.3;
 
     // Weight: resource conflicts (30%)
@@ -1429,7 +1414,7 @@ export class SimulationEngineService {
     }
 
     const levels: TopologicalLevel[] = [];
-    let remaining = new Set(nodeIds);
+    const remaining = new Set(nodeIds);
 
     while (remaining.size > 0) {
       // Find nodes with no unresolved dependencies
@@ -1544,10 +1529,7 @@ export class SimulationEngineService {
   /**
    * Get adjusted latency for a node, incorporating historical data.
    */
-  private getAdjustedLatency(
-    node: SimulationTaskNode,
-    historicalData?: HistoricalData,
-  ): number {
+  private getAdjustedLatency(node: SimulationTaskNode, historicalData?: HistoricalData): number {
     if (historicalData && node.agentId) {
       const avgLatency = historicalData.agentAvgLatencies.get(node.agentId);
       if (avgLatency !== undefined && avgLatency > 0) {
@@ -1672,9 +1654,7 @@ export class SimulationEngineService {
   /**
    * Generate a recommendation for the best scenario variant.
    */
-  private generateScenarioRecommendation(
-    variations: ScenarioComparison['variations'],
-  ): string {
+  private generateScenarioRecommendation(variations: ScenarioComparison['variations']): string {
     if (variations.length <= 1) {
       return 'No alternative scenarios to compare';
     }
@@ -1687,16 +1667,27 @@ export class SimulationEngineService {
       const { result } = variations[i];
       // Score: high success, low cost, low risk, low duration
       const successWeight = result.overallSuccessProbability * 0.4;
-      const costEfficiency = variations[0].result.estimatedCost.expected > 0
-        ? (1 - result.estimatedCost.expected / (variations[0].result.estimatedCost.expected * 3)) * 0.25
-        : 0.25;
-      const riskScore = result.riskLevel === RiskLevel.LOW ? 0.25
-        : result.riskLevel === RiskLevel.MEDIUM ? 0.15
-        : result.riskLevel === RiskLevel.HIGH ? 0.05
-        : 0;
-      const durationEfficiency = variations[0].result.estimatedDuration.expectedMs > 0
-        ? (1 - result.estimatedDuration.expectedMs / (variations[0].result.estimatedDuration.expectedMs * 3)) * 0.1
-        : 0.1;
+      const costEfficiency =
+        variations[0].result.estimatedCost.expected > 0
+          ? (1 -
+              result.estimatedCost.expected / (variations[0].result.estimatedCost.expected * 3)) *
+            0.25
+          : 0.25;
+      const riskScore =
+        result.riskLevel === RiskLevel.LOW
+          ? 0.25
+          : result.riskLevel === RiskLevel.MEDIUM
+            ? 0.15
+            : result.riskLevel === RiskLevel.HIGH
+              ? 0.05
+              : 0;
+      const durationEfficiency =
+        variations[0].result.estimatedDuration.expectedMs > 0
+          ? (1 -
+              result.estimatedDuration.expectedMs /
+                (variations[0].result.estimatedDuration.expectedMs * 3)) *
+            0.1
+          : 0.1;
 
       const score = successWeight + costEfficiency + riskScore + durationEfficiency;
 

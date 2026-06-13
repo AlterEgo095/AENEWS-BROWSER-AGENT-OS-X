@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — API Controller
- * 
+ *
  * REST API for the Capability-driven Software Factory.
  * The Runtime Engine is the main entry point — it executes real missions.
  */
@@ -17,9 +17,15 @@ import {
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { MissionOrchestratorPipeline, MissionRequest } from './mission-orchestrator/mission-orchestrator.service';
+import {
+  MissionOrchestratorPipeline,
+  MissionRequest,
+} from './mission-orchestrator/mission-orchestrator.service';
 import { MissionContractService } from './mission-contract/mission-contract.service';
-import { MissionStateMachineService, MissionState } from './mission-state-machine/mission-state-machine.service';
+import {
+  MissionStateMachineService,
+  MissionState,
+} from './mission-state-machine/mission-state-machine.service';
 import { CapabilityRegistryService } from './capability-registry/capability-registry.service';
 import { CapabilityResolverService } from './capability-resolver/capability-resolver.service';
 import { WorkerFactoryService } from './worker-factory/worker-factory.service';
@@ -27,7 +33,11 @@ import { DeliveryManagerService } from './kernel/kernel-services';
 import { MonitoringManagerService } from './kernel/kernel-services';
 import { MissionArchiveService } from './archive/mission-archive.service';
 import { MissionRuntimeEngine, RuntimeResult } from './runtime/mission-runtime.engine';
-import { MissionMetricsService, MissionCategory, MSR_TARGETS } from './runtime/mission-metrics.service';
+import {
+  MissionMetricsService,
+  MissionCategory,
+  MSR_TARGETS,
+} from './runtime/mission-metrics.service';
 import { ConnectorRegistry } from './connectors/connector-registry';
 import { ReferenceMissions } from './runtime/reference-missions';
 import { CapabilityPack, MissionQuality } from './interfaces';
@@ -61,13 +71,16 @@ export class SoftwareFactoryController {
    */
   @Post('run')
   @HttpCode(HttpStatus.ACCEPTED)
-  async runMission(@Body() body: {
-    instruction: string;
-    description?: string;
-    quality?: string;
-    budgetMaxUsd?: number;
-    deadline?: string;
-  }) {
+  async runMission(
+    @Body()
+    body: {
+      instruction: string;
+      description?: string;
+      quality?: string;
+      budgetMaxUsd?: number;
+      deadline?: string;
+    },
+  ) {
     const result = await this.runtime.executeMission({
       instruction: body.instruction,
       description: body.description,
@@ -84,7 +97,7 @@ export class SoftwareFactoryController {
         qualityScore: result.qualityScore,
         totalDurationMs: result.totalDurationMs,
         totalCostUsd: result.totalCostUsd,
-        artifacts: result.artifacts.map(a => ({
+        artifacts: result.artifacts.map((a) => ({
           name: a.name,
           type: a.type,
           size: a.size,
@@ -112,7 +125,11 @@ export class SoftwareFactoryController {
    * GET /api/factory/run/:id/download/:filename
    */
   @Get('run/:id/download/:filename')
-  downloadArtifact(@Param('id') id: string, @Param('filename') filename: string, @Res() res: Response) {
+  downloadArtifact(
+    @Param('id') id: string,
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
     const workspaceDir = this.runtime.getWorkspaceDir(id);
     if (!workspaceDir) {
       res.status(404).json({ error: 'Mission not found' });
@@ -167,15 +184,18 @@ export class SoftwareFactoryController {
    */
   @Post('missions')
   @HttpCode(HttpStatus.ACCEPTED)
-  async submitMission(@Body() body: {
-    instruction: string;
-    description?: string;
-    quality?: string;
-    deadline?: string;
-    budgetMaxUsd?: number;
-    deliverables?: string[];
-    tags?: string[];
-  }) {
+  async submitMission(
+    @Body()
+    body: {
+      instruction: string;
+      description?: string;
+      quality?: string;
+      deadline?: string;
+      budgetMaxUsd?: number;
+      deliverables?: string[];
+      tags?: string[];
+    },
+  ) {
     const request: MissionRequest = {
       instruction: body.instruction,
       description: body.description,
@@ -254,7 +274,9 @@ export class SoftwareFactoryController {
 
   @Get('capabilities/pack/:pack')
   getCapabilitiesByPack(@Param('pack') pack: string) {
-    const packEnum = Object.values(CapabilityPack).find(p => p.toLowerCase() === pack.toLowerCase());
+    const packEnum = Object.values(CapabilityPack).find(
+      (p) => p.toLowerCase() === pack.toLowerCase(),
+    );
     if (!packEnum) return { success: false, error: `Invalid pack: ${pack}` };
     return { success: true, data: this.capabilityRegistry.getPack(packEnum as CapabilityPack) };
   }
@@ -442,11 +464,9 @@ export class SoftwareFactoryController {
    * POST /api/factory/connectors/test
    */
   @Post('connectors/test')
-  async testConnector(@Body() body: {
-    capabilityId: string;
-    instruction: string;
-    parameters?: Record<string, any>;
-  }) {
+  async testConnector(
+    @Body() body: { capabilityId: string; instruction: string; parameters?: Record<string, any> },
+  ) {
     const capId = body.capabilityId as any;
     const connector = this.connectorRegistry.getConnector(capId);
 
@@ -475,8 +495,11 @@ export class SoftwareFactoryController {
           durationMs: result.durationMs,
           costUsd: result.costUsd,
           artifactCount: result.artifacts.length,
-          artifacts: result.artifacts.map(a => ({ name: a.name, type: a.type, size: a.size })),
-          output: typeof result.output === 'object' ? JSON.stringify(result.output).substring(0, 1000) : result.output,
+          artifacts: result.artifacts.map((a) => ({ name: a.name, type: a.type, size: a.size })),
+          output:
+            typeof result.output === 'object'
+              ? JSON.stringify(result.output).substring(0, 1000)
+              : result.output,
           error: result.error,
         },
       };

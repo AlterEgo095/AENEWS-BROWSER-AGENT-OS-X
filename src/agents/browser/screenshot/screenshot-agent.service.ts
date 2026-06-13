@@ -3,7 +3,7 @@
  * Captures screenshots: full page, specific elements, viewport, and comparison.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -11,6 +11,9 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { BrowserCapability } from '../../../software-factory/interfaces';
+import { ConnectorOutput } from '../../../software-factory/connectors/connector.interface';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -162,6 +165,15 @@ interface ScreenshotRecord {
 export class ScreenshotAgentService extends BaseAgentService {
   private screenshotHistory: ScreenshotRecord[] = [];
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   protected defineConfig(): AgentConfig {
     return SCREENSHOT_AGENT_CONFIG;
   }
@@ -213,6 +225,34 @@ export class ScreenshotAgentService extends BaseAgentService {
     const startTime = Date.now();
     const { action, ...params } = input.payload;
 
+    // Try real connector first via bridge
+    if (this.bridge) {
+      try {
+        const result: ConnectorOutput = await this.bridge.executeCapability(
+          BrowserCapability.SCREENSHOT,
+          {
+            missionId: input.taskId,
+            instruction: action || 'takeScreenshot',
+            workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+            parameters: input.payload,
+          },
+        );
+
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Bridge execution failed, falling back to local: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    // Fallback to existing simulated logic
     if (!action) {
       return this.createAgentOutput(
         input.taskId,

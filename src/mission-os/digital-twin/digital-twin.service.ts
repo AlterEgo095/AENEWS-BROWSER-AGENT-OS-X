@@ -168,13 +168,16 @@ export interface HealthSummary {
     unhealthy: number;
     unknown: number;
   };
-  breakdown: Record<ComponentType, {
-    score: number;
-    count: number;
-    healthy: number;
-    degraded: number;
-    unhealthy: number;
-  }>;
+  breakdown: Record<
+    ComponentType,
+    {
+      score: number;
+      count: number;
+      healthy: number;
+      degraded: number;
+      unhealthy: number;
+    }
+  >;
   alerts: Array<{ componentType: ComponentType; componentId: string; message: string }>;
 }
 
@@ -192,11 +195,11 @@ const DEFAULT_SYNC_INTERVAL_MS = 30_000; // 30 seconds
 const MAX_CHANGES_HISTORY = 10_000;
 const HEALTH_WEIGHTS: Record<ComponentType, number> = {
   vps: 0.25,
-  containers: 0.20,
-  databases: 0.20,
+  containers: 0.2,
+  databases: 0.2,
   apis: 0.15,
   gitRepos: 0.05,
-  cloudServices: 0.10,
+  cloudServices: 0.1,
   browsers: 0.05,
 };
 
@@ -247,9 +250,7 @@ export class DigitalTwinService {
       this.state = defaults;
     }
 
-    this.logger.log(
-      `Digital Twin initialized — ${this.countAllComponents()} components tracked`,
-    );
+    this.logger.log(`Digital Twin initialized — ${this.countAllComponents()} components tracked`);
   }
 
   // ─── 2. syncAll ─────────────────────────────────────────────────
@@ -324,9 +325,7 @@ export class DigitalTwinService {
    */
   syncVPS(vpsId?: string): ComponentChange[] {
     const changes: ComponentChange[] = [];
-    const targets = vpsId
-      ? this.state.vps.filter((v) => v.id === vpsId)
-      : this.state.vps;
+    const targets = vpsId ? this.state.vps.filter((v) => v.id === vpsId) : this.state.vps;
 
     if (vpsId && targets.length === 0) {
       this.logger.warn(`VPS with id "${vpsId}" not found`);
@@ -346,9 +345,7 @@ export class DigitalTwinService {
         ((vps.memory.usedGb / vps.memory.totalGb) * 100).toFixed(1),
       );
       vps.disk.usedGb = this.simulateMetric(vps.disk.usedGb, 0.2, vps.disk.totalGb);
-      vps.disk.usagePercent = parseFloat(
-        ((vps.disk.usedGb / vps.disk.totalGb) * 100).toFixed(1),
-      );
+      vps.disk.usagePercent = parseFloat(((vps.disk.usedGb / vps.disk.totalGb) * 100).toFixed(1));
 
       // VPS status derived from resource pressure
       if (vps.cpu.usagePercent > 95 || vps.memory.usagePercent > 98) {
@@ -363,21 +360,44 @@ export class DigitalTwinService {
 
       // Detect changes
       if (vps.status !== previousStatus) {
-        changes.push(this.createChange('vps', vps.id, 'updated', 'status', previousStatus, vps.status));
+        changes.push(
+          this.createChange('vps', vps.id, 'updated', 'status', previousStatus, vps.status),
+        );
       }
       if (Math.abs(vps.cpu.usagePercent - previousCpu.usagePercent) > 1) {
         changes.push(
-          this.createChange('vps', vps.id, 'updated', 'cpu.usagePercent', previousCpu.usagePercent, vps.cpu.usagePercent),
+          this.createChange(
+            'vps',
+            vps.id,
+            'updated',
+            'cpu.usagePercent',
+            previousCpu.usagePercent,
+            vps.cpu.usagePercent,
+          ),
         );
       }
       if (Math.abs(vps.memory.usagePercent - previousMemory.usagePercent) > 1) {
         changes.push(
-          this.createChange('vps', vps.id, 'updated', 'memory.usagePercent', previousMemory.usagePercent, vps.memory.usagePercent),
+          this.createChange(
+            'vps',
+            vps.id,
+            'updated',
+            'memory.usagePercent',
+            previousMemory.usagePercent,
+            vps.memory.usagePercent,
+          ),
         );
       }
       if (Math.abs(vps.disk.usagePercent - previousDisk.usagePercent) > 0.5) {
         changes.push(
-          this.createChange('vps', vps.id, 'updated', 'disk.usagePercent', previousDisk.usagePercent, vps.disk.usagePercent),
+          this.createChange(
+            'vps',
+            vps.id,
+            'updated',
+            'disk.usagePercent',
+            previousDisk.usagePercent,
+            vps.disk.usagePercent,
+          ),
         );
       }
 
@@ -454,22 +474,50 @@ export class DigitalTwinService {
       // Detect changes
       if (container.status !== previousStatus) {
         changes.push(
-          this.createChange('containers', container.id, 'updated', 'status', previousStatus, container.status),
+          this.createChange(
+            'containers',
+            container.id,
+            'updated',
+            'status',
+            previousStatus,
+            container.status,
+          ),
         );
       }
       if (container.health !== previousHealth) {
         changes.push(
-          this.createChange('containers', container.id, 'updated', 'health', previousHealth, container.health),
+          this.createChange(
+            'containers',
+            container.id,
+            'updated',
+            'health',
+            previousHealth,
+            container.health,
+          ),
         );
       }
       if (Math.abs(container.resources.cpuPercent - previousCpu) > 2) {
         changes.push(
-          this.createChange('containers', container.id, 'updated', 'resources.cpuPercent', previousCpu, container.resources.cpuPercent),
+          this.createChange(
+            'containers',
+            container.id,
+            'updated',
+            'resources.cpuPercent',
+            previousCpu,
+            container.resources.cpuPercent,
+          ),
         );
       }
       if (Math.abs(container.resources.memoryMb - previousMemory) > 20) {
         changes.push(
-          this.createChange('containers', container.id, 'updated', 'resources.memoryMb', previousMemory, container.resources.memoryMb),
+          this.createChange(
+            'containers',
+            container.id,
+            'updated',
+            'resources.memoryMb',
+            previousMemory,
+            container.resources.memoryMb,
+          ),
         );
       }
     }
@@ -495,18 +543,11 @@ export class DigitalTwinService {
       const previousLagMs = db.replication.lagMs;
 
       // Simulate connection fluctuation
-      db.connections.active = this.simulateMetric(
-        db.connections.active,
-        2,
-        db.connections.max,
-      );
+      db.connections.active = this.simulateMetric(db.connections.active, 2, db.connections.max);
 
       // Simulate size growth (monotonically increasing with small variance)
       if (db.size.usedMb < db.size.totalMb) {
-        db.size.usedMb = Math.min(
-          db.size.totalMb,
-          db.size.usedMb + Math.random() * 5,
-        );
+        db.size.usedMb = Math.min(db.size.totalMb, db.size.usedMb + Math.random() * 5);
       }
 
       // Simulate replication lag
@@ -537,21 +578,44 @@ export class DigitalTwinService {
 
       // Detect changes
       if (db.status !== previousStatus) {
-        changes.push(this.createChange('databases', db.id, 'updated', 'status', previousStatus, db.status));
+        changes.push(
+          this.createChange('databases', db.id, 'updated', 'status', previousStatus, db.status),
+        );
       }
       if (Math.abs(db.connections.active - previousActiveConnections) > 3) {
         changes.push(
-          this.createChange('databases', db.id, 'updated', 'connections.active', previousActiveConnections, db.connections.active),
+          this.createChange(
+            'databases',
+            db.id,
+            'updated',
+            'connections.active',
+            previousActiveConnections,
+            db.connections.active,
+          ),
         );
       }
       if (Math.abs(db.size.usedMb - previousUsedMb) > 10) {
         changes.push(
-          this.createChange('databases', db.id, 'updated', 'size.usedMb', previousUsedMb, db.size.usedMb),
+          this.createChange(
+            'databases',
+            db.id,
+            'updated',
+            'size.usedMb',
+            previousUsedMb,
+            db.size.usedMb,
+          ),
         );
       }
       if (db.replication.enabled && Math.abs(db.replication.lagMs - previousLagMs) > 100) {
         changes.push(
-          this.createChange('databases', db.id, 'updated', 'replication.lagMs', previousLagMs, db.replication.lagMs),
+          this.createChange(
+            'databases',
+            db.id,
+            'updated',
+            'replication.lagMs',
+            previousLagMs,
+            db.replication.lagMs,
+          ),
         );
       }
     }
@@ -609,23 +673,37 @@ export class DigitalTwinService {
 
       // Detect changes
       if (api.status !== previousStatus) {
-        changes.push(this.createChange('apis', api.id, 'updated', 'status', previousStatus, api.status));
+        changes.push(
+          this.createChange('apis', api.id, 'updated', 'status', previousStatus, api.status),
+        );
       }
       if (Math.abs(api.avgLatencyMs - previousLatency) > 50) {
         changes.push(
-          this.createChange('apis', api.id, 'updated', 'avgLatencyMs', previousLatency, api.avgLatencyMs),
+          this.createChange(
+            'apis',
+            api.id,
+            'updated',
+            'avgLatencyMs',
+            previousLatency,
+            api.avgLatencyMs,
+          ),
         );
       }
       if (api.rateLimit.remaining !== previousRemaining) {
         changes.push(
-          this.createChange('apis', api.id, 'updated', 'rateLimit.remaining', previousRemaining, api.rateLimit.remaining),
+          this.createChange(
+            'apis',
+            api.id,
+            'updated',
+            'rateLimit.remaining',
+            previousRemaining,
+            api.rateLimit.remaining,
+          ),
         );
       }
     }
 
-    this.logger.debug?.(
-      `API sync: ${this.state.apis.length} endpoints, ${changes.length} changes`,
-    );
+    this.logger.debug?.(`API sync: ${this.state.apis.length} endpoints, ${changes.length} changes`);
     return changes;
   }
 
@@ -682,7 +760,9 @@ export class DigitalTwinService {
 
       // Detect changes
       if (repo.status !== previousStatus) {
-        changes.push(this.createChange('gitRepos', repo.id, 'updated', 'status', previousStatus, repo.status));
+        changes.push(
+          this.createChange('gitRepos', repo.id, 'updated', 'status', previousStatus, repo.status),
+        );
       }
       if (repo.aheadBy !== previousAhead) {
         changes.push(
@@ -691,7 +771,14 @@ export class DigitalTwinService {
       }
       if (repo.behindBy !== previousBehind) {
         changes.push(
-          this.createChange('gitRepos', repo.id, 'updated', 'behindBy', previousBehind, repo.behindBy),
+          this.createChange(
+            'gitRepos',
+            repo.id,
+            'updated',
+            'behindBy',
+            previousBehind,
+            repo.behindBy,
+          ),
         );
       }
     }
@@ -737,17 +824,38 @@ export class DigitalTwinService {
       // Detect changes
       if (cloud.status !== previousStatus) {
         changes.push(
-          this.createChange('cloudServices', cloud.id, 'updated', 'status', previousStatus, cloud.status),
+          this.createChange(
+            'cloudServices',
+            cloud.id,
+            'updated',
+            'status',
+            previousStatus,
+            cloud.status,
+          ),
         );
       }
       if (Math.abs(cloud.cost.daily - previousDaily) > 0.5) {
         changes.push(
-          this.createChange('cloudServices', cloud.id, 'updated', 'cost.daily', previousDaily, cloud.cost.daily),
+          this.createChange(
+            'cloudServices',
+            cloud.id,
+            'updated',
+            'cost.daily',
+            previousDaily,
+            cloud.cost.daily,
+          ),
         );
       }
       if (Math.abs(cloud.cost.monthly - previousMonthly) > 5) {
         changes.push(
-          this.createChange('cloudServices', cloud.id, 'updated', 'cost.monthly', previousMonthly, cloud.cost.monthly),
+          this.createChange(
+            'cloudServices',
+            cloud.id,
+            'updated',
+            'cost.monthly',
+            previousMonthly,
+            cloud.cost.monthly,
+          ),
         );
       }
     }
@@ -801,12 +909,26 @@ export class DigitalTwinService {
       // Detect changes
       if (browser.status !== previousStatus) {
         changes.push(
-          this.createChange('browsers', browser.id, 'updated', 'status', previousStatus, browser.status),
+          this.createChange(
+            'browsers',
+            browser.id,
+            'updated',
+            'status',
+            previousStatus,
+            browser.status,
+          ),
         );
       }
       if (browser.sessions.active !== previousSessions) {
         changes.push(
-          this.createChange('browsers', browser.id, 'updated', 'sessions.active', previousSessions, browser.sessions.active),
+          this.createChange(
+            'browsers',
+            browser.id,
+            'updated',
+            'sessions.active',
+            previousSessions,
+            browser.sessions.active,
+          ),
         );
       }
     }
@@ -844,11 +966,7 @@ export class DigitalTwinService {
    * Find components matching a property value within a component type.
    * Supports dot-notation for nested properties (e.g., 'cpu.usagePercent').
    */
-  findComponentByProperty(
-    componentType: ComponentType,
-    property: string,
-    value: any,
-  ): any[] {
+  findComponentByProperty(componentType: ComponentType, property: string, value: any): any[] {
     const collection = this.getCollection(componentType);
 
     return collection
@@ -959,7 +1077,7 @@ export class DigitalTwinService {
         }
       }
 
-      const typeScore = count > 0 ? ((healthy * 100 + degraded * 60 + unhealthy * 20) / count) : 100;
+      const typeScore = count > 0 ? (healthy * 100 + degraded * 60 + unhealthy * 20) / count : 100;
 
       breakdown[type] = {
         score: parseFloat(typeScore.toFixed(1)),
@@ -1055,10 +1173,16 @@ export class DigitalTwinService {
       monthlyTotal: round(monthlyTotal),
       monthlyProjected: round(dailyTotal * 30),
       byProvider: Object.fromEntries(
-        Object.entries(byProvider).map(([k, v]) => [k, { daily: round(v.daily), monthly: round(v.monthly) }]),
+        Object.entries(byProvider).map(([k, v]) => [
+          k,
+          { daily: round(v.daily), monthly: round(v.monthly) },
+        ]),
       ),
       byService: Object.fromEntries(
-        Object.entries(byService).map(([k, v]) => [k, { daily: round(v.daily), monthly: round(v.monthly) }]),
+        Object.entries(byService).map(([k, v]) => [
+          k,
+          { daily: round(v.daily), monthly: round(v.monthly) },
+        ]),
       ),
     };
   }
@@ -1078,9 +1202,7 @@ export class DigitalTwinService {
 
     const exists = collection.some((item: any) => item.id === component.id);
     if (exists) {
-      throw new Error(
-        `${componentType} component with id "${component.id}" already exists`,
-      );
+      throw new Error(`${componentType} component with id "${component.id}" already exists`);
     }
 
     // Add lastSyncAt if not present
@@ -1093,15 +1215,20 @@ export class DigitalTwinService {
     this.state.lastSyncAt = new Date();
 
     // Record to change history
-    const change = this.createChange(componentType, component.id, 'added', undefined, null, inserted);
+    const change = this.createChange(
+      componentType,
+      component.id,
+      'added',
+      undefined,
+      null,
+      inserted,
+    );
     this.changeHistory.push(change);
     if (this.changeHistory.length > MAX_CHANGES_HISTORY) {
       this.changeHistory.splice(0, this.changeHistory.length - MAX_CHANGES_HISTORY);
     }
 
-    this.logger.log(
-      `Registered ${componentType} component: ${component.id}`,
-    );
+    this.logger.log(`Registered ${componentType} component: ${component.id}`);
   }
 
   // ─── 17. updateComponent ────────────────────────────────────────
@@ -1110,18 +1237,12 @@ export class DigitalTwinService {
    * Update a component in the twin by type and ID.
    * Only supplied fields in `updates` are overwritten.
    */
-  updateComponent(
-    componentType: ComponentType,
-    id: string,
-    updates: Record<string, any>,
-  ): void {
+  updateComponent(componentType: ComponentType, id: string, updates: Record<string, any>): void {
     const collection = this.getCollection(componentType);
     const index = collection.findIndex((item: any) => item.id === id);
 
     if (index === -1) {
-      throw new Error(
-        `${componentType} component with id "${id}" not found`,
-      );
+      throw new Error(`${componentType} component with id "${id}" not found`);
     }
 
     const previous = this.deepClone(collection[index]);
@@ -1171,9 +1292,7 @@ export class DigitalTwinService {
     const index = collection.findIndex((item: any) => item.id === id);
 
     if (index === -1) {
-      throw new Error(
-        `${componentType} component with id "${id}" not found`,
-      );
+      throw new Error(`${componentType} component with id "${id}" not found`);
     }
 
     const removed = collection.splice(index, 1)[0];
@@ -1197,7 +1316,11 @@ export class DigitalTwinService {
   /**
    * Set an expected baseline for a component (used by detectDrift).
    */
-  setExpectedBaseline(componentType: ComponentType, componentId: string, baseline: Record<string, any>): void {
+  setExpectedBaseline(
+    componentType: ComponentType,
+    componentId: string,
+    baseline: Record<string, any>,
+  ): void {
     this.expectedBaselines.set(`${componentType}:${componentId}`, baseline);
   }
 
@@ -1306,9 +1429,7 @@ export class DigitalTwinService {
    * Generate a random 7-character hex hash for git commit simulation.
    */
   private randomHash(): string {
-    return Array.from({ length: 7 }, () =>
-      Math.floor(Math.random() * 16).toString(16),
-    ).join('');
+    return Array.from({ length: 7 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
   }
 
   /**
@@ -1329,26 +1450,17 @@ export class DigitalTwinService {
     actual: any,
   ): DriftEntry['severity'] {
     // Critical: anything that's down / error / disconnected
-    if (
-      typeof actual === 'string' &&
-      ['down', 'error', 'disconnected', 'dead'].includes(actual)
-    ) {
+    if (typeof actual === 'string' && ['down', 'error', 'disconnected', 'dead'].includes(actual)) {
       return 'critical';
     }
 
     // High: database/infrastructure core status changes
-    if (
-      (componentType === 'databases' || componentType === 'vps') &&
-      field === 'status'
-    ) {
+    if ((componentType === 'databases' || componentType === 'vps') && field === 'status') {
       return 'high';
     }
 
     // Medium: degraded status, replication lag, high latency
-    if (
-      typeof actual === 'string' &&
-      ['degraded', 'unhealthy', 'restarting'].includes(actual)
-    ) {
+    if (typeof actual === 'string' && ['degraded', 'unhealthy', 'restarting'].includes(actual)) {
       return 'medium';
     }
 
@@ -1373,8 +1485,10 @@ export class DigitalTwinService {
   ): { score: number; reason: string } {
     switch (componentType) {
       case 'vps': {
-        if (component.status === 'error') return { score: 10, reason: `VPS ${component.host} is in error state` };
-        if (component.status === 'stopped') return { score: 0, reason: `VPS ${component.host} is stopped` };
+        if (component.status === 'error')
+          return { score: 10, reason: `VPS ${component.host} is in error state` };
+        if (component.status === 'stopped')
+          return { score: 0, reason: `VPS ${component.host} is stopped` };
         let score = 100;
         if (component.cpu.usagePercent > 90) score -= 40;
         else if (component.cpu.usagePercent > 75) score -= 20;
@@ -1382,7 +1496,8 @@ export class DigitalTwinService {
         else if (component.memory.usagePercent > 80) score -= 15;
         if (component.disk.usagePercent > 90) score -= 25;
         else if (component.disk.usagePercent > 80) score -= 10;
-        const stoppedServices = component.services?.filter((s: any) => s.status === 'stopped').length ?? 0;
+        const stoppedServices =
+          component.services?.filter((s: any) => s.status === 'stopped').length ?? 0;
         score -= stoppedServices * 10;
         return {
           score: Math.max(0, score),
@@ -1390,10 +1505,14 @@ export class DigitalTwinService {
         };
       }
       case 'containers': {
-        if (component.status === 'dead') return { score: 0, reason: `Container ${component.name} is dead` };
-        if (component.status === 'stopped') return { score: 0, reason: `Container ${component.name} is stopped` };
-        if (component.status === 'paused') return { score: 30, reason: `Container ${component.name} is paused` };
-        if (component.status === 'restarting') return { score: 40, reason: `Container ${component.name} is restarting` };
+        if (component.status === 'dead')
+          return { score: 0, reason: `Container ${component.name} is dead` };
+        if (component.status === 'stopped')
+          return { score: 0, reason: `Container ${component.name} is stopped` };
+        if (component.status === 'paused')
+          return { score: 30, reason: `Container ${component.name} is paused` };
+        if (component.status === 'restarting')
+          return { score: 40, reason: `Container ${component.name} is restarting` };
         let score = 100;
         if (component.health === 'unhealthy') score -= 40;
         else if (component.health === 'starting') score -= 20;
@@ -1406,8 +1525,13 @@ export class DigitalTwinService {
         };
       }
       case 'databases': {
-        if (component.status === 'error') return { score: 10, reason: `Database ${component.type}@${component.host} is in error` };
-        if (component.status === 'disconnected') return { score: 20, reason: `Database ${component.type}@${component.host} is disconnected` };
+        if (component.status === 'error')
+          return { score: 10, reason: `Database ${component.type}@${component.host} is in error` };
+        if (component.status === 'disconnected')
+          return {
+            score: 20,
+            reason: `Database ${component.type}@${component.host} is disconnected`,
+          };
         let score = 100;
         const connRatio = component.connections.active / component.connections.max;
         if (connRatio > 0.9) score -= 25;
@@ -1422,8 +1546,10 @@ export class DigitalTwinService {
         };
       }
       case 'apis': {
-        if (component.status === 'down') return { score: 5, reason: `API ${component.name} is down` };
-        if (component.status === 'degraded') return { score: 50, reason: `API ${component.name} is degraded` };
+        if (component.status === 'down')
+          return { score: 5, reason: `API ${component.name} is down` };
+        if (component.status === 'degraded')
+          return { score: 50, reason: `API ${component.name} is degraded` };
         let score = 100;
         if (component.avgLatencyMs > 2000) score -= 30;
         else if (component.avgLatencyMs > 500) score -= 15;
@@ -1436,20 +1562,40 @@ export class DigitalTwinService {
         };
       }
       case 'gitRepos': {
-        if (component.status === 'dirty') return { score: 60, reason: `Repo ${component.name} has uncommitted changes` };
-        if (component.status === 'behind') return { score: 70, reason: `Repo ${component.name} is behind remote by ${component.behindBy} commits` };
-        if (component.status === 'ahead') return { score: 80, reason: `Repo ${component.name} has unpushed commits` };
+        if (component.status === 'dirty')
+          return { score: 60, reason: `Repo ${component.name} has uncommitted changes` };
+        if (component.status === 'behind')
+          return {
+            score: 70,
+            reason: `Repo ${component.name} is behind remote by ${component.behindBy} commits`,
+          };
+        if (component.status === 'ahead')
+          return { score: 80, reason: `Repo ${component.name} has unpushed commits` };
         return { score: 100, reason: '' };
       }
       case 'cloudServices': {
-        if (component.status === 'down') return { score: 10, reason: `Cloud service ${component.service} (${component.provider}) is down` };
-        if (component.status === 'maintenance') return { score: 40, reason: `Cloud service ${component.service} (${component.provider}) is in maintenance` };
-        if (component.status === 'degraded') return { score: 60, reason: `Cloud service ${component.service} (${component.provider}) is degraded` };
+        if (component.status === 'down')
+          return {
+            score: 10,
+            reason: `Cloud service ${component.service} (${component.provider}) is down`,
+          };
+        if (component.status === 'maintenance')
+          return {
+            score: 40,
+            reason: `Cloud service ${component.service} (${component.provider}) is in maintenance`,
+          };
+        if (component.status === 'degraded')
+          return {
+            score: 60,
+            reason: `Cloud service ${component.service} (${component.provider}) is degraded`,
+          };
         return { score: 100, reason: '' };
       }
       case 'browsers': {
-        if (component.status === 'down') return { score: 10, reason: `Browser ${component.type} is down` };
-        if (component.status === 'degraded') return { score: 60, reason: `Browser ${component.type} is degraded` };
+        if (component.status === 'down')
+          return { score: 10, reason: `Browser ${component.type} is down` };
+        if (component.status === 'degraded')
+          return { score: 60, reason: `Browser ${component.type} is degraded` };
         let score = 100;
         const sessionRatio = component.sessions.active / component.sessions.max;
         if (sessionRatio >= 1) score -= 40;

@@ -4,13 +4,11 @@
  * architecture diagrams, and documentation freshness across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const DOCUMENTATION_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Module or system to audit documentation' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -115,6 +117,11 @@ interface DocumentationIssue {
 
 @Injectable()
 export class DocumentationAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private documentationAuditLog: DocumentationIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -125,37 +132,54 @@ export class DocumentationAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-documentation',
       description: 'Perform a comprehensive documentation audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
       name: 'check-jsdoc',
       description: 'Check JSDoc coverage and completeness',
-      execute: async (modulePath?: string) =>
-        this.checkJSDoc(modulePath),
+      execute: async (modulePath?: string) => this.checkJSDoc(modulePath),
     });
 
     this.registerTool({
       name: 'check-api-docs',
       description: 'Check API documentation completeness and accuracy',
-      execute: async (endpoint?: string) =>
-        this.checkApiDocs(endpoint),
+      execute: async (endpoint?: string) => this.checkApiDocs(endpoint),
     });
 
     this.registerTool({
       name: 'check-diagrams',
       description: 'Check architecture diagram completeness',
-      execute: async (diagramType?: string) =>
-        this.checkDiagrams(diagramType),
+      execute: async (diagramType?: string) => this.checkDiagrams(diagramType),
     });
 
     this.logger.log('DocumentationAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real doc review connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.DOC_REVIEW, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -177,13 +201,7 @@ export class DocumentationAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -214,10 +232,21 @@ export class DocumentationAuditorAgent extends BaseAgentService {
       this.documentationAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 20 : issue.severity === 'high' ? 12 : issue.severity === 'medium' ? 6 : 2;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 20
+              : issue.severity === 'high'
+                ? 12
+                : issue.severity === 'medium'
+                  ? 6
+                  : 2;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'jsdoc')) {
       recommendations.push('Add JSDoc comments to all public methods, classes, and interfaces');
@@ -266,8 +295,13 @@ export class DocumentationAuditorAgent extends BaseAgentService {
     endpoint?: string,
   ): Promise<{ apiDocScore: number; missingEndpoints: string[]; outdatedDocs: any[] }> {
     const allEndpoints = [
-      '/api/agents', '/api/tasks', '/api/events', '/api/health',
-      '/api/certification', '/api/memory', '/api/orchestrator',
+      '/api/agents',
+      '/api/tasks',
+      '/api/events',
+      '/api/health',
+      '/api/certification',
+      '/api/memory',
+      '/api/orchestrator',
     ];
     const missingEndpoints = allEndpoints.filter(() => Math.random() > 0.7);
     const outdatedDocs = [];
@@ -298,8 +332,12 @@ export class DocumentationAuditorAgent extends BaseAgentService {
     diagramType?: string,
   ): Promise<{ diagramScore: number; missingDiagrams: string[] }> {
     const requiredDiagrams = [
-      'system-architecture', 'agent-lifecycle', 'data-flow',
-      'deployment', 'sequence-critical-paths', 'module-dependencies',
+      'system-architecture',
+      'agent-lifecycle',
+      'data-flow',
+      'deployment',
+      'sequence-critical-paths',
+      'module-dependencies',
     ];
     const missingDiagrams = requiredDiagrams.filter(() => Math.random() > 0.5);
 

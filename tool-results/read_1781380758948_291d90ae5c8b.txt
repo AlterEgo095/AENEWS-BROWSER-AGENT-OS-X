@@ -1,0 +1,883 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Logging Agent
+     3→ * Log aggregation, search, analysis, and retention management.
+     4→ * Provides log searching, aggregation, alerting, export, pattern analysis, and retention policies.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const LOGGING_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'infrastructure-logging',
+    20→  name: 'Logging',
+    21→  cluster: AgentCluster.INFRASTRUCTURE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Log aggregation, search, analysis, and retention management. Searches and aggregates logs, creates log-based alerts, exports logs, analyzes patterns, and manages retention policies.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'searchLogs',
+    28→      description: 'Search logs with query filters',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          query: { type: 'string', description: 'Search query (supports Lucene syntax)' },
+    33→          service: { type: 'string', description: 'Filter by service name' },
+    34→          level: {
+    35→            type: 'string',
+    36→            enum: ['debug', 'info', 'warn', 'error', 'fatal'],
+    37→            description: 'Filter by log level',
+    38→          },
+    39→          timeRange: {
+    40→            type: 'string',
+    41→            enum: ['5m', '15m', '1h', '6h', '24h', '7d'],
+    42→            default: '1h',
+    43→          },
+    44→          limit: { type: 'number', default: 100, maximum: 1000 },
+    45→          offset: { type: 'number', default: 0 },
+    46→        },
+    47→        required: ['query'],
+    48→      },
+    49→      outputSchema: {
+    50→        type: 'object',
+    51→        properties: {
+    52→          total: { type: 'number' },
+    53→          logs: { type: 'array' },
+    54→          hasMore: { type: 'boolean' },
+    55→        },
+    56→      },
+    57→    },
+    58→    {
+    59→      name: 'aggregateLogs',
+    60→      description: 'Aggregate logs by field with statistical analysis',
+    61→      inputSchema: {
+    62→        type: 'object',
+    63→        properties: {
+    64→          service: { type: 'string' },
+    65→          field: {
+    66→            type: 'string',
+    67→            description: 'Field to aggregate by (e.g., "level", "service", "host")',
+    68→          },
+    69→          aggregation: {
+    70→            type: 'string',
+    71→            enum: ['count', 'sum', 'avg', 'percentile', 'terms'],
+    72→            default: 'terms',
+    73→          },
+    74→          timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d', '30d'], default: '24h' },
+    75→          interval: { type: 'string', enum: ['1m', '5m', '15m', '1h', '1d'], default: '1h' },
+    76→        },
+    77→        required: ['field'],
+    78→      },
+    79→      outputSchema: {
+    80→        type: 'object',
+    81→        properties: {
+    82→          field: { type: 'string' },
+    83→          buckets: { type: 'array' },
+    84→          totalDocuments: { type: 'number' },
+    85→        },
+    86→      },
+    87→    },
+    88→    {
+    89→      name: 'createLogAlert',
+    90→      description: 'Create an alert triggered by log patterns',
+    91→      inputSchema: {
+    92→        type: 'object',
+    93→        properties: {
+    94→          name: { type: 'string' },
+    95→          query: { type: 'string', description: 'Log query that triggers the alert' },
+    96→          threshold: { type: 'number', description: 'Number of matching logs to trigger' },
+    97→          timeWindow: { type: 'string', description: 'Time window for threshold (e.g., "5m")' },
+    98→          severity: { type: 'string', enum: ['info', 'warning', 'critical'], default: 'warning' },
+    99→          channels: { type: 'array', items: { type: 'string' } },
+   100→        },
+   101→        required: ['name', 'query', 'threshold'],
+   102→      },
+   103→      outputSchema: {
+   104→        type: 'object',
+   105→        properties: {
+   106→          alertId: { type: 'string' },
+   107→          created: { type: 'boolean' },
+   108→        },
+   109→      },
+   110→    },
+   111→    {
+   112→      name: 'exportLogs',
+   113→      description: 'Export logs to a downloadable format',
+   114→      inputSchema: {
+   115→        type: 'object',
+   116→        properties: {
+   117→          query: { type: 'string' },
+   118→          service: { type: 'string' },
+   119→          timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d', '30d'], default: '24h' },
+   120→          format: { type: 'string', enum: ['json', 'csv', 'ndjson'], default: 'json' },
+   121→          maxRecords: { type: 'number', default: 10000 },
+   122→        },
+   123→        required: ['query'],
+   124→      },
+   125→      outputSchema: {
+   126→        type: 'object',
+   127→        properties: {
+   128→          exportId: { type: 'string' },
+   129→          format: { type: 'string' },
+   130→          recordCount: { type: 'number' },
+   131→          downloadUrl: { type: 'string' },
+   132→        },
+   133→      },
+   134→    },
+   135→    {
+   136→      name: 'analyzePatterns',
+   137→      description: 'Analyze log data for patterns, anomalies, and trends',
+   138→      inputSchema: {
+   139→        type: 'object',
+   140→        properties: {
+   141→          service: { type: 'string' },
+   142→          timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d'], default: '24h' },
+   143→          analysisType: {
+   144→            type: 'string',
+   145→            enum: ['anomaly', 'frequency', 'correlation', 'trend'],
+   146→            default: 'anomaly',
+   147→          },
+   148→        },
+   149→        required: ['service'],
+   150→      },
+   151→      outputSchema: {
+   152→        type: 'object',
+   153→        properties: {
+   154→          patterns: { type: 'array' },
+   155→          anomalies: { type: 'array' },
+   156→          insights: { type: 'array' },
+   157→        },
+   158→      },
+   159→    },
+   160→    {
+   161→      name: 'setRetentionPolicy',
+   162→      description: 'Set or update a log retention policy',
+   163→      inputSchema: {
+   164→        type: 'object',
+   165→        properties: {
+   166→          name: { type: 'string' },
+   167→          service: { type: 'string', description: 'Service to apply policy to (or "*" for all)' },
+   168→          retentionDays: { type: 'number', description: 'Number of days to retain logs' },
+   169→          maxStorageGb: { type: 'number', description: 'Maximum storage in GB' },
+   170→          compressionEnabled: { type: 'boolean', default: true },
+   171→          archiveAfterDays: { type: 'number', description: 'Archive logs after this many days' },
+   172→        },
+   173→        required: ['name', 'service', 'retentionDays'],
+   174→      },
+   175→      outputSchema: {
+   176→        type: 'object',
+   177→        properties: {
+   178→          policyId: { type: 'string' },
+   179→          created: { type: 'boolean' },
+   180→        },
+   181→      },
+   182→    },
+   183→  ],
+   184→  permissions: ['execute:task', 'read:logs', 'write:log-alerts', 'export:logs', 'manage:retention'],
+   185→  maxConcurrentTasks: 5,
+   186→  timeout: 60000,
+   187→  retryPolicy: {
+   188→    maxRetries: 2,
+   189→    backoffMs: 1500,
+   190→    exponentialBackoff: true,
+   191→  },
+   192→};
+   193→
+   194→// ─── Internal Types ───────────────────────────────────────────────
+   195→
+   196→interface LogEntry {
+   197→  id: string;
+   198→  timestamp: string;
+   199→  service: string;
+   200→  level: string;
+   201→  message: string;
+   202→  host: string;
+   203→  traceId?: string;
+   204→  metadata?: Record<string, any>;
+   205→}
+   206→
+   207→interface LogAlert {
+   208→  id: string;
+   209→  name: string;
+   210→  query: string;
+   211→  threshold: number;
+   212→  timeWindow: string;
+   213→  severity: string;
+   214→  channels: string[];
+   215→  enabled: boolean;
+   216→  createdAt: Date;
+   217→}
+   218→
+   219→interface RetentionPolicy {
+   220→  id: string;
+   221→  name: string;
+   222→  service: string;
+   223→  retentionDays: number;
+   224→  maxStorageGb?: number;
+   225→  compressionEnabled: boolean;
+   226→  archiveAfterDays?: number;
+   227→  createdAt: Date;
+   228→}
+   229→
+   230→interface PatternResult {
+   231→  type: string;
+   232→  description: string;
+   233→  confidence: number;
+   234→  affectedService: string;
+   235→  occurrences: number;
+   236→  firstSeen: string;
+   237→  lastSeen: string;
+   238→}
+   239→
+   240→// ─── Agent Service ────────────────────────────────────────────────
+   241→
+   242→@Injectable()
+   243→export class LoggingAgentService extends BaseAgentService {
+   244→  private logAlerts: Map<string, LogAlert> = new Map();
+   245→  private retentionPolicies: Map<string, RetentionPolicy> = new Map();
+   246→  private logAlertCounter = 0;
+   247→  private retentionCounter = 0;
+   248→  private exportCounter = 0;
+   249→
+   250→  // Simulated log pool
+   251→  private readonly simulatedServices = [
+   252→    'api-gateway',
+   253→    'auth-service',
+   254→    'user-service',
+   255→    'payment-service',
+   256→    'notification-service',
+   257→    'search-service',
+   258→    'worker-service',
+   259→    'scheduler-service',
+   260→  ];
+   261→  private readonly simulatedLevels = [
+   262→    'debug',
+   263→    'info',
+   264→    'info',
+   265→    'info',
+   266→    'warn',
+   267→    'warn',
+   268→    'error',
+   269→    'fatal',
+   270→  ];
+   271→  private readonly simulatedMessages = [
+   272→    'Request processed successfully',
+   273→    'Connection established to database',
+   274→    'Cache miss for key: user:12345',
+   275→    'Rate limit exceeded for client IP 192.168.1.50',
+   276→    'Database query timeout after 5000ms',
+   277→    'Failed to connect to Redis cluster',
+   278→    'Authentication token expired',
+   279→    'Out of memory: heap allocation failed',
+   280→    'Unexpected null reference in UserService.getProfile',
+   281→    'Scheduled job completed: daily-report',
+   282→    'HTTP 502 Bad Gateway from upstream service',
+   283→    'SSL certificate validation failed',
+   284→    'Message published to queue: order.created',
+   285→    'Circuit breaker opened for payment-service',
+   286→    'Health check passed',
+   287→  ];
+   288→
+   289→  protected defineConfig(): AgentConfig {
+   290→    return LOGGING_AGENT_CONFIG;
+   291→  }
+   292→
+   293→  protected async onInitialize(): Promise<void> {
+   294→    this.registerTool({
+   295→      name: 'searchLogs',
+   296→      description: 'Search logs with query filters',
+   297→      execute: async (params: {
+   298→        query: string;
+   299→        service?: string;
+   300→        level?: string;
+   301→        timeRange?: string;
+   302→        limit?: number;
+   303→        offset?: number;
+   304→      }) => this.searchLogs(params),
+   305→    });
+   306→
+   307→    this.registerTool({
+   308→      name: 'aggregateLogs',
+   309→      description: 'Aggregate logs by field',
+   310→      execute: async (params: {
+   311→        service?: string;
+   312→        field: string;
+   313→        aggregation?: string;
+   314→        timeRange?: string;
+   315→        interval?: string;
+   316→      }) => this.aggregateLogs(params),
+   317→    });
+   318→
+   319→    this.registerTool({
+   320→      name: 'createLogAlert',
+   321→      description: 'Create a log-based alert',
+   322→      execute: async (params: {
+   323→        name: string;
+   324→        query: string;
+   325→        threshold: number;
+   326→        timeWindow?: string;
+   327→        severity?: string;
+   328→        channels?: string[];
+   329→      }) => this.createLogAlert(params),
+   330→    });
+   331→
+   332→    this.registerTool({
+   333→      name: 'exportLogs',
+   334→      description: 'Export logs to a downloadable format',
+   335→      execute: async (params: {
+   336→        query: string;
+   337→        service?: string;
+   338→        timeRange?: string;
+   339→        format?: string;
+   340→        maxRecords?: number;
+   341→      }) => this.exportLogs(params),
+   342→    });
+   343→
+   344→    this.registerTool({
+   345→      name: 'analyzePatterns',
+   346→      description: 'Analyze logs for patterns and anomalies',
+   347→      execute: async (params: { service: string; timeRange?: string; analysisType?: string }) =>
+   348→        this.analyzePatterns(params),
+   349→    });
+   350→
+   351→    this.registerTool({
+   352→      name: 'setRetentionPolicy',
+   353→      description: 'Set a log retention policy',
+   354→      execute: async (params: {
+   355→        name: string;
+   356→        service: string;
+   357→        retentionDays: number;
+   358→        maxStorageGb?: number;
+   359→        compressionEnabled?: boolean;
+   360→        archiveAfterDays?: number;
+   361→      }) => this.setRetentionPolicy(params),
+   362→    });
+   363→
+   364→    await this.storeInWorkingMemory('logging:initializedAt', new Date().toISOString(), 600000);
+   365→    this.logger.log('Logging agent initialized with 6 tools');
+   366→  }
+   367→
+   368→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   369→    const startTime = Date.now();
+   370→    const { action, ...params } = input.payload;
+   371→
+   372→    if (!action) {
+   373→      return this.createAgentOutput(
+   374→        input.taskId,
+   375→        false,
+   376→        null,
+   377→        'Missing required parameter: action',
+   378→        startTime,
+   379→      );
+   380→    }
+   381→
+   382→    const supportedActions = [
+   383→      'searchLogs',
+   384→      'aggregateLogs',
+   385→      'createLogAlert',
+   386→      'exportLogs',
+   387→      'analyzePatterns',
+   388→      'setRetentionPolicy',
+   389→    ];
+   390→
+   391→    if (!supportedActions.includes(action)) {
+   392→      return this.createAgentOutput(
+   393→        input.taskId,
+   394→        false,
+   395→        null,
+   396→        `Unknown logging action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   397→        startTime,
+   398→      );
+   399→    }
+   400→
+   401→    try {
+   402→      const tool = this.getTool(action);
+   403→      if (!tool) {
+   404→        return this.createAgentOutput(
+   405→          input.taskId,
+   406→          false,
+   407→          null,
+   408→          `Tool not found: ${action}`,
+   409→          startTime,
+   410→        );
+   411→      }
+   412→
+   413→      const result = await tool.execute(params);
+   414→
+   415→      await this.storeInWorkingMemory(
+   416→        `logging:last:${action}`,
+   417→        { params, result, timestamp: new Date() },
+   418→        300000,
+   419→      );
+   420→
+   421→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   422→    } catch (error) {
+   423→      const msg = (error as Error).message;
+   424→      this.logger.error(`Logging execution failed for ${action}: ${msg}`);
+   425→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   426→    }
+   427→  }
+   428→
+   429→  protected async onDestroy(): Promise<void> {
+   430→    this.logAlerts.clear();
+   431→    this.retentionPolicies.clear();
+   432→    this.logger.log('Logging agent destroyed, state cleared');
+   433→  }
+   434→
+   435→  // ─── Tool Implementations ──────────────────────────────────────
+   436→
+   437→  private async searchLogs(params: {
+   438→    query: string;
+   439→    service?: string;
+   440→    level?: string;
+   441→    timeRange?: string;
+   442→    limit?: number;
+   443→    offset?: number;
+   444→  }): Promise<{
+   445→    query: string;
+   446→    total: number;
+   447→    logs: LogEntry[];
+   448→    hasMore: boolean;
+   449→    searchTimeMs: number;
+   450→  }> {
+   451→    const { query, service, level, timeRange = '1h', limit = 100, offset = 0 } = params;
+   452→
+   453→    if (!query || typeof query !== 'string') {
+   454→      throw new Error('Search query is required');
+   455→    }
+   456→    if (limit < 1 || limit > 1000) {
+   457→      throw new Error('Limit must be between 1 and 1000');
+   458→    }
+   459→
+   460→    const searchStart = Date.now();
+   461→
+   462→    // Generate simulated log entries matching the query
+   463→    const totalCount = Math.floor(Math.random() * 5000) + 50;
+   464→    const logs: LogEntry[] = [];
+   465→
+   466→    const effectiveLimit = Math.min(limit, totalCount - offset);
+   467→    for (let i = 0; i < effectiveLimit; i++) {
+   468→      const logService =
+   469→        service ||
+   470→        this.simulatedServices[Math.floor(Math.random() * this.simulatedServices.length)];
+   471→      const logLevel =
+   472→        level || this.simulatedLevels[Math.floor(Math.random() * this.simulatedLevels.length)];
+   473→      const message =
+   474→        this.simulatedMessages[Math.floor(Math.random() * this.simulatedMessages.length)];
+   475→
+   476→      logs.push({
+   477→        id: `log-${offset + i + 1}`,
+   478→        timestamp: new Date(
+   479→          Date.now() - Math.random() * this.timeRangeToMs(timeRange),
+   480→        ).toISOString(),
+   481→        service: logService,
+   482→        level: logLevel,
+   483→        message: query === '*' ? message : `${message} [matched: "${query}"]`,
+   484→        host: `host-${Math.floor(Math.random() * 10) + 1}.dc1`,
+   485→        traceId: Math.random() > 0.5 ? this.generateTraceId() : undefined,
+   486→        metadata:
+   487→          Math.random() > 0.7
+   488→            ? {
+   489→                requestId: this.generateTraceId(),
+   490→                userId: `user-${Math.floor(Math.random() * 1000)}`,
+   491→              }
+   492→            : undefined,
+   493→      });
+   494→    }
+   495→
+   496→    const searchTimeMs = Date.now() - searchStart;
+   497→    const hasMore = offset + effectiveLimit < totalCount;
+   498→
+   499→    this.logger.log(
+   500→      `searchLogs: "${query}", ${totalCount} total, ${logs.length} returned, ${searchTimeMs}ms`,
+   501→    );
+   502→
+   503→    return { query, total: totalCount, logs, hasMore, searchTimeMs };
+   504→  }
+   505→
+   506→  private async aggregateLogs(params: {
+   507→    service?: string;
+   508→    field: string;
+   509→    aggregation?: string;
+   510→    timeRange?: string;
+   511→    interval?: string;
+   512→  }): Promise<{
+   513→    field: string;
+   514→    aggregation: string;
+   515→    buckets: Array<{ key: string; docCount: number; percentage?: number }>;
+   516→    totalDocuments: number;
+   517→    timeRange: string;
+   518→  }> {
+   519→    const { service, field, aggregation = 'terms', timeRange = '24h', interval = '1h' } = params;
+   520→
+   521→    if (!field || typeof field !== 'string') {
+   522→      throw new Error('Aggregation field is required');
+   523→    }
+   524→
+   525→    // Generate aggregated data based on field type
+   526→    const buckets: Array<{ key: string; docCount: number; percentage?: number }> = [];
+   527→    const totalDocuments = Math.floor(Math.random() * 500000) + 10000;
+   528→
+   529→    if (field === 'level') {
+   530→      const levels = [
+   531→        { key: 'info', weight: 0.55 },
+   532→        { key: 'debug', weight: 0.2 },
+   533→        { key: 'warn', weight: 0.15 },
+   534→        { key: 'error', weight: 0.08 },
+   535→        { key: 'fatal', weight: 0.02 },
+   536→      ];
+   537→      for (const l of levels) {
+   538→        const docCount = Math.round(totalDocuments * l.weight * (0.9 + Math.random() * 0.2));
+   539→        buckets.push({ key: l.key, docCount, percentage: Math.round(l.weight * 10000) / 100 });
+   540→      }
+   541→    } else if (field === 'service') {
+   542→      for (const svc of this.simulatedServices) {
+   543→        const docCount = Math.round(
+   544→          (totalDocuments / this.simulatedServices.length) * (0.8 + Math.random() * 0.4),
+   545→        );
+   546→        buckets.push({ key: svc, docCount });
+   547→      }
+   548→    } else if (field === 'host') {
+   549→      for (let i = 1; i <= 10; i++) {
+   550→        buckets.push({
+   551→          key: `host-${i}.dc1`,
+   552→          docCount: Math.round((totalDocuments / 10) * (0.7 + Math.random() * 0.6)),
+   553→        });
+   554→      }
+   555→    } else {
+   556→      // Time-based buckets
+   557→      const intervals =
+   558→        interval === '1m'
+   559→          ? 60
+   560→          : interval === '5m'
+   561→            ? 288
+   562→            : interval === '15m'
+   563→              ? 96
+   564→              : interval === '1h'
+   565→                ? 24
+   566→                : 30;
+   567→      for (let i = 0; i < intervals; i++) {
+   568→        const bucketTime = new Date(Date.now() - (intervals - i) * this.intervalToMs(interval));
+   569→        buckets.push({
+   570→          key: bucketTime.toISOString(),
+   571→          docCount: Math.round((totalDocuments / intervals) * (0.5 + Math.random())),
+   572→        });
+   573→      }
+   574→    }
+   575→
+   576→    this.logger.log(
+   577→      `aggregateLogs: ${field} by ${aggregation}, ${buckets.length} buckets, ${totalDocuments} docs`,
+   578→    );
+   579→
+   580→    return { field, aggregation, buckets, totalDocuments, timeRange };
+   581→  }
+   582→
+   583→  private async createLogAlert(params: {
+   584→    name: string;
+   585→    query: string;
+   586→    threshold: number;
+   587→    timeWindow?: string;
+   588→    severity?: string;
+   589→    channels?: string[];
+   590→  }): Promise<{
+   591→    alertId: string;
+   592→    name: string;
+   593→    query: string;
+   594→    threshold: number;
+   595→    created: boolean;
+   596→  }> {
+   597→    const {
+   598→      name,
+   599→      query,
+   600→      threshold,
+   601→      timeWindow = '5m',
+   602→      severity = 'warning',
+   603→      channels = ['email', 'slack'],
+   604→    } = params;
+   605→
+   606→    if (!name || typeof name !== 'string') {
+   607→      throw new Error('Alert name is required');
+   608→    }
+   609→    if (!query || typeof query !== 'string') {
+   610→      throw new Error('Query is required');
+   611→    }
+   612→    if (threshold < 1) {
+   613→      throw new Error('Threshold must be at least 1');
+   614→    }
+   615→
+   616→    this.logAlertCounter++;
+   617→    const alertId = `log-alert-${this.logAlertCounter}-${Date.now()}`;
+   618→
+   619→    this.logAlerts.set(alertId, {
+   620→      id: alertId,
+   621→      name,
+   622→      query,
+   623→      threshold,
+   624→      timeWindow,
+   625→      severity,
+   626→      channels,
+   627→      enabled: true,
+   628→      createdAt: new Date(),
+   629→    });
+   630→
+   631→    this.logger.log(
+   632→      `Created log alert: ${name} [${alertId}], threshold: ${threshold} in ${timeWindow}`,
+   633→    );
+   634→
+   635→    return { alertId, name, query, threshold, created: true };
+   636→  }
+   637→
+   638→  private async exportLogs(params: {
+   639→    query: string;
+   640→    service?: string;
+   641→    timeRange?: string;
+   642→    format?: string;
+   643→    maxRecords?: number;
+   644→  }): Promise<{
+   645→    exportId: string;
+   646→    format: string;
+   647→    recordCount: number;
+   648→    downloadUrl: string;
+   649→    fileSizeEstimate: string;
+   650→    expiresAt: string;
+   651→  }> {
+   652→    const { query, service, timeRange = '24h', format = 'json', maxRecords = 10000 } = params;
+   653→
+   654→    if (!query || typeof query !== 'string') {
+   655→      throw new Error('Query is required');
+   656→    }
+   657→
+   658→    const validFormats = ['json', 'csv', 'ndjson'];
+   659→    if (!validFormats.includes(format)) {
+   660→      throw new Error(`Invalid format: ${format}. Valid: ${validFormats.join(', ')}`);
+   661→    }
+   662→
+   663→    this.exportCounter++;
+   664→    const exportId = `export-${this.exportCounter}-${Date.now()}`;
+   665→    const recordCount = Math.min(maxRecords, Math.floor(Math.random() * 50000) + 1000);
+   666→    const sizePerRecord = format === 'csv' ? 200 : 500;
+   667→    const fileSizeBytes = recordCount * sizePerRecord;
+   668→    const fileSizeEstimate =
+   669→      fileSizeBytes > 1073741824
+   670→        ? `${(fileSizeBytes / 1073741824).toFixed(1)} GB`
+   671→        : fileSizeBytes > 1048576
+   672→          ? `${(fileSizeBytes / 1048576).toFixed(1)} MB`
+   673→          : `${(fileSizeBytes / 1024).toFixed(1)} KB`;
+   674→
+   675→    const servicePath = service ? `/${service}` : '/all';
+   676→    const downloadUrl = `https://logs.example.com/exports${servicePath}/${exportId}.${format}`;
+   677→
+   678→    this.logger.log(
+   679→      `Export logs: ${exportId}, ${format}, ${recordCount} records, ~${fileSizeEstimate}`,
+   680→    );
+   681→
+   682→    return {
+   683→      exportId,
+   684→      format,
+   685→      recordCount,
+   686→      downloadUrl,
+   687→      fileSizeEstimate,
+   688→      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+   689→    };
+   690→  }
+   691→
+   692→  private async analyzePatterns(params: {
+   693→    service: string;
+   694→    timeRange?: string;
+   695→    analysisType?: string;
+   696→  }): Promise<{
+   697→    service: string;
+   698→    analysisType: string;
+   699→    patterns: PatternResult[];
+   700→    anomalies: PatternResult[];
+   701→    insights: string[];
+   702→    analyzedAt: string;
+   703→  }> {
+   704→    const { service, timeRange = '24h', analysisType = 'anomaly' } = params;
+   705→
+   706→    if (!service || typeof service !== 'string') {
+   707→      throw new Error('Service name is required');
+   708→    }
+   709→
+   710→    const validTypes = ['anomaly', 'frequency', 'correlation', 'trend'];
+   711→    if (!validTypes.includes(analysisType)) {
+   712→      throw new Error(`Invalid analysis type: ${analysisType}. Valid: ${validTypes.join(', ')}`);
+   713→    }
+   714→
+   715→    // Generate simulated patterns
+   716→    const patterns: PatternResult[] = [
+   717→      {
+   718→        type: 'frequency',
+   719→        description: `Recurring "Connection timeout" errors in ${service} every ~15 minutes`,
+   720→        confidence: 0.92,
+   721→        affectedService: service,
+   722→        occurrences: Math.floor(Math.random() * 50) + 10,
+   723→        firstSeen: new Date(Date.now() - Math.random() * 86400000).toISOString(),
+   724→        lastSeen: new Date().toISOString(),
+   725→      },
+   726→      {
+   727→        type: 'correlation',
+   728→        description: `High memory usage in ${service} correlates with increased error rate`,
+   729→        confidence: 0.78,
+   730→        affectedService: service,
+   731→        occurrences: Math.floor(Math.random() * 20) + 5,
+   732→        firstSeen: new Date(Date.now() - Math.random() * 172800000).toISOString(),
+   733→        lastSeen: new Date().toISOString(),
+   734→      },
+   735→    ];
+   736→
+   737→    const anomalies: PatternResult[] = [
+   738→      {
+   739→        type: 'spike',
+   740→        description: `Unexpected spike in ERROR logs from ${service} at ${new Date(Date.now() - 3600000).toISOString()}`,
+   741→        confidence: 0.95,
+   742→        affectedService: service,
+   743→        occurrences: 1,
+   744→        firstSeen: new Date(Date.now() - 7200000).toISOString(),
+   745→        lastSeen: new Date(Date.now() - 3600000).toISOString(),
+   746→      },
+   747→    ];
+   748→
+   749→    if (analysisType === 'trend') {
+   750→      patterns.push({
+   751→        type: 'trend',
+   752→        description: `Gradual increase in WARN logs for ${service} over the past 7 days`,
+   753→        confidence: 0.85,
+   754→        affectedService: service,
+   755→        occurrences: Math.floor(Math.random() * 200) + 50,
+   756→        firstSeen: new Date(Date.now() - 604800000).toISOString(),
+   757→        lastSeen: new Date().toISOString(),
+   758→      });
+   759→    }
+   760→
+   761→    const insights: string[] = [
+   762→      `${service} generates an average of ${Math.floor(Math.random() * 5000) + 500} log entries per hour`,
+   763→      `Error rate for ${service} is ${(Math.random() * 5).toFixed(2)}%, which is ${Math.random() > 0.5 ? 'within' : 'above'} acceptable threshold`,
+   764→      `Peak log volume occurs between 09:00-11:00 UTC for ${service}`,
+   765→      `Consider increasing log sampling rate for ${service} during peak hours to reduce storage costs`,
+   766→    ];
+   767→
+   768→    this.logger.log(
+   769→      `analyzePatterns: ${service}, ${analysisType}, ${patterns.length} patterns, ${anomalies.length} anomalies`,
+   770→    );
+   771→
+   772→    return {
+   773→      service,
+   774→      analysisType,
+   775→      patterns,
+   776→      anomalies,
+   777→      insights,
+   778→      analyzedAt: new Date().toISOString(),
+   779→    };
+   780→  }
+   781→
+   782→  private async setRetentionPolicy(params: {
+   783→    name: string;
+   784→    service: string;
+   785→    retentionDays: number;
+   786→    maxStorageGb?: number;
+   787→    compressionEnabled?: boolean;
+   788→    archiveAfterDays?: number;
+   789→  }): Promise<{
+   790→    policyId: string;
+   791→    name: string;
+   792→    service: string;
+   793→    retentionDays: number;
+   794→    created: boolean;
+   795→    message: string;
+   796→  }> {
+   797→    const {
+   798→      name,
+   799→      service,
+   800→      retentionDays,
+   801→      maxStorageGb,
+   802→      compressionEnabled = true,
+   803→      archiveAfterDays,
+   804→    } = params;
+   805→
+   806→    if (!name || typeof name !== 'string') {
+   807→      throw new Error('Policy name is required');
+   808→    }
+   809→    if (!service || typeof service !== 'string') {
+   810→      throw new Error('Service name is required (use "*" for all services)');
+   811→    }
+   812→    if (retentionDays < 1 || retentionDays > 3650) {
+   813→      throw new Error('Retention days must be between 1 and 3650 (10 years)');
+   814→    }
+   815→    if (archiveAfterDays !== undefined && archiveAfterDays >= retentionDays) {
+   816→      throw new Error('Archive days must be less than retention days');
+   817→    }
+   818→
+   819→    this.retentionCounter++;
+   820→    const policyId = `retention-${this.retentionCounter}-${Date.now()}`;
+   821→
+   822→    this.retentionPolicies.set(policyId, {
+   823→      id: policyId,
+   824→      name,
+   825→      service,
+   826→      retentionDays,
+   827→      maxStorageGb,
+   828→      compressionEnabled,
+   829→      archiveAfterDays,
+   830→      createdAt: new Date(),
+   831→    });
+   832→
+   833→    this.logger.log(
+   834→      `Set retention policy: ${name} [${policyId}], service=${service}, retention=${retentionDays} days`,
+   835→    );
+   836→
+   837→    return {
+   838→      policyId,
+   839→      name,
+   840→      service,
+   841→      retentionDays,
+   842→      created: true,
+   843→      message: `Retention policy "${name}" created for ${service === '*' ? 'all services' : service}: ${retentionDays} days retention${archiveAfterDays ? `, archive after ${archiveAfterDays} days` : ''}`,
+   844→    };
+   845→  }
+   846→
+   847→  // ─── Helpers ────────────────────────────────────────────────────
+   848→
+   849→  private timeRangeToMs(timeRange: string): number {
+   850→    const map: Record<string, number> = {
+   851→      '5m': 300000,
+   852→      '15m': 900000,
+   853→      '1h': 3600000,
+   854→      '6h': 21600000,
+   855→      '24h': 86400000,
+   856→      '7d': 604800000,
+   857→      '30d': 2592000000,
+   858→    };
+   859→    return map[timeRange] || 3600000;
+   860→  }
+   861→
+   862→  private intervalToMs(interval: string): number {
+   863→    const map: Record<string, number> = {
+   864→      '1m': 60000,
+   865→      '5m': 300000,
+   866→      '15m': 900000,
+   867→      '1h': 3600000,
+   868→      '1d': 86400000,
+   869→    };
+   870→    return map[interval] || 3600000;
+   871→  }
+   872→
+   873→  private generateTraceId(): string {
+   874→    const chars = '0123456789abcdef';
+   875→    let id = '';
+   876→    for (let i = 0; i < 32; i++) {
+   877→      id += chars[Math.floor(Math.random() * chars.length)];
+   878→      if (i === 7 || i === 11 || i === 15 || i === 19) id += '-';
+   879→    }
+   880→    return id;
+   881→  }
+   882→}
+   883→

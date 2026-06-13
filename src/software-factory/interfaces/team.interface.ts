@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Team & Agent Role Interfaces
- * 
+ *
  * Teams: Planning, Execution, Certification
  * Each team has specialized agents that are instantiated on-demand.
  */

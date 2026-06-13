@@ -1,0 +1,870 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Incident Response Agent
+     3→ * Manages security incidents from creation through investigation, containment,
+     4→ * remediation, forensic analysis, and post-mortem documentation.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const INCIDENT_RESPONSE_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'security-incident-response',
+    20→  name: 'IncidentResponse',
+    21→  cluster: AgentCluster.SECURITY,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Manage security incidents through their full lifecycle: creation, investigation, threat containment, remediation, forensic reporting, and post-mortem analysis.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'createIncident',
+    28→      description: 'Create a new security incident record',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          title: { type: 'string', description: 'Incident title' },
+    33→          severity: {
+    34→            type: 'string',
+    35→            enum: ['low', 'medium', 'high', 'critical'],
+    36→            description: 'Incident severity',
+    37→          },
+    38→          type: {
+    39→            type: 'string',
+    40→            description: 'Incident type (e.g., breach, malware, phishing, ddos)',
+    41→          },
+    42→          description: { type: 'string', description: 'Detailed incident description' },
+    43→          reportedBy: { type: 'string', description: 'Person or system reporting the incident' },
+    44→        },
+    45→        required: ['title', 'severity', 'type'],
+    46→      },
+    47→      outputSchema: {
+    48→        type: 'object',
+    49→        properties: {
+    50→          incidentId: { type: 'string' },
+    51→          title: { type: 'string' },
+    52→          severity: { type: 'string' },
+    53→          status: { type: 'string' },
+    54→          createdAt: { type: 'string' },
+    55→        },
+    56→      },
+    57→    },
+    58→    {
+    59→      name: 'investigateIncident',
+    60→      description: 'Investigate a security incident to determine root cause and impact',
+    61→      inputSchema: {
+    62→        type: 'object',
+    63→        properties: {
+    64→          incidentId: { type: 'string', description: 'ID of the incident to investigate' },
+    65→          depth: {
+    66→            type: 'string',
+    67→            enum: ['preliminary', 'detailed', 'forensic'],
+    68→            description: 'Investigation depth',
+    69→          },
+    70→          assignTo: { type: 'string', description: 'Assign investigation to a team or individual' },
+    71→        },
+    72→        required: ['incidentId'],
+    73→      },
+    74→      outputSchema: {
+    75→        type: 'object',
+    76→        properties: {
+    77→          incidentId: { type: 'string' },
+    78→          rootCause: { type: 'string' },
+    79→          impactAssessment: { type: 'object' },
+    80→          timeline: { type: 'array', items: { type: 'object' } },
+    81→          iocs: { type: 'array', items: { type: 'object' } },
+    82→        },
+    83→      },
+    84→    },
+    85→    {
+    86→      name: 'containThreat',
+    87→      description: 'Contain an active threat to prevent further damage',
+    88→      inputSchema: {
+    89→        type: 'object',
+    90→        properties: {
+    91→          incidentId: { type: 'string', description: 'ID of the associated incident' },
+    92→          strategy: {
+    93→            type: 'string',
+    94→            enum: ['isolate', 'block', 'quarantine', 'shutdown'],
+    95→            description: 'Containment strategy',
+    96→          },
+    97→          target: { type: 'string', description: 'Target system or network to contain' },
+    98→          scope: {
+    99→            type: 'string',
+   100→            enum: ['single_host', 'subnet', 'network', 'global'],
+   101→            description: 'Containment scope',
+   102→          },
+   103→        },
+   104→        required: ['incidentId', 'strategy'],
+   105→      },
+   106→      outputSchema: {
+   107→        type: 'object',
+   108→        properties: {
+   109→          contained: { type: 'boolean' },
+   110→          strategy: { type: 'string' },
+   111→          affectedSystems: { type: 'number' },
+   112→          actionsTaken: { type: 'array', items: { type: 'string' } },
+   113→        },
+   114→      },
+   115→    },
+   116→    {
+   117→      name: 'remediateIssue',
+   118→      description: 'Remediate the root cause of a security incident',
+   119→      inputSchema: {
+   120→        type: 'object',
+   121→        properties: {
+   122→          incidentId: { type: 'string', description: 'ID of the incident to remediate' },
+   123→          remediationType: {
+   124→            type: 'string',
+   125→            enum: ['patch', 'config_change', 'credential_reset', 'system_restore', 'custom'],
+   126→            description: 'Type of remediation',
+   127→          },
+   128→          description: { type: 'string', description: 'Description of remediation action' },
+   129→          automated: { type: 'boolean', description: 'Whether to attempt automated remediation' },
+   130→        },
+   131→        required: ['incidentId', 'remediationType'],
+   132→      },
+   133→      outputSchema: {
+   134→        type: 'object',
+   135→        properties: {
+   136→          remediated: { type: 'boolean' },
+   137→          remediationType: { type: 'string' },
+   138→          actionsPerformed: { type: 'array', items: { type: 'string' } },
+   139→          verificationStatus: { type: 'string' },
+   140→        },
+   141→      },
+   142→    },
+   143→    {
+   144→      name: 'generateForensicReport',
+   145→      description: 'Generate a detailed forensic report for an incident',
+   146→      inputSchema: {
+   147→        type: 'object',
+   148→        properties: {
+   149→          incidentId: { type: 'string', description: 'ID of the incident' },
+   150→          includeArtifacts: {
+   151→            type: 'boolean',
+   152→            description: 'Whether to include forensic artifacts',
+   153→          },
+   154→          format: {
+   155→            type: 'string',
+   156→            enum: ['summary', 'detailed', 'legal'],
+   157→            description: 'Report format',
+   158→          },
+   159→        },
+   160→        required: ['incidentId'],
+   161→      },
+   162→      outputSchema: {
+   163→        type: 'object',
+   164→        properties: {
+   165→          reportId: { type: 'string' },
+   166→          incidentId: { type: 'string' },
+   167→          executiveSummary: { type: 'string' },
+   168→          timeline: { type: 'array', items: { type: 'object' } },
+   169→          artifacts: { type: 'array', items: { type: 'object' } },
+   170→          generatedAt: { type: 'string' },
+   171→        },
+   172→      },
+   173→    },
+   174→    {
+   175→      name: 'postMortem',
+   176→      description: 'Conduct a post-mortem analysis of a resolved incident',
+   177→      inputSchema: {
+   178→        type: 'object',
+   179→        properties: {
+   180→          incidentId: { type: 'string', description: 'ID of the resolved incident' },
+   181→          participants: {
+   182→            type: 'array',
+   183→            items: { type: 'string' },
+   184→            description: 'Post-mortem participants',
+   185→          },
+   186→          includeActionItems: { type: 'boolean', description: 'Whether to generate action items' },
+   187→        },
+   188→        required: ['incidentId'],
+   189→      },
+   190→      outputSchema: {
+   191→        type: 'object',
+   192→        properties: {
+   193→          postMortemId: { type: 'string' },
+   194→          incidentId: { type: 'string' },
+   195→          lessonsLearned: { type: 'array', items: { type: 'string' } },
+   196→          actionItems: { type: 'array', items: { type: 'object' } },
+   197→          detectionImprovements: { type: 'array', items: { type: 'string' } },
+   198→        },
+   199→      },
+   200→    },
+   201→  ],
+   202→  permissions: [
+   203→    'execute:task',
+   204→    'read:incidents',
+   205→    'write:incidents',
+   206→    'contain:threats',
+   207→    'remediate:issues',
+   208→    'generate:forensics',
+   209→  ],
+   210→  maxConcurrentTasks: 5,
+   211→  timeout: 60000,
+   212→  retryPolicy: {
+   213→    maxRetries: 2,
+   214→    backoffMs: 2000,
+   215→    exponentialBackoff: true,
+   216→  },
+   217→};
+   218→
+   219→// ─── Internal Types ───────────────────────────────────────────────
+   220→
+   221→type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
+   222→type IncidentStatus = 'open' | 'investigating' | 'contained' | 'remediated' | 'closed';
+   223→
+   224→interface Incident {
+   225→  incidentId: string;
+   226→  title: string;
+   227→  severity: IncidentSeverity;
+   228→  type: string;
+   229→  description: string;
+   230→  status: IncidentStatus;
+   231→  reportedBy: string;
+   232→  createdAt: Date;
+   233→  updatedAt: Date;
+   234→  timeline: IncidentTimelineEntry[];
+   235→  rootCause?: string;
+   236→  impactAssessment?: Record<string, any>;
+   237→  iocs: IndicatorOfCompromise[];
+   238→  assignedTo?: string;
+   239→}
+   240→
+   241→interface IncidentTimelineEntry {
+   242→  timestamp: Date;
+   243→  event: string;
+   244→  details: string;
+   245→  performedBy: string;
+   246→}
+   247→
+   248→interface IndicatorOfCompromise {
+   249→  type: string;
+   250→  value: string;
+   251→  description: string;
+   252→  confidence: 'low' | 'medium' | 'high';
+   253→}
+   254→
+   255→// ─── Agent Service ────────────────────────────────────────────────
+   256→
+   257→@Injectable()
+   258→export class IncidentResponseAgentService extends BaseAgentService {
+   259→  private incidents: Map<string, Incident> = new Map();
+   260→
+   261→  protected defineConfig(): AgentConfig {
+   262→    return INCIDENT_RESPONSE_AGENT_CONFIG;
+   263→  }
+   264→
+   265→  protected async onInitialize(): Promise<void> {
+   266→    this.registerTool({
+   267→      name: 'createIncident',
+   268→      description: 'Create a new security incident record',
+   269→      execute: async (params: {
+   270→        title: string;
+   271→        severity: string;
+   272→        type: string;
+   273→        description?: string;
+   274→        reportedBy?: string;
+   275→      }) => this.createIncident(params),
+   276→    });
+   277→
+   278→    this.registerTool({
+   279→      name: 'investigateIncident',
+   280→      description: 'Investigate a security incident to determine root cause and impact',
+   281→      execute: async (params: { incidentId: string; depth?: string; assignTo?: string }) =>
+   282→        this.investigateIncident(params),
+   283→    });
+   284→
+   285→    this.registerTool({
+   286→      name: 'containThreat',
+   287→      description: 'Contain an active threat to prevent further damage',
+   288→      execute: async (params: {
+   289→        incidentId: string;
+   290→        strategy: string;
+   291→        target?: string;
+   292→        scope?: string;
+   293→      }) => this.containThreat(params),
+   294→    });
+   295→
+   296→    this.registerTool({
+   297→      name: 'remediateIssue',
+   298→      description: 'Remediate the root cause of a security incident',
+   299→      execute: async (params: {
+   300→        incidentId: string;
+   301→        remediationType: string;
+   302→        description?: string;
+   303→        automated?: boolean;
+   304→      }) => this.remediateIssue(params),
+   305→    });
+   306→
+   307→    this.registerTool({
+   308→      name: 'generateForensicReport',
+   309→      description: 'Generate a detailed forensic report for an incident',
+   310→      execute: async (params: {
+   311→        incidentId: string;
+   312→        includeArtifacts?: boolean;
+   313→        format?: string;
+   314→      }) => this.generateForensicReport(params),
+   315→    });
+   316→
+   317→    this.registerTool({
+   318→      name: 'postMortem',
+   319→      description: 'Conduct a post-mortem analysis of a resolved incident',
+   320→      execute: async (params: {
+   321→        incidentId: string;
+   322→        participants?: string[];
+   323→        includeActionItems?: boolean;
+   324→      }) => this.postMortem(params),
+   325→    });
+   326→
+   327→    this.logger.log('IncidentResponse agent initialized with 6 tools');
+   328→  }
+   329→
+   330→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   331→    const startTime = Date.now();
+   332→    const { action, ...params } = input.payload;
+   333→
+   334→    if (!action) {
+   335→      return this.createAgentOutput(
+   336→        input.taskId,
+   337→        false,
+   338→        null,
+   339→        'Missing required parameter: action',
+   340→        startTime,
+   341→      );
+   342→    }
+   343→
+   344→    try {
+   345→      let result: any;
+   346→
+   347→      switch (action) {
+   348→        case 'createIncident':
+   349→          result = await this.createIncident(params);
+   350→          break;
+   351→        case 'investigateIncident':
+   352→          result = await this.investigateIncident(params);
+   353→          break;
+   354→        case 'containThreat':
+   355→          result = await this.containThreat(params);
+   356→          break;
+   357→        case 'remediateIssue':
+   358→          result = await this.remediateIssue(params);
+   359→          break;
+   360→        case 'generateForensicReport':
+   361→          result = await this.generateForensicReport(params);
+   362→          break;
+   363→        case 'postMortem':
+   364→          result = await this.postMortem(params);
+   365→          break;
+   366→        default:
+   367→          return this.createAgentOutput(
+   368→            input.taskId,
+   369→            false,
+   370→            null,
+   371→            `Unknown incident response action: ${action}`,
+   372→            startTime,
+   373→          );
+   374→      }
+   375→
+   376→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   377→    } catch (error) {
+   378→      const msg = (error as Error).message;
+   379→      this.logger.error(`IncidentResponse execution failed: ${msg}`);
+   380→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   381→    }
+   382→  }
+   383→
+   384→  protected async onDestroy(): Promise<void> {
+   385→    this.incidents.clear();
+   386→    this.logger.log('IncidentResponse agent destroyed, state cleared');
+   387→  }
+   388→
+   389→  // ─── Helper ────────────────────────────────────────────────────
+   390→
+   391→  private getIncidentOrThrow(incidentId: string): Incident {
+   392→    const incident = this.incidents.get(incidentId);
+   393→    if (!incident) {
+   394→      throw new Error(`Incident ${incidentId} not found`);
+   395→    }
+   396→    return incident;
+   397→  }
+   398→
+   399→  private addTimelineEntry(
+   400→    incident: Incident,
+   401→    event: string,
+   402→    details: string,
+   403→    performedBy: string,
+   404→  ): void {
+   405→    incident.timeline.push({
+   406→      timestamp: new Date(),
+   407→      event,
+   408→      details,
+   409→      performedBy,
+   410→    });
+   411→    incident.updatedAt = new Date();
+   412→  }
+   413→
+   414→  // ─── Tool Implementations ──────────────────────────────────────
+   415→
+   416→  private async createIncident(params: {
+   417→    title: string;
+   418→    severity: string;
+   419→    type: string;
+   420→    description?: string;
+   421→    reportedBy?: string;
+   422→  }): Promise<{
+   423→    incidentId: string;
+   424→    title: string;
+   425→    severity: string;
+   426→    status: string;
+   427→    createdAt: string;
+   428→  }> {
+   429→    const { title, severity, type, description, reportedBy } = params;
+   430→
+   431→    if (!title || !severity || !type) {
+   432→      throw new Error('title, severity, and type are required');
+   433→    }
+   434→
+   435→    const validSeverities: IncidentSeverity[] = ['low', 'medium', 'high', 'critical'];
+   436→    if (!validSeverities.includes(severity as IncidentSeverity)) {
+   437→      throw new Error(
+   438→        `Invalid severity: ${severity}. Must be one of: ${validSeverities.join(', ')}`,
+   439→      );
+   440→    }
+   441→
+   442→    const incidentId = `INC-${this.generateId().substring(0, 8).toUpperCase()}`;
+   443→
+   444→    const incident: Incident = {
+   445→      incidentId,
+   446→      title,
+   447→      severity: severity as IncidentSeverity,
+   448→      type,
+   449→      description: description || title,
+   450→      status: 'open',
+   451→      reportedBy: reportedBy || 'system',
+   452→      createdAt: new Date(),
+   453→      updatedAt: new Date(),
+   454→      timeline: [],
+   455→      iocs: [],
+   456→    };
+   457→
+   458→    this.addTimelineEntry(
+   459→      incident,
+   460→      'incident_created',
+   461→      `Incident created with severity ${severity}`,
+   462→      reportedBy || 'system',
+   463→    );
+   464→
+   465→    this.incidents.set(incidentId, incident);
+   466→
+   467→    // Store critical incidents in long-term memory
+   468→    if (severity === 'critical' || severity === 'high') {
+   469→      await this.storeInLongTermMemory(`incident:${incidentId}`, {
+   470→        title,
+   471→        severity,
+   472→        type,
+   473→        createdAt: incident.createdAt.toISOString(),
+   474→      });
+   475→    }
+   476→
+   477→    this.logger.log(`Incident created: ${incidentId} — ${title} (${severity})`);
+   478→
+   479→    return {
+   480→      incidentId,
+   481→      title,
+   482→      severity,
+   483→      status: 'open',
+   484→      createdAt: incident.createdAt.toISOString(),
+   485→    };
+   486→  }
+   487→
+   488→  private async investigateIncident(params: {
+   489→    incidentId: string;
+   490→    depth?: string;
+   491→    assignTo?: string;
+   492→  }): Promise<{
+   493→    incidentId: string;
+   494→    rootCause: string;
+   495→    impactAssessment: any;
+   496→    timeline: any[];
+   497→    iocs: any[];
+   498→  }> {
+   499→    const { incidentId, depth = 'detailed', assignTo } = params;
+   500→
+   501→    const incident = this.getIncidentOrThrow(incidentId);
+   502→
+   503→    incident.status = 'investigating';
+   504→    if (assignTo) incident.assignedTo = assignTo;
+   505→
+   506→    this.addTimelineEntry(
+   507→      incident,
+   508→      'investigation_started',
+   509→      `Investigation started (depth: ${depth})`,
+   510→      assignTo || 'incident_response_team',
+   511→    );
+   512→
+   513→    // Simulate investigation
+   514→    const rootCauses = [
+   515→      'Compromised user credentials via phishing attack',
+   516→      'Unpatched vulnerability exploited in web application',
+   517→      'Misconfigured firewall rule allowed unauthorized access',
+   518→      'Insider threat — unauthorized data access',
+   519→      'Supply chain compromise via third-party library',
+   520→    ];
+   521→
+   522→    incident.rootCause = rootCauses[Math.floor(Math.random() * rootCauses.length)];
+   523→
+   524→    incident.impactAssessment = {
+   525→      affectedSystems: Math.floor(Math.random() * 20) + 1,
+   526→      affectedUsers: Math.floor(Math.random() * 1000) + 10,
+   527→      dataExposed: Math.random() > 0.5,
+   528→      estimatedCost: Math.floor(Math.random() * 500000) + 10000,
+   529→      businessImpact:
+   530→        incident.severity === 'critical'
+   531→          ? 'severe'
+   532→          : incident.severity === 'high'
+   533→            ? 'significant'
+   534→            : 'moderate',
+   535→    };
+   536→
+   537→    // Generate IOCs
+   538→    const iocTypes = ['ip_address', 'domain', 'hash', 'url', 'email'];
+   539→    const iocCount = depth === 'forensic' ? 5 : depth === 'detailed' ? 3 : 1;
+   540→    incident.iocs = [];
+   541→    for (let i = 0; i < iocCount; i++) {
+   542→      incident.iocs.push({
+   543→        type: iocTypes[i % iocTypes.length],
+   544→        value: `ioc_value_${i}_${Date.now()}`,
+   545→        description: `Indicator of compromise type: ${iocTypes[i % iocTypes.length]}`,
+   546→        confidence: (['low', 'medium', 'high'] as const)[Math.floor(Math.random() * 3)],
+   547→      });
+   548→    }
+   549→
+   550→    this.addTimelineEntry(
+   551→      incident,
+   552→      'investigation_completed',
+   553→      `Root cause identified: ${incident.rootCause}`,
+   554→      incident.assignedTo || 'incident_response_team',
+   555→    );
+   556→
+   557→    this.logger.log(`Incident ${incidentId} investigated: root cause — ${incident.rootCause}`);
+   558→
+   559→    return {
+   560→      incidentId,
+   561→      rootCause: incident.rootCause,
+   562→      impactAssessment: incident.impactAssessment,
+   563→      timeline: incident.timeline.map((t) => ({
+   564→        timestamp: t.timestamp.toISOString(),
+   565→        event: t.event,
+   566→        details: t.details,
+   567→        performedBy: t.performedBy,
+   568→      })),
+   569→      iocs: incident.iocs,
+   570→    };
+   571→  }
+   572→
+   573→  private async containThreat(params: {
+   574→    incidentId: string;
+   575→    strategy: string;
+   576→    target?: string;
+   577→    scope?: string;
+   578→  }): Promise<{
+   579→    contained: boolean;
+   580→    strategy: string;
+   581→    affectedSystems: number;
+   582→    actionsTaken: string[];
+   583→  }> {
+   584→    const { incidentId, strategy, target, scope = 'single_host' } = params;
+   585→
+   586→    const incident = this.getIncidentOrThrow(incidentId);
+   587→
+   588→    const actionsTaken: string[] = [];
+   589→
+   590→    switch (strategy) {
+   591→      case 'isolate':
+   592→        actionsTaken.push(`Isolated ${target || 'affected system'} from network`);
+   593→        actionsTaken.push(`Blocked all inbound/outbound traffic to ${target || 'host'}`);
+   594→        break;
+   595→      case 'block':
+   596→        actionsTaken.push(`Blocked malicious IPs/domains associated with incident`);
+   597→        actionsTaken.push(`Updated firewall rules to block threat indicators`);
+   598→        break;
+   599→      case 'quarantine':
+   600→        actionsTaken.push(`Quarantined affected files and processes`);
+   601→        actionsTaken.push(`Moved suspicious artifacts to secure quarantine zone`);
+   602→        break;
+   603→      case 'shutdown':
+   604→        actionsTaken.push(`Gracefully shut down ${target || 'affected system'}`);
+   605→        actionsTaken.push(`Created forensic image before shutdown`);
+   606→        break;
+   607→      default:
+   608→        throw new Error(`Unknown containment strategy: ${strategy}`);
+   609→    }
+   610→
+   611→    actionsTaken.push(`Containment scope: ${scope}`);
+   612→    incident.status = 'contained';
+   613→
+   614→    for (const action of actionsTaken) {
+   615→      this.addTimelineEntry(incident, 'containment_action', action, 'incident_response_team');
+   616→    }
+   617→
+   618→    const affectedSystems =
+   619→      scope === 'global'
+   620→        ? Math.floor(Math.random() * 100) + 10
+   621→        : scope === 'network'
+   622→          ? Math.floor(Math.random() * 30) + 5
+   623→          : scope === 'subnet'
+   624→            ? Math.floor(Math.random() * 10) + 2
+   625→            : 1;
+   626→
+   627→    this.logger.log(
+   628→      `Incident ${incidentId} contained: strategy ${strategy}, ${affectedSystems} systems affected`,
+   629→    );
+   630→
+   631→    return { contained: true, strategy, affectedSystems, actionsTaken };
+   632→  }
+   633→
+   634→  private async remediateIssue(params: {
+   635→    incidentId: string;
+   636→    remediationType: string;
+   637→    description?: string;
+   638→    automated?: boolean;
+   639→  }): Promise<{
+   640→    remediated: boolean;
+   641→    remediationType: string;
+   642→    actionsPerformed: string[];
+   643→    verificationStatus: string;
+   644→  }> {
+   645→    const { incidentId, remediationType, description, automated = false } = params;
+   646→
+   647→    const incident = this.getIncidentOrThrow(incidentId);
+   648→
+   649→    const actionsPerformed: string[] = [];
+   650→
+   651→    switch (remediationType) {
+   652→      case 'patch':
+   653→        actionsPerformed.push('Applied security patches to affected systems');
+   654→        actionsPerformed.push('Verified patch installation');
+   655→        break;
+   656→      case 'config_change':
+   657→        actionsPerformed.push('Updated configuration to remediate vulnerability');
+   658→        actionsPerformed.push('Validated new configuration against security baseline');
+   659→        break;
+   660→      case 'credential_reset':
+   661→        actionsPerformed.push('Reset all compromised credentials');
+   662→        actionsPerformed.push('Revoked existing tokens and sessions');
+   663→        actionsPerformed.push('Enforced MFA for affected accounts');
+   664→        break;
+   665→      case 'system_restore':
+   666→        actionsPerformed.push('Restored systems from clean backup');
+   667→        actionsPerformed.push('Verified system integrity after restore');
+   668→        break;
+   669→      case 'custom':
+   670→        actionsPerformed.push(description || 'Applied custom remediation');
+   671→        break;
+   672→      default:
+   673→        throw new Error(`Unknown remediation type: ${remediationType}`);
+   674→    }
+   675→
+   676→    if (automated) {
+   677→      actionsPerformed.push('Automated remediation workflow executed');
+   678→    }
+   679→
+   680→    incident.status = 'remediated';
+   681→    for (const action of actionsPerformed) {
+   682→      this.addTimelineEntry(
+   683→        incident,
+   684→        'remediation_action',
+   685→        action,
+   686→        automated ? 'automated_system' : 'incident_response_team',
+   687→      );
+   688→    }
+   689→
+   690→    const verificationStatus = Math.random() > 0.1 ? 'verified' : 'pending_verification';
+   691→
+   692→    this.logger.log(
+   693→      `Incident ${incidentId} remediated: type ${remediationType}, verification ${verificationStatus}`,
+   694→    );
+   695→
+   696→    return { remediated: true, remediationType, actionsPerformed, verificationStatus };
+   697→  }
+   698→
+   699→  private async generateForensicReport(params: {
+   700→    incidentId: string;
+   701→    includeArtifacts?: boolean;
+   702→    format?: string;
+   703→  }): Promise<{
+   704→    reportId: string;
+   705→    incidentId: string;
+   706→    executiveSummary: string;
+   707→    timeline: any[];
+   708→    artifacts: any[];
+   709→    generatedAt: string;
+   710→  }> {
+   711→    const { incidentId, includeArtifacts = true, format = 'detailed' } = params;
+   712→
+   713→    const incident = this.getIncidentOrThrow(incidentId);
+   714→
+   715→    const reportId = `FR-${this.generateId().substring(0, 12)}`;
+   716→
+   717→    const executiveSummary =
+   718→      `Security incident ${incidentId} (${incident.type}) occurred on ${incident.createdAt.toISOString()}. ` +
+   719→      `Root cause: ${incident.rootCause || 'Under investigation'}. ` +
+   720→      `Severity: ${incident.severity}. Current status: ${incident.status}.`;
+   721→
+   722→    const timeline = incident.timeline.map((t) => ({
+   723→      timestamp: t.timestamp.toISOString(),
+   724→      event: t.event,
+   725→      details: t.details,
+   726→      performedBy: t.performedBy,
+   727→    }));
+   728→
+   729→    const artifacts = includeArtifacts
+   730→      ? [
+   731→          {
+   732→            type: 'log_snapshot',
+   733→            description: 'System logs at time of incident',
+   734→            hash: this.generateId().substring(0, 32),
+   735→          },
+   736→          {
+   737→            type: 'memory_dump',
+   738→            description: 'Memory dump from affected system',
+   739→            hash: this.generateId().substring(0, 32),
+   740→          },
+   741→          {
+   742→            type: 'network_capture',
+   743→            description: 'Network traffic capture',
+   744→            hash: this.generateId().substring(0, 32),
+   745→          },
+   746→          ...incident.iocs.map((ioc) => ({
+   747→            type: `ioc_${ioc.type}`,
+   748→            description: ioc.description,
+   749→            value: ioc.value,
+   750→            confidence: ioc.confidence,
+   751→          })),
+   752→        ]
+   753→      : [];
+   754→
+   755→    this.addTimelineEntry(
+   756→      incident,
+   757→      'forensic_report_generated',
+   758→      `Forensic report ${reportId} generated (format: ${format})`,
+   759→      'forensic_analyst',
+   760→    );
+   761→
+   762→    this.logger.log(`Forensic report generated: ${reportId} for incident ${incidentId}`);
+   763→
+   764→    return {
+   765→      reportId,
+   766→      incidentId,
+   767→      executiveSummary,
+   768→      timeline,
+   769→      artifacts,
+   770→      generatedAt: new Date().toISOString(),
+   771→    };
+   772→  }
+   773→
+   774→  private async postMortem(params: {
+   775→    incidentId: string;
+   776→    participants?: string[];
+   777→    includeActionItems?: boolean;
+   778→  }): Promise<{
+   779→    postMortemId: string;
+   780→    incidentId: string;
+   781→    lessonsLearned: string[];
+   782→    actionItems: any[];
+   783→    detectionImprovements: string[];
+   784→  }> {
+   785→    const { incidentId, participants = [], includeActionItems = true } = params;
+   786→
+   787→    const incident = this.getIncidentOrThrow(incidentId);
+   788→
+   789→    if (incident.status !== 'remediated' && incident.status !== 'contained') {
+   790→      throw new Error(
+   791→        `Post-mortem can only be performed on resolved incidents. Current status: ${incident.status}`,
+   792→      );
+   793→    }
+   794→
+   795→    const postMortemId = `PM-${this.generateId().substring(0, 12)}`;
+   796→
+   797→    const lessonsLearned = [
+   798→      'Earlier detection could have reduced impact by reducing response time',
+   799→      'Improved monitoring coverage would have identified the threat sooner',
+   800→      'Existing runbooks were partially effective but need updating for this scenario',
+   801→      'Communication between teams could be streamlined for faster response',
+   802→    ];
+   803→
+   804→    const actionItems = includeActionItems
+   805→      ? [
+   806→          {
+   807→            id: this.generateId(),
+   808→            title: 'Update detection rules for this threat type',
+   809→            priority: 'high',
+   810→            assignee: 'security_engineering',
+   811→            dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+   812→          },
+   813→          {
+   814→            id: this.generateId(),
+   815→            title: 'Enhance monitoring for related IOCs',
+   816→            priority: 'high',
+   817→            assignee: 'soc_team',
+   818→            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+   819→          },
+   820→          {
+   821→            id: this.generateId(),
+   822→            title: 'Update incident response playbook',
+   823→            priority: 'medium',
+   824→            assignee: 'incident_response_team',
+   825→            dueDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+   826→          },
+   827→          {
+   828→            id: this.generateId(),
+   829→            title: 'Conduct team training on similar scenarios',
+   830→            priority: 'medium',
+   831→            assignee: 'security_training',
+   832→            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+   833→          },
+   834→        ]
+   835→      : [];
+   836→
+   837→    const detectionImprovements = [
+   838→      'Add alerting for anomalous access patterns identified in this incident',
+   839→      'Integrate threat intelligence feeds for proactive detection',
+   840→      'Implement behavioral analytics for insider threat detection',
+   841→    ];
+   842→
+   843→    incident.status = 'closed';
+   844→    this.addTimelineEntry(
+   845→      incident,
+   846→      'post_mortem_completed',
+   847→      `Post-mortem ${postMortemId} completed with ${participants.length} participants`,
+   848→      'incident_response_team',
+   849→    );
+   850→
+   851→    // Store post-mortem in long-term memory
+   852→    await this.storeInLongTermMemory(`postmortem:${postMortemId}`, {
+   853→      incidentId,
+   854→      lessonsLearned,
+   855→      actionItems: actionItems.map((a) => a.title),
+   856→      closedAt: new Date().toISOString(),
+   857→    });
+   858→
+   859→    this.logger.log(`Post-mortem completed: ${postMortemId} for incident ${incidentId}`);
+   860→
+   861→    return {
+   862→      postMortemId,
+   863→      incidentId,
+   864→      lessonsLearned,
+   865→      actionItems,
+   866→      detectionImprovements,
+   867→    };
+   868→  }
+   869→}
+   870→

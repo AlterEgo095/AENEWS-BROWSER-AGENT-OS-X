@@ -1,0 +1,925 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Monitoring Agent
+     3→ * Infrastructure monitoring, alerting, and dashboards.
+     4→ * Provides metric collection, alert management, dashboard generation, and health checks.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const MONITORING_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'infrastructure-monitoring',
+    20→  name: 'Monitoring',
+    21→  cluster: AgentCluster.INFRASTRUCTURE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Infrastructure monitoring, alerting, and dashboards. Collects and queries metrics, manages alerts, generates dashboards, and performs service health checks across the infrastructure.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'getMetrics',
+    28→      description: 'Get infrastructure metrics for a service or resource',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          service: { type: 'string', description: 'Service name' },
+    33→          metricType: {
+    34→            type: 'string',
+    35→            enum: [
+    36→              'cpu',
+    37→              'memory',
+    38→              'disk',
+    39→              'network',
+    40→              'latency',
+    41→              'error_rate',
+    42→              'throughput',
+    43→              'all',
+    44→            ],
+    45→            default: 'all',
+    46→          },
+    47→          timeRange: {
+    48→            type: 'string',
+    49→            enum: ['5m', '15m', '1h', '6h', '24h', '7d'],
+    50→            default: '1h',
+    51→          },
+    52→          granularity: { type: 'string', enum: ['1m', '5m', '15m', '1h'], default: '5m' },
+    53→        },
+    54→        required: ['service'],
+    55→      },
+    56→      outputSchema: {
+    57→        type: 'object',
+    58→        properties: {
+    59→          service: { type: 'string' },
+    60→          metrics: { type: 'object' },
+    61→          dataPoints: { type: 'number' },
+    62→        },
+    63→      },
+    64→    },
+    65→    {
+    66→      name: 'createAlert',
+    67→      description: 'Create a monitoring alert rule',
+    68→      inputSchema: {
+    69→        type: 'object',
+    70→        properties: {
+    71→          name: { type: 'string' },
+    72→          service: { type: 'string' },
+    73→          metric: { type: 'string' },
+    74→          condition: {
+    75→            type: 'string',
+    76→            enum: ['greater_than', 'less_than', 'equals', 'not_equals'],
+    77→          },
+    78→          threshold: { type: 'number' },
+    79→          duration: {
+    80→            type: 'string',
+    81→            description: 'Condition must persist for this duration (e.g., "5m")',
+    82→          },
+    83→          severity: { type: 'string', enum: ['info', 'warning', 'critical'], default: 'warning' },
+    84→          channels: { type: 'array', items: { type: 'string' } },
+    85→        },
+    86→        required: ['name', 'service', 'metric', 'condition', 'threshold'],
+    87→      },
+    88→      outputSchema: {
+    89→        type: 'object',
+    90→        properties: {
+    91→          alertId: { type: 'string' },
+    92→          name: { type: 'string' },
+    93→          created: { type: 'boolean' },
+    94→        },
+    95→      },
+    96→    },
+    97→    {
+    98→      name: 'listAlerts',
+    99→      description: 'List monitoring alerts, optionally filtered by service or status',
+   100→      inputSchema: {
+   101→        type: 'object',
+   102→        properties: {
+   103→          service: { type: 'string' },
+   104→          status: {
+   105→            type: 'string',
+   106→            enum: ['active', 'acknowledged', 'resolved', 'all'],
+   107→            default: 'all',
+   108→          },
+   109→          severity: {
+   110→            type: 'string',
+   111→            enum: ['info', 'warning', 'critical', 'all'],
+   112→            default: 'all',
+   113→          },
+   114→        },
+   115→      },
+   116→      outputSchema: {
+   117→        type: 'object',
+   118→        properties: {
+   119→          alerts: { type: 'array' },
+   120→          total: { type: 'number' },
+   121→        },
+   122→      },
+   123→    },
+   124→    {
+   125→      name: 'acknowledgeAlert',
+   126→      description: 'Acknowledge an active alert',
+   127→      inputSchema: {
+   128→        type: 'object',
+   129→        properties: {
+   130→          alertId: { type: 'string' },
+   131→          acknowledgedBy: { type: 'string' },
+   132→          note: { type: 'string' },
+   133→        },
+   134→        required: ['alertId', 'acknowledgedBy'],
+   135→      },
+   136→      outputSchema: {
+   137→        type: 'object',
+   138→        properties: {
+   139→          alertId: { type: 'string' },
+   140→          acknowledged: { type: 'boolean' },
+   141→          acknowledgedBy: { type: 'string' },
+   142→        },
+   143→      },
+   144→    },
+   145→    {
+   146→      name: 'generateDashboard',
+   147→      description: 'Generate a monitoring dashboard configuration for a service',
+   148→      inputSchema: {
+   149→        type: 'object',
+   150→        properties: {
+   151→          name: { type: 'string' },
+   152→          services: { type: 'array', items: { type: 'string' } },
+   153→          metrics: { type: 'array', items: { type: 'string' } },
+   154→          timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d'], default: '24h' },
+   155→          refreshInterval: { type: 'string', enum: ['10s', '30s', '1m', '5m'], default: '1m' },
+   156→        },
+   157→        required: ['name', 'services'],
+   158→      },
+   159→      outputSchema: {
+   160→        type: 'object',
+   161→        properties: {
+   162→          dashboardId: { type: 'string' },
+   163→          name: { type: 'string' },
+   164→          panels: { type: 'array' },
+   165→        },
+   166→      },
+   167→    },
+   168→    {
+   169→      name: 'checkServiceHealth',
+   170→      description: 'Check the health of a service or group of services',
+   171→      inputSchema: {
+   172→        type: 'object',
+   173→        properties: {
+   174→          services: { type: 'array', items: { type: 'string' } },
+   175→          checks: {
+   176→            type: 'array',
+   177→            items: { type: 'string', enum: ['http', 'tcp', 'dns', 'certificate'] },
+   178→            default: ['http'],
+   179→          },
+   180→        },
+   181→        required: ['services'],
+   182→      },
+   183→      outputSchema: {
+   184→        type: 'object',
+   185→        properties: {
+   186→          results: { type: 'array' },
+   187→          healthyCount: { type: 'number' },
+   188→          unhealthyCount: { type: 'number' },
+   189→        },
+   190→      },
+   191→    },
+   192→  ],
+   193→  permissions: [
+   194→    'execute:task',
+   195→    'read:metrics',
+   196→    'write:alerts',
+   197→    'read:alerts',
+   198→    'manage:dashboards',
+   199→    'check:health',
+   200→  ],
+   201→  maxConcurrentTasks: 5,
+   202→  timeout: 60000,
+   203→  retryPolicy: {
+   204→    maxRetries: 2,
+   205→    backoffMs: 1500,
+   206→    exponentialBackoff: true,
+   207→  },
+   208→};
+   209→
+   210→// ─── Internal Types ───────────────────────────────────────────────
+   211→
+   212→interface MetricDataPoint {
+   213→  timestamp: string;
+   214→  value: number;
+   215→}
+   216→
+   217→interface MetricSet {
+   218→  metricType: string;
+   219→  unit: string;
+   220→  current: number;
+   221→  average: number;
+   222→  min: number;
+   223→  max: number;
+   224→  dataPoints: MetricDataPoint[];
+   225→}
+   226→
+   227→interface AlertRecord {
+   228→  id: string;
+   229→  name: string;
+   230→  service: string;
+   231→  metric: string;
+   232→  condition: string;
+   233→  threshold: number;
+   234→  duration: string;
+   235→  severity: 'info' | 'warning' | 'critical';
+   236→  status: 'active' | 'acknowledged' | 'resolved';
+   237→  channels: string[];
+   238→  createdAt: Date;
+   239→  acknowledgedBy?: string;
+   240→  acknowledgedAt?: Date;
+   241→  note?: string;
+   242→  firedAt?: Date;
+   243→}
+   244→
+   245→interface DashboardPanel {
+   246→  id: string;
+   247→  title: string;
+   248→  service: string;
+   249→  metric: string;
+   250→  visualization: string;
+   251→  timeRange: string;
+   252→  refreshInterval: string;
+   253→}
+   254→
+   255→interface ServiceHealthResult {
+   256→  service: string;
+   257→  healthy: boolean;
+   258→  checks: Array<{
+   259→    type: string;
+   260→    status: 'pass' | 'fail';
+   261→    latencyMs: number;
+   262→    details: string;
+   263→  }>;
+   264→  checkedAt: string;
+   265→}
+   266→
+   267→// ─── Agent Service ────────────────────────────────────────────────
+   268→
+   269→@Injectable()
+   270→export class MonitoringAgentService extends BaseAgentService {
+   271→  private alerts: Map<string, AlertRecord> = new Map();
+   272→  private dashboards: Map<
+   273→    string,
+   274→    { id: string; name: string; panels: DashboardPanel[]; createdAt: Date }
+   275→  > = new Map();
+   276→  private alertCounter = 0;
+   277→  private dashboardCounter = 0;
+   278→
+   279→  protected defineConfig(): AgentConfig {
+   280→    return MONITORING_AGENT_CONFIG;
+   281→  }
+   282→
+   283→  protected async onInitialize(): Promise<void> {
+   284→    this.registerTool({
+   285→      name: 'getMetrics',
+   286→      description: 'Get infrastructure metrics for a service',
+   287→      execute: async (params: {
+   288→        service: string;
+   289→        metricType?: string;
+   290→        timeRange?: string;
+   291→        granularity?: string;
+   292→      }) => this.getMetrics(params),
+   293→    });
+   294→
+   295→    this.registerTool({
+   296→      name: 'createAlert',
+   297→      description: 'Create a monitoring alert rule',
+   298→      execute: async (params: {
+   299→        name: string;
+   300→        service: string;
+   301→        metric: string;
+   302→        condition: string;
+   303→        threshold: number;
+   304→        duration?: string;
+   305→        severity?: string;
+   306→        channels?: string[];
+   307→      }) => this.createAlert(params),
+   308→    });
+   309→
+   310→    this.registerTool({
+   311→      name: 'listAlerts',
+   312→      description: 'List monitoring alerts',
+   313→      execute: async (params: { service?: string; status?: string; severity?: string }) =>
+   314→        this.listAlerts(params),
+   315→    });
+   316→
+   317→    this.registerTool({
+   318→      name: 'acknowledgeAlert',
+   319→      description: 'Acknowledge an active alert',
+   320→      execute: async (params: { alertId: string; acknowledgedBy: string; note?: string }) =>
+   321→        this.acknowledgeAlert(params),
+   322→    });
+   323→
+   324→    this.registerTool({
+   325→      name: 'generateDashboard',
+   326→      description: 'Generate a monitoring dashboard',
+   327→      execute: async (params: {
+   328→        name: string;
+   329→        services: string[];
+   330→        metrics?: string[];
+   331→        timeRange?: string;
+   332→        refreshInterval?: string;
+   333→      }) => this.generateDashboard(params),
+   334→    });
+   335→
+   336→    this.registerTool({
+   337→      name: 'checkServiceHealth',
+   338→      description: 'Check the health of services',
+   339→      execute: async (params: { services: string[]; checks?: string[] }) =>
+   340→        this.checkServiceHealth(params),
+   341→    });
+   342→
+   343→    // Seed some initial alerts
+   344→    this.seedInitialAlerts();
+   345→
+   346→    await this.storeInWorkingMemory('monitoring:initializedAt', new Date().toISOString(), 600000);
+   347→    this.logger.log('Monitoring agent initialized with 6 tools');
+   348→  }
+   349→
+   350→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   351→    const startTime = Date.now();
+   352→    const { action, ...params } = input.payload;
+   353→
+   354→    if (!action) {
+   355→      return this.createAgentOutput(
+   356→        input.taskId,
+   357→        false,
+   358→        null,
+   359→        'Missing required parameter: action',
+   360→        startTime,
+   361→      );
+   362→    }
+   363→
+   364→    const supportedActions = [
+   365→      'getMetrics',
+   366→      'createAlert',
+   367→      'listAlerts',
+   368→      'acknowledgeAlert',
+   369→      'generateDashboard',
+   370→      'checkServiceHealth',
+   371→    ];
+   372→
+   373→    if (!supportedActions.includes(action)) {
+   374→      return this.createAgentOutput(
+   375→        input.taskId,
+   376→        false,
+   377→        null,
+   378→        `Unknown monitoring action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   379→        startTime,
+   380→      );
+   381→    }
+   382→
+   383→    try {
+   384→      const tool = this.getTool(action);
+   385→      if (!tool) {
+   386→        return this.createAgentOutput(
+   387→          input.taskId,
+   388→          false,
+   389→          null,
+   390→          `Tool not found: ${action}`,
+   391→          startTime,
+   392→        );
+   393→      }
+   394→
+   395→      const result = await tool.execute(params);
+   396→
+   397→      await this.storeInWorkingMemory(
+   398→        `monitoring:last:${action}`,
+   399→        { params, result, timestamp: new Date() },
+   400→        300000,
+   401→      );
+   402→
+   403→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   404→    } catch (error) {
+   405→      const msg = (error as Error).message;
+   406→      this.logger.error(`Monitoring execution failed for ${action}: ${msg}`);
+   407→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   408→    }
+   409→  }
+   410→
+   411→  protected async onDestroy(): Promise<void> {
+   412→    this.alerts.clear();
+   413→    this.dashboards.clear();
+   414→    this.alertCounter = 0;
+   415→    this.dashboardCounter = 0;
+   416→    this.logger.log('Monitoring agent destroyed, state cleared');
+   417→  }
+   418→
+   419→  // ─── Tool Implementations ──────────────────────────────────────
+   420→
+   421→  private async getMetrics(params: {
+   422→    service: string;
+   423→    metricType?: string;
+   424→    timeRange?: string;
+   425→    granularity?: string;
+   426→  }): Promise<{
+   427→    service: string;
+   428→    timeRange: string;
+   429→    granularity: string;
+   430→    metrics: MetricSet[];
+   431→    totalDataPoints: number;
+   432→  }> {
+   433→    const { service, metricType = 'all', timeRange = '1h', granularity = '5m' } = params;
+   434→
+   435→    if (!service || typeof service !== 'string') {
+   436→      throw new Error('Service name is required');
+   437→    }
+   438→
+   439→    const validTypes = [
+   440→      'cpu',
+   441→      'memory',
+   442→      'disk',
+   443→      'network',
+   444→      'latency',
+   445→      'error_rate',
+   446→      'throughput',
+   447→      'all',
+   448→    ];
+   449→    if (!validTypes.includes(metricType)) {
+   450→      throw new Error(`Invalid metric type: ${metricType}. Valid: ${validTypes.join(', ')}`);
+   451→    }
+   452→
+   453→    const types =
+   454→      metricType === 'all'
+   455→        ? ['cpu', 'memory', 'disk', 'network', 'latency', 'error_rate', 'throughput']
+   456→        : [metricType];
+   457→
+   458→    const dataPointCount = this.calculateDataPointCount(timeRange, granularity);
+   459→    const metrics: MetricSet[] = types.map((type) =>
+   460→      this.generateMetricSet(service, type, dataPointCount),
+   461→    );
+   462→
+   463→    const totalDataPoints = metrics.reduce((sum, m) => sum + m.dataPoints.length, 0);
+   464→
+   465→    this.logger.log(
+   466→      `getMetrics: ${service}, ${metricType}, ${timeRange} → ${metrics.length} metrics, ${totalDataPoints} data points`,
+   467→    );
+   468→
+   469→    return { service, timeRange, granularity, metrics, totalDataPoints };
+   470→  }
+   471→
+   472→  private async createAlert(params: {
+   473→    name: string;
+   474→    service: string;
+   475→    metric: string;
+   476→    condition: string;
+   477→    threshold: number;
+   478→    duration?: string;
+   479→    severity?: string;
+   480→    channels?: string[];
+   481→  }): Promise<{
+   482→    alertId: string;
+   483→    name: string;
+   484→    service: string;
+   485→    metric: string;
+   486→    condition: string;
+   487→    threshold: number;
+   488→    severity: string;
+   489→    created: boolean;
+   490→  }> {
+   491→    const {
+   492→      name,
+   493→      service,
+   494→      metric,
+   495→      condition,
+   496→      threshold,
+   497→      duration = '5m',
+   498→      severity = 'warning',
+   499→      channels = ['email', 'slack'],
+   500→    } = params;
+   501→
+   502→    if (!name || typeof name !== 'string') {
+   503→      throw new Error('Alert name is required');
+   504→    }
+   505→    if (!service || typeof service !== 'string') {
+   506→      throw new Error('Service name is required');
+   507→    }
+   508→    if (!metric || typeof metric !== 'string') {
+   509→      throw new Error('Metric name is required');
+   510→    }
+   511→
+   512→    const validConditions = ['greater_than', 'less_than', 'equals', 'not_equals'];
+   513→    if (!validConditions.includes(condition)) {
+   514→      throw new Error(`Invalid condition: ${condition}. Valid: ${validConditions.join(', ')}`);
+   515→    }
+   516→
+   517→    const validSeverities = ['info', 'warning', 'critical'];
+   518→    if (!validSeverities.includes(severity)) {
+   519→      throw new Error(`Invalid severity: ${severity}. Valid: ${validSeverities.join(', ')}`);
+   520→    }
+   521→
+   522→    this.alertCounter++;
+   523→    const alertId = `alert-${this.alertCounter}-${Date.now()}`;
+   524→
+   525→    const alert: AlertRecord = {
+   526→      id: alertId,
+   527→      name,
+   528→      service,
+   529→      metric,
+   530→      condition,
+   531→      threshold,
+   532→      duration,
+   533→      severity: severity as 'info' | 'warning' | 'critical',
+   534→      status: 'active',
+   535→      channels,
+   536→      createdAt: new Date(),
+   537→      firedAt: new Date(),
+   538→    };
+   539→
+   540→    this.alerts.set(alertId, alert);
+   541→
+   542→    this.logger.log(
+   543→      `Created alert: ${name} [${alertId}], ${service}.${metric} ${condition} ${threshold}`,
+   544→    );
+   545→
+   546→    return {
+   547→      alertId,
+   548→      name,
+   549→      service,
+   550→      metric,
+   551→      condition,
+   552→      threshold,
+   553→      severity,
+   554→      created: true,
+   555→    };
+   556→  }
+   557→
+   558→  private async listAlerts(params: {
+   559→    service?: string;
+   560→    status?: string;
+   561→    severity?: string;
+   562→  }): Promise<{
+   563→    alerts: Array<{
+   564→      id: string;
+   565→      name: string;
+   566→      service: string;
+   567→      metric: string;
+   568→      condition: string;
+   569→      threshold: number;
+   570→      severity: string;
+   571→      status: string;
+   572→      createdAt: string;
+   573→      firedAt?: string;
+   574→      acknowledgedBy?: string;
+   575→    }>;
+   576→    total: number;
+   577→    activeCount: number;
+   578→    acknowledgedCount: number;
+   579→  }> {
+   580→    const { service, status = 'all', severity = 'all' } = params;
+   581→
+   582→    let records = Array.from(this.alerts.values());
+   583→
+   584→    if (service) {
+   585→      records = records.filter((a) => a.service === service);
+   586→    }
+   587→    if (status !== 'all') {
+   588→      records = records.filter((a) => a.status === status);
+   589→    }
+   590→    if (severity !== 'all') {
+   591→      records = records.filter((a) => a.severity === severity);
+   592→    }
+   593→
+   594→    const mapped = records.map((a) => ({
+   595→      id: a.id,
+   596→      name: a.name,
+   597→      service: a.service,
+   598→      metric: a.metric,
+   599→      condition: a.condition,
+   600→      threshold: a.threshold,
+   601→      severity: a.severity,
+   602→      status: a.status,
+   603→      createdAt: a.createdAt.toISOString(),
+   604→      firedAt: a.firedAt?.toISOString(),
+   605→      acknowledgedBy: a.acknowledgedBy,
+   606→    }));
+   607→
+   608→    const activeCount = records.filter((a) => a.status === 'active').length;
+   609→    const acknowledgedCount = records.filter((a) => a.status === 'acknowledged').length;
+   610→
+   611→    this.logger.log(
+   612→      `listAlerts: ${mapped.length} alerts, ${activeCount} active, ${acknowledgedCount} acknowledged`,
+   613→    );
+   614→
+   615→    return { alerts: mapped, total: mapped.length, activeCount, acknowledgedCount };
+   616→  }
+   617→
+   618→  private async acknowledgeAlert(params: {
+   619→    alertId: string;
+   620→    acknowledgedBy: string;
+   621→    note?: string;
+   622→  }): Promise<{
+   623→    alertId: string;
+   624→    acknowledged: boolean;
+   625→    acknowledgedBy: string;
+   626→    acknowledgedAt: string;
+   627→    note?: string;
+   628→  }> {
+   629→    const { alertId, acknowledgedBy, note } = params;
+   630→
+   631→    if (!alertId || typeof alertId !== 'string') {
+   632→      throw new Error('Alert ID is required');
+   633→    }
+   634→    if (!acknowledgedBy || typeof acknowledgedBy !== 'string') {
+   635→      throw new Error('Acknowledger name is required');
+   636→    }
+   637→
+   638→    const alert = this.alerts.get(alertId);
+   639→    if (!alert) {
+   640→      throw new Error(`Alert not found: ${alertId}`);
+   641→    }
+   642→    if (alert.status !== 'active') {
+   643→      throw new Error(`Alert ${alertId} is not active (current status: ${alert.status})`);
+   644→    }
+   645→
+   646→    alert.status = 'acknowledged';
+   647→    alert.acknowledgedBy = acknowledgedBy;
+   648→    alert.acknowledgedAt = new Date();
+   649→    alert.note = note;
+   650→
+   651→    this.logger.log(`Acknowledged alert ${alertId} by ${acknowledgedBy}`);
+   652→
+   653→    return {
+   654→      alertId,
+   655→      acknowledged: true,
+   656→      acknowledgedBy,
+   657→      acknowledgedAt: alert.acknowledgedAt.toISOString(),
+   658→      note,
+   659→    };
+   660→  }
+   661→
+   662→  private async generateDashboard(params: {
+   663→    name: string;
+   664→    services: string[];
+   665→    metrics?: string[];
+   666→    timeRange?: string;
+   667→    refreshInterval?: string;
+   668→  }): Promise<{
+   669→    dashboardId: string;
+   670→    name: string;
+   671→    services: string[];
+   672→    timeRange: string;
+   673→    refreshInterval: string;
+   674→    panels: DashboardPanel[];
+   675→    createdAt: string;
+   676→  }> {
+   677→    const {
+   678→      name,
+   679→      services,
+   680→      metrics = ['cpu', 'memory', 'latency', 'error_rate'],
+   681→      timeRange = '24h',
+   682→      refreshInterval = '1m',
+   683→    } = params;
+   684→
+   685→    if (!name || typeof name !== 'string') {
+   686→      throw new Error('Dashboard name is required');
+   687→    }
+   688→    if (!services || !Array.isArray(services) || services.length === 0) {
+   689→      throw new Error('At least one service is required');
+   690→    }
+   691→
+   692→    this.dashboardCounter++;
+   693→    const dashboardId = `dashboard-${this.dashboardCounter}-${Date.now()}`;
+   694→
+   695→    const panels: DashboardPanel[] = [];
+   696→    let panelIndex = 0;
+   697→
+   698→    for (const service of services) {
+   699→      for (const metric of metrics) {
+   700→        panelIndex++;
+   701→        panels.push({
+   702→          id: `panel-${panelIndex}`,
+   703→          title: `${service} - ${metric}`,
+   704→          service,
+   705→          metric,
+   706→          visualization:
+   707→            metric === 'error_rate' ? 'stat' : metric === 'latency' ? 'graph' : 'timeseries',
+   708→          timeRange,
+   709→          refreshInterval,
+   710→        });
+   711→      }
+   712→    }
+   713→
+   714→    this.dashboards.set(dashboardId, { id: dashboardId, name, panels, createdAt: new Date() });
+   715→
+   716→    this.logger.log(
+   717→      `Generated dashboard: ${name} [${dashboardId}], ${services.length} services, ${panels.length} panels`,
+   718→    );
+   719→
+   720→    return {
+   721→      dashboardId,
+   722→      name,
+   723→      services,
+   724→      timeRange,
+   725→      refreshInterval,
+   726→      panels,
+   727→      createdAt: new Date().toISOString(),
+   728→    };
+   729→  }
+   730→
+   731→  private async checkServiceHealth(params: { services: string[]; checks?: string[] }): Promise<{
+   732→    results: ServiceHealthResult[];
+   733→    healthyCount: number;
+   734→    unhealthyCount: number;
+   735→    checkedAt: string;
+   736→  }> {
+   737→    const { services, checks = ['http'] } = params;
+   738→
+   739→    if (!services || !Array.isArray(services) || services.length === 0) {
+   740→      throw new Error('At least one service is required');
+   741→    }
+   742→
+   743→    const validChecks = ['http', 'tcp', 'dns', 'certificate'];
+   744→    for (const check of checks) {
+   745→      if (!validChecks.includes(check)) {
+   746→        throw new Error(`Invalid check type: ${check}. Valid: ${validChecks.join(', ')}`);
+   747→      }
+   748→    }
+   749→
+   750→    const results: ServiceHealthResult[] = services.map((service) => {
+   751→      const serviceChecks = checks.map((checkType) => {
+   752→        const isHealthy = Math.random() > 0.12;
+   753→        const latencyMs = Math.floor(Math.random() * 200) + 5;
+   754→
+   755→        let details = '';
+   756→        switch (checkType) {
+   757→          case 'http':
+   758→            details = isHealthy
+   759→              ? `HTTP 200 OK from https://${service}.example.com/health (${latencyMs}ms)`
+   760→              : `HTTP 503 Service Unavailable from https://${service}.example.com/health (${latencyMs}ms)`;
+   761→            break;
+   762→          case 'tcp':
+   763→            details = isHealthy
+   764→              ? `TCP connection to ${service}:8080 successful (${latencyMs}ms)`
+   765→              : `TCP connection to ${service}:8080 refused`;
+   766→            break;
+   767→          case 'dns':
+   768→            details = isHealthy
+   769→              ? `DNS resolution for ${service}.example.com: 10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`
+   770→              : `DNS resolution failed for ${service}.example.com`;
+   771→            break;
+   772→          case 'certificate':
+   773→            const daysLeft = Math.floor(Math.random() * 365) + 1;
+   774→            details = isHealthy
+   775→              ? `Certificate valid for ${daysLeft} days (expires ${new Date(Date.now() + daysLeft * 86400000).toISOString().split('T')[0]})`
+   776→              : 'Certificate expired or invalid';
+   777→            break;
+   778→        }
+   779→
+   780→        return {
+   781→          type: checkType,
+   782→          status: isHealthy ? ('pass' as const) : ('fail' as const),
+   783→          latencyMs,
+   784→          details,
+   785→        };
+   786→      });
+   787→
+   788→      const healthy = serviceChecks.every((c) => c.status === 'pass');
+   789→
+   790→      return {
+   791→        service,
+   792→        healthy,
+   793→        checks: serviceChecks,
+   794→        checkedAt: new Date().toISOString(),
+   795→      };
+   796→    });
+   797→
+   798→    const healthyCount = results.filter((r) => r.healthy).length;
+   799→    const unhealthyCount = results.filter((r) => !r.healthy).length;
+   800→
+   801→    this.logger.log(
+   802→      `Health check: ${services.length} services, ${healthyCount} healthy, ${unhealthyCount} unhealthy`,
+   803→    );
+   804→
+   805→    return {
+   806→      results,
+   807→      healthyCount,
+   808→      unhealthyCount,
+   809→      checkedAt: new Date().toISOString(),
+   810→    };
+   811→  }
+   812→
+   813→  // ─── Helpers ────────────────────────────────────────────────────
+   814→
+   815→  private calculateDataPointCount(timeRange: string, granularity: string): number {
+   816→    const rangeMs: Record<string, number> = {
+   817→      '5m': 300000,
+   818→      '15m': 900000,
+   819→      '1h': 3600000,
+   820→      '6h': 21600000,
+   821→      '24h': 86400000,
+   822→      '7d': 604800000,
+   823→    };
+   824→    const granMs: Record<string, number> = {
+   825→      '1m': 60000,
+   826→      '5m': 300000,
+   827→      '15m': 900000,
+   828→      '1h': 3600000,
+   829→    };
+   830→    const range = rangeMs[timeRange] || 3600000;
+   831→    const gran = granMs[granularity] || 300000;
+   832→    return Math.min(Math.floor(range / gran), 200);
+   833→  }
+   834→
+   835→  private generateMetricSet(
+   836→    service: string,
+   837→    metricType: string,
+   838→    dataPointCount: number,
+   839→  ): MetricSet {
+   840→    const ranges: Record<string, { min: number; max: number; unit: string }> = {
+   841→      cpu: { min: 5, max: 95, unit: 'percent' },
+   842→      memory: { min: 20, max: 90, unit: 'percent' },
+   843→      disk: { min: 10, max: 85, unit: 'percent' },
+   844→      network: { min: 100, max: 10000, unit: 'KB/s' },
+   845→      latency: { min: 1, max: 500, unit: 'ms' },
+   846→      error_rate: { min: 0, max: 5, unit: 'percent' },
+   847→      throughput: { min: 50, max: 5000, unit: 'req/s' },
+   848→    };
+   849→
+   850→    const range = ranges[metricType] || { min: 0, max: 100, unit: 'unknown' };
+   851→    const baseValue = range.min + Math.random() * (range.max - range.min) * 0.5;
+   852→
+   853→    const dataPoints: MetricDataPoint[] = [];
+   854→    let currentValue = baseValue;
+   855→
+   856→    for (let i = 0; i < dataPointCount; i++) {
+   857→      const delta = (Math.random() - 0.5) * (range.max - range.min) * 0.1;
+   858→      currentValue = Math.max(range.min, Math.min(range.max, currentValue + delta));
+   859→      dataPoints.push({
+   860→        timestamp: new Date(Date.now() - (dataPointCount - i) * 300000).toISOString(),
+   861→        value: Math.round(currentValue * 100) / 100,
+   862→      });
+   863→    }
+   864→
+   865→    const values = dataPoints.map((dp) => dp.value);
+   866→    const current = values[values.length - 1] || 0;
+   867→    const average =
+   868→      values.length > 0
+   869→        ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
+   870→        : 0;
+   871→    const min = values.length > 0 ? Math.round(Math.min(...values) * 100) / 100 : 0;
+   872→    const max = values.length > 0 ? Math.round(Math.max(...values) * 100) / 100 : 0;
+   873→
+   874→    return { metricType, unit: range.unit, current, average, min, max, dataPoints };
+   875→  }
+   876→
+   877→  private seedInitialAlerts(): void {
+   878→    const seedData = [
+   879→      {
+   880→        name: 'High CPU Usage',
+   881→        service: 'api-gateway',
+   882→        metric: 'cpu',
+   883→        condition: 'greater_than',
+   884→        threshold: 80,
+   885→        severity: 'warning' as const,
+   886→      },
+   887→      {
+   888→        name: 'Memory Pressure',
+   889→        service: 'worker-service',
+   890→        metric: 'memory',
+   891→        condition: 'greater_than',
+   892→        threshold: 90,
+   893→        severity: 'critical' as const,
+   894→      },
+   895→      {
+   896→        name: 'High Error Rate',
+   897→        service: 'auth-service',
+   898→        metric: 'error_rate',
+   899→        condition: 'greater_than',
+   900→        threshold: 5,
+   901→        severity: 'critical' as const,
+   902→      },
+   903→    ];
+   904→
+   905→    for (const data of seedData) {
+   906→      this.alertCounter++;
+   907→      const alertId = `alert-seed-${this.alertCounter}`;
+   908→      this.alerts.set(alertId, {
+   909→        id: alertId,
+   910→        name: data.name,
+   911→        service: data.service,
+   912→        metric: data.metric,
+   913→        condition: data.condition,
+   914→        threshold: data.threshold,
+   915→        duration: '5m',
+   916→        severity: data.severity,
+   917→        status: 'active',
+   918→        channels: ['email', 'slack'],
+   919→        createdAt: new Date(Date.now() - Math.random() * 3600000),
+   920→        firedAt: new Date(Date.now() - Math.random() * 1800000),
+   921→      });
+   922→    }
+   923→  }
+   924→}
+   925→

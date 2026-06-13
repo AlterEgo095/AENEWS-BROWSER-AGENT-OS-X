@@ -1,14 +1,14 @@
 /**
  * AENEWS Software Factory — Root Module
- * 
+ *
  * Architecture: 3 concepts only
  *   1. Mission     → what the client requests
  *   2. Capabilities → what the platform knows how to do (64 in 6 packs)
  *   3. Workers     → who temporarily executes these capabilities (ephemeral)
- * 
+ *
  * 10 permanent kernel services.
  * Everything else is dynamic.
- * 
+ *
  * Sprint 2: Real Connectors — 6 connectors bridge capabilities to real tools
  */
 

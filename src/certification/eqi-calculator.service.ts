@@ -11,7 +11,13 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { CertificationLevel, CertificationDomain, DomainWeights, DomainResult, EqiMilestone } from './types';
+import {
+  CertificationLevel,
+  CertificationDomain,
+  DomainWeights,
+  DomainResult,
+  EqiMilestone,
+} from './types';
 
 @Injectable()
 export class EqiCalculatorService {
@@ -21,11 +27,11 @@ export class EqiCalculatorService {
     architecture: 0.08,
     agents: 0.12,
     orchestration: 0.15,
-    browser: 0.10,
+    browser: 0.1,
     memory: 0.12,
     security: 0.15,
     performance: 0.08,
-    tests: 0.10,
+    tests: 0.1,
     documentation: 0.05,
     observability: 0.05,
   };
@@ -114,11 +120,15 @@ export class EqiCalculatorService {
       if (domain.score < 50) {
         recommendations.push(`${domain.domain}: Score of ${domain.score}/100 is critically low.`);
       } else if (domain.score < 70) {
-        recommendations.push(`${domain.domain}: Score of ${domain.score}/100 needs significant improvement.`);
+        recommendations.push(
+          `${domain.domain}: Score of ${domain.score}/100 needs significant improvement.`,
+        );
       } else if (domain.score < 90) {
         const failedTests = domain.tests.filter((t) => !t.passed).map((t) => t.name);
         if (failedTests.length > 0) {
-          recommendations.push(`${domain.domain}: Score ${domain.score}/100. Focus on: ${failedTests.join(', ')}`);
+          recommendations.push(
+            `${domain.domain}: Score ${domain.score}/100. Focus on: ${failedTests.join(', ')}`,
+          );
         }
       }
 
@@ -153,34 +163,62 @@ export class EqiCalculatorService {
 
     switch (domain.domain) {
       case CertificationDomain.ARCHITECTURE:
-        if (domain.score < 90) recs.push('Architecture: Run Dependency Analyzer to detect circular dependencies and coupling violations.');
+        if (domain.score < 90)
+          recs.push(
+            'Architecture: Run Dependency Analyzer to detect circular dependencies and coupling violations.',
+          );
         break;
       case CertificationDomain.AGENTS:
-        if (domain.score < 90) recs.push('Agents: Verify all agents extend BaseAgentService, implement required methods, and register tools.');
+        if (domain.score < 90)
+          recs.push(
+            'Agents: Verify all agents extend BaseAgentService, implement required methods, and register tools.',
+          );
         break;
       case CertificationDomain.ORCHESTRATION:
-        if (domain.score < 90) recs.push('Orchestration: Test the full pipeline decompose→plan→execute→critique→repair→validate→deliver.');
+        if (domain.score < 90)
+          recs.push(
+            'Orchestration: Test the full pipeline decompose→plan→execute→critique→repair→validate→deliver.',
+          );
         break;
       case CertificationDomain.BROWSER:
-        if (domain.score < 90) recs.push('Browser: Validate all 17 browser agents with functional tests.');
+        if (domain.score < 90)
+          recs.push('Browser: Validate all 17 browser agents with functional tests.');
         break;
       case CertificationDomain.MEMORY:
-        if (domain.score < 90) recs.push('Memory: Verify Unified Memory Gateway with store/retrieve/search/summarize/promote/archive API. Test cross-tier retrieval.');
+        if (domain.score < 90)
+          recs.push(
+            'Memory: Verify Unified Memory Gateway with store/retrieve/search/summarize/promote/archive API. Test cross-tier retrieval.',
+          );
         break;
       case CertificationDomain.SECURITY:
-        if (domain.score < 90) recs.push('Security: Verify Security Gateway pipeline: Validation→Sanitization→Policy→Permission→Execution. Test injection prevention.');
+        if (domain.score < 90)
+          recs.push(
+            'Security: Verify Security Gateway pipeline: Validation→Sanitization→Policy→Permission→Execution. Test injection prevention.',
+          );
         break;
       case CertificationDomain.PERFORMANCE:
-        if (domain.score < 90) recs.push('Performance: Profile execution times, memory, CPU, concurrent agents, and event bus throughput.');
+        if (domain.score < 90)
+          recs.push(
+            'Performance: Profile execution times, memory, CPU, concurrent agents, and event bus throughput.',
+          );
         break;
       case CertificationDomain.TESTS:
-        if (domain.score < 90) recs.push('Tests: Increase unit, integration, E2E coverage. Each agent should have its own test folder.');
+        if (domain.score < 90)
+          recs.push(
+            'Tests: Increase unit, integration, E2E coverage. Each agent should have its own test folder.',
+          );
         break;
       case CertificationDomain.DOCUMENTATION:
-        if (domain.score < 90) recs.push('Documentation: Run auto-generation. Ensure JSDoc, OpenAPI, Mermaid diagrams, ADR, README.');
+        if (domain.score < 90)
+          recs.push(
+            'Documentation: Run auto-generation. Ensure JSDoc, OpenAPI, Mermaid diagrams, ADR, README.',
+          );
         break;
       case CertificationDomain.OBSERVABILITY:
-        if (domain.score < 90) recs.push('Observability: Verify metrics collection, distributed tracing, structured logging, and alerting.');
+        if (domain.score < 90)
+          recs.push(
+            'Observability: Verify metrics collection, distributed tracing, structured logging, and alerting.',
+          );
         break;
     }
 

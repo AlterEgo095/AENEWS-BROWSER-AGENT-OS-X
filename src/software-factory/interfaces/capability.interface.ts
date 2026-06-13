@@ -1,10 +1,10 @@
 /**
  * AENEWS Software Factory — Capability Interface
- * 
+ *
  * The fundamental unit of work is not an "agent" but a "capability".
  * 64 capabilities are organized in 6 Capability Packs.
  * Workers are ephemeral — they receive injected capabilities, execute, then are destroyed.
- * 
+ *
  * 3 concepts only:
  *   1. Mission   → what the client requests
  *   2. Capability → what the platform knows how to do
@@ -138,7 +138,7 @@ export interface CapabilityDefinition {
   cost: CapabilityCost;
   latency: CapabilityLatency;
   requirements: string[];
-  keywords: string[];  // for matching mission text to capabilities
+  keywords: string[]; // for matching mission text to capabilities
 }
 
 export interface CapabilityCost {
@@ -157,9 +157,9 @@ export interface CapabilityLatency {
 export interface ResolvedCapability {
   capabilityId: CapabilityId;
   definition: CapabilityDefinition;
-  priority: number;       // 1 = highest, 10 = lowest
-  reason: string;         // why this capability was selected
-  dependencies: CapabilityId[];  // capabilities that must execute first
+  priority: number; // 1 = highest, 10 = lowest
+  reason: string; // why this capability was selected
+  dependencies: CapabilityId[]; // capabilities that must execute first
 }
 
 export interface CapabilityResolution {
@@ -168,7 +168,7 @@ export interface CapabilityResolution {
   packsNeeded: CapabilityPack[];
   estimatedTotalCost: number;
   estimatedTotalDurationMs: number;
-  confidence: number;     // 0-1, how confident the resolver is
+  confidence: number; // 0-1, how confident the resolver is
 }
 
 // ─── Capability Execution Result ─────────────────────────────

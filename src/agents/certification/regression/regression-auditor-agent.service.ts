@@ -4,13 +4,11 @@
  * and regression prevention mechanisms across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const REGRESSION_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'System or module to audit for regression' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -115,6 +117,11 @@ interface RegressionIssue {
 
 @Injectable()
 export class RegressionAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private regressionAuditLog: RegressionIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -125,15 +132,13 @@ export class RegressionAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-regression',
       description: 'Perform a comprehensive regression detection audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
       name: 'check-baselines',
       description: 'Check baseline integrity and version management',
-      execute: async (baselineId?: string) =>
-        this.checkBaselines(baselineId),
+      execute: async (baselineId?: string) => this.checkBaselines(baselineId),
     });
 
     this.registerTool({
@@ -146,16 +151,36 @@ export class RegressionAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-prevention',
       description: 'Audit regression prevention mechanisms',
-      execute: async (target?: string) =>
-        this.auditPrevention(target),
+      execute: async (target?: string) => this.auditPrevention(target),
     });
 
     this.logger.log('RegressionAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real regression connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.REGRESSION, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -180,13 +205,7 @@ export class RegressionAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -217,13 +236,26 @@ export class RegressionAuditorAgent extends BaseAgentService {
       this.regressionAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'baseline')) {
-      recommendations.push('Establish and maintain comprehensive performance and behavior baselines');
+      recommendations.push(
+        'Establish and maintain comprehensive performance and behavior baselines',
+      );
     }
     if (issues.some((i) => i.category === 'detection')) {
       recommendations.push('Implement automated regression detection with configurable thresholds');
@@ -272,7 +304,14 @@ export class RegressionAuditorAgent extends BaseAgentService {
     currentVersion?: string,
   ): Promise<{ regressions: any[]; regressionCount: number }> {
     const regressions = [];
-    const metrics = ['latency_p50', 'latency_p99', 'throughput', 'error_rate', 'memory_usage', 'cpu_usage'];
+    const metrics = [
+      'latency_p50',
+      'latency_p99',
+      'throughput',
+      'error_rate',
+      'memory_usage',
+      'cpu_usage',
+    ];
 
     for (const metric of metrics) {
       const hasRegressed = Math.random() > 0.6;

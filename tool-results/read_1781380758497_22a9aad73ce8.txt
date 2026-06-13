@@ -1,0 +1,1081 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Container Agent
+     3→ * Container orchestration, Docker, and Kubernetes management.
+     4→ * Creates containers, manages pods, scales replica sets, configures services, checks cluster health, and manages namespaces.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const CONTAINER_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'infrastructure-container',
+    20→  name: 'Container',
+    21→  cluster: AgentCluster.INFRASTRUCTURE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Container orchestration, Docker, and Kubernetes management. Creates and manages containers, pods, replica sets, services, checks cluster health, and manages namespaces.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'createContainer',
+    28→      description: 'Create and run a container',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          name: { type: 'string' },
+    33→          image: { type: 'string', description: 'Container image (e.g., "nginx:latest")' },
+    34→          namespace: { type: 'string', default: 'default' },
+    35→          ports: { type: 'array', items: { type: 'object' } },
+    36→          env: { type: 'array', items: { type: 'object' } },
+    37→          resources: { type: 'object', description: 'CPU/memory limits and requests' },
+    38→          restartPolicy: {
+    39→            type: 'string',
+    40→            enum: ['Always', 'OnFailure', 'Never'],
+    41→            default: 'Always',
+    42→          },
+    43→          labels: { type: 'object' },
+    44→        },
+    45→        required: ['name', 'image'],
+    46→      },
+    47→      outputSchema: {
+    48→        type: 'object',
+    49→        properties: {
+    50→          containerId: { type: 'string' },
+    51→          status: { type: 'string' },
+    52→        },
+    53→      },
+    54→    },
+    55→    {
+    56→      name: 'managePod',
+    57→      description: 'Manage Kubernetes pods',
+    58→      inputSchema: {
+    59→        type: 'object',
+    60→        properties: {
+    61→          name: { type: 'string' },
+    62→          namespace: { type: 'string', default: 'default' },
+    63→          action: { type: 'string', enum: ['get', 'list', 'delete', 'logs', 'exec'] },
+    64→          container: { type: 'string', description: 'Container name for logs/exec' },
+    65→          command: { type: 'array', items: { type: 'string' }, description: 'Command for exec' },
+    66→          tailLines: { type: 'number', default: 100 },
+    67→        },
+    68→        required: ['name', 'action'],
+    69→      },
+    70→      outputSchema: {
+    71→        type: 'object',
+    72→        properties: {
+    73→          success: { type: 'boolean' },
+    74→          podName: { type: 'string' },
+    75→        },
+    76→      },
+    77→    },
+    78→    {
+    79→      name: 'scaleReplicaSet',
+    80→      description: 'Scale a Kubernetes replica set or deployment',
+    81→      inputSchema: {
+    82→        type: 'object',
+    83→        properties: {
+    84→          name: { type: 'string' },
+    85→          namespace: { type: 'string', default: 'default' },
+    86→          replicas: { type: 'number' },
+    87→          reason: { type: 'string' },
+    88→        },
+    89→        required: ['name', 'replicas'],
+    90→      },
+    91→      outputSchema: {
+    92→        type: 'object',
+    93→        properties: {
+    94→          name: { type: 'string' },
+    95→          previousReplicas: { type: 'number' },
+    96→          newReplicas: { type: 'number' },
+    97→        },
+    98→      },
+    99→    },
+   100→    {
+   101→      name: 'configureService',
+   102→      description: 'Configure a Kubernetes service',
+   103→      inputSchema: {
+   104→        type: 'object',
+   105→        properties: {
+   106→          name: { type: 'string' },
+   107→          namespace: { type: 'string', default: 'default' },
+   108→          action: { type: 'string', enum: ['create', 'update', 'delete', 'get'] },
+   109→          type: { type: 'string', enum: ['ClusterIP', 'NodePort', 'LoadBalancer', 'ExternalName'] },
+   110→          selector: { type: 'object' },
+   111→          ports: { type: 'array', items: { type: 'object' } },
+   112→        },
+   113→        required: ['name', 'action'],
+   114→      },
+   115→      outputSchema: {
+   116→        type: 'object',
+   117→        properties: {
+   118→          success: { type: 'boolean' },
+   119→          serviceName: { type: 'string' },
+   120→        },
+   121→      },
+   122→    },
+   123→    {
+   124→      name: 'checkClusterHealth',
+   125→      description: 'Check the health of a Kubernetes cluster',
+   126→      inputSchema: {
+   127→        type: 'object',
+   128→        properties: {
+   129→          namespace: { type: 'string', description: 'Specific namespace (or all)' },
+   130→          checks: {
+   131→            type: 'array',
+   132→            items: { type: 'string', enum: ['nodes', 'pods', 'services', 'events', 'resources'] },
+   133→            default: ['nodes', 'pods'],
+   134→          },
+   135→        },
+   136→      },
+   137→      outputSchema: {
+   138→        type: 'object',
+   139→        properties: {
+   140→          healthy: { type: 'boolean' },
+   141→          nodeCount: { type: 'number' },
+   142→          podCount: { type: 'number' },
+   143→        },
+   144→      },
+   145→    },
+   146→    {
+   147→      name: 'manageNamespace',
+   148→      description: 'Manage Kubernetes namespaces',
+   149→      inputSchema: {
+   150→        type: 'object',
+   151→        properties: {
+   152→          name: { type: 'string' },
+   153→          action: { type: 'string', enum: ['create', 'delete', 'list', 'get'] },
+   154→          labels: { type: 'object' },
+   155→          resourceQuota: { type: 'object' },
+   156→        },
+   157→        required: ['name', 'action'],
+   158→      },
+   159→      outputSchema: {
+   160→        type: 'object',
+   161→        properties: {
+   162→          success: { type: 'boolean' },
+   163→          name: { type: 'string' },
+   164→        },
+   165→      },
+   166→    },
+   167→  ],
+   168→  permissions: [
+   169→    'execute:task',
+   170→    'create:container',
+   171→    'manage:pod',
+   172→    'scale:replicaset',
+   173→    'configure:service',
+   174→    'check:cluster',
+   175→    'manage:namespace',
+   176→  ],
+   177→  maxConcurrentTasks: 4,
+   178→  timeout: 120000,
+   179→  retryPolicy: {
+   180→    maxRetries: 2,
+   181→    backoffMs: 2000,
+   182→    exponentialBackoff: true,
+   183→  },
+   184→};
+   185→
+   186→// ─── Internal Types ───────────────────────────────────────────────
+   187→
+   188→interface ContainerRecord {
+   189→  id: string;
+   190→  name: string;
+   191→  image: string;
+   192→  namespace: string;
+   193→  status: 'running' | 'pending' | 'terminated' | 'crash_loop';
+   194→  ports: Array<{ containerPort: number; protocol: string }>;
+   195→  env: Array<{ name: string; value: string }>;
+   196→  resources: {
+   197→    cpuRequest?: string;
+   198→    cpuLimit?: string;
+   199→    memoryRequest?: string;
+   200→    memoryLimit?: string;
+   201→  };
+   202→  restartPolicy: string;
+   203→  labels: Record<string, string>;
+   204→  createdAt: Date;
+   205→  podName: string;
+   206→}
+   207→
+   208→interface PodRecord {
+   209→  name: string;
+   210→  namespace: string;
+   211→  status: 'Running' | 'Pending' | 'Failed' | 'Succeeded' | 'Unknown';
+   212→  containers: string[];
+   213→  nodeName: string;
+   214→  restarts: number;
+   215→  createdAt: Date;
+   216→}
+   217→
+   218→interface ServiceRecord {
+   219→  name: string;
+   220→  namespace: string;
+   221→  type: string;
+   222→  selector: Record<string, string>;
+   223→  ports: Array<{ port: number; targetPort: number; protocol: string }>;
+   224→  clusterIp?: string;
+   225→  externalIp?: string;
+   226→  createdAt: Date;
+   227→}
+   228→
+   229→interface NamespaceRecord {
+   230→  name: string;
+   231→  status: 'Active' | 'Terminating';
+   232→  labels: Record<string, string>;
+   233→  resourceQuota?: Record<string, string>;
+   234→  createdAt: Date;
+   235→}
+   236→
+   237→// ─── Agent Service ────────────────────────────────────────────────
+   238→
+   239→@Injectable()
+   240→export class ContainerAgentService extends BaseAgentService {
+   241→  private containers: Map<string, ContainerRecord> = new Map();
+   242→  private pods: Map<string, PodRecord> = new Map();
+   243→  private services: Map<string, ServiceRecord> = new Map();
+   244→  private namespaces: Map<string, NamespaceRecord> = new Map();
+   245→  private containerCounter = 0;
+   246→
+   247→  protected defineConfig(): AgentConfig {
+   248→    return CONTAINER_AGENT_CONFIG;
+   249→  }
+   250→
+   251→  protected async onInitialize(): Promise<void> {
+   252→    this.registerTool({
+   253→      name: 'createContainer',
+   254→      description: 'Create and run a container',
+   255→      execute: async (params: {
+   256→        name: string;
+   257→        image: string;
+   258→        namespace?: string;
+   259→        ports?: Array<{ containerPort: number; protocol: string }>;
+   260→        env?: Array<{ name: string; value: string }>;
+   261→        resources?: Record<string, any>;
+   262→        restartPolicy?: string;
+   263→        labels?: Record<string, string>;
+   264→      }) => this.createContainer(params),
+   265→    });
+   266→
+   267→    this.registerTool({
+   268→      name: 'managePod',
+   269→      description: 'Manage Kubernetes pods',
+   270→      execute: async (params: {
+   271→        name: string;
+   272→        namespace?: string;
+   273→        action: string;
+   274→        container?: string;
+   275→        command?: string[];
+   276→        tailLines?: number;
+   277→      }) => this.managePod(params),
+   278→    });
+   279→
+   280→    this.registerTool({
+   281→      name: 'scaleReplicaSet',
+   282→      description: 'Scale a replica set or deployment',
+   283→      execute: async (params: {
+   284→        name: string;
+   285→        namespace?: string;
+   286→        replicas: number;
+   287→        reason?: string;
+   288→      }) => this.scaleReplicaSet(params),
+   289→    });
+   290→
+   291→    this.registerTool({
+   292→      name: 'configureService',
+   293→      description: 'Configure a Kubernetes service',
+   294→      execute: async (params: {
+   295→        name: string;
+   296→        namespace?: string;
+   297→        action: string;
+   298→        type?: string;
+   299→        selector?: Record<string, string>;
+   300→        ports?: Array<{ port: number; targetPort: number; protocol: string }>;
+   301→      }) => this.configureService(params),
+   302→    });
+   303→
+   304→    this.registerTool({
+   305→      name: 'checkClusterHealth',
+   306→      description: 'Check Kubernetes cluster health',
+   307→      execute: async (params: { namespace?: string; checks?: string[] }) =>
+   308→        this.checkClusterHealth(params),
+   309→    });
+   310→
+   311→    this.registerTool({
+   312→      name: 'manageNamespace',
+   313→      description: 'Manage Kubernetes namespaces',
+   314→      execute: async (params: {
+   315→        name: string;
+   316→        action: string;
+   317→        labels?: Record<string, string>;
+   318→        resourceQuota?: Record<string, string>;
+   319→      }) => this.manageNamespace(params),
+   320→    });
+   321→
+   322→    // Seed initial data
+   323→    this.seedInitialData();
+   324→
+   325→    await this.storeInWorkingMemory('container:initializedAt', new Date().toISOString(), 600000);
+   326→    this.logger.log('Container agent initialized with 6 tools');
+   327→  }
+   328→
+   329→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   330→    const startTime = Date.now();
+   331→    const { action, ...params } = input.payload;
+   332→
+   333→    if (!action) {
+   334→      return this.createAgentOutput(
+   335→        input.taskId,
+   336→        false,
+   337→        null,
+   338→        'Missing required parameter: action',
+   339→        startTime,
+   340→      );
+   341→    }
+   342→
+   343→    const supportedActions = [
+   344→      'createContainer',
+   345→      'managePod',
+   346→      'scaleReplicaSet',
+   347→      'configureService',
+   348→      'checkClusterHealth',
+   349→      'manageNamespace',
+   350→    ];
+   351→
+   352→    if (!supportedActions.includes(action)) {
+   353→      return this.createAgentOutput(
+   354→        input.taskId,
+   355→        false,
+   356→        null,
+   357→        `Unknown container action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   358→        startTime,
+   359→      );
+   360→    }
+   361→
+   362→    try {
+   363→      const tool = this.getTool(action);
+   364→      if (!tool) {
+   365→        return this.createAgentOutput(
+   366→          input.taskId,
+   367→          false,
+   368→          null,
+   369→          `Tool not found: ${action}`,
+   370→          startTime,
+   371→        );
+   372→      }
+   373→
+   374→      const result = await tool.execute(params);
+   375→
+   376→      await this.storeInWorkingMemory(
+   377→        `container:last:${action}`,
+   378→        { params, result, timestamp: new Date() },
+   379→        300000,
+   380→      );
+   381→
+   382→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   383→    } catch (error) {
+   384→      const msg = (error as Error).message;
+   385→      this.logger.error(`Container execution failed for ${action}: ${msg}`);
+   386→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   387→    }
+   388→  }
+   389→
+   390→  protected async onDestroy(): Promise<void> {
+   391→    this.containers.clear();
+   392→    this.pods.clear();
+   393→    this.services.clear();
+   394→    this.namespaces.clear();
+   395→    this.logger.log('Container agent destroyed, state cleared');
+   396→  }
+   397→
+   398→  // ─── Tool Implementations ──────────────────────────────────────
+   399→
+   400→  private async createContainer(params: {
+   401→    name: string;
+   402→    image: string;
+   403→    namespace?: string;
+   404→    ports?: Array<{ containerPort: number; protocol: string }>;
+   405→    env?: Array<{ name: string; value: string }>;
+   406→    resources?: Record<string, any>;
+   407→    restartPolicy?: string;
+   408→    labels?: Record<string, string>;
+   409→  }): Promise<{
+   410→    containerId: string;
+   411→    name: string;
+   412→    image: string;
+   413→    namespace: string;
+   414→    status: string;
+   415→    podName: string;
+   416→    createdAt: string;
+   417→  }> {
+   418→    const {
+   419→      name,
+   420→      image,
+   421→      namespace = 'default',
+   422→      ports = [],
+   423→      env = [],
+   424→      resources = {},
+   425→      restartPolicy = 'Always',
+   426→      labels = {},
+   427→    } = params;
+   428→
+   429→    if (!name || typeof name !== 'string') {
+   430→      throw new Error('Container name is required');
+   431→    }
+   432→    if (!image || typeof image !== 'string') {
+   433→      throw new Error('Container image is required');
+   434→    }
+   435→
+   436→    // Validate namespace exists
+   437→    if (!this.namespaces.has(namespace) && namespace !== 'default') {
+   438→      throw new Error(`Namespace not found: ${namespace}`);
+   439→    }
+   440→
+   441→    const validPolicies = ['Always', 'OnFailure', 'Never'];
+   442→    if (!validPolicies.includes(restartPolicy)) {
+   443→      throw new Error(
+   444→        `Invalid restart policy: ${restartPolicy}. Valid: ${validPolicies.join(', ')}`,
+   445→      );
+   446→    }
+   447→
+   448→    this.containerCounter++;
+   449→    const containerId = `container-${this.containerCounter}-${Date.now()}`;
+   450→    const podName = `${name}-${this.generatePodSuffix()}`;
+   451→
+   452→    const record: ContainerRecord = {
+   453→      id: containerId,
+   454→      name,
+   455→      image,
+   456→      namespace,
+   457→      status: 'running',
+   458→      ports: ports.length > 0 ? ports : [{ containerPort: 8080, protocol: 'TCP' }],
+   459→      env,
+   460→      resources: {
+   461→        cpuRequest: resources.cpuRequest || '100m',
+   462→        cpuLimit: resources.cpuLimit || '500m',
+   463→        memoryRequest: resources.memoryRequest || '128Mi',
+   464→        memoryLimit: resources.memoryLimit || '512Mi',
+   465→      },
+   466→      restartPolicy,
+   467→      labels,
+   468→      createdAt: new Date(),
+   469→      podName,
+   470→    };
+   471→
+   472→    this.containers.set(containerId, record);
+   473→
+   474→    // Also create the pod
+   475→    this.pods.set(podName, {
+   476→      name: podName,
+   477→      namespace,
+   478→      status: 'Running',
+   479→      containers: [name],
+   480→      nodeName: `node-${Math.floor(Math.random() * 5) + 1}`,
+   481→      restarts: 0,
+   482→      createdAt: new Date(),
+   483→    });
+   484→
+   485→    this.logger.log(
+   486→      `Created container: ${name} (${image}) in ${namespace}, pod=${podName}, status=running`,
+   487→    );
+   488→
+   489→    return {
+   490→      containerId,
+   491→      name,
+   492→      image,
+   493→      namespace,
+   494→      status: 'running',
+   495→      podName,
+   496→      createdAt: new Date().toISOString(),
+   497→    };
+   498→  }
+   499→
+   500→  private async managePod(params: {
+   501→    name: string;
+   502→    namespace?: string;
+   503→    action: string;
+   504→    container?: string;
+   505→    command?: string[];
+   506→    tailLines?: number;
+   507→  }): Promise<{
+   508→    success: boolean;
+   509→    podName: string;
+   510→    namespace: string;
+   511→    action: string;
+   512→    status?: string;
+   513→    logs?: string[];
+   514→    output?: string;
+   515→    containers?: string[];
+   516→    nodeName?: string;
+   517→    message: string;
+   518→  }> {
+   519→    const { name, namespace = 'default', action, container, command, tailLines = 100 } = params;
+   520→
+   521→    if (!name || typeof name !== 'string') {
+   522→      throw new Error('Pod name is required');
+   523→    }
+   524→
+   525→    const validActions = ['get', 'list', 'delete', 'logs', 'exec'];
+   526→    if (!validActions.includes(action)) {
+   527→      throw new Error(`Invalid action: ${action}. Valid: ${validActions.join(', ')}`);
+   528→    }
+   529→
+   530→    if (action === 'list') {
+   531→      const podList = Array.from(this.pods.values())
+   532→        .filter((p) => namespace === 'default' || p.namespace === namespace)
+   533→        .map((p) => ({
+   534→          name: p.name,
+   535→          namespace: p.namespace,
+   536→          status: p.status,
+   537→          containers: p.containers,
+   538→          nodeName: p.nodeName,
+   539→        }));
+   540→
+   541→      this.logger.log(`Listed ${podList.length} pods in ${namespace}`);
+   542→      return {
+   543→        success: true,
+   544→        podName: name,
+   545→        namespace,
+   546→        action,
+   547→        message: `${podList.length} pod(s) found in namespace ${namespace}`,
+   548→      };
+   549→    }
+   550→
+   551→    const pod = this.pods.get(name);
+   552→    if (!pod) {
+   553→      throw new Error(`Pod not found: ${name} in namespace ${namespace}`);
+   554→    }
+   555→
+   556→    if (action === 'get') {
+   557→      return {
+   558→        success: true,
+   559→        podName: name,
+   560→        namespace: pod.namespace,
+   561→        action,
+   562→        status: pod.status,
+   563→        containers: pod.containers,
+   564→        nodeName: pod.nodeName,
+   565→        message: `Pod ${name}: status=${pod.status}, node=${pod.nodeName}, containers=${pod.containers.join(',')}`,
+   566→      };
+   567→    }
+   568→
+   569→    if (action === 'delete') {
+   570→      this.pods.delete(name);
+   571→      this.logger.log(`Deleted pod: ${name}`);
+   572→      return {
+   573→        success: true,
+   574→        podName: name,
+   575→        namespace: pod.namespace,
+   576→        action,
+   577→        message: `Pod ${name} deleted`,
+   578→      };
+   579→    }
+   580→
+   581→    if (action === 'logs') {
+   582→      const targetContainer = container || pod.containers[0];
+   583→      const logLines: string[] = [];
+   584→      const logMessages = [
+   585→        'Server started on port 8080',
+   586→        'Connected to database successfully',
+   587→        'Health check passed',
+   588→        'Request processed: GET /api/v1/users (200 OK, 45ms)',
+   589→        'Cache hit for key: session:abc123',
+   590→        'Background job completed: cleanup-temp-files',
+   591→        'Metrics exported to Prometheus endpoint',
+   592→        'Graceful shutdown signal received',
+   593→      ];
+   594→
+   595→      for (let i = 0; i < Math.min(tailLines, 50); i++) {
+   596→        const timestamp = new Date(Date.now() - Math.random() * 3600000).toISOString();
+   597→        const msg = logMessages[Math.floor(Math.random() * logMessages.length)];
+   598→        logLines.push(`${timestamp} [${targetContainer}] ${msg}`);
+   599→      }
+   600→
+   601→      this.logger.log(`Retrieved ${logLines.length} log lines from pod ${name}/${targetContainer}`);
+   602→
+   603→      return {
+   604→        success: true,
+   605→        podName: name,
+   606→        namespace: pod.namespace,
+   607→        action,
+   608→        status: pod.status,
+   609→        logs: logLines,
+   610→        message: `${logLines.length} log lines from ${name}/${targetContainer}`,
+   611→      };
+   612→    }
+   613→
+   614→    if (action === 'exec') {
+   615→      if (!command || command.length === 0) {
+   616→        throw new Error('Command is required for exec action');
+   617→      }
+   618→
+   619→      const targetContainer = container || pod.containers[0];
+   620→      const simulatedOutput = `Executing: ${command.join(' ')}\nCommand completed with exit code 0`;
+   621→
+   622→      this.logger.log(`Exec in pod ${name}/${targetContainer}: ${command.join(' ')}`);
+   623→
+   624→      return {
+   625→        success: true,
+   626→        podName: name,
+   627→        namespace: pod.namespace,
+   628→        action,
+   629→        output: simulatedOutput,
+   630→        message: `Command executed in ${name}/${targetContainer}`,
+   631→      };
+   632→    }
+   633→
+   634→    return {
+   635→      success: true,
+   636→      podName: name,
+   637→      namespace,
+   638→      action,
+   639→      message: `Action ${action} completed`,
+   640→    };
+   641→  }
+   642→
+   643→  private async scaleReplicaSet(params: {
+   644→    name: string;
+   645→    namespace?: string;
+   646→    replicas: number;
+   647→    reason?: string;
+   648→  }): Promise<{
+   649→    name: string;
+   650→    namespace: string;
+   651→    previousReplicas: number;
+   652→    newReplicas: number;
+   653→    success: boolean;
+   654→    reason?: string;
+   655→    message: string;
+   656→  }> {
+   657→    const { name, namespace = 'default', replicas, reason } = params;
+   658→
+   659→    if (!name || typeof name !== 'string') {
+   660→      throw new Error('Deployment/ReplicaSet name is required');
+   661→    }
+   662→    if (replicas < 0 || replicas > 100) {
+   663→      throw new Error('Replicas must be between 0 and 100');
+   664→    }
+   665→
+   666→    // Find related pods to estimate current replicas
+   667→    const relatedPods = Array.from(this.pods.values()).filter(
+   668→      (p) => p.name.startsWith(name) && p.namespace === namespace,
+   669→    );
+   670→
+   671→    const previousReplicas = relatedPods.length || 3;
+   672→
+   673→    // Simulate scaling: add or remove pods
+   674→    if (replicas > previousReplicas) {
+   675→      for (let i = previousReplicas; i < replicas; i++) {
+   676→        const podName = `${name}-${this.generatePodSuffix()}`;
+   677→        this.pods.set(podName, {
+   678→          name: podName,
+   679→          namespace,
+   680→          status: 'Running',
+   681→          containers: [name],
+   682→          nodeName: `node-${Math.floor(Math.random() * 5) + 1}`,
+   683→          restarts: 0,
+   684→          createdAt: new Date(),
+   685→        });
+   686→      }
+   687→    } else if (replicas < previousReplicas) {
+   688→      const podsToRemove = relatedPods.slice(0, previousReplicas - replicas);
+   689→      for (const pod of podsToRemove) {
+   690→        this.pods.delete(pod.name);
+   691→      }
+   692→    }
+   693→
+   694→    this.logger.log(
+   695→      `Scaled ${name} in ${namespace}: ${previousReplicas} → ${replicas} replicas, reason: ${reason || 'N/A'}`,
+   696→    );
+   697→
+   698→    return {
+   699→      name,
+   700→      namespace,
+   701→      previousReplicas,
+   702→      newReplicas: replicas,
+   703→      success: true,
+   704→      reason,
+   705→      message: `Scaled ${name} from ${previousReplicas} to ${replicas} replicas`,
+   706→    };
+   707→  }
+   708→
+   709→  private async configureService(params: {
+   710→    name: string;
+   711→    namespace?: string;
+   712→    action: string;
+   713→    type?: string;
+   714→    selector?: Record<string, string>;
+   715→    ports?: Array<{ port: number; targetPort: number; protocol: string }>;
+   716→  }): Promise<{
+   717→    success: boolean;
+   718→    serviceName: string;
+   719→    namespace: string;
+   720→    action: string;
+   721→    type?: string;
+   722→    clusterIp?: string;
+   723→    externalIp?: string;
+   724→    message: string;
+   725→  }> {
+   726→    const {
+   727→      name,
+   728→      namespace = 'default',
+   729→      action,
+   730→      type = 'ClusterIP',
+   731→      selector = {},
+   732→      ports = [],
+   733→    } = params;
+   734→
+   735→    if (!name || typeof name !== 'string') {
+   736→      throw new Error('Service name is required');
+   737→    }
+   738→
+   739→    const validActions = ['create', 'update', 'delete', 'get'];
+   740→    if (!validActions.includes(action)) {
+   741→      throw new Error(`Invalid action: ${action}. Valid: ${validActions.join(', ')}`);
+   742→    }
+   743→
+   744→    const validTypes = ['ClusterIP', 'NodePort', 'LoadBalancer', 'ExternalName'];
+   745→    if (!validTypes.includes(type)) {
+   746→      throw new Error(`Invalid service type: ${type}. Valid: ${validTypes.join(', ')}`);
+   747→    }
+   748→
+   749→    if (action === 'delete') {
+   750→      if (!this.services.has(name)) {
+   751→        throw new Error(`Service not found: ${name}`);
+   752→      }
+   753→      this.services.delete(name);
+   754→      this.logger.log(`Deleted service: ${name}`);
+   755→      return {
+   756→        success: true,
+   757→        serviceName: name,
+   758→        namespace,
+   759→        action,
+   760→        message: `Service "${name}" deleted`,
+   761→      };
+   762→    }
+   763→
+   764→    if (action === 'get') {
+   765→      const svc = this.services.get(name);
+   766→      if (!svc) {
+   767→        throw new Error(`Service not found: ${name}`);
+   768→      }
+   769→      return {
+   770→        success: true,
+   771→        serviceName: name,
+   772→        namespace: svc.namespace,
+   773→        action,
+   774→        type: svc.type,
+   775→        clusterIp: svc.clusterIp,
+   776→        externalIp: svc.externalIp,
+   777→        message: `Service "${name}": type=${svc.type}, clusterIP=${svc.clusterIp}`,
+   778→      };
+   779→    }
+   780→
+   781→    const clusterIp = `10.96.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 254) + 1}`;
+   782→    const externalIp =
+   783→      type === 'LoadBalancer'
+   784→        ? `${Math.floor(Math.random() * 255) + 1}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`
+   785→        : undefined;
+   786→
+   787→    const record: ServiceRecord = {
+   788→      name,
+   789→      namespace,
+   790→      type,
+   791→      selector: Object.keys(selector).length > 0 ? selector : { app: name },
+   792→      ports: ports.length > 0 ? ports : [{ port: 80, targetPort: 8080, protocol: 'TCP' }],
+   793→      clusterIp,
+   794→      externalIp,
+   795→      createdAt: new Date(),
+   796→    };
+   797→
+   798→    this.services.set(name, record);
+   799→
+   800→    this.logger.log(
+   801→      `${action === 'create' ? 'Created' : 'Updated'} service: ${name} (${type}), clusterIP=${clusterIp}`,
+   802→    );
+   803→
+   804→    return {
+   805→      success: true,
+   806→      serviceName: name,
+   807→      namespace,
+   808→      action,
+   809→      type,
+   810→      clusterIp,
+   811→      externalIp,
+   812→      message: `Service "${name}" ${action === 'create' ? 'created' : 'updated'}: type=${type}, clusterIP=${clusterIp}`,
+   813→    };
+   814→  }
+   815→
+   816→  private async checkClusterHealth(params: { namespace?: string; checks?: string[] }): Promise<{
+   817→    healthy: boolean;
+   818→    namespace: string;
+   819→    nodes: {
+   820→      total: number;
+   821→      ready: number;
+   822→      notReady: number;
+   823→      details: Array<{ name: string; status: string; cpuPercent: number; memoryPercent: number }>;
+   824→    };
+   825→    pods: {
+   826→      total: number;
+   827→      running: number;
+   828→      pending: number;
+   829→      failed: number;
+   830→    };
+   831→    services: {
+   832→      total: number;
+   833→    };
+   834→    events: Array<{ type: string; message: string; count: number; lastSeen: string }>;
+   835→    resourceUsage: {
+   836→      cpuTotalCores: number;
+   837→      cpuUsedPercent: number;
+   838→      memoryTotalGb: number;
+   839→      memoryUsedPercent: number;
+   840→    };
+   841→    checkedAt: string;
+   842→  }> {
+   843→    const { namespace = 'all', checks = ['nodes', 'pods'] } = params;
+   844→
+   845→    const nodeCount = 5;
+   846→    const readyNodes = Math.random() > 0.1 ? nodeCount : nodeCount - 1;
+   847→
+   848→    const nodes = [];
+   849→    for (let i = 1; i <= nodeCount; i++) {
+   850→      nodes.push({
+   851→        name: `node-${i}`,
+   852→        status: i <= readyNodes ? 'Ready' : 'NotReady',
+   853→        cpuPercent: Math.round((20 + Math.random() * 60) * 100) / 100,
+   854→        memoryPercent: Math.round((30 + Math.random() * 50) * 100) / 100,
+   855→      });
+   856→    }
+   857→
+   858→    const allPods = Array.from(this.pods.values()).filter(
+   859→      (p) => namespace === 'all' || p.namespace === namespace,
+   860→    );
+   861→
+   862→    const runningPods = allPods.filter((p) => p.status === 'Running').length;
+   863→
+   864→    const events = [
+   865→      {
+   866→        type: 'Normal',
+   867→        message: 'Pod api-gateway-7d8f9 started',
+   868→        count: 3,
+   869→        lastSeen: new Date(Date.now() - 300000).toISOString(),
+   870→      },
+   871→      {
+   872→        type: 'Warning',
+   873→        message: 'Pod worker-service-3a2b failed liveness probe',
+   874→        count: 5,
+   875→        lastSeen: new Date(Date.now() - 600000).toISOString(),
+   876→      },
+   877→      {
+   878→        type: 'Normal',
+   879→        message: 'Deployment auth-service scaled to 5 replicas',
+   880→        count: 1,
+   881→        lastSeen: new Date(Date.now() - 900000).toISOString(),
+   882→      },
+   883→    ];
+   884→
+   885→    const healthy = readyNodes === nodeCount && runningPods / (allPods.length || 1) > 0.8;
+   886→
+   887→    const result = {
+   888→      healthy,
+   889→      namespace,
+   890→      nodes: {
+   891→        total: nodeCount,
+   892→        ready: readyNodes,
+   893→        notReady: nodeCount - readyNodes,
+   894→        details: nodes,
+   895→      },
+   896→      pods: {
+   897→        total: allPods.length,
+   898→        running: runningPods,
+   899→        pending: allPods.filter((p) => p.status === 'Pending').length,
+   900→        failed: allPods.filter((p) => p.status === 'Failed').length,
+   901→      },
+   902→      services: {
+   903→        total: this.services.size,
+   904→      },
+   905→      events: checks.includes('events') ? events : [],
+   906→      resourceUsage: {
+   907→        cpuTotalCores: nodeCount * 8,
+   908→        cpuUsedPercent:
+   909→          Math.round((nodes.reduce((sum, n) => sum + n.cpuPercent, 0) / nodeCount) * 100) / 100,
+   910→        memoryTotalGb: nodeCount * 32,
+   911→        memoryUsedPercent:
+   912→          Math.round((nodes.reduce((sum, n) => sum + n.memoryPercent, 0) / nodeCount) * 100) / 100,
+   913→      },
+   914→      checkedAt: new Date().toISOString(),
+   915→    };
+   916→
+   917→    this.logger.log(
+   918→      `Cluster health: ${healthy ? 'HEALTHY' : 'UNHEALTHY'}, ${readyNodes}/${nodeCount} nodes ready, ${runningPods}/${allPods.length} pods running`,
+   919→    );
+   920→
+   921→    return result;
+   922→  }
+   923→
+   924→  private async manageNamespace(params: {
+   925→    name: string;
+   926→    action: string;
+   927→    labels?: Record<string, string>;
+   928→    resourceQuota?: Record<string, string>;
+   929→  }): Promise<{
+   930→    success: boolean;
+   931→    name: string;
+   932→    action: string;
+   933→    status?: string;
+   934→    message: string;
+   935→  }> {
+   936→    const { name, action, labels = {}, resourceQuota } = params;
+   937→
+   938→    if (!name || typeof name !== 'string') {
+   939→      throw new Error('Namespace name is required');
+   940→    }
+   941→
+   942→    const validActions = ['create', 'delete', 'list', 'get'];
+   943→    if (!validActions.includes(action)) {
+   944→      throw new Error(`Invalid action: ${action}. Valid: ${validActions.join(', ')}`);
+   945→    }
+   946→
+   947→    if (action === 'list') {
+   948→      const nsList = Array.from(this.namespaces.values()).map((ns) => ({
+   949→        name: ns.name,
+   950→        status: ns.status,
+   951→      }));
+   952→      this.logger.log(`Listed ${nsList.length} namespaces`);
+   953→      return {
+   954→        success: true,
+   955→        name,
+   956→        action,
+   957→        message: `${nsList.length} namespace(s): ${nsList.map((n) => n.name).join(', ')}`,
+   958→      };
+   959→    }
+   960→
+   961→    if (action === 'delete') {
+   962→      const existing = this.namespaces.get(name);
+   963→      if (!existing) {
+   964→        throw new Error(`Namespace not found: ${name}`);
+   965→      }
+   966→      existing.status = 'Terminating';
+   967→      this.namespaces.delete(name);
+   968→      this.logger.log(`Deleted namespace: ${name}`);
+   969→      return { success: true, name, action, message: `Namespace "${name}" deleted` };
+   970→    }
+   971→
+   972→    if (action === 'get') {
+   973→      const existing = this.namespaces.get(name);
+   974→      if (!existing) {
+   975→        throw new Error(`Namespace not found: ${name}`);
+   976→      }
+   977→      return {
+   978→        success: true,
+   979→        name,
+   980→        action,
+   981→        status: existing.status,
+   982→        message: `Namespace "${name}": status=${existing.status}`,
+   983→      };
+   984→    }
+   985→
+   986→    // Create
+   987→    if (this.namespaces.has(name)) {
+   988→      throw new Error(`Namespace already exists: ${name}`);
+   989→    }
+   990→
+   991→    this.namespaces.set(name, {
+   992→      name,
+   993→      status: 'Active',
+   994→      labels: Object.keys(labels).length > 0 ? labels : { name },
+   995→      resourceQuota,
+   996→      createdAt: new Date(),
+   997→    });
+   998→
+   999→    this.logger.log(`Created namespace: ${name}`);
+  1000→
+  1001→    return {
+  1002→      success: true,
+  1003→      name,
+  1004→      action,
+  1005→      status: 'Active',
+  1006→      message: `Namespace "${name}" created successfully`,
+  1007→    };
+  1008→  }
+  1009→
+  1010→  // ─── Helpers ────────────────────────────────────────────────────
+  1011→
+  1012→  private generatePodSuffix(): string {
+  1013→    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  1014→    let suffix = '';
+  1015→    for (let i = 0; i < 5; i++) {
+  1016→      suffix += chars[Math.floor(Math.random() * chars.length)];
+  1017→    }
+  1018→    return suffix;
+  1019→  }
+  1020→
+  1021→  private seedInitialData(): void {
+  1022→    // Seed namespaces
+  1023→    const namespaces = ['default', 'kube-system', 'production', 'staging'];
+  1024→    for (const ns of namespaces) {
+  1025→      this.namespaces.set(ns, {
+  1026→        name: ns,
+  1027→        status: 'Active',
+  1028→        labels: { name: ns },
+  1029→        createdAt: new Date(),
+  1030→      });
+  1031→    }
+  1032→
+  1033→    // Seed pods
+  1034→    const seedPods = [
+  1035→      {
+  1036→        name: 'api-gateway-7d8f9c',
+  1037→        namespace: 'production',
+  1038→        containers: ['api-gateway'],
+  1039→        node: 'node-1',
+  1040→      },
+  1041→      {
+  1042→        name: 'auth-service-5a2b1d',
+  1043→        namespace: 'production',
+  1044→        containers: ['auth-service'],
+  1045→        node: 'node-2',
+  1046→      },
+  1047→      {
+  1048→        name: 'worker-service-3e4f6g',
+  1049→        namespace: 'production',
+  1050→        containers: ['worker-service'],
+  1051→        node: 'node-3',
+  1052→      },
+  1053→      { name: 'coredns-8h9j0k', namespace: 'kube-system', containers: ['coredns'], node: 'node-1' },
+  1054→    ];
+  1055→
+  1056→    for (const pod of seedPods) {
+  1057→      this.pods.set(pod.name, {
+  1058→        name: pod.name,
+  1059→        namespace: pod.namespace,
+  1060→        status: 'Running',
+  1061→        containers: pod.containers,
+  1062→        nodeName: pod.node,
+  1063→        restarts: Math.floor(Math.random() * 3),
+  1064→        createdAt: new Date(Date.now() - Math.random() * 86400000),
+  1065→      });
+  1066→    }
+  1067→
+  1068→    // Seed services
+  1069→    this.services.set('api-gateway', {
+  1070→      name: 'api-gateway',
+  1071→      namespace: 'production',
+  1072→      type: 'LoadBalancer',
+  1073→      selector: { app: 'api-gateway' },
+  1074→      ports: [{ port: 443, targetPort: 8080, protocol: 'TCP' }],
+  1075→      clusterIp: '10.96.0.10',
+  1076→      externalIp: '34.120.45.67',
+  1077→      createdAt: new Date(),
+  1078→    });
+  1079→  }
+  1080→}
+  1081→

@@ -4,7 +4,7 @@
  * merging, and template application for office documents.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { OfficeCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -30,7 +32,11 @@ export const DOCUMENT_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           title: { type: 'string', description: 'Document title' },
-          format: { type: 'string', enum: ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'], description: 'Document format' },
+          format: {
+            type: 'string',
+            enum: ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'],
+            description: 'Document format',
+          },
           content: { type: 'string', description: 'Initial document content' },
           author: { type: 'string', description: 'Document author' },
           template: { type: 'string', description: 'Template to apply' },
@@ -49,12 +55,17 @@ export const DOCUMENT_AGENT_CONFIG: AgentConfig = {
     },
     {
       name: 'editDocument',
-      description: 'Edit an existing document by applying insert, replace, delete, or append operations',
+      description:
+        'Edit an existing document by applying insert, replace, delete, or append operations',
       inputSchema: {
         type: 'object',
         properties: {
           documentId: { type: 'string', description: 'ID of the document to edit' },
-          operations: { type: 'array', items: { type: 'object' }, description: 'List of edit operations to apply' },
+          operations: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'List of edit operations to apply',
+          },
         },
         required: ['documentId', 'operations'],
       },
@@ -74,7 +85,11 @@ export const DOCUMENT_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           documentId: { type: 'string', description: 'ID of the document to convert' },
-          targetFormat: { type: 'string', enum: ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'], description: 'Target format' },
+          targetFormat: {
+            type: 'string',
+            enum: ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'],
+            description: 'Target format',
+          },
           options: { type: 'object', description: 'Conversion options' },
         },
         required: ['documentId', 'targetFormat'],
@@ -97,7 +112,11 @@ export const DOCUMENT_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           documentId: { type: 'string', description: 'ID of the document to extract text from' },
-          includeMetadata: { type: 'boolean', default: false, description: 'Include document metadata in extraction' },
+          includeMetadata: {
+            type: 'boolean',
+            default: false,
+            description: 'Include document metadata in extraction',
+          },
           pageRange: { type: 'object', description: 'Specific page range to extract from' },
         },
         required: ['documentId'],
@@ -118,7 +137,11 @@ export const DOCUMENT_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          documentIds: { type: 'array', items: { type: 'string' }, description: 'IDs of documents to merge' },
+          documentIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'IDs of documents to merge',
+          },
           outputTitle: { type: 'string', description: 'Title for the merged document' },
           outputFormat: { type: 'string', description: 'Format for the merged document' },
           separator: { type: 'string', description: 'Separator between merged sections' },
@@ -140,9 +163,15 @@ export const DOCUMENT_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          documentId: { type: 'string', description: 'ID of the document to apply template to (optional for new)' },
+          documentId: {
+            type: 'string',
+            description: 'ID of the document to apply template to (optional for new)',
+          },
           templateId: { type: 'string', description: 'Template identifier to apply' },
-          variables: { type: 'object', description: 'Key-value pairs for template variable substitution' },
+          variables: {
+            type: 'object',
+            description: 'Key-value pairs for template variable substitution',
+          },
         },
         required: ['templateId'],
       },
@@ -215,6 +244,15 @@ export class DocumentAgentService extends BaseAgentService {
   private templates: Map<string, DocumentTemplate> = new Map();
   private documentCounter: number = 0;
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   protected defineConfig(): AgentConfig {
     return DOCUMENT_AGENT_CONFIG;
   }
@@ -240,10 +278,8 @@ export class DocumentAgentService extends BaseAgentService {
     this.registerTool({
       name: 'editDocument',
       description: 'Edit an existing document by applying operations',
-      execute: async (params: {
-        documentId: string;
-        operations: EditOperation[];
-      }) => this.editDocument(params),
+      execute: async (params: { documentId: string; operations: EditOperation[] }) =>
+        this.editDocument(params),
     });
 
     this.registerTool({
@@ -293,6 +329,28 @@ export class DocumentAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation: try real connector first, fallback to simulated logic
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(OfficeCapability.DOCX, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
@@ -422,9 +480,7 @@ export class DocumentAgentService extends BaseAgentService {
 
     this.documents.set(documentId, document);
 
-    this.logger.log(
-      `Created document: ${documentId}, title="${title}", format=${format}`,
-    );
+    this.logger.log(`Created document: ${documentId}, title="${title}", format=${format}`);
 
     return {
       documentId,
@@ -433,10 +489,7 @@ export class DocumentAgentService extends BaseAgentService {
     };
   }
 
-  private async editDocument(params: {
-    documentId: string;
-    operations: EditOperation[];
-  }): Promise<{
+  private async editDocument(params: { documentId: string; operations: EditOperation[] }): Promise<{
     documentId: string;
     appliedOperations: number;
     status: string;
@@ -474,7 +527,8 @@ export class DocumentAgentService extends BaseAgentService {
             if (op.search === undefined || op.replacement === undefined) {
               throw new Error('Replace operation requires search and replacement');
             }
-            const occurrences = (content.match(new RegExp(this.escapeRegex(op.search), 'g')) || []).length;
+            const occurrences = (content.match(new RegExp(this.escapeRegex(op.search), 'g')) || [])
+              .length;
             content = content.replaceAll(op.search, op.replacement);
             if (occurrences > 0) appliedOperations++;
             break;
@@ -499,9 +553,7 @@ export class DocumentAgentService extends BaseAgentService {
             this.logger.warn(`Unknown edit operation type: ${op.type}`);
         }
       } catch (opError) {
-        this.logger.warn(
-          `Edit operation failed: ${(opError as Error).message}, skipping`,
-        );
+        this.logger.warn(`Edit operation failed: ${(opError as Error).message}, skipping`);
       }
     }
 
@@ -540,7 +592,9 @@ export class DocumentAgentService extends BaseAgentService {
 
     const validFormats = ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'];
     if (!validFormats.includes(targetFormat)) {
-      throw new Error(`Invalid target format: ${targetFormat}. Supported: ${validFormats.join(', ')}`);
+      throw new Error(
+        `Invalid target format: ${targetFormat}. Supported: ${validFormats.join(', ')}`,
+      );
     }
 
     const sourceDocument = this.documents.get(documentId);
@@ -629,7 +683,7 @@ export class DocumentAgentService extends BaseAgentService {
 
     const wordCount = text.split(/\s+/).filter((w) => w.length > 0).length;
 
-    let result: any = {
+    const result: any = {
       documentId,
       text,
       pageCount: document.pageCount,
@@ -647,9 +701,7 @@ export class DocumentAgentService extends BaseAgentService {
       };
     }
 
-    this.logger.log(
-      `Extracted text from document: ${documentId}, words=${wordCount}`,
-    );
+    this.logger.log(`Extracted text from document: ${documentId}, words=${wordCount}`);
 
     return result;
   }
@@ -712,9 +764,7 @@ export class DocumentAgentService extends BaseAgentService {
 
     this.documents.set(mergedDocumentId, mergedDocument);
 
-    this.logger.log(
-      `Merged ${documentIds.length} documents into: ${mergedDocumentId}`,
-    );
+    this.logger.log(`Merged ${documentIds.length} documents into: ${mergedDocumentId}`);
 
     return {
       mergedDocumentId,
@@ -761,9 +811,7 @@ export class DocumentAgentService extends BaseAgentService {
     const remainingPlaceholders = content.match(/\{\{(\w+)\}\}/g);
     if (remainingPlaceholders) {
       const missingVars = remainingPlaceholders.map((p) => p.replace(/[{}]/g, ''));
-      this.logger.warn(
-        `Unsubstituted template variables: ${missingVars.join(', ')}`,
-      );
+      this.logger.warn(`Unsubstituted template variables: ${missingVars.join(', ')}`);
     }
 
     let targetDocumentId = documentId;
@@ -820,7 +868,14 @@ export class DocumentAgentService extends BaseAgentService {
         name: 'Business Letter',
         format: 'docx',
         content: `{{senderName}}\n{{senderAddress}}\n{{date}}\n\n{{recipientName}}\n{{recipientAddress}}\n\nDear {{recipientName}},\n\n{{body}}\n\nSincerely,\n{{senderName}}`,
-        variables: ['senderName', 'senderAddress', 'date', 'recipientName', 'recipientAddress', 'body'],
+        variables: [
+          'senderName',
+          'senderAddress',
+          'date',
+          'recipientName',
+          'recipientAddress',
+          'body',
+        ],
         description: 'Standard business letter format',
       },
       {
@@ -828,7 +883,16 @@ export class DocumentAgentService extends BaseAgentService {
         name: 'Meeting Notes',
         format: 'md',
         content: `# Meeting Notes: {{meetingTitle}}\n\n**Date:** {{date}}\n**Attendees:** {{attendees}}\n**Location:** {{location}}\n\n## Agenda\n\n{{agenda}}\n\n## Discussion\n\n{{discussion}}\n\n## Action Items\n\n{{actionItems}}\n\n## Next Meeting\n\n{{nextMeeting}}`,
-        variables: ['meetingTitle', 'date', 'attendees', 'location', 'agenda', 'discussion', 'actionItems', 'nextMeeting'],
+        variables: [
+          'meetingTitle',
+          'date',
+          'attendees',
+          'location',
+          'agenda',
+          'discussion',
+          'actionItems',
+          'nextMeeting',
+        ],
         description: 'Meeting notes template with structured sections',
       },
       {
@@ -836,7 +900,17 @@ export class DocumentAgentService extends BaseAgentService {
         name: 'Report',
         format: 'docx',
         content: `# {{reportTitle}}\n\n**Author:** {{author}}\n**Date:** {{date}}\n**Version:** {{version}}\n\n## Executive Summary\n\n{{summary}}\n\n## Introduction\n\n{{introduction}}\n\n## Findings\n\n{{findings}}\n\n## Conclusions\n\n{{conclusions}}\n\n## Recommendations\n\n{{recommendations}}`,
-        variables: ['reportTitle', 'author', 'date', 'version', 'summary', 'introduction', 'findings', 'conclusions', 'recommendations'],
+        variables: [
+          'reportTitle',
+          'author',
+          'date',
+          'version',
+          'summary',
+          'introduction',
+          'findings',
+          'conclusions',
+          'recommendations',
+        ],
         description: 'Structured report template',
       },
       {

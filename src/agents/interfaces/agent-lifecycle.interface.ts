@@ -144,13 +144,6 @@ export const VALID_TRANSITIONS: Record<AgentStatus, AgentStatus[]> = {
     AgentStatus.STOPPED,
     AgentStatus.MAINTENANCE,
   ],
-  [AgentStatus.STOPPED]: [
-    AgentStatus.INITIALIZING,
-    AgentStatus.IDLE,
-  ],
-  [AgentStatus.MAINTENANCE]: [
-    AgentStatus.IDLE,
-    AgentStatus.STOPPED,
-    AgentStatus.RUNNING,
-  ],
+  [AgentStatus.STOPPED]: [AgentStatus.INITIALIZING, AgentStatus.IDLE],
+  [AgentStatus.MAINTENANCE]: [AgentStatus.IDLE, AgentStatus.STOPPED, AgentStatus.RUNNING],
 };

@@ -9,7 +9,14 @@
  * - LLMHelper provides caching, retry, chain context
  */
 
-export { ICapabilityConnector, ConnectorInput, ConnectorOutput, GeneratedArtifact, LLMCallOptions, LLMCallResult } from './connector.interface';
+export {
+  ICapabilityConnector,
+  ConnectorInput,
+  ConnectorOutput,
+  GeneratedArtifact,
+  LLMCallOptions,
+  LLMCallResult,
+} from './connector.interface';
 export { LLMHelper } from './llm-helper';
 export { BrowserPool } from './browser-pool';
 export { DevelopmentConnector } from './development-connector';

@@ -4,7 +4,7 @@
  * Provides rollback, promotion, status tracking, scaling, and deployment reporting.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { DeliveryCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -32,7 +34,11 @@ export const DEPLOYMENT_AGENT_CONFIG: AgentConfig = {
           appName: { type: 'string', description: 'Application name' },
           version: { type: 'string', description: 'Version or image tag to deploy' },
           environment: { type: 'string', enum: ['development', 'staging', 'production'] },
-          strategy: { type: 'string', enum: ['rolling', 'blue-green', 'canary'], default: 'rolling' },
+          strategy: {
+            type: 'string',
+            enum: ['rolling', 'blue-green', 'canary'],
+            default: 'rolling',
+          },
           replicas: { type: 'number', default: 3 },
           config: { type: 'object', description: 'Deployment configuration overrides' },
         },
@@ -207,6 +213,15 @@ interface DeploymentReport {
 @Injectable()
 export class DeploymentAgentService extends BaseAgentService {
   private deployments: Map<string, DeploymentRecord> = new Map();
+
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
   private deploymentCounter = 0;
 
   protected defineConfig(): AgentConfig {
@@ -241,21 +256,15 @@ export class DeploymentAgentService extends BaseAgentService {
     this.registerTool({
       name: 'promoteCanary',
       description: 'Promote a canary deployment to full production',
-      execute: async (params: {
-        appName: string;
-        deploymentId: string;
-        canaryWeight?: number;
-      }) => this.promoteCanary(params),
+      execute: async (params: { appName: string; deploymentId: string; canaryWeight?: number }) =>
+        this.promoteCanary(params),
     });
 
     this.registerTool({
       name: 'getDeploymentStatus',
       description: 'Get the status of a deployment',
-      execute: async (params: {
-        appName: string;
-        deploymentId?: string;
-        environment?: string;
-      }) => this.getDeploymentStatus(params),
+      execute: async (params: { appName: string; deploymentId?: string; environment?: string }) =>
+        this.getDeploymentStatus(params),
     });
 
     this.registerTool({
@@ -272,11 +281,8 @@ export class DeploymentAgentService extends BaseAgentService {
     this.registerTool({
       name: 'generateDeploymentReport',
       description: 'Generate a deployment report',
-      execute: async (params: {
-        appName: string;
-        environment?: string;
-        timeRange?: string;
-      }) => this.generateDeploymentReport(params),
+      execute: async (params: { appName: string; environment?: string; timeRange?: string }) =>
+        this.generateDeploymentReport(params),
     });
 
     await this.storeInWorkingMemory('deployment:initializedAt', new Date().toISOString(), 600000);
@@ -285,15 +291,47 @@ export class DeploymentAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation — use real connector if available
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(DeliveryCapability.DEPLOYMENT, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'deploy', 'rollback', 'promoteCanary', 'getDeploymentStatus',
-      'scaleDeployment', 'generateDeploymentReport',
+      'deploy',
+      'rollback',
+      'promoteCanary',
+      'getDeploymentStatus',
+      'scaleDeployment',
+      'generateDeploymentReport',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -309,7 +347,13 @@ export class DeploymentAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -354,14 +398,7 @@ export class DeploymentAgentService extends BaseAgentService {
     url: string;
     canaryWeight?: number;
   }> {
-    const {
-      appName,
-      version,
-      environment,
-      strategy = 'rolling',
-      replicas = 3,
-      config,
-    } = params;
+    const { appName, version, environment, strategy = 'rolling', replicas = 3, config } = params;
 
     if (!appName || typeof appName !== 'string') {
       throw new Error('Application name is required');
@@ -383,7 +420,8 @@ export class DeploymentAgentService extends BaseAgentService {
 
     this.deploymentCounter++;
     const deploymentId = `deploy-${this.deploymentCounter}-${Date.now()}`;
-    const domainBase = environment === 'production' ? 'app' : environment === 'staging' ? 'staging' : 'dev';
+    const domainBase =
+      environment === 'production' ? 'app' : environment === 'staging' ? 'staging' : 'dev';
     const url = `https://${appName}.${domainBase}.example.com`;
 
     const record: DeploymentRecord = {
@@ -554,9 +592,10 @@ export class DeploymentAgentService extends BaseAgentService {
       deploymentId,
       previousWeight,
       newWeight: targetWeight,
-      message: targetWeight === 100
-        ? `Canary fully promoted to production for ${appName}`
-        : `Canary weight adjusted to ${targetWeight}% for ${appName}`,
+      message:
+        targetWeight === 100
+          ? `Canary fully promoted to production for ${appName}`
+          : `Canary weight adjusted to ${targetWeight}% for ${appName}`,
     };
   }
 
@@ -647,7 +686,9 @@ export class DeploymentAgentService extends BaseAgentService {
 
     // Find the latest deployment for this app/env
     const appDeployments = Array.from(this.deployments.values())
-      .filter((d) => d.appName === appName && d.environment === environment && d.status === 'running')
+      .filter(
+        (d) => d.appName === appName && d.environment === environment && d.status === 'running',
+      )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     if (appDeployments.length === 0) {
@@ -698,8 +739,9 @@ export class DeploymentAgentService extends BaseAgentService {
     };
 
     const cutoff = new Date(Date.now() - rangeMs[timeRange]);
-    let records = Array.from(this.deployments.values())
-      .filter((d) => d.appName === appName && d.createdAt >= cutoff);
+    let records = Array.from(this.deployments.values()).filter(
+      (d) => d.appName === appName && d.createdAt >= cutoff,
+    );
 
     if (environment) {
       records = records.filter((d) => d.environment === environment);
@@ -710,11 +752,14 @@ export class DeploymentAgentService extends BaseAgentService {
       records = this.generateSimulatedHistory(appName, environment, timeRange);
     }
 
-    const successful = records.filter((d) => d.status === 'running' || d.status === 'canary').length;
+    const successful = records.filter(
+      (d) => d.status === 'running' || d.status === 'canary',
+    ).length;
     const failed = records.filter((d) => d.status === 'failed').length;
-    const avgDuration = records.length > 0
-      ? Math.round(records.reduce((sum, d) => sum + (d.durationMs || 0), 0) / records.length)
-      : 0;
+    const avgDuration =
+      records.length > 0
+        ? Math.round(records.reduce((sum, d) => sum + (d.durationMs || 0), 0) / records.length)
+        : 0;
 
     const report: DeploymentReport = {
       totalDeployments: records.length,
@@ -736,7 +781,9 @@ export class DeploymentAgentService extends BaseAgentService {
 
   private findPreviousVersion(appName: string, currentVersion: string): string | null {
     const appDeployments = Array.from(this.deployments.values())
-      .filter((d) => d.appName === appName && d.version !== currentVersion && d.status === 'running')
+      .filter(
+        (d) => d.appName === appName && d.version !== currentVersion && d.status === 'running',
+      )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     return appDeployments.length > 0 ? appDeployments[0].version : null;
@@ -770,7 +817,8 @@ export class DeploymentAgentService extends BaseAgentService {
         replicas,
         availableReplicas: isSuccess ? replicas : Math.floor(replicas * 0.3),
         url: `https://${appName}.${env === 'production' ? 'app' : env}.example.com`,
-        canaryWeight: strategy === 'canary' && isSuccess ? Math.floor(Math.random() * 40) + 10 : undefined,
+        canaryWeight:
+          strategy === 'canary' && isSuccess ? Math.floor(Math.random() * 40) + 10 : undefined,
         createdAt: new Date(Date.now() - Math.random() * 2592000000),
         updatedAt: new Date(),
         durationMs: Math.floor(Math.random() * 180000) + 20000,

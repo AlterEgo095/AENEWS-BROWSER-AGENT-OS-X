@@ -80,7 +80,7 @@ export interface MissionPlan {
 }
 
 export interface ComplexityAssessment {
-  score: number;       // 0–100
+  score: number; // 0–100
   level: 'TRIVIAL' | 'SIMPLE' | 'MODERATE' | 'COMPLEX' | 'EPIC';
   reasoning: string;
 }
@@ -88,45 +88,156 @@ export interface ComplexityAssessment {
 // ─── Keyword Sets ────────────────────────────────────────────────────────
 
 const BROWSER_KEYWORDS = [
-  'analyse', 'audit', 'scrape', 'recherche', 'search', 'browse',
-  'navigate', 'extract', 'crawl', 'visit', 'fetch', 'monitor',
-  'surveiller', 'inspecter', 'parcourir', 'extraire', 'lire',
-  'read', 'check', 'verify', 'vérifier', 'comparer', 'compare',
-  'tester site', 'test website', 'review', 'évaluer',
+  'analyse',
+  'audit',
+  'scrape',
+  'recherche',
+  'search',
+  'browse',
+  'navigate',
+  'extract',
+  'crawl',
+  'visit',
+  'fetch',
+  'monitor',
+  'surveiller',
+  'inspecter',
+  'parcourir',
+  'extraire',
+  'lire',
+  'read',
+  'check',
+  'verify',
+  'vérifier',
+  'comparer',
+  'compare',
+  'tester site',
+  'test website',
+  'review',
+  'évaluer',
 ];
 
 const DEVELOPMENT_KEYWORDS = [
-  'crée', 'créer', 'build', 'développe', 'développer', 'construis',
-  'construire', 'implement', 'code', 'program', 'develop', 'write',
-  'écrire', 'installer', 'install', 'deploy', 'déployer', 'setup',
-  'configure', 'configurer', 'refactor', 'fix', 'corriger', 'patch',
-  'api', 'backend', 'frontend', 'database', 'base de données',
-  'application', 'app', 'service', 'module', 'component', 'feature',
-  'fonctionnalité', 'integration', 'intégration', 'test', 'tester',
+  'crée',
+  'créer',
+  'build',
+  'développe',
+  'développer',
+  'construis',
+  'construire',
+  'implement',
+  'code',
+  'program',
+  'develop',
+  'write',
+  'écrire',
+  'installer',
+  'install',
+  'deploy',
+  'déployer',
+  'setup',
+  'configure',
+  'configurer',
+  'refactor',
+  'fix',
+  'corriger',
+  'patch',
+  'api',
+  'backend',
+  'frontend',
+  'database',
+  'base de données',
+  'application',
+  'app',
+  'service',
+  'module',
+  'component',
+  'feature',
+  'fonctionnalité',
+  'integration',
+  'intégration',
+  'test',
+  'tester',
 ];
 
 const BUSINESS_KEYWORDS = [
-  'marketing', 'seo', 'rapport', 'report', 'strategy', 'stratégie',
-  'business', 'roi', 'kpi', 'analytics', 'campagne', 'campaign',
-  'brand', 'marque', 'social media', 'email', 'content', 'contenu',
-  'conversion', 'landing page', 'funnel', 'growth', 'croissance',
-  'revenue', 'pricing', 'competitive', 'concurrence', 'market',
-  'marché', 'customer', 'client', 'user research', 'étude',
+  'marketing',
+  'seo',
+  'rapport',
+  'report',
+  'strategy',
+  'stratégie',
+  'business',
+  'roi',
+  'kpi',
+  'analytics',
+  'campagne',
+  'campaign',
+  'brand',
+  'marque',
+  'social media',
+  'email',
+  'content',
+  'contenu',
+  'conversion',
+  'landing page',
+  'funnel',
+  'growth',
+  'croissance',
+  'revenue',
+  'pricing',
+  'competitive',
+  'concurrence',
+  'market',
+  'marché',
+  'customer',
+  'client',
+  'user research',
+  'étude',
 ];
 
 const RESEARCH_BEFORE_DEV_KEYWORDS = [
-  'best practice', 'meilleure pratique', 'trend', 'tendance',
-  'benchmark', 'compare', 'comparer', 'before building',
-  'avant de construire', 'look at', 'regarder', 'study',
-  'étudier', 'research first', 'recherche d\'abord',
+  'best practice',
+  'meilleure pratique',
+  'trend',
+  'tendance',
+  'benchmark',
+  'compare',
+  'comparer',
+  'before building',
+  'avant de construire',
+  'look at',
+  'regarder',
+  'study',
+  'étudier',
+  'research first',
+  "recherche d'abord",
 ];
 
 const COMPLEXITY_MULTIPLIERS = [
-  'microservices', 'distributed', 'distributed', 'real-time', 'temps réel',
-  'scale', 'scalabilité', 'multi-tenant', 'sécurité', 'security',
-  'compliance', 'conformité', 'migration', 'integration multiple',
-  'ai', 'ml', 'machine learning', 'deep learning', 'nlp',
-  'infrastructure', 'devops', 'ci/cd', 'pipeline',
+  'microservices',
+  'distributed',
+  'distributed',
+  'real-time',
+  'temps réel',
+  'scale',
+  'scalabilité',
+  'multi-tenant',
+  'sécurité',
+  'security',
+  'compliance',
+  'conformité',
+  'migration',
+  'integration multiple',
+  'ai',
+  'ml',
+  'machine learning',
+  'deep learning',
+  'nlp',
+  'infrastructure',
+  'devops',
+  'ci/cd',
+  'pipeline',
 ];
 
 // ─── Service ─────────────────────────────────────────────────────────────
@@ -151,7 +262,10 @@ export class MissionPlannerService {
     const needsBrowser = this.containsKeywords(instructionLower, BROWSER_KEYWORDS);
     const needsDevelopment = this.containsKeywords(instructionLower, DEVELOPMENT_KEYWORDS);
     const needsBusiness = this.containsKeywords(instructionLower, BUSINESS_KEYWORDS);
-    const needsResearchBeforeDev = this.containsKeywords(instructionLower, RESEARCH_BEFORE_DEV_KEYWORDS);
+    const needsResearchBeforeDev = this.containsKeywords(
+      instructionLower,
+      RESEARCH_BEFORE_DEV_KEYWORDS,
+    );
 
     // Step 2: Assess complexity
     const complexity = this.estimateComplexity(instruction);
@@ -244,10 +358,7 @@ export class MissionPlannerService {
     const dependencies = this.buildDependencyGraph(phases, allTasks);
 
     // Step 7: Compute total estimated duration
-    const totalEstimatedDurationMs = phases.reduce(
-      (sum, p) => sum + p.estimatedDurationMs,
-      0,
-    );
+    const totalEstimatedDurationMs = phases.reduce((sum, p) => sum + p.estimatedDurationMs, 0);
 
     const plan: MissionPlan = {
       id,
@@ -265,7 +376,7 @@ export class MissionPlannerService {
     this.plans.set(id, plan);
     this.logger.log(
       `Created plan "${id}": ${phases.length} phases, ${allTasks.length} tasks, ` +
-      `complexity=${complexity.level}(${complexity.score}), duration≈${totalEstimatedDurationMs}ms`,
+        `complexity=${complexity.level}(${complexity.score}), duration≈${totalEstimatedDurationMs}ms`,
     );
 
     return plan;
@@ -328,7 +439,17 @@ export class MissionPlannerService {
     }
 
     // Multi-step cues
-    const stepCues = [' puis ', ' then ', ' ensuite ', ' after ', ' après ', ' and ', ' et ', ';', ','];
+    const stepCues = [
+      ' puis ',
+      ' then ',
+      ' ensuite ',
+      ' after ',
+      ' après ',
+      ' and ',
+      ' et ',
+      ';',
+      ',',
+    ];
     const stepCount = stepCues.filter((c) => lower.includes(c)).length;
     score += Math.min(stepCount * 3, 15);
     if (stepCount > 0) {
@@ -401,72 +522,252 @@ export class MissionPlannerService {
 
     switch (team) {
       case TeamType.BROWSER:
-        tasks.push(this.createTask('research', 'Recherche et collecte d\'informations', PhaseType.BROWSER, team, TaskPriority.HIGH));
+        tasks.push(
+          this.createTask(
+            'research',
+            "Recherche et collecte d'informations",
+            PhaseType.BROWSER,
+            team,
+            TaskPriority.HIGH,
+          ),
+        );
         if (lower.includes('scrape') || lower.includes('extract') || lower.includes('extraire')) {
-          tasks.push(this.createTask('scrape', 'Extraction de données web', PhaseType.BROWSER, team, TaskPriority.HIGH));
+          tasks.push(
+            this.createTask(
+              'scrape',
+              'Extraction de données web',
+              PhaseType.BROWSER,
+              team,
+              TaskPriority.HIGH,
+            ),
+          );
         }
         if (lower.includes('monitor') || lower.includes('surveiller')) {
-          tasks.push(this.createTask('monitor', 'Mise en place du monitoring', PhaseType.BROWSER, team, TaskPriority.MEDIUM));
+          tasks.push(
+            this.createTask(
+              'monitor',
+              'Mise en place du monitoring',
+              PhaseType.BROWSER,
+              team,
+              TaskPriority.MEDIUM,
+            ),
+          );
         }
         if (lower.includes('compare') || lower.includes('comparer')) {
-          tasks.push(this.createTask('compare', 'Analyse comparative', PhaseType.BROWSER, team, TaskPriority.MEDIUM));
+          tasks.push(
+            this.createTask(
+              'compare',
+              'Analyse comparative',
+              PhaseType.BROWSER,
+              team,
+              TaskPriority.MEDIUM,
+            ),
+          );
         }
         break;
 
       case TeamType.DEVELOPMENT:
-        tasks.push(this.createTask('setup', 'Configuration de l\'environnement', PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
+        tasks.push(
+          this.createTask(
+            'setup',
+            "Configuration de l'environnement",
+            PhaseType.DEVELOPMENT,
+            team,
+            TaskPriority.HIGH,
+          ),
+        );
         if (lower.includes('api') || lower.includes('backend')) {
-          tasks.push(this.createTask('api', 'Développement API / Backend', PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
+          tasks.push(
+            this.createTask(
+              'api',
+              'Développement API / Backend',
+              PhaseType.DEVELOPMENT,
+              team,
+              TaskPriority.HIGH,
+            ),
+          );
         }
         if (lower.includes('frontend') || lower.includes('ui') || lower.includes('interface')) {
-          tasks.push(this.createTask('frontend', 'Développement Frontend / UI', PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
+          tasks.push(
+            this.createTask(
+              'frontend',
+              'Développement Frontend / UI',
+              PhaseType.DEVELOPMENT,
+              team,
+              TaskPriority.HIGH,
+            ),
+          );
         }
         if (lower.includes('database') || lower.includes('base de données')) {
-          tasks.push(this.createTask('database', 'Conception et mise en place base de données', PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
+          tasks.push(
+            this.createTask(
+              'database',
+              'Conception et mise en place base de données',
+              PhaseType.DEVELOPMENT,
+              team,
+              TaskPriority.HIGH,
+            ),
+          );
         }
         if (lower.includes('test') || lower.includes('tester')) {
-          tasks.push(this.createTask('testing', 'Écriture et exécution des tests', PhaseType.DEVELOPMENT, team, TaskPriority.MEDIUM));
+          tasks.push(
+            this.createTask(
+              'testing',
+              'Écriture et exécution des tests',
+              PhaseType.DEVELOPMENT,
+              team,
+              TaskPriority.MEDIUM,
+            ),
+          );
         }
         if (lower.includes('deploy') || lower.includes('déployer')) {
-          tasks.push(this.createTask('deploy', 'Déploiement et configuration CI/CD', PhaseType.DEVELOPMENT, team, TaskPriority.MEDIUM));
+          tasks.push(
+            this.createTask(
+              'deploy',
+              'Déploiement et configuration CI/CD',
+              PhaseType.DEVELOPMENT,
+              team,
+              TaskPriority.MEDIUM,
+            ),
+          );
         }
         // Default: at least one implementation task
         if (tasks.length === 1) {
-          tasks.push(this.createTask('implement', 'Implémentation de la solution', PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
+          tasks.push(
+            this.createTask(
+              'implement',
+              'Implémentation de la solution',
+              PhaseType.DEVELOPMENT,
+              team,
+              TaskPriority.HIGH,
+            ),
+          );
         }
         break;
 
       case TeamType.BUSINESS:
         if (lower.includes('seo') || lower.includes('référencement')) {
-          tasks.push(this.createTask('seo', 'Audit et optimisation SEO', PhaseType.BUSINESS, team, TaskPriority.HIGH));
+          tasks.push(
+            this.createTask(
+              'seo',
+              'Audit et optimisation SEO',
+              PhaseType.BUSINESS,
+              team,
+              TaskPriority.HIGH,
+            ),
+          );
         }
-        if (lower.includes('marketing') || lower.includes('campagne') || lower.includes('campaign')) {
-          tasks.push(this.createTask('marketing', 'Élaboration de la stratégie marketing', PhaseType.BUSINESS, team, TaskPriority.HIGH));
+        if (
+          lower.includes('marketing') ||
+          lower.includes('campagne') ||
+          lower.includes('campaign')
+        ) {
+          tasks.push(
+            this.createTask(
+              'marketing',
+              'Élaboration de la stratégie marketing',
+              PhaseType.BUSINESS,
+              team,
+              TaskPriority.HIGH,
+            ),
+          );
         }
         if (lower.includes('rapport') || lower.includes('report')) {
-          tasks.push(this.createTask('report', 'Rédaction du rapport / livrable', PhaseType.BUSINESS, team, TaskPriority.MEDIUM));
+          tasks.push(
+            this.createTask(
+              'report',
+              'Rédaction du rapport / livrable',
+              PhaseType.BUSINESS,
+              team,
+              TaskPriority.MEDIUM,
+            ),
+          );
         }
         if (lower.includes('analytics') || lower.includes('analytics')) {
-          tasks.push(this.createTask('analytics', 'Configuration et analyse des métriques', PhaseType.BUSINESS, team, TaskPriority.MEDIUM));
+          tasks.push(
+            this.createTask(
+              'analytics',
+              'Configuration et analyse des métriques',
+              PhaseType.BUSINESS,
+              team,
+              TaskPriority.MEDIUM,
+            ),
+          );
         }
         if (tasks.length === 0) {
-          tasks.push(this.createTask('strategy', 'Analyse stratégique et recommandations', PhaseType.BUSINESS, team, TaskPriority.MEDIUM));
+          tasks.push(
+            this.createTask(
+              'strategy',
+              'Analyse stratégique et recommandations',
+              PhaseType.BUSINESS,
+              team,
+              TaskPriority.MEDIUM,
+            ),
+          );
         }
         break;
 
       case TeamType.MEMORY:
-        tasks.push(this.createTask('context', 'Chargement du contexte et historique', PhaseType.PLANNING, team, TaskPriority.HIGH));
-        tasks.push(this.createTask('store', 'Stockage des résultats intermédiaires', PhaseType.PLANNING, team, TaskPriority.MEDIUM));
+        tasks.push(
+          this.createTask(
+            'context',
+            'Chargement du contexte et historique',
+            PhaseType.PLANNING,
+            team,
+            TaskPriority.HIGH,
+          ),
+        );
+        tasks.push(
+          this.createTask(
+            'store',
+            'Stockage des résultats intermédiaires',
+            PhaseType.PLANNING,
+            team,
+            TaskPriority.MEDIUM,
+          ),
+        );
         break;
 
       case TeamType.CERTIFICATION:
-        tasks.push(this.createTask('validate', 'Validation et tests de conformité', PhaseType.CERTIFICATION, team, TaskPriority.HIGH));
-        tasks.push(this.createTask('quality', 'Contrôle qualité et revue finale', PhaseType.CERTIFICATION, team, TaskPriority.HIGH));
+        tasks.push(
+          this.createTask(
+            'validate',
+            'Validation et tests de conformité',
+            PhaseType.CERTIFICATION,
+            team,
+            TaskPriority.HIGH,
+          ),
+        );
+        tasks.push(
+          this.createTask(
+            'quality',
+            'Contrôle qualité et revue finale',
+            PhaseType.CERTIFICATION,
+            team,
+            TaskPriority.HIGH,
+          ),
+        );
         break;
 
       case TeamType.DELIVERY:
-        tasks.push(this.createTask('package', 'Packaging et préparation de la livraison', PhaseType.DELIVERY, team, TaskPriority.HIGH));
-        tasks.push(this.createTask('deliver', 'Livraison finale et documentation', PhaseType.DELIVERY, team, TaskPriority.HIGH));
+        tasks.push(
+          this.createTask(
+            'package',
+            'Packaging et préparation de la livraison',
+            PhaseType.DELIVERY,
+            team,
+            TaskPriority.HIGH,
+          ),
+        );
+        tasks.push(
+          this.createTask(
+            'deliver',
+            'Livraison finale et documentation',
+            PhaseType.DELIVERY,
+            team,
+            TaskPriority.HIGH,
+          ),
+        );
         break;
     }
 
@@ -484,10 +785,7 @@ export class MissionPlannerService {
    * Build a dependency map: taskId → array of task IDs it depends on.
    * Incorporates both intra-phase (sequential) and inter-phase dependencies.
    */
-  buildDependencyGraph(
-    phases: PlannedPhase[],
-    tasks: PlannedTask[],
-  ): Record<string, string[]> {
+  buildDependencyGraph(phases: PlannedPhase[], tasks: PlannedTask[]): Record<string, string[]> {
     const deps: Record<string, string[]> = {};
 
     // Start with intra-phase dependencies already set on tasks

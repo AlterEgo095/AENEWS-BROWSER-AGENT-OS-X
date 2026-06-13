@@ -1,0 +1,1025 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Version Control Agent
+     3→ * Handles Git operations, branch management, merge handling, and conflict resolution.
+     4→ * Provides a virtualized Git repository for simulated operations.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const VERSION_CONTROL_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'coding-version-control',
+    20→  name: 'VersionControl',
+    21→  cluster: AgentCluster.CODING,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Manage Git operations including commits, branching, merging, rebasing, conflict resolution, diffs, and log inspection. Provides a virtualized repository for safe operations.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'commit',
+    28→      description: 'Stage and commit changes with a message',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          message: { type: 'string', description: 'Commit message' },
+    33→          files: { type: 'array', items: { type: 'string' }, description: 'Files to stage' },
+    34→          author: { type: 'string', description: 'Commit author' },
+    35→          amend: { type: 'boolean', default: false },
+    36→        },
+    37→        required: ['message'],
+    38→      },
+    39→      outputSchema: {
+    40→        type: 'object',
+    41→        properties: {
+    42→          hash: { type: 'string' },
+    43→          message: { type: 'string' },
+    44→          files: { type: 'array', items: { type: 'string' } },
+    45→          branch: { type: 'string' },
+    46→        },
+    47→      },
+    48→    },
+    49→    {
+    50→      name: 'branch',
+    51→      description: 'Create, list, switch, or delete branches',
+    52→      inputSchema: {
+    53→        type: 'object',
+    54→        properties: {
+    55→          action: {
+    56→            type: 'string',
+    57→            enum: ['create', 'list', 'switch', 'delete'],
+    58→            description: 'Branch action',
+    59→          },
+    60→          name: { type: 'string', description: 'Branch name (for create/switch/delete)' },
+    61→          startPoint: { type: 'string', description: 'Starting point for new branch' },
+    62→          force: { type: 'boolean', default: false },
+    63→        },
+    64→        required: ['action'],
+    65→      },
+    66→      outputSchema: {
+    67→        type: 'object',
+    68→        properties: {
+    69→          branches: { type: 'array', items: { type: 'object' } },
+    70→          currentBranch: { type: 'string' },
+    71→          action: { type: 'string' },
+    72→          success: { type: 'boolean' },
+    73→        },
+    74→      },
+    75→    },
+    76→    {
+    77→      name: 'merge',
+    78→      description: 'Merge a branch into the current branch',
+    79→      inputSchema: {
+    80→        type: 'object',
+    81→        properties: {
+    82→          sourceBranch: { type: 'string', description: 'Branch to merge from' },
+    83→          strategy: { type: 'string', enum: ['merge', 'squash', 'fast-forward'], default: 'merge' },
+    84→          message: { type: 'string', description: 'Merge commit message' },
+    85→        },
+    86→        required: ['sourceBranch'],
+    87→      },
+    88→      outputSchema: {
+    89→        type: 'object',
+    90→        properties: {
+    91→          merged: { type: 'boolean' },
+    92→          strategy: { type: 'string' },
+    93→          hash: { type: 'string' },
+    94→          conflicts: { type: 'array', items: { type: 'object' } },
+    95→        },
+    96→      },
+    97→    },
+    98→    {
+    99→      name: 'rebase',
+   100→      description: 'Rebase the current branch onto another branch',
+   101→      inputSchema: {
+   102→        type: 'object',
+   103→        properties: {
+   104→          onto: { type: 'string', description: 'Branch to rebase onto' },
+   105→          interactive: { type: 'boolean', default: false },
+   106→          continueAfterConflict: { type: 'boolean', default: false },
+   107→        },
+   108→        required: ['onto'],
+   109→      },
+   110→      outputSchema: {
+   111→        type: 'object',
+   112→        properties: {
+   113→          rebased: { type: 'boolean' },
+   114→          onto: { type: 'string' },
+   115→          commitsRebased: { type: 'number' },
+   116→          conflicts: { type: 'array', items: { type: 'object' } },
+   117→        },
+   118→      },
+   119→    },
+   120→    {
+   121→      name: 'resolveConflict',
+   122→      description: 'Resolve a merge or rebase conflict',
+   123→      inputSchema: {
+   124→        type: 'object',
+   125→        properties: {
+   126→          file: { type: 'string', description: 'File with conflict' },
+   127→          resolution: {
+   128→            type: 'string',
+   129→            enum: ['ours', 'theirs', 'manual'],
+   130→            description: 'Resolution strategy',
+   131→          },
+   132→          manualContent: { type: 'string', description: 'Manual resolution content' },
+   133→          conflictMarkers: { type: 'object', description: 'Parsed conflict markers' },
+   134→        },
+   135→        required: ['file', 'resolution'],
+   136→      },
+   137→      outputSchema: {
+   138→        type: 'object',
+   139→        properties: {
+   140→          resolved: { type: 'boolean' },
+   141→          file: { type: 'string' },
+   142→          resolution: { type: 'string' },
+   143→          content: { type: 'string' },
+   144→        },
+   145→      },
+   146→    },
+   147→    {
+   148→      name: 'getDiff',
+   149→      description: 'Get the diff between commits, branches, or the working tree',
+   150→      inputSchema: {
+   151→        type: 'object',
+   152→        properties: {
+   153→          from: { type: 'string', description: 'Source ref (commit, branch, tag)' },
+   154→          to: { type: 'string', description: 'Target ref (commit, branch, tag)' },
+   155→          paths: { type: 'array', items: { type: 'string' }, description: 'File paths to diff' },
+   156→          contextLines: { type: 'number', default: 3 },
+   157→        },
+   158→      },
+   159→      outputSchema: {
+   160→        type: 'object',
+   161→        properties: {
+   162→          diff: { type: 'string' },
+   163→          filesChanged: { type: 'number' },
+   164→          additions: { type: 'number' },
+   165→          deletions: { type: 'number' },
+   166→        },
+   167→      },
+   168→    },
+   169→    {
+   170→      name: 'getLog',
+   171→      description: 'Get commit history log',
+   172→      inputSchema: {
+   173→        type: 'object',
+   174→        properties: {
+   175→          maxCount: { type: 'number', default: 20 },
+   176→          branch: { type: 'string', description: 'Branch to show log for' },
+   177→          author: { type: 'string', description: 'Filter by author' },
+   178→          since: { type: 'string', description: 'Filter commits since date' },
+   179→          until: { type: 'string', description: 'Filter commits until date' },
+   180→          path: { type: 'string', description: 'Filter by file path' },
+   181→        },
+   182→      },
+   183→      outputSchema: {
+   184→        type: 'object',
+   185→        properties: {
+   186→          commits: { type: 'array', items: { type: 'object' } },
+   187→          totalCommits: { type: 'number' },
+   188→          branch: { type: 'string' },
+   189→        },
+   190→      },
+   191→    },
+   192→  ],
+   193→  permissions: [
+   194→    'execute:task',
+   195→    'read:repository',
+   196→    'write:repository',
+   197→    'execute:git',
+   198→    'read:branches',
+   199→  ],
+   200→  maxConcurrentTasks: 4,
+   201→  timeout: 60000,
+   202→  retryPolicy: {
+   203→    maxRetries: 2,
+   204→    backoffMs: 1500,
+   205→    exponentialBackoff: true,
+   206→  },
+   207→};
+   208→
+   209→// ─── Internal Types ───────────────────────────────────────────────
+   210→
+   211→interface VirtualCommit {
+   212→  hash: string;
+   213→  message: string;
+   214→  author: string;
+   215→  date: Date;
+   216→  parentHashes: string[];
+   217→  branch: string;
+   218→  files: string[];
+   219→}
+   220→
+   221→interface VirtualBranch {
+   222→  name: string;
+   223→  headHash: string;
+   224→  isCurrent: boolean;
+   225→  created: Date;
+   226→}
+   227→
+   228→interface MergeConflict {
+   229→  file: string;
+   230→  oursContent: string;
+   231→  theirsContent: string;
+   232→  baseContent: string;
+   233→  conflictMarkers: string[];
+   234→}
+   235→
+   236→// ─── Agent Service ────────────────────────────────────────────────
+   237→
+   238→@Injectable()
+   239→export class VersionControlAgentService extends BaseAgentService {
+   240→  private commits: Map<string, VirtualCommit> = new Map();
+   241→  private branches: Map<string, VirtualBranch> = new Map();
+   242→  private currentBranch: string = 'main';
+   243→  private stagingArea: Set<string> = new Set();
+   244→  private workingTree: Map<string, string> = new Map();
+   245→  private headHash: string = '';
+   246→
+   247→  protected defineConfig(): AgentConfig {
+   248→    return VERSION_CONTROL_AGENT_CONFIG;
+   249→  }
+   250→
+   251→  protected async onInitialize(): Promise<void> {
+   252→    // Initialize virtual repository
+   253→    this.initializeVirtualRepo();
+   254→
+   255→    // Register tools
+   256→    this.registerTool({
+   257→      name: 'commit',
+   258→      description: 'Stage and commit changes',
+   259→      execute: async (params: {
+   260→        message: string;
+   261→        files?: string[];
+   262→        author?: string;
+   263→        amend?: boolean;
+   264→      }) => this.commit(params),
+   265→    });
+   266→
+   267→    this.registerTool({
+   268→      name: 'branch',
+   269→      description: 'Manage branches',
+   270→      execute: async (params: {
+   271→        action: 'create' | 'list' | 'switch' | 'delete';
+   272→        name?: string;
+   273→        startPoint?: string;
+   274→        force?: boolean;
+   275→      }) => this.branch(params),
+   276→    });
+   277→
+   278→    this.registerTool({
+   279→      name: 'merge',
+   280→      description: 'Merge a branch',
+   281→      execute: async (params: { sourceBranch: string; strategy?: string; message?: string }) =>
+   282→        this.merge(params),
+   283→    });
+   284→
+   285→    this.registerTool({
+   286→      name: 'rebase',
+   287→      description: 'Rebase current branch',
+   288→      execute: async (params: {
+   289→        onto: string;
+   290→        interactive?: boolean;
+   291→        continueAfterConflict?: boolean;
+   292→      }) => this.rebase(params),
+   293→    });
+   294→
+   295→    this.registerTool({
+   296→      name: 'resolveConflict',
+   297→      description: 'Resolve a merge/rebase conflict',
+   298→      execute: async (params: {
+   299→        file: string;
+   300→        resolution: 'ours' | 'theirs' | 'manual';
+   301→        manualContent?: string;
+   302→        conflictMarkers?: Record<string, string>;
+   303→      }) => this.resolveConflict(params),
+   304→    });
+   305→
+   306→    this.registerTool({
+   307→      name: 'getDiff',
+   308→      description: 'Get diff between refs',
+   309→      execute: async (params: {
+   310→        from?: string;
+   311→        to?: string;
+   312→        paths?: string[];
+   313→        contextLines?: number;
+   314→      }) => this.getDiff(params),
+   315→    });
+   316→
+   317→    this.registerTool({
+   318→      name: 'getLog',
+   319→      description: 'Get commit history',
+   320→      execute: async (params: {
+   321→        maxCount?: number;
+   322→        branch?: string;
+   323→        author?: string;
+   324→        since?: string;
+   325→        until?: string;
+   326→        path?: string;
+   327→      }) => this.getLog(params),
+   328→    });
+   329→
+   330→    await this.storeInWorkingMemory('vcs:initializedAt', new Date().toISOString(), 600000);
+   331→    this.logger.log('VersionControl agent initialized with 7 tools');
+   332→  }
+   333→
+   334→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   335→    const startTime = Date.now();
+   336→    const { action, ...params } = input.payload;
+   337→
+   338→    if (!action) {
+   339→      return this.createAgentOutput(
+   340→        input.taskId,
+   341→        false,
+   342→        null,
+   343→        'Missing required parameter: action',
+   344→        startTime,
+   345→      );
+   346→    }
+   347→
+   348→    const supportedActions = [
+   349→      'commit',
+   350→      'branch',
+   351→      'merge',
+   352→      'rebase',
+   353→      'resolveConflict',
+   354→      'getDiff',
+   355→      'getLog',
+   356→    ];
+   357→
+   358→    if (!supportedActions.includes(action)) {
+   359→      return this.createAgentOutput(
+   360→        input.taskId,
+   361→        false,
+   362→        null,
+   363→        `Unknown version control action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   364→        startTime,
+   365→      );
+   366→    }
+   367→
+   368→    try {
+   369→      const tool = this.getTool(action);
+   370→      if (!tool) {
+   371→        return this.createAgentOutput(
+   372→          input.taskId,
+   373→          false,
+   374→          null,
+   375→          `Tool not found: ${action}`,
+   376→          startTime,
+   377→        );
+   378→      }
+   379→
+   380→      const result = await tool.execute(params);
+   381→
+   382→      await this.storeInWorkingMemory(
+   383→        `vcs:last:${action}`,
+   384→        { params, result, timestamp: new Date() },
+   385→        300000,
+   386→      );
+   387→
+   388→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   389→    } catch (error) {
+   390→      const msg = (error as Error).message;
+   391→      this.logger.error(`VersionControl execution failed for ${action}: ${msg}`);
+   392→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   393→    }
+   394→  }
+   395→
+   396→  protected async onDestroy(): Promise<void> {
+   397→    this.commits.clear();
+   398→    this.branches.clear();
+   399→    this.stagingArea.clear();
+   400→    this.workingTree.clear();
+   401→    this.logger.log('VersionControl agent destroyed, virtual repository cleared');
+   402→  }
+   403→
+   404→  // ─── Virtual Repository Initialization ─────────────────────────
+   405→
+   406→  private initializeVirtualRepo(): void {
+   407→    // Create initial commit
+   408→    const initialHash = this.generateHash();
+   409→    const initialCommit: VirtualCommit = {
+   410→      hash: initialHash,
+   411→      message: 'Initial commit',
+   412→      author: 'system',
+   413→      date: new Date(),
+   414→      parentHashes: [],
+   415→      branch: 'main',
+   416→      files: ['README.md', '.gitignore'],
+   417→    };
+   418→
+   419→    this.commits.set(initialHash, initialCommit);
+   420→
+   421→    // Create main branch
+   422→    this.branches.set('main', {
+   423→      name: 'main',
+   424→      headHash: initialHash,
+   425→      isCurrent: true,
+   426→      created: new Date(),
+   427→    });
+   428→
+   429→    // Create develop branch
+   430→    const developHash = this.generateHash();
+   431→    const developCommit: VirtualCommit = {
+   432→      hash: developHash,
+   433→      message: 'Set up project structure',
+   434→      author: 'system',
+   435→      date: new Date(),
+   436→      parentHashes: [initialHash],
+   437→      branch: 'develop',
+   438→      files: ['package.json', 'tsconfig.json', 'src/index.ts'],
+   439→    };
+   440→    this.commits.set(developHash, developCommit);
+   441→    this.branches.set('develop', {
+   442→      name: 'develop',
+   443→      headHash: developHash,
+   444→      isCurrent: false,
+   445→      created: new Date(),
+   446→    });
+   447→
+   448→    this.headHash = initialHash;
+   449→
+   450→    // Add some working tree files
+   451→    this.workingTree.set('README.md', '# Project\n\nA new project.');
+   452→    this.workingTree.set('.gitignore', 'node_modules/\ndist/\n.env');
+   453→    this.workingTree.set('package.json', '{"name": "project", "version": "1.0.0"}');
+   454→  }
+   455→
+   456→  // ─── Tool Implementations ──────────────────────────────────────
+   457→
+   458→  private async commit(params: {
+   459→    message: string;
+   460→    files?: string[];
+   461→    author?: string;
+   462→    amend?: boolean;
+   463→  }): Promise<{
+   464→    hash: string;
+   465→    message: string;
+   466→    files: string[];
+   467→    branch: string;
+   468→    author: string;
+   469→  }> {
+   470→    const { message, files = [], author = 'developer', amend = false } = params;
+   471→
+   472→    if (!message || typeof message !== 'string') {
+   473→      throw new Error('Commit message is required');
+   474→    }
+   475→
+   476→    if (message.length > 500) {
+   477→      throw new Error('Commit message is too long (max 500 characters)');
+   478→    }
+   479→
+   480→    let parentHashes: string[];
+   481→
+   482→    if (amend) {
+   483→      // Amend the last commit
+   484→      const currentBranch = this.branches.get(this.currentBranch);
+   485→      if (!currentBranch) {
+   486→        throw new Error('No current branch found');
+   487→      }
+   488→      const lastCommit = this.commits.get(currentBranch.headHash);
+   489→      if (!lastCommit) {
+   490→        throw new Error('No commit to amend');
+   491→      }
+   492→      parentHashes = lastCommit.parentHashes;
+   493→      this.commits.delete(currentBranch.headHash);
+   494→    } else {
+   495→      const currentBranch = this.branches.get(this.currentBranch);
+   496→      parentHashes = currentBranch ? [currentBranch.headHash] : [];
+   497→    }
+   498→
+   499→    const hash = this.generateHash();
+   500→    const stagedFiles = files.length > 0 ? files : Array.from(this.stagingArea);
+   501→
+   502→    if (stagedFiles.length === 0 && !amend) {
+   503→      throw new Error('No files staged for commit. Stage files before committing.');
+   504→    }
+   505→
+   506→    const commit: VirtualCommit = {
+   507→      hash,
+   508→      message,
+   509→      author,
+   510→      date: new Date(),
+   511→      parentHashes,
+   512→      branch: this.currentBranch,
+   513→      files: stagedFiles,
+   514→    };
+   515→
+   516→    this.commits.set(hash, commit);
+   517→
+   518→    // Update branch head
+   519→    const branch = this.branches.get(this.currentBranch);
+   520→    if (branch) {
+   521→      branch.headHash = hash;
+   522→    }
+   523→    this.headHash = hash;
+   524→
+   525→    // Clear staging area
+   526→    this.stagingArea.clear();
+   527→
+   528→    this.logger.log(`Commit: ${hash.substring(0, 8)} "${message}" on ${this.currentBranch}`);
+   529→
+   530→    return {
+   531→      hash,
+   532→      message,
+   533→      files: stagedFiles,
+   534→      branch: this.currentBranch,
+   535→      author,
+   536→    };
+   537→  }
+   538→
+   539→  private async branch(params: {
+   540→    action: 'create' | 'list' | 'switch' | 'delete';
+   541→    name?: string;
+   542→    startPoint?: string;
+   543→    force?: boolean;
+   544→  }): Promise<{
+   545→    branches: Array<{ name: string; isCurrent: boolean; headHash: string }>;
+   546→    currentBranch: string;
+   547→    action: string;
+   548→    success: boolean;
+   549→    message?: string;
+   550→  }> {
+   551→    const { action, name, startPoint, force = false } = params;
+   552→
+   553→    switch (action) {
+   554→      case 'create': {
+   555→        if (!name) throw new Error('Branch name is required for create action');
+   556→        if (this.branches.has(name) && !force) {
+   557→          throw new Error(`Branch "${name}" already exists. Use force: true to overwrite.`);
+   558→        }
+   559→
+   560→        const headHash = startPoint
+   561→          ? this.branches.get(startPoint)?.headHash ||
+   562→            this.commits.get(startPoint)?.hash ||
+   563→            this.headHash
+   564→          : this.headHash;
+   565→
+   566→        this.branches.set(name, {
+   567→          name,
+   568→          headHash,
+   569→          isCurrent: false,
+   570→          created: new Date(),
+   571→        });
+   572→
+   573→        this.logger.log(`Branch created: ${name} at ${headHash.substring(0, 8)}`);
+   574→
+   575→        return {
+   576→          branches: this.getBranchList(),
+   577→          currentBranch: this.currentBranch,
+   578→          action: 'create',
+   579→          success: true,
+   580→          message: `Branch "${name}" created at ${headHash.substring(0, 8)}`,
+   581→        };
+   582→      }
+   583→
+   584→      case 'list': {
+   585→        return {
+   586→          branches: this.getBranchList(),
+   587→          currentBranch: this.currentBranch,
+   588→          action: 'list',
+   589→          success: true,
+   590→        };
+   591→      }
+   592→
+   593→      case 'switch': {
+   594→        if (!name) throw new Error('Branch name is required for switch action');
+   595→        if (!this.branches.has(name)) {
+   596→          throw new Error(`Branch "${name}" not found`);
+   597→        }
+   598→
+   599→        // Unmark current branch
+   600→        const currentBranch = this.branches.get(this.currentBranch);
+   601→        if (currentBranch) currentBranch.isCurrent = false;
+   602→
+   603→        // Switch to new branch
+   604→        this.currentBranch = name;
+   605→        const newBranch = this.branches.get(name)!;
+   606→        newBranch.isCurrent = true;
+   607→        this.headHash = newBranch.headHash;
+   608→
+   609→        this.logger.log(`Switched to branch: ${name}`);
+   610→
+   611→        return {
+   612→          branches: this.getBranchList(),
+   613→          currentBranch: this.currentBranch,
+   614→          action: 'switch',
+   615→          success: true,
+   616→          message: `Switched to branch "${name}"`,
+   617→        };
+   618→      }
+   619→
+   620→      case 'delete': {
+   621→        if (!name) throw new Error('Branch name is required for delete action');
+   622→        if (name === this.currentBranch) {
+   623→          throw new Error('Cannot delete the current branch. Switch to another branch first.');
+   624→        }
+   625→        if (!this.branches.has(name)) {
+   626→          throw new Error(`Branch "${name}" not found`);
+   627→        }
+   628→
+   629→        this.branches.delete(name);
+   630→
+   631→        this.logger.log(`Branch deleted: ${name}`);
+   632→
+   633→        return {
+   634→          branches: this.getBranchList(),
+   635→          currentBranch: this.currentBranch,
+   636→          action: 'delete',
+   637→          success: true,
+   638→          message: `Branch "${name}" deleted`,
+   639→        };
+   640→      }
+   641→
+   642→      default:
+   643→        throw new Error(`Unknown branch action: ${action}. Use create, list, switch, or delete.`);
+   644→    }
+   645→  }
+   646→
+   647→  private async merge(params: {
+   648→    sourceBranch: string;
+   649→    strategy?: string;
+   650→    message?: string;
+   651→  }): Promise<{
+   652→    merged: boolean;
+   653→    strategy: string;
+   654→    hash: string;
+   655→    conflicts: MergeConflict[];
+   656→    message: string;
+   657→  }> {
+   658→    const { sourceBranch, strategy = 'merge', message } = params;
+   659→
+   660→    if (!sourceBranch || typeof sourceBranch !== 'string') {
+   661→      throw new Error('Source branch name is required');
+   662→    }
+   663→
+   664→    const source = this.branches.get(sourceBranch);
+   665→    if (!source) {
+   666→      throw new Error(`Source branch "${sourceBranch}" not found`);
+   667→    }
+   668→
+   669→    const target = this.branches.get(this.currentBranch);
+   670→    if (!target) {
+   671→      throw new Error('Current branch not found');
+   672→    }
+   673→
+   674→    // Check if fast-forward is possible
+   675→    const sourceCommit = this.commits.get(source.headHash);
+   676→    const targetCommit = this.commits.get(target.headHash);
+   677→
+   678→    if (strategy === 'fast-forward') {
+   679→      if (targetCommit && sourceCommit && sourceCommit.parentHashes.includes(target.headHash)) {
+   680→        target.headHash = source.headHash;
+   681→        this.headHash = source.headHash;
+   682→
+   683→        this.logger.log(`Fast-forward merge: ${sourceBranch} -> ${this.currentBranch}`);
+   684→
+   685→        return {
+   686→          merged: true,
+   687→          strategy: 'fast-forward',
+   688→          hash: source.headHash,
+   689→          conflicts: [],
+   690→          message: `Fast-forward merge from ${sourceBranch}`,
+   691→        };
+   692→      } else {
+   693→        throw new Error('Fast-forward merge not possible: branches have diverged');
+   694→      }
+   695→    }
+   696→
+   697→    // Simulate merge conflicts (random, based on branch divergence)
+   698→    const conflicts: MergeConflict[] = [];
+   699→    const hasConflicts = Math.random() < 0.3;
+   700→
+   701→    if (hasConflicts) {
+   702→      const conflictFiles = ['src/index.ts', 'package.json', 'config/default.json'];
+   703→      const numConflicts = 1 + Math.floor(Math.random() * 2);
+   704→
+   705→      for (let i = 0; i < numConflicts; i++) {
+   706→        const file = conflictFiles[i % conflictFiles.length];
+   707→        conflicts.push({
+   708→          file,
+   709→          oursContent: `// ${this.currentBranch} version of ${file}`,
+   710→          theirsContent: `// ${sourceBranch} version of ${file}`,
+   711→          baseContent: `// common ancestor version of ${file}`,
+   712→          conflictMarkers: [`<<<<<<< HEAD`, `=======`, `>>>>>>> ${sourceBranch}`],
+   713→        });
+   714→      }
+   715→    }
+   716→
+   717→    if (conflicts.length > 0) {
+   718→      this.logger.log(
+   719→        `Merge has ${conflicts.length} conflict(s): ${sourceBranch} -> ${this.currentBranch}`,
+   720→      );
+   721→
+   722→      return {
+   723→        merged: false,
+   724→        strategy,
+   725→        hash: '',
+   726→        conflicts,
+   727→        message: `Merge from ${sourceBranch} has ${conflicts.length} conflict(s) that need resolution`,
+   728→      };
+   729→    }
+   730→
+   731→    // Create merge commit
+   732→    const mergeHash = this.generateHash();
+   733→    const mergeMessage = message || `Merge branch '${sourceBranch}' into ${this.currentBranch}`;
+   734→    const squashFiles = strategy === 'squash' ? ['squashed-changes'] : sourceCommit?.files || [];
+   735→
+   736→    const mergeCommit: VirtualCommit = {
+   737→      hash: mergeHash,
+   738→      message: mergeMessage,
+   739→      author: 'developer',
+   740→      date: new Date(),
+   741→      parentHashes: [target.headHash, source.headHash],
+   742→      branch: this.currentBranch,
+   743→      files: squashFiles,
+   744→    };
+   745→
+   746→    this.commits.set(mergeHash, mergeCommit);
+   747→    target.headHash = mergeHash;
+   748→    this.headHash = mergeHash;
+   749→
+   750→    this.logger.log(
+   751→      `Merge: ${sourceBranch} -> ${this.currentBranch} (${strategy}), hash=${mergeHash.substring(0, 8)}`,
+   752→    );
+   753→
+   754→    return {
+   755→      merged: true,
+   756→      strategy,
+   757→      hash: mergeHash,
+   758→      conflicts: [],
+   759→      message: `Successfully merged ${sourceBranch} into ${this.currentBranch}`,
+   760→    };
+   761→  }
+   762→
+   763→  private async rebase(params: {
+   764→    onto: string;
+   765→    interactive?: boolean;
+   766→    continueAfterConflict?: boolean;
+   767→  }): Promise<{
+   768→    rebased: boolean;
+   769→    onto: string;
+   770→    commitsRebased: number;
+   771→    conflicts: MergeConflict[];
+   772→    message: string;
+   773→  }> {
+   774→    const { onto, interactive = false, continueAfterConflict = false } = params;
+   775→
+   776→    if (!onto || typeof onto !== 'string') {
+   777→      throw new Error('Target branch (onto) is required for rebase');
+   778→    }
+   779→
+   780→    const targetBranch = this.branches.get(onto);
+   781→    if (!targetBranch) {
+   782→      throw new Error(`Target branch "${onto}" not found`);
+   783→    }
+   784→
+   785→    // Count commits to rebase
+   786→    let commitsToRebase = 0;
+   787→    const currentBranch = this.branches.get(this.currentBranch);
+   788→    if (currentBranch) {
+   789→      let hash = currentBranch.headHash;
+   790→      while (hash) {
+   791→        const commit = this.commits.get(hash);
+   792→        if (!commit || commit.branch !== this.currentBranch) break;
+   793→        commitsToRebase++;
+   794→        hash = commit.parentHashes[0] || '';
+   795→      }
+   796→    }
+   797→
+   798→    // Simulate conflicts
+   799→    const conflicts: MergeConflict[] = [];
+   800→    const hasConflicts = Math.random() < 0.25 && !continueAfterConflict;
+   801→
+   802→    if (hasConflicts) {
+   803→      conflicts.push({
+   804→        file: 'src/index.ts',
+   805→        oursContent: '// current branch changes',
+   806→        theirsContent: `// ${onto} branch changes`,
+   807→        baseContent: '// common ancestor',
+   808→        conflictMarkers: [`<<<<<<< HEAD`, `=======`, `>>>>>>> ${onto}`],
+   809→      });
+   810→    }
+   811→
+   812→    if (conflicts.length > 0) {
+   813→      return {
+   814→        rebased: false,
+   815→        onto,
+   816→        commitsRebased: 0,
+   817→        conflicts,
+   818→        message: `Rebase paused: ${conflicts.length} conflict(s) need resolution. Use resolveConflict then continueAfterConflict: true.`,
+   819→      };
+   820→    }
+   821→
+   822→    // Create new rebased commits
+   823→    const newHash = this.generateHash();
+   824→    const rebaseCommit: VirtualCommit = {
+   825→      hash: newHash,
+   826→      message: `Rebase ${this.currentBranch} onto ${onto}`,
+   827→      author: 'developer',
+   828→      date: new Date(),
+   829→      parentHashes: [targetBranch.headHash],
+   830→      branch: this.currentBranch,
+   831→      files: [],
+   832→    };
+   833→    this.commits.set(newHash, rebaseCommit);
+   834→
+   835→    if (currentBranch) {
+   836→      currentBranch.headHash = newHash;
+   837→    }
+   838→    this.headHash = newHash;
+   839→
+   840→    this.logger.log(
+   841→      `Rebase: ${this.currentBranch} onto ${onto}, ${commitsToRebase} commit(s) rebased`,
+   842→    );
+   843→
+   844→    return {
+   845→      rebased: true,
+   846→      onto,
+   847→      commitsRebased: commitsToRebase,
+   848→      conflicts: [],
+   849→      message: `Successfully rebased ${this.currentBranch} onto ${onto} (${commitsToRebase} commits)`,
+   850→    };
+   851→  }
+   852→
+   853→  private async resolveConflict(params: {
+   854→    file: string;
+   855→    resolution: 'ours' | 'theirs' | 'manual';
+   856→    manualContent?: string;
+   857→    conflictMarkers?: Record<string, string>;
+   858→  }): Promise<{
+   859→    resolved: boolean;
+   860→    file: string;
+   861→    resolution: string;
+   862→    content: string;
+   863→  }> {
+   864→    const { file, resolution, manualContent, conflictMarkers } = params;
+   865→
+   866→    if (!file || typeof file !== 'string') {
+   867→      throw new Error('File path is required for conflict resolution');
+   868→    }
+   869→
+   870→    const validResolutions = ['ours', 'theirs', 'manual'];
+   871→    if (!validResolutions.includes(resolution)) {
+   872→      throw new Error(`Invalid resolution: ${resolution}. Use ours, theirs, or manual.`);
+   873→    }
+   874→
+   875→    if (resolution === 'manual' && !manualContent) {
+   876→      throw new Error('Manual resolution requires manualContent parameter');
+   877→    }
+   878→
+   879→    let content: string;
+   880→
+   881→    switch (resolution) {
+   882→      case 'ours':
+   883→        content = conflictMarkers?.ours || `// Resolved: keeping our version of ${file}`;
+   884→        break;
+   885→      case 'theirs':
+   886→        content = conflictMarkers?.theirs || `// Resolved: keeping their version of ${file}`;
+   887→        break;
+   888→      case 'manual':
+   889→        content = manualContent!;
+   890→        break;
+   891→    }
+   892→
+   893→    // Update working tree
+   894→    this.workingTree.set(file, content);
+   895→    this.stagingArea.add(file);
+   896→
+   897→    this.logger.log(`Conflict resolved: ${file} using ${resolution} strategy`);
+   898→
+   899→    return { resolved: true, file, resolution, content };
+   900→  }
+   901→
+   902→  private async getDiff(params: {
+   903→    from?: string;
+   904→    to?: string;
+   905→    paths?: string[];
+   906→    contextLines?: number;
+   907→  }): Promise<{
+   908→    diff: string;
+   909→    filesChanged: number;
+   910→    additions: number;
+   911→    deletions: number;
+   912→  }> {
+   913→    const { from, to, paths = [], contextLines = 3 } = params;
+   914→
+   915→    const fromRef = from || 'HEAD~1';
+   916→    const toRef = to || 'HEAD';
+   917→
+   918→    // Generate simulated diff
+   919→    let diff = `diff --git a/src/index.ts b/src/index.ts\n`;
+   920→    diff += `index abc1234..def5678 100644\n`;
+   921→    diff += `--- a/src/index.ts\n`;
+   922→    diff += `+++ b/src/index.ts\n`;
+   923→    diff += `@@ -1,${contextLines + 2} +1,${contextLines + 3} @@\n`;
+   924→
+   925→    const lines = [
+   926→      ` import { Module } from '@nestjs/common';`,
+   927→      `+import { Controller } from '@nestjs/common';`,
+   928→      ` `,
+   929→      ` @Module({`,
+   930→      `-  imports: [],`,
+   931→      `+  imports: [CoreModule],`,
+   932→      `+  controllers: [AppController],`,
+   933→      `   providers: [],`,
+   934→      ` })`,
+   935→    ];
+   936→
+   937→    diff += lines.join('\n') + '\n';
+   938→
+   939→    if (paths.length > 0) {
+   940→      diff += `\n// Filtered by paths: ${paths.join(', ')}\n`;
+   941→    }
+   942→
+   943→    diff += `\n// Comparing ${fromRef}..${toRef}\n`;
+   944→
+   945→    const additions = lines.filter((l) => l.startsWith('+')).length;
+   946→    const deletions = lines.filter((l) => l.startsWith('-')).length;
+   947→
+   948→    this.logger.log(`Diff: ${fromRef}..${toRef}, ${additions} additions, ${deletions} deletions`);
+   949→
+   950→    return {
+   951→      diff,
+   952→      filesChanged: 1,
+   953→      additions,
+   954→      deletions,
+   955→    };
+   956→  }
+   957→
+   958→  private async getLog(params: {
+   959→    maxCount?: number;
+   960→    branch?: string;
+   961→    author?: string;
+   962→    since?: string;
+   963→    until?: string;
+   964→    path?: string;
+   965→  }): Promise<{
+   966→    commits: Array<{
+   967→      hash: string;
+   968→      message: string;
+   969→      author: string;
+   970→      date: string;
+   971→      branch: string;
+   972→      files: string[];
+   973→    }>;
+   974→    totalCommits: number;
+   975→    branch: string;
+   976→  }> {
+   977→    const { maxCount = 20, branch, author, since, until, path } = params;
+   978→
+   979→    const targetBranch = branch || this.currentBranch;
+   980→
+   981→    // Collect commits for the branch
+   982→    const allCommits = Array.from(this.commits.values())
+   983→      .filter((c) => !branch || c.branch === branch)
+   984→      .filter((c) => !author || c.author === author)
+   985→      .sort((a, b) => b.date.getTime() - a.date.getTime())
+   986→      .slice(0, maxCount);
+   987→
+   988→    const commits = allCommits.map((c) => ({
+   989→      hash: c.hash,
+   990→      message: c.message,
+   991→      author: c.author,
+   992→      date: c.date.toISOString(),
+   993→      branch: c.branch,
+   994→      files: c.files,
+   995→    }));
+   996→
+   997→    this.logger.log(`Log: ${commits.length} commit(s) on ${targetBranch}`);
+   998→
+   999→    return {
+  1000→      commits,
+  1001→      totalCommits: this.commits.size,
+  1002→      branch: targetBranch,
+  1003→    };
+  1004→  }
+  1005→
+  1006→  // ─── Helper Methods ───────────────────────────────────────────
+  1007→
+  1008→  private generateHash(): string {
+  1009→    const chars = '0123456789abcdef';
+  1010→    let hash = '';
+  1011→    for (let i = 0; i < 40; i++) {
+  1012→      hash += chars[Math.floor(Math.random() * chars.length)];
+  1013→    }
+  1014→    return hash;
+  1015→  }
+  1016→
+  1017→  private getBranchList(): Array<{ name: string; isCurrent: boolean; headHash: string }> {
+  1018→    return Array.from(this.branches.values()).map((b) => ({
+  1019→      name: b.name,
+  1020→      isCurrent: b.isCurrent,
+  1021→      headHash: b.headHash,
+  1022→    }));
+  1023→  }
+  1024→}
+  1025→

@@ -1,17 +1,21 @@
 /**
  * AENEWS Software Factory — Worker Interface
- * 
+ *
  * Workers are ephemeral. They:
  * 1. Are created by the Worker Factory for a specific mission
  * 2. Receive injected capabilities from the Capability Registry
  * 3. Execute their assigned graph nodes
  * 4. Are destroyed after completion
- * 
+ *
  * A single Worker can hold multiple capabilities.
  * Example: Worker #1 receives [architecture, frontend] capabilities.
  */
 
-import { CapabilityId, CapabilityExecutionResult, CapabilityDefinition } from './capability.interface';
+import {
+  CapabilityId,
+  CapabilityExecutionResult,
+  CapabilityDefinition,
+} from './capability.interface';
 
 // ─── Worker Lifecycle ────────────────────────────────────────
 
@@ -41,7 +45,7 @@ export interface WorkerProfile {
   totalDurationMs: number;
   maxLifetimeMs: number;
   maxTasks: number;
-  assignedNodeIds: string[];  // which graph nodes this worker handles
+  assignedNodeIds: string[]; // which graph nodes this worker handles
   results: CapabilityExecutionResult[];
 }
 
@@ -49,8 +53,8 @@ export interface WorkerProfile {
 
 export interface WorkerSpawnRequest {
   missionId: string;
-  capabilities: CapabilityId[];     // capabilities to inject
-  assignedNodeIds: string[];        // graph nodes this worker will execute
+  capabilities: CapabilityId[]; // capabilities to inject
+  assignedNodeIds: string[]; // graph nodes this worker will execute
   maxLifetimeMs?: number;
   maxTasks?: number;
 }
@@ -118,11 +122,11 @@ export interface WorkerPoolStatistics {
 // ─── Worker Pool Constraints ─────────────────────────────────
 
 export interface WorkerPoolConstraints {
-  maxConcurrentWorkers: number;      // default: 25
-  maxWorkersPerCapability: number;   // default: 5
-  maxTotalCostUsd: number;           // default: 500
-  defaultLifetimeMs: number;         // default: 4h
-  defaultMaxTasksPerWorker: number;  // default: 50
+  maxConcurrentWorkers: number; // default: 25
+  maxWorkersPerCapability: number; // default: 5
+  maxTotalCostUsd: number; // default: 500
+  defaultLifetimeMs: number; // default: 4h
+  defaultMaxTasksPerWorker: number; // default: 50
 }
 
 export const DEFAULT_WORKER_CONSTRAINTS: WorkerPoolConstraints = {

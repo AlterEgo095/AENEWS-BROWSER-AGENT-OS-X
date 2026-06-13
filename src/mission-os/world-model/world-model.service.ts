@@ -486,9 +486,7 @@ export class WorldModelService {
    * Get all enforced constraints.
    */
   getActiveConstraints(): WorldConstraint[] {
-    return this.state.constraints
-      .filter((c) => c.enforced)
-      .map((c) => ({ ...c }));
+    return this.state.constraints.filter((c) => c.enforced).map((c) => ({ ...c }));
   }
 
   // ─── 16. evaluateConstraints ──────────────────────────────────────
@@ -511,7 +509,11 @@ export class WorldModelService {
       switch (constraint.type) {
         case 'budget': {
           const cost = action.cost ?? action.budget ?? action.price;
-          if (cost !== undefined && typeof constraint.value === 'number' && cost > constraint.value) {
+          if (
+            cost !== undefined &&
+            typeof constraint.value === 'number' &&
+            cost > constraint.value
+          ) {
             violations.push(
               `Budget constraint "${constraint.description}" exceeded: ${cost} > ${constraint.value}`,
             );
@@ -533,7 +535,9 @@ export class WorldModelService {
         }
         case 'resource': {
           const resourceName = action.resource ?? action.resourceName;
-          const blockedResources = Array.isArray(constraint.value) ? constraint.value : [constraint.value];
+          const blockedResources = Array.isArray(constraint.value)
+            ? constraint.value
+            : [constraint.value];
           if (
             resourceName !== undefined &&
             blockedResources.some(
@@ -555,7 +559,9 @@ export class WorldModelService {
           const forbiddenTypes = Array.isArray(constraint.value) ? constraint.value : [];
           if (
             actionType !== undefined &&
-            forbiddenTypes.some((t: any) => t === actionType || (typeof t === 'string' && t === actionType))
+            forbiddenTypes.some(
+              (t: any) => t === actionType || (typeof t === 'string' && t === actionType),
+            )
           ) {
             violations.push(
               `Policy constraint "${constraint.description}" violated: action type "${actionType}" is not allowed`,
@@ -568,7 +574,11 @@ export class WorldModelService {
           if (typeof constraint.value === 'object' && constraint.value !== null) {
             const cv = constraint.value as Record<string, any>;
             for (const [metric, limit] of Object.entries(cv)) {
-              if (action[metric] !== undefined && typeof limit === 'number' && action[metric] > limit) {
+              if (
+                action[metric] !== undefined &&
+                typeof limit === 'number' &&
+                action[metric] > limit
+              ) {
                 violations.push(
                   `Technical constraint "${constraint.description}" violated: ${metric}=${action[metric]} exceeds limit ${limit}`,
                 );
@@ -680,9 +690,7 @@ export class WorldModelService {
       try {
         callback(currentState, recentChanges);
       } catch (error) {
-        this.logger.error(
-          `Subscriber ${id} callback error: ${(error as Error).message}`,
-        );
+        this.logger.error(`Subscriber ${id} callback error: ${(error as Error).message}`);
       }
     }
   }

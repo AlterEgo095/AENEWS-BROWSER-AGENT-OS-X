@@ -127,11 +127,11 @@ const SKILL_LEVELS_ASC = [
 
 // ─── Scoring weights ─────────────────────────────────────────────────
 
-const WEIGHT_SKILL_LEVEL = 0.30;
+const WEIGHT_SKILL_LEVEL = 0.3;
 const WEIGHT_SUCCESS_RATE = 0.25;
-const WEIGHT_COST_EFFICIENCY = 0.20;
+const WEIGHT_COST_EFFICIENCY = 0.2;
 const WEIGHT_LATENCY_EFFICIENCY = 0.15;
-const WEIGHT_IMPROVEMENT_TREND = 0.10;
+const WEIGHT_IMPROVEMENT_TREND = 0.1;
 
 // ─── Service ─────────────────────────────────────────────────────────
 
@@ -182,11 +182,7 @@ export class SkillGraphService {
    * - Potentially upgrade / downgrade SkillLevel
    * - Store history entry (capped at maxHistoryPerSkill)
    */
-  updateSkill(
-    agentId: string,
-    skillName: string,
-    executionResult: ExecutionResult,
-  ): SkillEntry {
+  updateSkill(agentId: string, skillName: string, executionResult: ExecutionResult): SkillEntry {
     let profile = this.profiles.get(agentId);
     if (!profile) {
       profile = this.registerSkillProfile(agentId);
@@ -213,16 +209,14 @@ export class SkillGraphService {
       const alpha = this.smoothingFactor;
 
       // Exponential moving average for latency
-      skill.avgLatencyMs =
-        alpha * executionResult.latencyMs + (1 - alpha) * skill.avgLatencyMs;
+      skill.avgLatencyMs = alpha * executionResult.latencyMs + (1 - alpha) * skill.avgLatencyMs;
 
       // Exponential moving average for success rate
       const successBinary = executionResult.success ? 1 : 0;
       skill.successRate = alpha * successBinary + (1 - alpha) * skill.successRate;
 
       // Exponential moving average for cost
-      skill.costPerExecution =
-        alpha * executionResult.cost + (1 - alpha) * skill.costPerExecution;
+      skill.costPerExecution = alpha * executionResult.cost + (1 - alpha) * skill.costPerExecution;
 
       skill.executionCount = n + 1;
       skill.lastExecutedAt = new Date();
@@ -309,7 +303,10 @@ export class SkillGraphService {
       if (!skill) continue;
 
       // --- Hard filters ---
-      if (criteria.minLevel && SKILL_LEVEL_ORDER[skill.level] < SKILL_LEVEL_ORDER[criteria.minLevel]) {
+      if (
+        criteria.minLevel &&
+        SKILL_LEVEL_ORDER[skill.level] < SKILL_LEVEL_ORDER[criteria.minLevel]
+      ) {
         continue;
       }
       if (criteria.maxCost !== undefined && skill.costPerExecution > criteria.maxCost) {
@@ -400,10 +397,7 @@ export class SkillGraphService {
    * Compare agents side-by-side for a specific skill.
    * Returns each agent's skill entry (or null if they don't have it) keyed by agentId.
    */
-  compareAgents(
-    agentIds: string[],
-    skillName: string,
-  ): Record<string, SkillEntry | null> {
+  compareAgents(agentIds: string[], skillName: string): Record<string, SkillEntry | null> {
     const result: Record<string, SkillEntry | null> = {};
     for (const agentId of agentIds) {
       result[agentId] = this.getSkill(agentId, skillName);
@@ -478,13 +472,11 @@ export class SkillGraphService {
     const estimatedLatencyMs = recentAvgLatency * trendAdjustment;
 
     // --- Estimated cost ---
-    const recentAvgCost =
-      recentHistory.reduce((sum, h) => sum + h.cost, 0) / recentHistory.length;
+    const recentAvgCost = recentHistory.reduce((sum, h) => sum + h.cost, 0) / recentHistory.length;
 
     // --- Success probability ---
     // Base: recent success rate
-    const recentSuccessRate =
-      recentHistory.filter((h) => h.success).length / recentHistory.length;
+    const recentSuccessRate = recentHistory.filter((h) => h.success).length / recentHistory.length;
     // Adjust by improvement trend (positive → slightly higher probability)
     const successProbability = Math.min(
       1,
@@ -546,9 +538,7 @@ export class SkillGraphService {
         skill.executionCount > 5 &&
         (skill.level === SkillLevel.NOVICE || skill.level === SkillLevel.COMPETENT)
       ) {
-        reasons.push(
-          `Skill level "${skill.level}" despite ${skill.executionCount} executions`,
-        );
+        reasons.push(`Skill level "${skill.level}" despite ${skill.executionCount} executions`);
         if (priority === ('low' as const)) priority = 'medium';
       }
 
@@ -579,9 +569,19 @@ export class SkillGraphService {
    *
    * Returns the list of skills that were decayed.
    */
-  decayInactiveSkills(decayThresholdMs: number): Array<{ agentId: string; skillName: string; previousLevel: SkillLevel; newLevel: SkillLevel }> {
+  decayInactiveSkills(decayThresholdMs: number): Array<{
+    agentId: string;
+    skillName: string;
+    previousLevel: SkillLevel;
+    newLevel: SkillLevel;
+  }> {
     const now = Date.now();
-    const decayed: Array<{ agentId: string; skillName: string; previousLevel: SkillLevel; newLevel: SkillLevel }> = [];
+    const decayed: Array<{
+      agentId: string;
+      skillName: string;
+      previousLevel: SkillLevel;
+      newLevel: SkillLevel;
+    }> = [];
 
     const profileEntries = Array.from(this.profiles.entries());
     for (const [agentId, profile] of profileEntries) {
@@ -638,12 +638,15 @@ export class SkillGraphService {
     latestResult: ExecutionResult,
   ): number {
     // We need at least 2 data points for a meaningful trend
-    const allEntries = [...history, {
-      timestamp: new Date(),
-      success: latestResult.success,
-      latencyMs: latestResult.latencyMs,
-      cost: latestResult.cost,
-    }];
+    const allEntries = [
+      ...history,
+      {
+        timestamp: new Date(),
+        success: latestResult.success,
+        latencyMs: latestResult.latencyMs,
+        cost: latestResult.cost,
+      },
+    ];
 
     if (allEntries.length < 2) {
       return 0;
@@ -682,11 +685,15 @@ export class SkillGraphService {
     const currentIdx = SKILL_LEVEL_ORDER[currentLevel];
 
     // --- Check for upgrade ---
-    const upgradeThresholds: Array<{ requiredCount: number; requiredRate: number; targetLevel: SkillLevel }> = [
+    const upgradeThresholds: Array<{
+      requiredCount: number;
+      requiredRate: number;
+      targetLevel: SkillLevel;
+    }> = [
       { requiredCount: 100, requiredRate: 0.95, targetLevel: SkillLevel.MASTER },
       { requiredCount: 50, requiredRate: 0.85, targetLevel: SkillLevel.EXPERT },
       { requiredCount: 25, requiredRate: 0.75, targetLevel: SkillLevel.PROFICIENT },
-      { requiredCount: 10, requiredRate: 0.60, targetLevel: SkillLevel.COMPETENT },
+      { requiredCount: 10, requiredRate: 0.6, targetLevel: SkillLevel.COMPETENT },
     ];
 
     for (const threshold of upgradeThresholds) {
@@ -706,16 +713,13 @@ export class SkillGraphService {
     // Downgrade if success rate falls well below the threshold that justified the current level
     const downgradeThresholds: Array<{ minRate: number; floorLevel: SkillLevel }> = [
       { minRate: 0.55, floorLevel: SkillLevel.COMPETENT }, // below 55% → at most COMPETENT
-      { minRate: 0.70, floorLevel: SkillLevel.PROFICIENT }, // below 70% → at most PROFICIENT
-      { minRate: 0.80, floorLevel: SkillLevel.EXPERT }, // below 80% → at most EXPERT
-      { minRate: 0.90, floorLevel: SkillLevel.MASTER }, // below 90% → at most MASTER
+      { minRate: 0.7, floorLevel: SkillLevel.PROFICIENT }, // below 70% → at most PROFICIENT
+      { minRate: 0.8, floorLevel: SkillLevel.EXPERT }, // below 80% → at most EXPERT
+      { minRate: 0.9, floorLevel: SkillLevel.MASTER }, // below 90% → at most MASTER
     ];
 
     for (const threshold of downgradeThresholds) {
-      if (
-        successRate < threshold.minRate &&
-        currentIdx > SKILL_LEVEL_ORDER[threshold.floorLevel]
-      ) {
+      if (successRate < threshold.minRate && currentIdx > SKILL_LEVEL_ORDER[threshold.floorLevel]) {
         const downgraded = threshold.floorLevel;
         this.logger.log(
           `Skill "${skill.name}" downgraded: ${currentLevel} → ${downgraded} (successRate=${(successRate * 100).toFixed(1)}%)`,

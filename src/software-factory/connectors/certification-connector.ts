@@ -20,11 +20,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import {
-  CapabilityId,
-  CapabilityPack,
-  CertCapability,
-} from '../interfaces';
+import { CapabilityId, CapabilityPack, CertCapability } from '../interfaces';
 import {
   ICapabilityConnector,
   ConnectorInput,
@@ -109,12 +105,23 @@ export class CertificationConnector implements ICapabilityConnector {
   private async executeArchitectureReview(input: ConnectorInput): Promise<ConnectorOutput> {
     const srcFiles = this.collectSourceFiles(input.workspaceDir);
     const llmResult = await this.llm.call({
-      systemPrompt: 'You are a senior software architect reviewing code architecture. Score on: modularity, separation of concerns, scalability, maintainability. Be strict but fair.',
-      userPrompt: `Review the architecture of this project: "${input.instruction}"\n\nSource files:\n${srcFiles.slice(0, 8).map(f => `--- ${f.name} ---\n${f.content?.slice(0, 600) || ''}`).join('\n\n')}\n\nReply in JSON: {"score": 0-100, "passed": true/false, "findings": [...], "recommendations": [...]}`,
+      systemPrompt:
+        'You are a senior software architect reviewing code architecture. Score on: modularity, separation of concerns, scalability, maintainability. Be strict but fair.',
+      userPrompt: `Review the architecture of this project: "${input.instruction}"\n\nSource files:\n${srcFiles
+        .slice(0, 8)
+        .map((f) => `--- ${f.name} ---\n${f.content?.slice(0, 600) || ''}`)
+        .join(
+          '\n\n',
+        )}\n\nReply in JSON: {"score": 0-100, "passed": true/false, "findings": [...], "recommendations": [...]}`,
       maxTokens: 2048,
     });
 
-    const analysis = this.llm.parseJSON(llmResult.content) || { score: 70, passed: true, findings: [], recommendations: [] };
+    const analysis = this.llm.parseJSON(llmResult.content) || {
+      score: 70,
+      passed: true,
+      findings: [],
+      recommendations: [],
+    };
     return this.writeCertReport(input, 'architecture-review', analysis);
   }
 
@@ -128,7 +135,11 @@ export class CertificationConnector implements ICapabilityConnector {
       { pattern: /innerHTML\s*=/g, name: 'innerHTML assignment', severity: 'medium' },
       { pattern: /password\s*[:=]\s*['"]/gi, name: 'Hardcoded password', severity: 'critical' },
       { pattern: /api[_-]?key\s*[:=]\s*['"]/gi, name: 'Hardcoded API key', severity: 'critical' },
-      { pattern: /SELECT\s.*FROM\s.*WHERE.*\$/gi, name: 'Potential SQL injection', severity: 'high' },
+      {
+        pattern: /SELECT\s.*FROM\s.*WHERE.*\$/gi,
+        name: 'Potential SQL injection',
+        severity: 'high',
+      },
       { pattern: /exec\s*\(/g, name: 'exec() usage', severity: 'medium' },
       { pattern: /child_process/g, name: 'child_process usage', severity: 'low' },
     ];
@@ -148,22 +159,32 @@ export class CertificationConnector implements ICapabilityConnector {
     try {
       const llmResult = await this.llm.call({
         systemPrompt: 'You are a security auditor. Identify vulnerabilities.',
-        userPrompt: `Security review of:\n${srcFiles.slice(0, 5).map(f => `--- ${f.name} ---\n${f.content?.slice(0, 500) || ''}`).join('\n\n')}\n\nReply JSON: {"vulnerabilities": [{"name":"","severity":"low|medium|high|critical","file":"","description":""}]}`,
+        userPrompt: `Security review of:\n${srcFiles
+          .slice(0, 5)
+          .map((f) => `--- ${f.name} ---\n${f.content?.slice(0, 500) || ''}`)
+          .join(
+            '\n\n',
+          )}\n\nReply JSON: {"vulnerabilities": [{"name":"","severity":"low|medium|high|critical","file":"","description":""}]}`,
         maxTokens: 2048,
       });
       const parsed = this.llm.parseJSON(llmResult.content);
       if (parsed?.vulnerabilities) llmFindings = parsed.vulnerabilities;
-    } catch { /* optional */ }
+    } catch {
+      /* optional */
+    }
 
     const allFindings = [...findings, ...llmFindings];
-    const criticalCount = allFindings.filter(f => f.severity === 'critical' || f.severity === 'high').length;
+    const criticalCount = allFindings.filter(
+      (f) => f.severity === 'critical' || f.severity === 'high',
+    ).length;
     const passed = criticalCount === 0;
 
     return this.writeCertReport(input, 'security-audit', {
       score: Math.max(0, 100 - criticalCount * 25 - allFindings.length * 5),
       passed,
       findings: allFindings,
-      recommendations: criticalCount > 0 ? ['Fix critical/high severity issues before deployment'] : [],
+      recommendations:
+        criticalCount > 0 ? ['Fix critical/high severity issues before deployment'] : [],
     });
   }
 
@@ -172,11 +193,13 @@ export class CertificationConnector implements ICapabilityConnector {
   private async executeTestCoverage(input: ConnectorInput): Promise<ConnectorOutput> {
     const testDir = path.join(input.workspaceDir, 'tests');
     let passed = false;
-    let results: any[] = [];
+    const results: any[] = [];
     let coverage = 0;
 
     if (fs.existsSync(testDir)) {
-      const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+      const testFiles = fs
+        .readdirSync(testDir)
+        .filter((f) => f.endsWith('.js') || f.endsWith('.mjs'));
       let passCount = 0;
 
       for (const testFile of testFiles.slice(0, 10)) {
@@ -188,11 +211,15 @@ export class CertificationConnector implements ICapabilityConnector {
           results.push({ file: testFile, passed: true, output: output.slice(0, 300) });
           passCount++;
         } catch (err: any) {
-          results.push({ file: testFile, passed: false, output: (err.stdout || err.message || '').toString().slice(0, 300) });
+          results.push({
+            file: testFile,
+            passed: false,
+            output: (err.stdout || err.message || '').toString().slice(0, 300),
+          });
         }
       }
 
-      passed = results.length > 0 && results.every(r => r.passed);
+      passed = results.length > 0 && results.every((r) => r.passed);
       coverage = results.length > 0 ? Math.round((passCount / results.length) * 100) : 0;
     }
 
@@ -230,7 +257,9 @@ export class CertificationConnector implements ICapabilityConnector {
         score -= 15;
       }
       if (fc.length > 20000) {
-        findings.push(`${file.name}: Large file (${Math.round(fc.length / 1024)}KB) — consider splitting`);
+        findings.push(
+          `${file.name}: Large file (${Math.round(fc.length / 1024)}KB) — consider splitting`,
+        );
         score -= 3;
       }
     }
@@ -239,7 +268,10 @@ export class CertificationConnector implements ICapabilityConnector {
     try {
       const llmResult = await this.llm.call({
         systemPrompt: 'You are a performance engineer. Identify performance bottlenecks.',
-        userPrompt: `Analyze performance of:\n${srcFiles.slice(0, 5).map(f => `--- ${f.name} ---\n${f.content?.slice(0, 400) || ''}`).join('\n\n')}\n\nReply JSON: {"score": 0-100, "bottlenecks": [], "recommendations": []}`,
+        userPrompt: `Analyze performance of:\n${srcFiles
+          .slice(0, 5)
+          .map((f) => `--- ${f.name} ---\n${f.content?.slice(0, 400) || ''}`)
+          .join('\n\n')}\n\nReply JSON: {"score": 0-100, "bottlenecks": [], "recommendations": []}`,
         maxTokens: 2048,
       });
       const parsed = this.llm.parseJSON(llmResult.content);
@@ -247,7 +279,9 @@ export class CertificationConnector implements ICapabilityConnector {
         score = Math.min(score, parsed.score || score);
         if (parsed.bottlenecks) findings.push(...parsed.bottlenecks);
       }
-    } catch { /* optional */ }
+    } catch {
+      /* optional */
+    }
 
     return this.writeCertReport(input, 'performance', {
       score: Math.max(0, score),
@@ -281,8 +315,14 @@ export class CertificationConnector implements ICapabilityConnector {
     // Check README quality
     if (fs.existsSync(readmePath)) {
       const readme = fs.readFileSync(readmePath, 'utf-8');
-      checks.push({ item: 'README has installation section', present: readme.toLowerCase().includes('install') });
-      checks.push({ item: 'README has usage section', present: readme.toLowerCase().includes('usage') });
+      checks.push({
+        item: 'README has installation section',
+        present: readme.toLowerCase().includes('install'),
+      });
+      checks.push({
+        item: 'README has usage section',
+        present: readme.toLowerCase().includes('usage'),
+      });
       if (!readme.toLowerCase().includes('install')) score -= 10;
       if (!readme.toLowerCase().includes('usage')) score -= 10;
       if (readme.length < 200) score -= 15;
@@ -309,7 +349,11 @@ export class CertificationConnector implements ICapabilityConnector {
         execSync('npm install --dry-run 2>&1', { timeout: 30000, cwd: input.workspaceDir });
         results.push({ check: 'npm install (dry-run)', passed: true });
       } catch (err: any) {
-        results.push({ check: 'npm install (dry-run)', passed: false, error: err.message?.slice(0, 200) });
+        results.push({
+          check: 'npm install (dry-run)',
+          passed: false,
+          error: err.message?.slice(0, 200),
+        });
         allPassed = false;
       }
     }
@@ -337,12 +381,23 @@ export class CertificationConnector implements ICapabilityConnector {
   private async executeCompliance(input: ConnectorInput): Promise<ConnectorOutput> {
     const srcFiles = this.collectSourceFiles(input.workspaceDir);
     const llmResult = await this.llm.call({
-      systemPrompt: 'You are a compliance auditor. Check for GDPR, SOC2, and general compliance issues.',
-      userPrompt: `Check compliance of this project: "${input.instruction}"\n\nCode:\n${srcFiles.slice(0, 5).map(f => `--- ${f.name} ---\n${f.content?.slice(0, 500) || ''}`).join('\n\n')}\n\nReply JSON: {"score": 0-100, "passed": true/false, "issues": [], "recommendations": []}`,
+      systemPrompt:
+        'You are a compliance auditor. Check for GDPR, SOC2, and general compliance issues.',
+      userPrompt: `Check compliance of this project: "${input.instruction}"\n\nCode:\n${srcFiles
+        .slice(0, 5)
+        .map((f) => `--- ${f.name} ---\n${f.content?.slice(0, 500) || ''}`)
+        .join(
+          '\n\n',
+        )}\n\nReply JSON: {"score": 0-100, "passed": true/false, "issues": [], "recommendations": []}`,
       maxTokens: 2048,
     });
 
-    const analysis = this.llm.parseJSON(llmResult.content) || { score: 75, passed: true, issues: [], recommendations: [] };
+    const analysis = this.llm.parseJSON(llmResult.content) || {
+      score: 75,
+      passed: true,
+      issues: [],
+      recommendations: [],
+    };
     return this.writeCertReport(input, 'compliance', analysis);
   }
 
@@ -384,15 +439,23 @@ export class CertificationConnector implements ICapabilityConnector {
           // Basic accessibility checks
           const issues: any[] = [];
           const images = document.querySelectorAll('img');
-          images.forEach(img => { if (!img.getAttribute('alt')) issues.push({ type: 'img-alt', element: img.outerHTML.slice(0, 100) }); });
+          images.forEach((img) => {
+            if (!img.getAttribute('alt'))
+              issues.push({ type: 'img-alt', element: img.outerHTML.slice(0, 100) });
+          });
           const inputs = document.querySelectorAll('input, select, textarea');
-          inputs.forEach(input => { if (!input.getAttribute('aria-label') && !input.getAttribute('id')) issues.push({ type: 'input-label', element: input.outerHTML.slice(0, 100) }); });
+          inputs.forEach((input) => {
+            if (!input.getAttribute('aria-label') && !input.getAttribute('id'))
+              issues.push({ type: 'input-label', element: input.outerHTML.slice(0, 100) });
+          });
           return issues;
         });
 
         findings.push(...a11yResults);
         await browser.close();
-      } catch { /* Playwright a11y scan is optional */ }
+      } catch {
+        /* Playwright a11y scan is optional */
+      }
     }
 
     return this.writeCertReport(input, 'accessibility', {
@@ -433,7 +496,10 @@ export class CertificationConnector implements ICapabilityConnector {
 
   // ─── Generic fallback ───────────────────────────────────────
 
-  private async executeGenericCert(capId: CertCapability, input: ConnectorInput): Promise<ConnectorOutput> {
+  private async executeGenericCert(
+    capId: CertCapability,
+    input: ConnectorInput,
+  ): Promise<ConnectorOutput> {
     return this.writeCertReport(input, capId.replace('cert.', ''), {
       score: 75,
       passed: true,
@@ -461,8 +527,19 @@ export class CertificationConnector implements ICapabilityConnector {
     };
   }
 
-  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, content: string): GeneratedArtifact {
-    return { name, type, path: fullPath, size: Buffer.byteLength(content), content: content.substring(0, 500) };
+  private makeArtifact(
+    name: string,
+    type: GeneratedArtifact['type'],
+    fullPath: string,
+    content: string,
+  ): GeneratedArtifact {
+    return {
+      name,
+      type,
+      path: fullPath,
+      size: Buffer.byteLength(content),
+      content: content.substring(0, 500),
+    };
   }
 
   private collectSourceFiles(workspaceDir: string): { name: string; content?: string }[] {
@@ -475,11 +552,13 @@ export class CertificationConnector implements ICapabilityConnector {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
           walkDir(fullPath);
-        } else if (entry.isFile() && extensions.some(ext => entry.name.endsWith(ext))) {
+        } else if (entry.isFile() && extensions.some((ext) => entry.name.endsWith(ext))) {
           try {
             const content = fs.readFileSync(fullPath, 'utf-8').slice(0, 1000);
             files.push({ name: path.relative(workspaceDir, fullPath), content });
-          } catch { /* skip */ }
+          } catch {
+            /* skip */
+          }
         }
       }
     };
@@ -488,8 +567,12 @@ export class CertificationConnector implements ICapabilityConnector {
     return files;
   }
 
-  private collectFilesByExtension(workspaceDir: string, extensions: string[]): { name: string; content?: string }[] {
-    return this.collectSourceFiles(workspaceDir)
-      .filter(f => extensions.some(ext => f.name.endsWith(ext)));
+  private collectFilesByExtension(
+    workspaceDir: string,
+    extensions: string[],
+  ): { name: string; content?: string }[] {
+    return this.collectSourceFiles(workspaceDir).filter((f) =>
+      extensions.some((ext) => f.name.endsWith(ext)),
+    );
   }
 }

@@ -4,7 +4,7 @@
  * create charts, import/export data, and generate pivot tables.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { OfficeCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -30,9 +32,17 @@ export const SPREADSHEET_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           title: { type: 'string', description: 'Spreadsheet title' },
-          sheets: { type: 'array', items: { type: 'object' }, description: 'Initial sheet definitions' },
+          sheets: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Initial sheet definitions',
+          },
           author: { type: 'string', description: 'Spreadsheet author' },
-          format: { type: 'string', enum: ['xlsx', 'csv', 'ods'], description: 'Spreadsheet format' },
+          format: {
+            type: 'string',
+            enum: ['xlsx', 'csv', 'ods'],
+            description: 'Spreadsheet format',
+          },
         },
         required: ['title'],
       },
@@ -57,7 +67,11 @@ export const SPREADSHEET_AGENT_CONFIG: AgentConfig = {
           value: { type: 'string', description: 'New cell value' },
           formula: { type: 'string', description: 'Cell formula' },
           format: { type: 'object', description: 'Cell formatting options' },
-          rangeUpdates: { type: 'array', items: { type: 'object' }, description: 'Batch cell updates' },
+          rangeUpdates: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Batch cell updates',
+          },
         },
         required: ['spreadsheetId', 'cell'],
       },
@@ -103,7 +117,11 @@ export const SPREADSHEET_AGENT_CONFIG: AgentConfig = {
         properties: {
           spreadsheetId: { type: 'string', description: 'ID of the spreadsheet' },
           sheet: { type: 'string', description: 'Sheet name' },
-          chartType: { type: 'string', enum: ['bar', 'line', 'pie', 'scatter', 'area', 'column'], description: 'Type of chart' },
+          chartType: {
+            type: 'string',
+            enum: ['bar', 'line', 'pie', 'scatter', 'area', 'column'],
+            description: 'Type of chart',
+          },
           dataRange: { type: 'string', description: 'Data range for chart (e.g., A1:D10)' },
           title: { type: 'string', description: 'Chart title' },
           xLabel: { type: 'string', description: 'X-axis label' },
@@ -129,7 +147,10 @@ export const SPREADSHEET_AGENT_CONFIG: AgentConfig = {
         properties: {
           spreadsheetId: { type: 'string', description: 'ID of the target spreadsheet' },
           sheet: { type: 'string', description: 'Target sheet name' },
-          data: { type: 'object', description: 'Data to import (CSV string, JSON array, or 2D array)' },
+          data: {
+            type: 'object',
+            description: 'Data to import (CSV string, JSON array, or 2D array)',
+          },
           format: { type: 'string', enum: ['csv', 'json', 'array'], description: 'Data format' },
           startCell: { type: 'string', description: 'Starting cell for import (default: A1)' },
           hasHeaders: { type: 'boolean', description: 'Whether the data includes header row' },
@@ -179,9 +200,21 @@ export const SPREADSHEET_AGENT_CONFIG: AgentConfig = {
           spreadsheetId: { type: 'string', description: 'ID of the source spreadsheet' },
           sheet: { type: 'string', description: 'Source sheet name' },
           dataRange: { type: 'string', description: 'Source data range' },
-          rows: { type: 'array', items: { type: 'string' }, description: 'Fields for row grouping' },
-          columns: { type: 'array', items: { type: 'string' }, description: 'Fields for column grouping' },
-          values: { type: 'array', items: { type: 'object' }, description: 'Value fields with aggregation' },
+          rows: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Fields for row grouping',
+          },
+          columns: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Fields for column grouping',
+          },
+          values: {
+            type: 'array',
+            items: { type: 'object' },
+            description: 'Value fields with aggregation',
+          },
           filters: { type: 'array', items: { type: 'object' }, description: 'Filter conditions' },
         },
         required: ['spreadsheetId', 'dataRange', 'values'],
@@ -281,6 +314,15 @@ export class SpreadsheetAgentService extends BaseAgentService {
   private spreadsheetCounter: number = 0;
   private chartCounter: number = 0;
   private pivotCounter: number = 0;
+
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
 
   protected defineConfig(): AgentConfig {
     return SPREADSHEET_AGENT_CONFIG;
@@ -385,6 +427,28 @@ export class SpreadsheetAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation: try real connector first, fallback to simulated logic
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(OfficeCapability.EXCEL, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
@@ -690,9 +754,7 @@ export class SpreadsheetAgentService extends BaseAgentService {
 
     spreadsheet.updatedAt = new Date();
 
-    this.logger.log(
-      `Applied formula to ${cell}: ${formula}, computed=${computedValue}`,
-    );
+    this.logger.log(`Applied formula to ${cell}: ${formula}, computed=${computedValue}`);
 
     return {
       spreadsheetId,
@@ -762,9 +824,7 @@ export class SpreadsheetAgentService extends BaseAgentService {
     spreadsheet.charts.push(chart);
     spreadsheet.updatedAt = new Date();
 
-    this.logger.log(
-      `Created chart: ${chartId}, type=${chartType}, range=${dataRange}`,
-    );
+    this.logger.log(`Created chart: ${chartId}, type=${chartType}, range=${dataRange}`);
 
     return {
       chartId,
@@ -1033,14 +1093,22 @@ export class SpreadsheetAgentService extends BaseAgentService {
       filteredRows = filteredRows.filter((rowMap) => {
         const val = rowMap.get(filter.field);
         switch (filter.operator) {
-          case 'eq': return val === filter.value;
-          case 'neq': return val !== filter.value;
-          case 'gt': return Number(val) > Number(filter.value);
-          case 'lt': return Number(val) < Number(filter.value);
-          case 'gte': return Number(val) >= Number(filter.value);
-          case 'lte': return Number(val) <= Number(filter.value);
-          case 'contains': return String(val).includes(String(filter.value));
-          default: return true;
+          case 'eq':
+            return val === filter.value;
+          case 'neq':
+            return val !== filter.value;
+          case 'gt':
+            return Number(val) > Number(filter.value);
+          case 'lt':
+            return Number(val) < Number(filter.value);
+          case 'gte':
+            return Number(val) >= Number(filter.value);
+          case 'lte':
+            return Number(val) <= Number(filter.value);
+          case 'contains':
+            return String(val).includes(String(filter.value));
+          default:
+            return true;
         }
       });
     }
@@ -1133,7 +1201,9 @@ export class SpreadsheetAgentService extends BaseAgentService {
     const upperFormula = formula.toUpperCase();
 
     // Match function patterns like SUM(A1:A10), AVG(B1:B5)
-    const funcMatch = upperFormula.match(/^(SUM|AVG|AVERAGE|COUNT|MIN|MAX)\(([A-Z]+\d+):([A-Z]+\d+)\)$/);
+    const funcMatch = upperFormula.match(
+      /^(SUM|AVG|AVERAGE|COUNT|MIN|MAX)\(([A-Z]+\d+):([A-Z]+\d+)\)$/,
+    );
     if (funcMatch) {
       const [, func, startRef, endRef] = funcMatch;
       const start = this.parseCellReference(startRef);
@@ -1237,22 +1307,25 @@ export class SpreadsheetAgentService extends BaseAgentService {
     return rows;
   }
 
-  private convertToCsv(
-    cells: Array<{ ref: string; value: any }>,
-    range?: string,
-  ): string {
+  private convertToCsv(cells: Array<{ ref: string; value: any }>, range?: string): string {
     if (cells.length === 0) return '';
 
     // Build 2D array
     const grid = this.convertTo2DArray(cells, range);
 
-    return grid.map((row) => row.map((cell) => {
-      const str = String(cell);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    }).join(',')).join('\n');
+    return grid
+      .map((row) =>
+        row
+          .map((cell) => {
+            const str = String(cell);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+          })
+          .join(','),
+      )
+      .join('\n');
   }
 
   private convertToJson(
@@ -1278,13 +1351,13 @@ export class SpreadsheetAgentService extends BaseAgentService {
     return JSON.stringify(grid, null, 2);
   }
 
-  private convertTo2DArray(
-    cells: Array<{ ref: string; value: any }>,
-    range?: string,
-  ): string[][] {
+  private convertTo2DArray(cells: Array<{ ref: string; value: any }>, range?: string): string[][] {
     if (cells.length === 0) return [];
 
-    let minRow = Infinity, maxRow = 0, minCol = Infinity, maxCol = 0;
+    let minRow = Infinity,
+      maxRow = 0,
+      minCol = Infinity,
+      maxCol = 0;
 
     for (const cell of cells) {
       const ref = this.parseCellReference(cell.ref);
@@ -1296,9 +1369,7 @@ export class SpreadsheetAgentService extends BaseAgentService {
 
     const numRows = maxRow - minRow + 1;
     const numCols = maxCol - minCol + 1;
-    const grid: string[][] = Array.from({ length: numRows }, () =>
-      Array(numCols).fill(''),
-    );
+    const grid: string[][] = Array.from({ length: numRows }, () => Array(numCols).fill(''));
 
     for (const cell of cells) {
       const ref = this.parseCellReference(cell.ref);
@@ -1318,9 +1389,10 @@ export class SpreadsheetAgentService extends BaseAgentService {
     const groups = new Map<string, Array<Map<string, any>>>();
 
     for (const row of rows) {
-      const key = rowFields.length > 0
-        ? rowFields.map((f) => String(row.get(f) ?? 'undefined')).join('|')
-        : '__all__';
+      const key =
+        rowFields.length > 0
+          ? rowFields.map((f) => String(row.get(f) ?? 'undefined')).join('|')
+          : '__all__';
 
       if (!groups.has(key)) {
         groups.set(key, []);
@@ -1335,9 +1407,7 @@ export class SpreadsheetAgentService extends BaseAgentService {
       const aggregated = new Map<string, number[]>();
 
       for (const vf of valueFields) {
-        const vals = groupRows
-          .map((r) => Number(r.get(vf.field)))
-          .filter((v) => !isNaN(v));
+        const vals = groupRows.map((r) => Number(r.get(vf.field))).filter((v) => !isNaN(v));
 
         let result: number;
         switch (vf.aggregation.toLowerCase()) {

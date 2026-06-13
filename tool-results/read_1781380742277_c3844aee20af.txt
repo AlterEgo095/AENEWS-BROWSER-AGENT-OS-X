@@ -1,0 +1,1016 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Presentation Agent
+     3→ * Manages presentation creation and management: create presentations,
+     4→ * add slides, add content, apply themes, export, and add transitions.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const PRESENTATION_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'office-presentation',
+    20→  name: 'Presentation',
+    21→  cluster: AgentCluster.OFFICE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Presentation management agent that handles creating presentations, adding slides and content, applying themes, exporting, and adding slide transitions.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'createPresentation',
+    28→      description: 'Create a new presentation with optional title, theme, and initial slides',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          title: { type: 'string', description: 'Presentation title' },
+    33→          author: { type: 'string', description: 'Presentation author' },
+    34→          theme: { type: 'string', description: 'Theme to apply' },
+    35→          slides: {
+    36→            type: 'array',
+    37→            items: { type: 'object' },
+    38→            description: 'Initial slide definitions',
+    39→          },
+    40→          format: {
+    41→            type: 'string',
+    42→            enum: ['pptx', 'pdf', 'odp'],
+    43→            description: 'Presentation format',
+    44→          },
+    45→        },
+    46→        required: ['title'],
+    47→      },
+    48→      outputSchema: {
+    49→        type: 'object',
+    50→        properties: {
+    51→          presentationId: { type: 'string' },
+    52→          title: { type: 'string' },
+    53→          slideCount: { type: 'number' },
+    54→          createdAt: { type: 'string' },
+    55→        },
+    56→      },
+    57→    },
+    58→    {
+    59→      name: 'addSlide',
+    60→      description: 'Add a new slide to an existing presentation',
+    61→      inputSchema: {
+    62→        type: 'object',
+    63→        properties: {
+    64→          presentationId: { type: 'string', description: 'ID of the presentation' },
+    65→          layout: {
+    66→            type: 'string',
+    67→            enum: [
+    68→              'title',
+    69→              'titleAndContent',
+    70→              'twoContent',
+    71→              'blank',
+    72→              'sectionHeader',
+    73→              'comparison',
+    74→            ],
+    75→            description: 'Slide layout',
+    76→          },
+    77→          position: { type: 'number', description: 'Position to insert slide (1-based index)' },
+    78→          title: { type: 'string', description: 'Slide title' },
+    79→          subtitle: { type: 'string', description: 'Slide subtitle' },
+    80→          notes: { type: 'string', description: 'Speaker notes' },
+    81→        },
+    82→        required: ['presentationId', 'layout'],
+    83→      },
+    84→      outputSchema: {
+    85→        type: 'object',
+    86→        properties: {
+    87→          presentationId: { type: 'string' },
+    88→          slideId: { type: 'string' },
+    89→          position: { type: 'number' },
+    90→          status: { type: 'string' },
+    91→        },
+    92→      },
+    93→    },
+    94→    {
+    95→      name: 'addContent',
+    96→      description: 'Add content (text, image, table, chart) to a slide',
+    97→      inputSchema: {
+    98→        type: 'object',
+    99→        properties: {
+   100→          presentationId: { type: 'string', description: 'ID of the presentation' },
+   101→          slideId: { type: 'string', description: 'ID of the slide' },
+   102→          contentType: {
+   103→            type: 'string',
+   104→            enum: ['text', 'image', 'table', 'chart', 'shape', 'bulletList'],
+   105→            description: 'Type of content to add',
+   106→          },
+   107→          content: { type: 'object', description: 'Content data (varies by type)' },
+   108→          position: { type: 'object', description: 'Position and size on the slide' },
+   109→          style: { type: 'object', description: 'Content styling' },
+   110→        },
+   111→        required: ['presentationId', 'slideId', 'contentType', 'content'],
+   112→      },
+   113→      outputSchema: {
+   114→        type: 'object',
+   115→        properties: {
+   116→          presentationId: { type: 'string' },
+   117→          slideId: { type: 'string' },
+   118→          contentId: { type: 'string' },
+   119→          status: { type: 'string' },
+   120→        },
+   121→      },
+   122→    },
+   123→    {
+   124→      name: 'applyTheme',
+   125→      description: 'Apply a theme to the presentation or a specific slide',
+   126→      inputSchema: {
+   127→        type: 'object',
+   128→        properties: {
+   129→          presentationId: { type: 'string', description: 'ID of the presentation' },
+   130→          themeId: { type: 'string', description: 'Theme identifier to apply' },
+   131→          slideId: {
+   132→            type: 'string',
+   133→            description: 'Specific slide ID (optional, applies to all if omitted)',
+   134→          },
+   135→          overrideColors: { type: 'object', description: 'Custom color overrides for the theme' },
+   136→        },
+   137→        required: ['presentationId', 'themeId'],
+   138→      },
+   139→      outputSchema: {
+   140→        type: 'object',
+   141→        properties: {
+   142→          presentationId: { type: 'string' },
+   143→          themeId: { type: 'string' },
+   144→          appliedToSlides: { type: 'number' },
+   145→          status: { type: 'string' },
+   146→        },
+   147→      },
+   148→    },
+   149→    {
+   150→      name: 'exportPresentation',
+   151→      description: 'Export the presentation to a specified format',
+   152→      inputSchema: {
+   153→        type: 'object',
+   154→        properties: {
+   155→          presentationId: { type: 'string', description: 'ID of the presentation' },
+   156→          format: {
+   157→            type: 'string',
+   158→            enum: ['pptx', 'pdf', 'odp', 'images'],
+   159→            description: 'Export format',
+   160→          },
+   161→          slideRange: { type: 'object', description: 'Specific slide range to export' },
+   162→          quality: {
+   163→            type: 'string',
+   164→            enum: ['low', 'medium', 'high'],
+   165→            description: 'Export quality',
+   166→          },
+   167→        },
+   168→        required: ['presentationId', 'format'],
+   169→      },
+   170→      outputSchema: {
+   171→        type: 'object',
+   172→        properties: {
+   173→          presentationId: { type: 'string' },
+   174→          format: { type: 'string' },
+   175→          slideCount: { type: 'number' },
+   176→          exportSize: { type: 'string' },
+   177→          status: { type: 'string' },
+   178→        },
+   179→      },
+   180→    },
+   181→    {
+   182→      name: 'addTransition',
+   183→      description: 'Add a transition effect between slides',
+   184→      inputSchema: {
+   185→        type: 'object',
+   186→        properties: {
+   187→          presentationId: { type: 'string', description: 'ID of the presentation' },
+   188→          slideId: { type: 'string', description: 'ID of the slide to add transition to' },
+   189→          type: {
+   190→            type: 'string',
+   191→            enum: ['fade', 'slide', 'push', 'wipe', 'split', 'reveal', 'dissolve', 'none'],
+   192→            description: 'Transition type',
+   193→          },
+   194→          duration: { type: 'number', description: 'Transition duration in milliseconds' },
+   195→          advanceAfter: {
+   196→            type: 'number',
+   197→            description: 'Auto-advance after milliseconds (0 for manual)',
+   198→          },
+   199→        },
+   200→        required: ['presentationId', 'slideId', 'type'],
+   201→      },
+   202→      outputSchema: {
+   203→        type: 'object',
+   204→        properties: {
+   205→          presentationId: { type: 'string' },
+   206→          slideId: { type: 'string' },
+   207→          transitionType: { type: 'string' },
+   208→          status: { type: 'string' },
+   209→        },
+   210→      },
+   211→    },
+   212→  ],
+   213→  permissions: ['execute:task', 'read:presentation', 'write:presentation', 'export:presentation'],
+   214→  maxConcurrentTasks: 3,
+   215→  timeout: 60000,
+   216→  retryPolicy: {
+   217→    maxRetries: 2,
+   218→    backoffMs: 1500,
+   219→    exponentialBackoff: true,
+   220→  },
+   221→};
+   222→
+   223→// ─── Internal Types ───────────────────────────────────────────────
+   224→
+   225→interface Presentation {
+   226→  id: string;
+   227→  title: string;
+   228→  author: string;
+   229→  format: string;
+   230→  theme: ThemeDefinition;
+   231→  slides: Slide[];
+   232→  createdAt: Date;
+   233→  updatedAt: Date;
+   234→}
+   235→
+   236→interface Slide {
+   237→  id: string;
+   238→  layout: SlideLayout;
+   239→  title: string;
+   240→  subtitle: string;
+   241→  notes: string;
+   242→  content: SlideContent[];
+   243→  transition: SlideTransition | null;
+   244→  backgroundColor?: string;
+   245→}
+   246→
+   247→type SlideLayout =
+   248→  | 'title'
+   249→  | 'titleAndContent'
+   250→  | 'twoContent'
+   251→  | 'blank'
+   252→  | 'sectionHeader'
+   253→  | 'comparison';
+   254→
+   255→interface SlideContent {
+   256→  id: string;
+   257→  type: 'text' | 'image' | 'table' | 'chart' | 'shape' | 'bulletList';
+   258→  data: any;
+   259→  position: ContentPosition;
+   260→  style: ContentStyle;
+   261→}
+   262→
+   263→interface ContentPosition {
+   264→  x: number;
+   265→  y: number;
+   266→  width: number;
+   267→  height: number;
+   268→}
+   269→
+   270→interface ContentStyle {
+   271→  fontSize?: number;
+   272→  fontColor?: string;
+   273→  fontFamily?: string;
+   274→  bold?: boolean;
+   275→  italic?: boolean;
+   276→  alignment?: 'left' | 'center' | 'right';
+   277→  backgroundColor?: string;
+   278→}
+   279→
+   280→interface SlideTransition {
+   281→  type: string;
+   282→  duration: number;
+   283→  advanceAfter: number;
+   284→}
+   285→
+   286→interface ThemeDefinition {
+   287→  id: string;
+   288→  name: string;
+   289→  primaryColor: string;
+   290→  secondaryColor: string;
+   291→  accentColor: string;
+   292→  backgroundColor: string;
+   293→  fontColor: string;
+   294→  fontFamily: string;
+   295→  headerFontSize: number;
+   296→  bodyFontSize: number;
+   297→}
+   298→
+   299→// ─── Agent Service ────────────────────────────────────────────────
+   300→
+   301→@Injectable()
+   302→export class PresentationAgentService extends BaseAgentService {
+   303→  private presentations: Map<string, Presentation> = new Map();
+   304→  private themes: Map<string, ThemeDefinition> = new Map();
+   305→  private presentationCounter: number = 0;
+   306→  private slideCounter: number = 0;
+   307→  private contentCounter: number = 0;
+   308→
+   309→  protected defineConfig(): AgentConfig {
+   310→    return PRESENTATION_AGENT_CONFIG;
+   311→  }
+   312→
+   313→  protected async onInitialize(): Promise<void> {
+   314→    // Seed built-in themes
+   315→    this.seedThemes();
+   316→
+   317→    // Register tools
+   318→    this.registerTool({
+   319→      name: 'createPresentation',
+   320→      description: 'Create a new presentation',
+   321→      execute: async (params: {
+   322→        title: string;
+   323→        author?: string;
+   324→        theme?: string;
+   325→        slides?: Array<{ layout: string; title?: string; subtitle?: string }>;
+   326→        format?: string;
+   327→      }) => this.createPresentation(params),
+   328→    });
+   329→
+   330→    this.registerTool({
+   331→      name: 'addSlide',
+   332→      description: 'Add a new slide to a presentation',
+   333→      execute: async (params: {
+   334→        presentationId: string;
+   335→        layout: string;
+   336→        position?: number;
+   337→        title?: string;
+   338→        subtitle?: string;
+   339→        notes?: string;
+   340→      }) => this.addSlide(params),
+   341→    });
+   342→
+   343→    this.registerTool({
+   344→      name: 'addContent',
+   345→      description: 'Add content to a slide',
+   346→      execute: async (params: {
+   347→        presentationId: string;
+   348→        slideId: string;
+   349→        contentType: string;
+   350→        content: any;
+   351→        position?: ContentPosition;
+   352→        style?: ContentStyle;
+   353→      }) => this.addContent(params),
+   354→    });
+   355→
+   356→    this.registerTool({
+   357→      name: 'applyTheme',
+   358→      description: 'Apply a theme to a presentation or slide',
+   359→      execute: async (params: {
+   360→        presentationId: string;
+   361→        themeId: string;
+   362→        slideId?: string;
+   363→        overrideColors?: Record<string, string>;
+   364→      }) => this.applyTheme(params),
+   365→    });
+   366→
+   367→    this.registerTool({
+   368→      name: 'exportPresentation',
+   369→      description: 'Export a presentation to a specified format',
+   370→      execute: async (params: {
+   371→        presentationId: string;
+   372→        format: string;
+   373→        slideRange?: { start: number; end: number };
+   374→        quality?: string;
+   375→      }) => this.exportPresentation(params),
+   376→    });
+   377→
+   378→    this.registerTool({
+   379→      name: 'addTransition',
+   380→      description: 'Add a transition effect between slides',
+   381→      execute: async (params: {
+   382→        presentationId: string;
+   383→        slideId: string;
+   384→        type: string;
+   385→        duration?: number;
+   386→        advanceAfter?: number;
+   387→      }) => this.addTransition(params),
+   388→    });
+   389→
+   390→    await this.storeInWorkingMemory('presentation:initializedAt', new Date().toISOString(), 600000);
+   391→    this.logger.log('Presentation agent initialized with 6 tools');
+   392→  }
+   393→
+   394→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   395→    const startTime = Date.now();
+   396→    const { action, ...params } = input.payload;
+   397→
+   398→    if (!action) {
+   399→      return this.createAgentOutput(
+   400→        input.taskId,
+   401→        false,
+   402→        null,
+   403→        'Missing required parameter: action',
+   404→        startTime,
+   405→      );
+   406→    }
+   407→
+   408→    const supportedActions = [
+   409→      'createPresentation',
+   410→      'addSlide',
+   411→      'addContent',
+   412→      'applyTheme',
+   413→      'exportPresentation',
+   414→      'addTransition',
+   415→    ];
+   416→
+   417→    if (!supportedActions.includes(action)) {
+   418→      return this.createAgentOutput(
+   419→        input.taskId,
+   420→        false,
+   421→        null,
+   422→        `Unknown presentation action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   423→        startTime,
+   424→      );
+   425→    }
+   426→
+   427→    try {
+   428→      const tool = this.getTool(action);
+   429→      if (!tool) {
+   430→        return this.createAgentOutput(
+   431→          input.taskId,
+   432→          false,
+   433→          null,
+   434→          `Tool not found: ${action}`,
+   435→          startTime,
+   436→        );
+   437→      }
+   438→
+   439→      const result = await tool.execute(params);
+   440→
+   441→      await this.storeInWorkingMemory(
+   442→        `presentation:last:${action}`,
+   443→        { params, result, timestamp: new Date() },
+   444→        300000,
+   445→      );
+   446→
+   447→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   448→    } catch (error) {
+   449→      const msg = (error as Error).message;
+   450→      this.logger.error(`Presentation execution failed for ${action}: ${msg}`);
+   451→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   452→    }
+   453→  }
+   454→
+   455→  protected async onDestroy(): Promise<void> {
+   456→    this.presentations.clear();
+   457→    this.themes.clear();
+   458→    this.presentationCounter = 0;
+   459→    this.slideCounter = 0;
+   460→    this.contentCounter = 0;
+   461→    this.logger.log('Presentation agent destroyed, all data cleared');
+   462→  }
+   463→
+   464→  // ─── Tool Implementations ──────────────────────────────────────
+   465→
+   466→  private async createPresentation(params: {
+   467→    title: string;
+   468→    author?: string;
+   469→    theme?: string;
+   470→    slides?: Array<{ layout: string; title?: string; subtitle?: string }>;
+   471→    format?: string;
+   472→  }): Promise<{
+   473→    presentationId: string;
+   474→    title: string;
+   475→    slideCount: number;
+   476→    createdAt: string;
+   477→  }> {
+   478→    const {
+   479→      title,
+   480→      author = 'agent@aenews.system',
+   481→      theme = 'professional',
+   482→      slides = [],
+   483→      format = 'pptx',
+   484→    } = params;
+   485→
+   486→    if (!title || typeof title !== 'string') {
+   487→      throw new Error('A valid presentation title is required');
+   488→    }
+   489→
+   490→    const validFormats = ['pptx', 'pdf', 'odp'];
+   491→    if (!validFormats.includes(format)) {
+   492→      throw new Error(`Invalid format: ${format}. Supported: ${validFormats.join(', ')}`);
+   493→    }
+   494→
+   495→    const presentationId = this.generatePresentationId();
+   496→    const themeDef = this.themes.get(theme) || this.themes.get('professional')!;
+   497→
+   498→    // Create title slide
+   499→    const presentationSlides: Slide[] = [];
+   500→    const titleSlide = this.createSlideObject('title', title, author, '');
+   501→    presentationSlides.push(titleSlide);
+   502→
+   503→    // Add additional slides
+   504→    for (const slideDef of slides) {
+   505→      const slide = this.createSlideObject(
+   506→        slideDef.layout as SlideLayout,
+   507→        slideDef.title || '',
+   508→        slideDef.subtitle || '',
+   509→        '',
+   510→      );
+   511→      presentationSlides.push(slide);
+   512→    }
+   513→
+   514→    const presentation: Presentation = {
+   515→      id: presentationId,
+   516→      title,
+   517→      author,
+   518→      format,
+   519→      theme: themeDef,
+   520→      slides: presentationSlides,
+   521→      createdAt: new Date(),
+   522→      updatedAt: new Date(),
+   523→    };
+   524→
+   525→    this.presentations.set(presentationId, presentation);
+   526→
+   527→    this.logger.log(
+   528→      `Created presentation: ${presentationId}, title="${title}", slides=${presentationSlides.length}`,
+   529→    );
+   530→
+   531→    return {
+   532→      presentationId,
+   533→      title,
+   534→      slideCount: presentationSlides.length,
+   535→      createdAt: presentation.createdAt.toISOString(),
+   536→    };
+   537→  }
+   538→
+   539→  private async addSlide(params: {
+   540→    presentationId: string;
+   541→    layout: string;
+   542→    position?: number;
+   543→    title?: string;
+   544→    subtitle?: string;
+   545→    notes?: string;
+   546→  }): Promise<{
+   547→    presentationId: string;
+   548→    slideId: string;
+   549→    position: number;
+   550→    status: string;
+   551→  }> {
+   552→    const { presentationId, layout, position, title = '', subtitle = '', notes = '' } = params;
+   553→
+   554→    if (!presentationId || typeof presentationId !== 'string') {
+   555→      throw new Error('A valid presentationId is required');
+   556→    }
+   557→
+   558→    const validLayouts = [
+   559→      'title',
+   560→      'titleAndContent',
+   561→      'twoContent',
+   562→      'blank',
+   563→      'sectionHeader',
+   564→      'comparison',
+   565→    ];
+   566→    if (!validLayouts.includes(layout)) {
+   567→      throw new Error(`Invalid layout: ${layout}. Supported: ${validLayouts.join(', ')}`);
+   568→    }
+   569→
+   570→    const presentation = this.presentations.get(presentationId);
+   571→    if (!presentation) {
+   572→      throw new Error(`Presentation not found: ${presentationId}`);
+   573→    }
+   574→
+   575→    const slide = this.createSlideObject(layout as SlideLayout, title, subtitle, notes);
+   576→    const insertPosition =
+   577→      position !== undefined
+   578→        ? Math.min(position - 1, presentation.slides.length)
+   579→        : presentation.slides.length;
+   580→
+   581→    presentation.slides.splice(insertPosition, 0, slide);
+   582→    presentation.updatedAt = new Date();
+   583→
+   584→    this.logger.log(
+   585→      `Added slide: ${slide.id}, layout=${layout}, position=${insertPosition + 1} to presentation: ${presentationId}`,
+   586→    );
+   587→
+   588→    return {
+   589→      presentationId,
+   590→      slideId: slide.id,
+   591→      position: insertPosition + 1,
+   592→      status: 'added',
+   593→    };
+   594→  }
+   595→
+   596→  private async addContent(params: {
+   597→    presentationId: string;
+   598→    slideId: string;
+   599→    contentType: string;
+   600→    content: any;
+   601→    position?: ContentPosition;
+   602→    style?: ContentStyle;
+   603→  }): Promise<{
+   604→    presentationId: string;
+   605→    slideId: string;
+   606→    contentId: string;
+   607→    status: string;
+   608→  }> {
+   609→    const {
+   610→      presentationId,
+   611→      slideId,
+   612→      contentType,
+   613→      content,
+   614→      position = { x: 0, y: 0, width: 800, height: 400 },
+   615→      style = {},
+   616→    } = params;
+   617→
+   618→    if (!presentationId || typeof presentationId !== 'string') {
+   619→      throw new Error('A valid presentationId is required');
+   620→    }
+   621→    if (!slideId || typeof slideId !== 'string') {
+   622→      throw new Error('A valid slideId is required');
+   623→    }
+   624→
+   625→    const validContentTypes = ['text', 'image', 'table', 'chart', 'shape', 'bulletList'];
+   626→    if (!validContentTypes.includes(contentType)) {
+   627→      throw new Error(
+   628→        `Invalid contentType: ${contentType}. Supported: ${validContentTypes.join(', ')}`,
+   629→      );
+   630→    }
+   631→
+   632→    if (!content) {
+   633→      throw new Error('Content data is required');
+   634→    }
+   635→
+   636→    const presentation = this.presentations.get(presentationId);
+   637→    if (!presentation) {
+   638→      throw new Error(`Presentation not found: ${presentationId}`);
+   639→    }
+   640→
+   641→    const slide = presentation.slides.find((s) => s.id === slideId);
+   642→    if (!slide) {
+   643→      throw new Error(`Slide not found: ${slideId} in presentation ${presentationId}`);
+   644→    }
+   645→
+   646→    const contentId = `content-${++this.contentCounter}`;
+   647→    const slideContent: SlideContent = {
+   648→      id: contentId,
+   649→      type: contentType as SlideContent['type'],
+   650→      data: this.processContentData(contentType, content),
+   651→      position,
+   652→      style: {
+   653→        fontSize: 18,
+   654→        fontColor: presentation.theme.fontColor,
+   655→        fontFamily: presentation.theme.fontFamily,
+   656→        ...style,
+   657→      },
+   658→    };
+   659→
+   660→    slide.content.push(slideContent);
+   661→    presentation.updatedAt = new Date();
+   662→
+   663→    this.logger.log(`Added ${contentType} content to slide: ${slideId}, contentId=${contentId}`);
+   664→
+   665→    return {
+   666→      presentationId,
+   667→      slideId,
+   668→      contentId,
+   669→      status: 'added',
+   670→    };
+   671→  }
+   672→
+   673→  private async applyTheme(params: {
+   674→    presentationId: string;
+   675→    themeId: string;
+   676→    slideId?: string;
+   677→    overrideColors?: Record<string, string>;
+   678→  }): Promise<{
+   679→    presentationId: string;
+   680→    themeId: string;
+   681→    appliedToSlides: number;
+   682→    status: string;
+   683→  }> {
+   684→    const { presentationId, themeId, slideId, overrideColors = {} } = params;
+   685→
+   686→    if (!presentationId || typeof presentationId !== 'string') {
+   687→      throw new Error('A valid presentationId is required');
+   688→    }
+   689→    if (!themeId || typeof themeId !== 'string') {
+   690→      throw new Error('A valid themeId is required');
+   691→    }
+   692→
+   693→    const theme = this.themes.get(themeId);
+   694→    if (!theme) {
+   695→      const available = Array.from(this.themes.keys()).join(', ');
+   696→      throw new Error(`Theme not found: ${themeId}. Available: ${available}`);
+   697→    }
+   698→
+   699→    const presentation = this.presentations.get(presentationId);
+   700→    if (!presentation) {
+   701→      throw new Error(`Presentation not found: ${presentationId}`);
+   702→    }
+   703→
+   704→    // Apply theme with optional color overrides
+   705→    const appliedTheme: ThemeDefinition = {
+   706→      ...theme,
+   707→      ...overrideColors,
+   708→    };
+   709→
+   710→    presentation.theme = appliedTheme;
+   711→
+   712→    let appliedToSlides = 0;
+   713→
+   714→    if (slideId) {
+   715→      // Apply to specific slide
+   716→      const slide = presentation.slides.find((s) => s.id === slideId);
+   717→      if (!slide) {
+   718→        throw new Error(`Slide not found: ${slideId}`);
+   719→      }
+   720→      slide.backgroundColor = appliedTheme.backgroundColor;
+   721→
+   722→      // Update content styles
+   723→      for (const content of slide.content) {
+   724→        content.style.fontColor = appliedTheme.fontColor;
+   725→        content.style.fontFamily = appliedTheme.fontFamily;
+   726→      }
+   727→
+   728→      appliedToSlides = 1;
+   729→    } else {
+   730→      // Apply to all slides
+   731→      for (const slide of presentation.slides) {
+   732→        slide.backgroundColor = appliedTheme.backgroundColor;
+   733→
+   734→        for (const content of slide.content) {
+   735→          content.style.fontColor = appliedTheme.fontColor;
+   736→          content.style.fontFamily = appliedTheme.fontFamily;
+   737→        }
+   738→      }
+   739→      appliedToSlides = presentation.slides.length;
+   740→    }
+   741→
+   742→    presentation.updatedAt = new Date();
+   743→
+   744→    this.logger.log(
+   745→      `Applied theme: ${themeId} to ${appliedToSlides} slide(s) in presentation: ${presentationId}`,
+   746→    );
+   747→
+   748→    return {
+   749→      presentationId,
+   750→      themeId,
+   751→      appliedToSlides,
+   752→      status: 'applied',
+   753→    };
+   754→  }
+   755→
+   756→  private async exportPresentation(params: {
+   757→    presentationId: string;
+   758→    format: string;
+   759→    slideRange?: { start: number; end: number };
+   760→    quality?: string;
+   761→  }): Promise<{
+   762→    presentationId: string;
+   763→    format: string;
+   764→    slideCount: number;
+   765→    exportSize: string;
+   766→    status: string;
+   767→  }> {
+   768→    const { presentationId, format, slideRange, quality = 'high' } = params;
+   769→
+   770→    if (!presentationId || typeof presentationId !== 'string') {
+   771→      throw new Error('A valid presentationId is required');
+   772→    }
+   773→
+   774→    const validFormats = ['pptx', 'pdf', 'odp', 'images'];
+   775→    if (!validFormats.includes(format)) {
+   776→      throw new Error(`Invalid export format: ${format}. Supported: ${validFormats.join(', ')}`);
+   777→    }
+   778→
+   779→    const presentation = this.presentations.get(presentationId);
+   780→    if (!presentation) {
+   781→      throw new Error(`Presentation not found: ${presentationId}`);
+   782→    }
+   783→
+   784→    // Determine slide range
+   785→    let slides = presentation.slides;
+   786→    if (slideRange) {
+   787→      const start = Math.max(0, slideRange.start - 1);
+   788→      const end = Math.min(slides.length, slideRange.end);
+   789→      slides = slides.slice(start, end);
+   790→    }
+   791→
+   792→    // Estimate export size based on quality and slide count
+   793→    const baseSizeKB = quality === 'high' ? 500 : quality === 'medium' ? 250 : 100;
+   794→    const estimatedSizeKB = slides.length * baseSizeKB;
+   795→    const exportSize =
+   796→      estimatedSizeKB > 1024
+   797→        ? `${(estimatedSizeKB / 1024).toFixed(1)} MB`
+   798→        : `${estimatedSizeKB} KB`;
+   799→
+   800→    this.logger.log(
+   801→      `Exported presentation: ${presentationId}, format=${format}, slides=${slides.length}, size=${exportSize}`,
+   802→    );
+   803→
+   804→    return {
+   805→      presentationId,
+   806→      format,
+   807→      slideCount: slides.length,
+   808→      exportSize,
+   809→      status: 'exported',
+   810→    };
+   811→  }
+   812→
+   813→  private async addTransition(params: {
+   814→    presentationId: string;
+   815→    slideId: string;
+   816→    type: string;
+   817→    duration?: number;
+   818→    advanceAfter?: number;
+   819→  }): Promise<{
+   820→    presentationId: string;
+   821→    slideId: string;
+   822→    transitionType: string;
+   823→    status: string;
+   824→  }> {
+   825→    const { presentationId, slideId, type, duration = 1000, advanceAfter = 0 } = params;
+   826→
+   827→    if (!presentationId || typeof presentationId !== 'string') {
+   828→      throw new Error('A valid presentationId is required');
+   829→    }
+   830→    if (!slideId || typeof slideId !== 'string') {
+   831→      throw new Error('A valid slideId is required');
+   832→    }
+   833→
+   834→    const validTransitionTypes = [
+   835→      'fade',
+   836→      'slide',
+   837→      'push',
+   838→      'wipe',
+   839→      'split',
+   840→      'reveal',
+   841→      'dissolve',
+   842→      'none',
+   843→    ];
+   844→    if (!validTransitionTypes.includes(type)) {
+   845→      throw new Error(
+   846→        `Invalid transition type: ${type}. Supported: ${validTransitionTypes.join(', ')}`,
+   847→      );
+   848→    }
+   849→
+   850→    const presentation = this.presentations.get(presentationId);
+   851→    if (!presentation) {
+   852→      throw new Error(`Presentation not found: ${presentationId}`);
+   853→    }
+   854→
+   855→    const slide = presentation.slides.find((s) => s.id === slideId);
+   856→    if (!slide) {
+   857→      throw new Error(`Slide not found: ${slideId} in presentation ${presentationId}`);
+   858→    }
+   859→
+   860→    slide.transition = {
+   861→      type,
+   862→      duration,
+   863→      advanceAfter,
+   864→    };
+   865→
+   866→    presentation.updatedAt = new Date();
+   867→
+   868→    this.logger.log(`Added transition: ${type} to slide: ${slideId}, duration=${duration}ms`);
+   869→
+   870→    return {
+   871→      presentationId,
+   872→      slideId,
+   873→      transitionType: type,
+   874→      status: 'added',
+   875→    };
+   876→  }
+   877→
+   878→  // ─── Private Helpers ───────────────────────────────────────────
+   879→
+   880→  private seedThemes(): void {
+   881→    const builtInThemes: ThemeDefinition[] = [
+   882→      {
+   883→        id: 'professional',
+   884→        name: 'Professional',
+   885→        primaryColor: '#1B3A5C',
+   886→        secondaryColor: '#4A90D9',
+   887→        accentColor: '#E8A838',
+   888→        backgroundColor: '#FFFFFF',
+   889→        fontColor: '#333333',
+   890→        fontFamily: 'Calibri',
+   891→        headerFontSize: 32,
+   892→        bodyFontSize: 18,
+   893→      },
+   894→      {
+   895→        id: 'modern',
+   896→        name: 'Modern',
+   897→        primaryColor: '#2D2D2D',
+   898→        secondaryColor: '#6C63FF',
+   899→        accentColor: '#FF6584',
+   900→        backgroundColor: '#F8F9FA',
+   901→        fontColor: '#2D2D2D',
+   902→        fontFamily: 'Segoe UI',
+   903→        headerFontSize: 36,
+   904→        bodyFontSize: 20,
+   905→      },
+   906→      {
+   907→        id: 'minimal',
+   908→        name: 'Minimal',
+   909→        primaryColor: '#000000',
+   910→        secondaryColor: '#666666',
+   911→        accentColor: '#009688',
+   912→        backgroundColor: '#FFFFFF',
+   913→        fontColor: '#000000',
+   914→        fontFamily: 'Helvetica',
+   915→        headerFontSize: 34,
+   916→        bodyFontSize: 18,
+   917→      },
+   918→      {
+   919→        id: 'creative',
+   920→        name: 'Creative',
+   921→        primaryColor: '#FF6B35',
+   922→        secondaryColor: '#004E89',
+   923→        accentColor: '#FCBF49',
+   924→        backgroundColor: '#1A1A2E',
+   925→        fontColor: '#EAEAEA',
+   926→        fontFamily: 'Trebuchet MS',
+   927→        headerFontSize: 38,
+   928→        bodyFontSize: 20,
+   929→      },
+   930→      {
+   931→        id: 'corporate',
+   932→        name: 'Corporate',
+   933→        primaryColor: '#003366',
+   934→        secondaryColor: '#336699',
+   935→        accentColor: '#CC0000',
+   936→        backgroundColor: '#FFFFFF',
+   937→        fontColor: '#333333',
+   938→        fontFamily: 'Arial',
+   939→        headerFontSize: 30,
+   940→        bodyFontSize: 16,
+   941→      },
+   942→    ];
+   943→
+   944→    for (const theme of builtInThemes) {
+   945→      this.themes.set(theme.id, theme);
+   946→    }
+   947→  }
+   948→
+   949→  private generatePresentationId(): string {
+   950→    this.presentationCounter++;
+   951→    return `pres-${Date.now()}-${this.presentationCounter}`;
+   952→  }
+   953→
+   954→  private createSlideObject(
+   955→    layout: SlideLayout,
+   956→    title: string,
+   957→    subtitle: string,
+   958→    notes: string,
+   959→  ): Slide {
+   960→    return {
+   961→      id: `slide-${++this.slideCounter}`,
+   962→      layout,
+   963→      title,
+   964→      subtitle,
+   965→      notes,
+   966→      content: [],
+   967→      transition: null,
+   968→    };
+   969→  }
+   970→
+   971→  private processContentData(contentType: string, content: any): any {
+   972→    switch (contentType) {
+   973→      case 'text':
+   974→        if (typeof content === 'string') {
+   975→          return { text: content };
+   976→        }
+   977→        return content;
+   978→      case 'image':
+   979→        return {
+   980→          src: content.src || content.url || '',
+   981→          alt: content.alt || '',
+   982→          width: content.width || 400,
+   983→          height: content.height || 300,
+   984→        };
+   985→      case 'table':
+   986→        return {
+   987→          headers: content.headers || [],
+   988→          rows: content.rows || [],
+   989→          colCount: (content.headers || []).length,
+   990→          rowCount: (content.rows || []).length,
+   991→        };
+   992→      case 'chart':
+   993→        return {
+   994→          chartType: content.chartType || 'bar',
+   995→          title: content.title || '',
+   996→          dataRange: content.dataRange || '',
+   997→          xLabel: content.xLabel || '',
+   998→          yLabel: content.yLabel || '',
+   999→        };
+  1000→      case 'shape':
+  1001→        return {
+  1002→          shapeType: content.shapeType || 'rectangle',
+  1003→          fill: content.fill || '#4A90D9',
+  1004→          border: content.border || 'none',
+  1005→        };
+  1006→      case 'bulletList':
+  1007→        return {
+  1008→          items: Array.isArray(content) ? content : content.items || [],
+  1009→          bulletStyle: content.bulletStyle || 'disc',
+  1010→        };
+  1011→      default:
+  1012→        return content;
+  1013→    }
+  1014→  }
+  1015→}
+  1016→

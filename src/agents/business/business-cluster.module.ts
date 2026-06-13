@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { MarketResearchAgentService } from './market-research/market-research-agent.service';
 import { FinancialAnalysisAgentService } from './financial-analysis/financial-analysis-agent.service';
 import { StrategyAgentService } from './strategy/strategy-agent.service';
@@ -17,7 +18,7 @@ import { ProcurementAgentService } from './procurement/procurement-agent.service
 import { ProjectManagementAgentService } from './project-management/project-management-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Market Research — analyzeMarket, researchCompetitor, identifyTrends, analyzeDemand, generateMarketReport, assessMarketSize
     MarketResearchAgentService,

@@ -1,0 +1,953 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Scaling Agent
+     3→ * Auto-scaling, resource optimization, and capacity planning.
+     4→ * Scales resources up/down, configures auto-scaling policies, analyzes capacity, optimizes resources, and plans capacity.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const SCALING_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'infrastructure-scaling',
+    20→  name: 'Scaling',
+    21→  cluster: AgentCluster.INFRASTRUCTURE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Auto-scaling, resource optimization, and capacity planning. Scales resources up and down, configures auto-scaling policies, analyzes current capacity, optimizes resource utilization, and generates capacity plans.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'scaleUp',
+    28→      description: 'Scale up resources for a service',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          service: { type: 'string' },
+    33→          resource: {
+    34→            type: 'string',
+    35→            enum: ['cpu', 'memory', 'instances', 'storage'],
+    36→            default: 'instances',
+    37→          },
+    38→          amount: { type: 'number', description: 'Amount to scale up by' },
+    39→          reason: { type: 'string' },
+    40→        },
+    41→        required: ['service', 'resource', 'amount'],
+    42→      },
+    43→      outputSchema: {
+    44→        type: 'object',
+    45→        properties: {
+    46→          previousValue: { type: 'number' },
+    47→          newValue: { type: 'number' },
+    48→          success: { type: 'boolean' },
+    49→        },
+    50→      },
+    51→    },
+    52→    {
+    53→      name: 'scaleDown',
+    54→      description: 'Scale down resources for a service',
+    55→      inputSchema: {
+    56→        type: 'object',
+    57→        properties: {
+    58→          service: { type: 'string' },
+    59→          resource: {
+    60→            type: 'string',
+    61→            enum: ['cpu', 'memory', 'instances', 'storage'],
+    62→            default: 'instances',
+    63→          },
+    64→          amount: { type: 'number', description: 'Amount to scale down by' },
+    65→          reason: { type: 'string' },
+    66→          force: { type: 'boolean', default: false },
+    67→        },
+    68→        required: ['service', 'resource', 'amount'],
+    69→      },
+    70→      outputSchema: {
+    71→        type: 'object',
+    72→        properties: {
+    73→          previousValue: { type: 'number' },
+    74→          newValue: { type: 'number' },
+    75→          success: { type: 'boolean' },
+    76→        },
+    77→      },
+    78→    },
+    79→    {
+    80→      name: 'setAutoScaling',
+    81→      description: 'Configure auto-scaling policy for a service',
+    82→      inputSchema: {
+    83→        type: 'object',
+    84→        properties: {
+    85→          service: { type: 'string' },
+    86→          resource: { type: 'string', enum: ['cpu', 'memory', 'instances'], default: 'instances' },
+    87→          minSize: { type: 'number' },
+    88→          maxSize: { type: 'number' },
+    89→          targetCpuPercent: { type: 'number' },
+    90→          targetMemoryPercent: { type: 'number' },
+    91→          scaleUpCooldown: { type: 'number', description: 'Cooldown in seconds after scale-up' },
+    92→          scaleDownCooldown: {
+    93→            type: 'number',
+    94→            description: 'Cooldown in seconds after scale-down',
+    95→          },
+    96→        },
+    97→        required: ['service', 'minSize', 'maxSize'],
+    98→      },
+    99→      outputSchema: {
+   100→        type: 'object',
+   101→        properties: {
+   102→          policyId: { type: 'string' },
+   103→          created: { type: 'boolean' },
+   104→        },
+   105→      },
+   106→    },
+   107→    {
+   108→      name: 'analyzeCapacity',
+   109→      description: 'Analyze current capacity and utilization',
+   110→      inputSchema: {
+   111→        type: 'object',
+   112→        properties: {
+   113→          service: { type: 'string' },
+   114→          timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d', '30d'], default: '24h' },
+   115→          includeRecommendations: { type: 'boolean', default: true },
+   116→        },
+   117→        required: ['service'],
+   118→      },
+   119→      outputSchema: {
+   120→        type: 'object',
+   121→        properties: {
+   122→          currentCapacity: { type: 'object' },
+   123→          utilization: { type: 'object' },
+   124→          recommendations: { type: 'array' },
+   125→        },
+   126→      },
+   127→    },
+   128→    {
+   129→      name: 'optimizeResources',
+   130→      description: 'Optimize resource allocation for a service',
+   131→      inputSchema: {
+   132→        type: 'object',
+   133→        properties: {
+   134→          service: { type: 'string' },
+   135→          strategy: {
+   136→            type: 'string',
+   137→            enum: ['cost', 'performance', 'balanced'],
+   138→            default: 'balanced',
+   139→          },
+   140→          dryRun: { type: 'boolean', default: true },
+   141→        },
+   142→        required: ['service'],
+   143→      },
+   144→      outputSchema: {
+   145→        type: 'object',
+   146→        properties: {
+   147→          currentAllocation: { type: 'object' },
+   148→          optimizedAllocation: { type: 'object' },
+   149→          savingsEstimate: { type: 'object' },
+   150→        },
+   151→      },
+   152→    },
+   153→    {
+   154→      name: 'planCapacity',
+   155→      description: 'Generate a capacity plan based on growth projections',
+   156→      inputSchema: {
+   157→        type: 'object',
+   158→        properties: {
+   159→          services: { type: 'array', items: { type: 'string' } },
+   160→          growthRate: { type: 'number', description: 'Expected monthly growth rate (percent)' },
+   161→          planningHorizonDays: { type: 'number', default: 90 },
+   162→          includeCostEstimate: { type: 'boolean', default: true },
+   163→        },
+   164→        required: ['services'],
+   165→      },
+   166→      outputSchema: {
+   167→        type: 'object',
+   168→        properties: {
+   169→          planId: { type: 'string' },
+   170→          currentCapacity: { type: 'object' },
+   171→          projectedCapacity: { type: 'object' },
+   172→          milestones: { type: 'array' },
+   173→        },
+   174→      },
+   175→    },
+   176→  ],
+   177→  permissions: [
+   178→    'execute:task',
+   179→    'scale:up',
+   180→    'scale:down',
+   181→    'manage:auto-scaling',
+   182→    'read:capacity',
+   183→    'optimize:resources',
+   184→    'plan:capacity',
+   185→  ],
+   186→  maxConcurrentTasks: 3,
+   187→  timeout: 120000,
+   188→  retryPolicy: {
+   189→    maxRetries: 2,
+   190→    backoffMs: 2000,
+   191→    exponentialBackoff: true,
+   192→  },
+   193→};
+   194→
+   195→// ─── Internal Types ───────────────────────────────────────────────
+   196→
+   197→interface ServiceResources {
+   198→  service: string;
+   199→  instances: number;
+   200→  cpuCores: number;
+   201→  memoryMb: number;
+   202→  storageGb: number;
+   203→}
+   204→
+   205→interface AutoScalingPolicy {
+   206→  id: string;
+   207→  service: string;
+   208→  resource: string;
+   209→  minSize: number;
+   210→  maxSize: number;
+   211→  targetCpuPercent?: number;
+   212→  targetMemoryPercent?: number;
+   213→  scaleUpCooldown: number;
+   214→  scaleDownCooldown: number;
+   215→  enabled: boolean;
+   216→  createdAt: Date;
+   217→}
+   218→
+   219→interface CapacityPlan {
+   220→  id: string;
+   221→  services: string[];
+   222→  growthRate: number;
+   223→  planningHorizonDays: number;
+   224→  currentCapacity: Record<string, ServiceResources>;
+   225→  projectedCapacity: Record<string, ServiceResources>;
+   226→  milestones: Array<{
+   227→    date: string;
+   228→    description: string;
+   229→    estimatedCost: number;
+   230→  }>;
+   231→  totalEstimatedCost: number;
+   232→  createdAt: Date;
+   233→}
+   234→
+   235→// ─── Agent Service ────────────────────────────────────────────────
+   236→
+   237→@Injectable()
+   238→export class ScalingAgentService extends BaseAgentService {
+   239→  private serviceResources: Map<string, ServiceResources> = new Map();
+   240→  private autoScalingPolicies: Map<string, AutoScalingPolicy> = new Map();
+   241→  private capacityPlans: Map<string, CapacityPlan> = new Map();
+   242→  private policyCounter = 0;
+   243→  private planCounter = 0;
+   244→
+   245→  protected defineConfig(): AgentConfig {
+   246→    return SCALING_AGENT_CONFIG;
+   247→  }
+   248→
+   249→  protected async onInitialize(): Promise<void> {
+   250→    this.registerTool({
+   251→      name: 'scaleUp',
+   252→      description: 'Scale up resources for a service',
+   253→      execute: async (params: {
+   254→        service: string;
+   255→        resource?: string;
+   256→        amount: number;
+   257→        reason?: string;
+   258→      }) => this.scaleUp(params),
+   259→    });
+   260→
+   261→    this.registerTool({
+   262→      name: 'scaleDown',
+   263→      description: 'Scale down resources for a service',
+   264→      execute: async (params: {
+   265→        service: string;
+   266→        resource?: string;
+   267→        amount: number;
+   268→        reason?: string;
+   269→        force?: boolean;
+   270→      }) => this.scaleDown(params),
+   271→    });
+   272→
+   273→    this.registerTool({
+   274→      name: 'setAutoScaling',
+   275→      description: 'Configure auto-scaling policy',
+   276→      execute: async (params: {
+   277→        service: string;
+   278→        resource?: string;
+   279→        minSize: number;
+   280→        maxSize: number;
+   281→        targetCpuPercent?: number;
+   282→        targetMemoryPercent?: number;
+   283→        scaleUpCooldown?: number;
+   284→        scaleDownCooldown?: number;
+   285→      }) => this.setAutoScaling(params),
+   286→    });
+   287→
+   288→    this.registerTool({
+   289→      name: 'analyzeCapacity',
+   290→      description: 'Analyze current capacity and utilization',
+   291→      execute: async (params: {
+   292→        service: string;
+   293→        timeRange?: string;
+   294→        includeRecommendations?: boolean;
+   295→      }) => this.analyzeCapacity(params),
+   296→    });
+   297→
+   298→    this.registerTool({
+   299→      name: 'optimizeResources',
+   300→      description: 'Optimize resource allocation',
+   301→      execute: async (params: { service: string; strategy?: string; dryRun?: boolean }) =>
+   302→        this.optimizeResources(params),
+   303→    });
+   304→
+   305→    this.registerTool({
+   306→      name: 'planCapacity',
+   307→      description: 'Generate a capacity plan',
+   308→      execute: async (params: {
+   309→        services: string[];
+   310→        growthRate?: number;
+   311→        planningHorizonDays?: number;
+   312→        includeCostEstimate?: boolean;
+   313→      }) => this.planCapacity(params),
+   314→    });
+   315→
+   316→    // Seed initial service resources
+   317→    this.seedInitialResources();
+   318→
+   319→    await this.storeInWorkingMemory('scaling:initializedAt', new Date().toISOString(), 600000);
+   320→    this.logger.log('Scaling agent initialized with 6 tools');
+   321→  }
+   322→
+   323→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   324→    const startTime = Date.now();
+   325→    const { action, ...params } = input.payload;
+   326→
+   327→    if (!action) {
+   328→      return this.createAgentOutput(
+   329→        input.taskId,
+   330→        false,
+   331→        null,
+   332→        'Missing required parameter: action',
+   333→        startTime,
+   334→      );
+   335→    }
+   336→
+   337→    const supportedActions = [
+   338→      'scaleUp',
+   339→      'scaleDown',
+   340→      'setAutoScaling',
+   341→      'analyzeCapacity',
+   342→      'optimizeResources',
+   343→      'planCapacity',
+   344→    ];
+   345→
+   346→    if (!supportedActions.includes(action)) {
+   347→      return this.createAgentOutput(
+   348→        input.taskId,
+   349→        false,
+   350→        null,
+   351→        `Unknown scaling action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   352→        startTime,
+   353→      );
+   354→    }
+   355→
+   356→    try {
+   357→      const tool = this.getTool(action);
+   358→      if (!tool) {
+   359→        return this.createAgentOutput(
+   360→          input.taskId,
+   361→          false,
+   362→          null,
+   363→          `Tool not found: ${action}`,
+   364→          startTime,
+   365→        );
+   366→      }
+   367→
+   368→      const result = await tool.execute(params);
+   369→
+   370→      await this.storeInWorkingMemory(
+   371→        `scaling:last:${action}`,
+   372→        { params, result, timestamp: new Date() },
+   373→        300000,
+   374→      );
+   375→
+   376→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   377→    } catch (error) {
+   378→      const msg = (error as Error).message;
+   379→      this.logger.error(`Scaling execution failed for ${action}: ${msg}`);
+   380→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   381→    }
+   382→  }
+   383→
+   384→  protected async onDestroy(): Promise<void> {
+   385→    this.serviceResources.clear();
+   386→    this.autoScalingPolicies.clear();
+   387→    this.capacityPlans.clear();
+   388→    this.logger.log('Scaling agent destroyed, state cleared');
+   389→  }
+   390→
+   391→  // ─── Tool Implementations ──────────────────────────────────────
+   392→
+   393→  private async scaleUp(params: {
+   394→    service: string;
+   395→    resource?: string;
+   396→    amount: number;
+   397→    reason?: string;
+   398→  }): Promise<{
+   399→    service: string;
+   400→    resource: string;
+   401→    previousValue: number;
+   402→    newValue: number;
+   403→    amount: number;
+   404→    success: boolean;
+   405→    reason?: string;
+   406→  }> {
+   407→    const { service, resource = 'instances', amount, reason } = params;
+   408→
+   409→    if (!service || typeof service !== 'string') {
+   410→      throw new Error('Service name is required');
+   411→    }
+   412→    if (amount < 1) {
+   413→      throw new Error('Scale-up amount must be at least 1');
+   414→    }
+   415→
+   416→    const validResources = ['cpu', 'memory', 'instances', 'storage'];
+   417→    if (!validResources.includes(resource)) {
+   418→      throw new Error(`Invalid resource: ${resource}. Valid: ${validResources.join(', ')}`);
+   419→    }
+   420→
+   421→    const resources = this.getOrCreateServiceResources(service);
+   422→    let previousValue: number = 0;
+   423→    let newValue: number = 0;
+   424→
+   425→    switch (resource) {
+   426→      case 'cpu':
+   427→        previousValue = resources.cpuCores;
+   428→        newValue = previousValue + amount;
+   429→        resources.cpuCores = newValue;
+   430→        break;
+   431→      case 'memory':
+   432→        previousValue = resources.memoryMb;
+   433→        newValue = previousValue + amount * 1024;
+   434→        resources.memoryMb = newValue;
+   435→        break;
+   436→      case 'instances':
+   437→        previousValue = resources.instances;
+   438→        newValue = previousValue + amount;
+   439→        resources.instances = newValue;
+   440→        break;
+   441→      case 'storage':
+   442→        previousValue = resources.storageGb;
+   443→        newValue = previousValue + amount * 100;
+   444→        resources.storageGb = newValue;
+   445→        break;
+   446→    }
+   447→
+   448→    this.logger.log(
+   449→      `Scaled up ${service}.${resource}: ${previousValue} → ${newValue}, reason: ${reason || 'N/A'}`,
+   450→    );
+   451→
+   452→    return { service, resource, previousValue, newValue, amount, success: true, reason };
+   453→  }
+   454→
+   455→  private async scaleDown(params: {
+   456→    service: string;
+   457→    resource?: string;
+   458→    amount: number;
+   459→    reason?: string;
+   460→    force?: boolean;
+   461→  }): Promise<{
+   462→    service: string;
+   463→    resource: string;
+   464→    previousValue: number;
+   465→    newValue: number;
+   466→    amount: number;
+   467→    success: boolean;
+   468→    reason?: string;
+   469→    warning?: string;
+   470→  }> {
+   471→    const { service, resource = 'instances', amount, reason, force = false } = params;
+   472→
+   473→    if (!service || typeof service !== 'string') {
+   474→      throw new Error('Service name is required');
+   475→    }
+   476→    if (amount < 1) {
+   477→      throw new Error('Scale-down amount must be at least 1');
+   478→    }
+   479→
+   480→    const validResources = ['cpu', 'memory', 'instances', 'storage'];
+   481→    if (!validResources.includes(resource)) {
+   482→      throw new Error(`Invalid resource: ${resource}. Valid: ${validResources.join(', ')}`);
+   483→    }
+   484→
+   485→    const resources = this.getOrCreateServiceResources(service);
+   486→    let previousValue: number = 0;
+   487→    let newValue: number = 0;
+   488→    let warning: string | undefined;
+   489→
+   490→    switch (resource) {
+   491→      case 'cpu':
+   492→        previousValue = resources.cpuCores;
+   493→        newValue = Math.max(1, previousValue - amount);
+   494→        if (newValue < 2 && !force) {
+   495→          warning = `Scaling down to ${newValue} CPU cores may impact performance. Use force: true to proceed.`;
+   496→        }
+   497→        resources.cpuCores = newValue;
+   498→        break;
+   499→      case 'memory':
+   500→        previousValue = resources.memoryMb;
+   501→        newValue = Math.max(1024, previousValue - amount * 1024);
+   502→        resources.memoryMb = newValue;
+   503→        break;
+   504→      case 'instances':
+   505→        previousValue = resources.instances;
+   506→        newValue = Math.max(1, previousValue - amount);
+   507→        if (newValue < 2 && !force) {
+   508→          warning = `Scaling down to ${newValue} instance(s) removes redundancy. Use force: true to proceed.`;
+   509→        }
+   510→        resources.instances = newValue;
+   511→        break;
+   512→      case 'storage':
+   513→        previousValue = resources.storageGb;
+   514→        newValue = Math.max(50, previousValue - amount * 100);
+   515→        resources.storageGb = newValue;
+   516→        break;
+   517→    }
+   518→
+   519→    if (warning && !force) {
+   520→      // Revert the change
+   521→      switch (resource) {
+   522→        case 'cpu':
+   523→          resources.cpuCores = previousValue;
+   524→          break;
+   525→        case 'memory':
+   526→          resources.memoryMb = previousValue;
+   527→          break;
+   528→        case 'instances':
+   529→          resources.instances = previousValue;
+   530→          break;
+   531→        case 'storage':
+   532→          resources.storageGb = previousValue;
+   533→          break;
+   534→      }
+   535→      newValue = previousValue;
+   536→    }
+   537→
+   538→    this.logger.log(
+   539→      `Scaled down ${service}.${resource}: ${previousValue} → ${newValue}, reason: ${reason || 'N/A'}`,
+   540→    );
+   541→
+   542→    return { service, resource, previousValue, newValue, amount, success: true, reason, warning };
+   543→  }
+   544→
+   545→  private async setAutoScaling(params: {
+   546→    service: string;
+   547→    resource?: string;
+   548→    minSize: number;
+   549→    maxSize: number;
+   550→    targetCpuPercent?: number;
+   551→    targetMemoryPercent?: number;
+   552→    scaleUpCooldown?: number;
+   553→    scaleDownCooldown?: number;
+   554→  }): Promise<{
+   555→    policyId: string;
+   556→    service: string;
+   557→    resource: string;
+   558→    minSize: number;
+   559→    maxSize: number;
+   560→    enabled: boolean;
+   561→    created: boolean;
+   562→  }> {
+   563→    const {
+   564→      service,
+   565→      resource = 'instances',
+   566→      minSize,
+   567→      maxSize,
+   568→      targetCpuPercent,
+   569→      targetMemoryPercent,
+   570→      scaleUpCooldown = 300,
+   571→      scaleDownCooldown = 600,
+   572→    } = params;
+   573→
+   574→    if (!service || typeof service !== 'string') {
+   575→      throw new Error('Service name is required');
+   576→    }
+   577→    if (minSize < 1) {
+   578→      throw new Error('Minimum size must be at least 1');
+   579→    }
+   580→    if (maxSize < minSize) {
+   581→      throw new Error('Maximum size must be greater than or equal to minimum size');
+   582→    }
+   583→    if (maxSize > 1000) {
+   584→      throw new Error('Maximum size cannot exceed 1000');
+   585→    }
+   586→    if (targetCpuPercent !== undefined && (targetCpuPercent < 1 || targetCpuPercent > 99)) {
+   587→      throw new Error('Target CPU percent must be between 1 and 99');
+   588→    }
+   589→
+   590→    this.policyCounter++;
+   591→    const policyId = `autoscale-${this.policyCounter}-${Date.now()}`;
+   592→
+   593→    this.autoScalingPolicies.set(policyId, {
+   594→      id: policyId,
+   595→      service,
+   596→      resource,
+   597→      minSize,
+   598→      maxSize,
+   599→      targetCpuPercent,
+   600→      targetMemoryPercent,
+   601→      scaleUpCooldown,
+   602→      scaleDownCooldown,
+   603→      enabled: true,
+   604→      createdAt: new Date(),
+   605→    });
+   606→
+   607→    this.logger.log(
+   608→      `Set auto-scaling for ${service}.${resource}: min=${minSize}, max=${maxSize}, targetCPU=${targetCpuPercent || 'N/A'}%`,
+   609→    );
+   610→
+   611→    return {
+   612→      policyId,
+   613→      service,
+   614→      resource,
+   615→      minSize,
+   616→      maxSize,
+   617→      enabled: true,
+   618→      created: true,
+   619→    };
+   620→  }
+   621→
+   622→  private async analyzeCapacity(params: {
+   623→    service: string;
+   624→    timeRange?: string;
+   625→    includeRecommendations?: boolean;
+   626→  }): Promise<{
+   627→    service: string;
+   628→    timeRange: string;
+   629→    currentCapacity: ServiceResources;
+   630→    utilization: {
+   631→      cpuPercent: number;
+   632→      memoryPercent: number;
+   633→      storagePercent: number;
+   634→      instanceLoad: number;
+   635→    };
+   636→    peakUsage: {
+   637→      cpuPercent: number;
+   638→      memoryPercent: number;
+   639→      timestamp: string;
+   640→    };
+   641→    recommendations: string[];
+   642→    analyzedAt: string;
+   643→  }> {
+   644→    const { service, timeRange = '24h', includeRecommendations = true } = params;
+   645→
+   646→    if (!service || typeof service !== 'string') {
+   647→      throw new Error('Service name is required');
+   648→    }
+   649→
+   650→    const resources = this.getOrCreateServiceResources(service);
+   651→
+   652→    const cpuPercent = Math.round((20 + Math.random() * 70) * 100) / 100;
+   653→    const memoryPercent = Math.round((30 + Math.random() * 60) * 100) / 100;
+   654→    const storagePercent = Math.round((10 + Math.random() * 70) * 100) / 100;
+   655→    const instanceLoad = Math.round((cpuPercent / 100) * resources.instances * 100) / 100;
+   656→
+   657→    const peakCpu = Math.min(99, cpuPercent + Math.random() * 20);
+   658→    const peakMemory = Math.min(99, memoryPercent + Math.random() * 15);
+   659→
+   660→    const recommendations: string[] = [];
+   661→    if (includeRecommendations) {
+   662→      if (cpuPercent > 75) {
+   663→        recommendations.push(
+   664→          `CPU utilization is high (${cpuPercent}%). Consider scaling up CPU or adding instances.`,
+   665→        );
+   666→      }
+   667→      if (memoryPercent > 80) {
+   668→        recommendations.push(
+   669→          `Memory utilization is high (${memoryPercent}%). Consider increasing memory allocation.`,
+   670→        );
+   671→      }
+   672→      if (storagePercent > 70) {
+   673→        recommendations.push(
+   674→          `Storage utilization is ${storagePercent}%. Plan for storage expansion within 30 days.`,
+   675→        );
+   676→      }
+   677→      if (instanceLoad < 0.5 && resources.instances > 2) {
+   678→        recommendations.push(
+   679→          `Instance load is low (${instanceLoad}). Consider scaling down to save costs.`,
+   680→        );
+   681→      }
+   682→      if (recommendations.length === 0) {
+   683→        recommendations.push(
+   684→          'Resource utilization is within healthy ranges. No immediate action required.',
+   685→        );
+   686→      }
+   687→    }
+   688→
+   689→    this.logger.log(
+   690→      `analyzeCapacity: ${service}, CPU=${cpuPercent}%, Mem=${memoryPercent}%, Storage=${storagePercent}%`,
+   691→    );
+   692→
+   693→    return {
+   694→      service,
+   695→      timeRange,
+   696→      currentCapacity: { ...resources },
+   697→      utilization: { cpuPercent, memoryPercent, storagePercent, instanceLoad },
+   698→      peakUsage: {
+   699→        cpuPercent: Math.round(peakCpu * 100) / 100,
+   700→        memoryPercent: Math.round(peakMemory * 100) / 100,
+   701→        timestamp: new Date(Date.now() - Math.random() * 86400000).toISOString(),
+   702→      },
+   703→      recommendations,
+   704→      analyzedAt: new Date().toISOString(),
+   705→    };
+   706→  }
+   707→
+   708→  private async optimizeResources(params: {
+   709→    service: string;
+   710→    strategy?: string;
+   711→    dryRun?: boolean;
+   712→  }): Promise<{
+   713→    service: string;
+   714→    strategy: string;
+   715→    dryRun: boolean;
+   716→    currentAllocation: ServiceResources;
+   717→    optimizedAllocation: ServiceResources;
+   718→    savingsEstimate: {
+   719→      cpuCoresSaved: number;
+   720→      memoryMbSaved: number;
+   721→      storageGbSaved: number;
+   722→      instancesReduced: number;
+   723→      monthlyCostSavings: number;
+   724→    };
+   725→    changes: string[];
+   726→    applied: boolean;
+   727→  }> {
+   728→    const { service, strategy = 'balanced', dryRun = true } = params;
+   729→
+   730→    if (!service || typeof service !== 'string') {
+   731→      throw new Error('Service name is required');
+   732→    }
+   733→
+   734→    const validStrategies = ['cost', 'performance', 'balanced'];
+   735→    if (!validStrategies.includes(strategy)) {
+   736→      throw new Error(`Invalid strategy: ${strategy}. Valid: ${validStrategies.join(', ')}`);
+   737→    }
+   738→
+   739→    const current = this.getOrCreateServiceResources(service);
+   740→    const currentCopy = { ...current };
+   741→
+   742→    // Calculate optimized allocation based on strategy
+   743→    const optimized: ServiceResources = { ...currentCopy };
+   744→
+   745→    const changes: string[] = [];
+   746→
+   747→    if (strategy === 'cost' || strategy === 'balanced') {
+   748→      // Right-size: reduce over-provisioned resources
+   749→      if (current.cpuCores > 4) {
+   750→        const reduction = Math.floor(current.cpuCores * 0.25);
+   751→        optimized.cpuCores = current.cpuCores - reduction;
+   752→        changes.push(
+   753→          `Reduced CPU from ${current.cpuCores} to ${optimized.cpuCores} cores (over-provisioned)`,
+   754→        );
+   755→      }
+   756→      if (current.memoryMb > 8192) {
+   757→        const reduction = Math.floor(current.memoryMb * 0.2);
+   758→        optimized.memoryMb = current.memoryMb - reduction;
+   759→        changes.push(
+   760→          `Reduced memory from ${current.memoryMb}MB to ${optimized.memoryMb}MB (over-provisioned)`,
+   761→        );
+   762→      }
+   763→    }
+   764→
+   765→    if (strategy === 'performance') {
+   766→      if (current.instances < 5) {
+   767→        optimized.instances = current.instances + 2;
+   768→        changes.push(
+   769→          `Increased instances from ${current.instances} to ${optimized.instances} for better performance`,
+   770→        );
+   771→      }
+   772→      optimized.cpuCores = current.cpuCores + Math.max(2, Math.floor(current.cpuCores * 0.3));
+   773→      changes.push(
+   774→        `Increased CPU from ${current.cpuCores} to ${optimized.cpuCores} cores for headroom`,
+   775→      );
+   776→    }
+   777→
+   778→    if (changes.length === 0) {
+   779→      changes.push('Current allocation is already optimal for the selected strategy.');
+   780→    }
+   781→
+   782→    const savings = {
+   783→      cpuCoresSaved: current.cpuCores - optimized.cpuCores,
+   784→      memoryMbSaved: current.memoryMb - optimized.memoryMb,
+   785→      storageGbSaved: current.storageGb - optimized.storageGb,
+   786→      instancesReduced: current.instances - optimized.instances,
+   787→      monthlyCostSavings: 0,
+   788→    };
+   789→
+   790→    // Estimate cost: $50/instance, $10/CPU core, $0.05/GB storage, $0.02/MB memory
+   791→    savings.monthlyCostSavings = Math.max(
+   792→      0,
+   793→      Math.round(
+   794→        savings.instancesReduced * 50 +
+   795→          savings.cpuCoresSaved * 10 +
+   796→          savings.storageGbSaved * 0.05 +
+   797→          savings.memoryMbSaved * 0.02,
+   798→      ),
+   799→    );
+   800→
+   801→    // Apply if not dry run
+   802→    if (!dryRun) {
+   803→      this.serviceResources.set(service, optimized);
+   804→    }
+   805→
+   806→    this.logger.log(
+   807→      `optimizeResources: ${service}, strategy=${strategy}, dryRun=${dryRun}, savings=$$${savings.monthlyCostSavings}/mo`,
+   808→    );
+   809→
+   810→    return {
+   811→      service,
+   812→      strategy,
+   813→      dryRun,
+   814→      currentAllocation: currentCopy,
+   815→      optimizedAllocation: optimized,
+   816→      savingsEstimate: savings,
+   817→      changes,
+   818→      applied: !dryRun,
+   819→    };
+   820→  }
+   821→
+   822→  private async planCapacity(params: {
+   823→    services: string[];
+   824→    growthRate?: number;
+   825→    planningHorizonDays?: number;
+   826→    includeCostEstimate?: boolean;
+   827→  }): Promise<{
+   828→    planId: string;
+   829→    services: string[];
+   830→    growthRate: number;
+   831→    planningHorizonDays: number;
+   832→    currentCapacity: Record<string, ServiceResources>;
+   833→    projectedCapacity: Record<string, ServiceResources>;
+   834→    milestones: Array<{
+   835→      date: string;
+   836→      description: string;
+   837→      estimatedCost: number;
+   838→    }>;
+   839→    totalEstimatedCost: number;
+   840→    createdAt: string;
+   841→  }> {
+   842→    const {
+   843→      services,
+   844→      growthRate = 10,
+   845→      planningHorizonDays = 90,
+   846→      includeCostEstimate = true,
+   847→    } = params;
+   848→
+   849→    if (!services || !Array.isArray(services) || services.length === 0) {
+   850→      throw new Error('At least one service is required');
+   851→    }
+   852→    if (growthRate < 0 || growthRate > 100) {
+   853→      throw new Error('Growth rate must be between 0 and 100 percent');
+   854→    }
+   855→    if (planningHorizonDays < 7 || planningHorizonDays > 365) {
+   856→      throw new Error('Planning horizon must be between 7 and 365 days');
+   857→    }
+   858→
+   859→    this.planCounter++;
+   860→    const planId = `capacity-plan-${this.planCounter}-${Date.now()}`;
+   861→
+   862→    const currentCapacity: Record<string, ServiceResources> = {};
+   863→    const projectedCapacity: Record<string, ServiceResources> = {};
+   864→
+   865→    for (const service of services) {
+   866→      const current = this.getOrCreateServiceResources(service);
+   867→      currentCapacity[service] = { ...current };
+   868→
+   869→      const growthFactor = 1 + (growthRate / 100) * (planningHorizonDays / 30);
+   870→      projectedCapacity[service] = {
+   871→        service,
+   872→        instances: Math.ceil(current.instances * growthFactor),
+   873→        cpuCores: Math.ceil(current.cpuCores * growthFactor),
+   874→        memoryMb: Math.ceil(current.memoryMb * growthFactor),
+   875→        storageGb: Math.ceil(current.storageGb * growthFactor * 1.2), // Storage grows faster
+   876→      };
+   877→    }
+   878→
+   879→    // Generate milestones
+   880→    const milestoneCount = Math.min(Math.ceil(planningHorizonDays / 30), 6);
+   881→    const milestones: Array<{ date: string; description: string; estimatedCost: number }> = [];
+   882→
+   883→    for (let i = 1; i <= milestoneCount; i++) {
+   884→      const milestoneDate = new Date(Date.now() + i * 30 * 86400000);
+   885→      const periodGrowth = 1 + (growthRate / 100) * i;
+   886→      const estimatedCost = Math.round(services.length * periodGrowth * (50 + 20 * periodGrowth));
+   887→
+   888→      milestones.push({
+   889→        date: milestoneDate.toISOString().split('T')[0],
+   890→        description: `Month ${i}: Scale to accommodate ${Math.round(periodGrowth * 100 - 100)}% growth`,
+   891→        estimatedCost,
+   892→      });
+   893→    }
+   894→
+   895→    const totalEstimatedCost = includeCostEstimate
+   896→      ? milestones.reduce((sum, m) => sum + m.estimatedCost, 0)
+   897→      : 0;
+   898→
+   899→    this.logger.log(
+   900→      `planCapacity: ${services.length} services, ${growthRate}% growth, ${planningHorizonDays} days, total cost: $${totalEstimatedCost}`,
+   901→    );
+   902→
+   903→    return {
+   904→      planId,
+   905→      services,
+   906→      growthRate,
+   907→      planningHorizonDays,
+   908→      currentCapacity,
+   909→      projectedCapacity,
+   910→      milestones,
+   911→      totalEstimatedCost,
+   912→      createdAt: new Date().toISOString(),
+   913→    };
+   914→  }
+   915→
+   916→  // ─── Helpers ────────────────────────────────────────────────────
+   917→
+   918→  private getOrCreateServiceResources(service: string): ServiceResources {
+   919→    if (!this.serviceResources.has(service)) {
+   920→      this.serviceResources.set(service, {
+   921→        service,
+   922→        instances: 3 + Math.floor(Math.random() * 5),
+   923→        cpuCores: 2 + Math.floor(Math.random() * 8),
+   924→        memoryMb: 2048 + Math.floor(Math.random() * 8192),
+   925→        storageGb: 100 + Math.floor(Math.random() * 500),
+   926→      });
+   927→    }
+   928→    return this.serviceResources.get(service)!;
+   929→  }
+   930→
+   931→  private seedInitialResources(): void {
+   932→    const services = [
+   933→      'api-gateway',
+   934→      'auth-service',
+   935→      'user-service',
+   936→      'payment-service',
+   937→      'notification-service',
+   938→      'search-service',
+   939→      'worker-service',
+   940→    ];
+   941→
+   942→    for (const service of services) {
+   943→      this.serviceResources.set(service, {
+   944→        service,
+   945→        instances: 2 + Math.floor(Math.random() * 6),
+   946→        cpuCores: 2 + Math.floor(Math.random() * 8),
+   947→        memoryMb: 4096 + Math.floor(Math.random() * 8192),
+   948→        storageGb: 100 + Math.floor(Math.random() * 500),
+   949→      });
+   950→    }
+   951→  }
+   952→}
+   953→

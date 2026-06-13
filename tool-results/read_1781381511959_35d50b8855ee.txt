@@ -1,0 +1,809 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Meta Judge Agent
+     3→ * Final arbitration and decision making for the Meta Intelligence cluster.
+     4→ * Handles arbitration, decision making, conflict resolution, evidence evaluation,
+     5→ * ruling generation, and reasoning explanation.
+     6→ */
+     7→
+     8→import { Injectable, Optional, Inject } from '@nestjs/common';
+     9→import { BaseAgentService } from '../../base/base-agent.service';
+    10→import {
+    11→  AgentConfig,
+    12→  AgentCluster,
+    13→  AgentInput,
+    14→  AgentOutput,
+    15→} from '../../interfaces/agent.interface';
+    16→import { AgentConnectorBridge } from '../../bridge';
+    17→
+    18→// ─── Agent Configuration ──────────────────────────────────────────
+    19→
+    20→export const META_JUDGE_AGENT_CONFIG: AgentConfig = {
+    21→  id: 'meta-judge',
+    22→  name: 'MetaJudge',
+    23→  cluster: AgentCluster.META_INTELLIGENCE,
+    24→  version: '1.0.0',
+    25→  description:
+    26→    'Final arbitration and decision-making agent that arbitrates disputes, makes decisions, resolves conflicts, evaluates evidence, generates rulings, and explains reasoning across the Meta Intelligence cluster.',
+    27→  capabilities: [
+    28→    {
+    29→      name: 'arbitrate',
+    30→      description: 'Arbitrate between conflicting proposals or outputs',
+    31→      inputSchema: {
+    32→        type: 'object',
+    33→        properties: {
+    34→          proposals: {
+    35→            type: 'array',
+    36→            items: { type: 'object' },
+    37→            description: 'Conflicting proposals',
+    38→          },
+    39→          criteria: {
+    40→            type: 'array',
+    41→            items: { type: 'string' },
+    42→            description: 'Arbitration criteria',
+    43→          },
+    44→          context: { type: 'object', description: 'Arbitration context' },
+    45→        },
+    46→        required: ['proposals'],
+    47→      },
+    48→      outputSchema: {
+    49→        type: 'object',
+    50→        properties: {
+    51→          ruling: { type: 'string' },
+    52→          winner: { type: 'string' },
+    53→          scores: { type: 'object' },
+    54→          reasoning: { type: 'string' },
+    55→        },
+    56→      },
+    57→    },
+    58→    {
+    59→      name: 'makeDecision',
+    60→      description: 'Make a final decision on a given matter',
+    61→      inputSchema: {
+    62→        type: 'object',
+    63→        properties: {
+    64→          question: { type: 'string', description: 'Question to decide on' },
+    65→          options: { type: 'array', items: { type: 'object' }, description: 'Decision options' },
+    66→          decisionCriteria: { type: 'object', description: 'Criteria for the decision' },
+    67→        },
+    68→        required: ['question'],
+    69→      },
+    70→      outputSchema: {
+    71→        type: 'object',
+    72→        properties: {
+    73→          decision: { type: 'string' },
+    74→          chosenOption: { type: 'string' },
+    75→          confidence: { type: 'number' },
+    76→          rationale: { type: 'string' },
+    77→        },
+    78→      },
+    79→    },
+    80→    {
+    81→      name: 'resolveConflict',
+    82→      description: 'Resolve a conflict between agents or outputs',
+    83→      inputSchema: {
+    84→        type: 'object',
+    85→        properties: {
+    86→          conflict: { type: 'object', description: 'Conflict description and parties' },
+    87→          resolutionStrategy: {
+    88→            type: 'string',
+    89→            enum: ['compromise', 'winner-take-all', 'merge', 'escalate'],
+    90→            description: 'Resolution strategy',
+    91→          },
+    92→        },
+    93→        required: ['conflict'],
+    94→      },
+    95→      outputSchema: {
+    96→        type: 'object',
+    97→        properties: {
+    98→          resolution: { type: 'string' },
+    99→          method: { type: 'string' },
+   100→          outcome: { type: 'object' },
+   101→          satisfiedParties: { type: 'array', items: { type: 'string' } },
+   102→        },
+   103→      },
+   104→    },
+   105→    {
+   106→      name: 'evaluateEvidence',
+   107→      description: 'Evaluate evidence supporting different claims',
+   108→      inputSchema: {
+   109→        type: 'object',
+   110→        properties: {
+   111→          claims: {
+   112→            type: 'array',
+   113→            items: { type: 'object' },
+   114→            description: 'Claims with supporting evidence',
+   115→          },
+   116→          standards: {
+   117→            type: 'string',
+   118→            enum: ['preponderance', 'clear-and-convincing', 'beyond-reasonable-doubt'],
+   119→            description: 'Evidence standard',
+   120→          },
+   121→        },
+   122→        required: ['claims'],
+   123→      },
+   124→      outputSchema: {
+   125→        type: 'object',
+   126→        properties: {
+   127→          evaluations: { type: 'array', items: { type: 'object' } },
+   128→          strongestClaim: { type: 'string' },
+   129→          evidenceScore: { type: 'number' },
+   130→        },
+   131→      },
+   132→    },
+   133→    {
+   134→      name: 'generateRuling',
+   135→      description: 'Generate a formal ruling on a matter',
+   136→      inputSchema: {
+   137→        type: 'object',
+   138→        properties: {
+   139→          caseId: { type: 'string', description: 'Case identifier' },
+   140→          findings: { type: 'array', items: { type: 'object' }, description: 'Findings of fact' },
+   141→          precedent: { type: 'object', description: 'Relevant precedent data' },
+   142→        },
+   143→        required: ['caseId', 'findings'],
+   144→      },
+   145→      outputSchema: {
+   146→        type: 'object',
+   147→        properties: {
+   148→          rulingId: { type: 'string' },
+   149→          decision: { type: 'string' },
+   150→          conditions: { type: 'array', items: { type: 'string' } },
+   151→          effectiveDate: { type: 'string' },
+   152→        },
+   153→      },
+   154→    },
+   155→    {
+   156→      name: 'explainReasoning',
+   157→      description: 'Explain the reasoning behind a decision or ruling',
+   158→      inputSchema: {
+   159→        type: 'object',
+   160→        properties: {
+   161→          decisionId: { type: 'string', description: 'Decision to explain' },
+   162→          depth: {
+   163→            type: 'string',
+   164→            enum: ['summary', 'detailed', 'comprehensive'],
+   165→            description: 'Explanation depth',
+   166→          },
+   167→          audience: {
+   168→            type: 'string',
+   169→            enum: ['technical', 'business', 'general'],
+   170→            description: 'Target audience',
+   171→          },
+   172→        },
+   173→        required: ['decisionId'],
+   174→      },
+   175→      outputSchema: {
+   176→        type: 'object',
+   177→        properties: {
+   178→          explanation: { type: 'string' },
+   179→          keyFactors: { type: 'array', items: { type: 'object' } },
+   180→          alternatives: { type: 'array', items: { type: 'object' } },
+   181→          assumptions: { type: 'array', items: { type: 'string' } },
+   182→        },
+   183→      },
+   184→    },
+   185→  ],
+   186→  permissions: [
+   187→    'execute:task',
+   188→    'read:decision',
+   189→    'write:ruling',
+   190→    'read:evidence',
+   191→    'write:arbitration',
+   192→  ],
+   193→  maxConcurrentTasks: 3,
+   194→  timeout: 60000,
+   195→  retryPolicy: {
+   196→    maxRetries: 2,
+   197→    backoffMs: 2500,
+   198→    exponentialBackoff: true,
+   199→  },
+   200→};
+   201→
+   202→// ─── Internal Types ───────────────────────────────────────────────
+   203→
+   204→interface DecisionRecord {
+   205→  id: string;
+   206→  question: string;
+   207→  decision: string;
+   208→  confidence: number;
+   209→  rationale: string;
+   210→  timestamp: Date;
+   211→}
+   212→
+   213→// ─── Agent Service ────────────────────────────────────────────────
+   214→
+   215→\n  constructor(
+   216→    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+   217→  ) {
+   218→    super();
+   219→  }
+   220→  private decisions: Map<string, DecisionRecord> = new Map();
+   221→
+   222→  protected defineConfig(): AgentConfig {
+   223→    return META_JUDGE_AGENT_CONFIG;
+   224→  }
+   225→
+   226→  protected async onInitialize(): Promise<void> {
+   227→    this.registerTool({
+   228→      name: 'arbitrate',
+   229→      description: 'Arbitrate between conflicting proposals or outputs',
+   230→      execute: async (params: {
+   231→        proposals: Array<{ id: string; content: any; score?: number }>;
+   232→        criteria?: string[];
+   233→        context?: Record<string, any>;
+   234→      }) => this.arbitrate(params),
+   235→    });
+   236→
+   237→    this.registerTool({
+   238→      name: 'makeDecision',
+   239→      description: 'Make a final decision on a given matter',
+   240→      execute: async (params: {
+   241→        question: string;
+   242→        options?: Array<{ id: string; label: string; weight?: number }>;
+   243→        decisionCriteria?: Record<string, number>;
+   244→      }) => this.makeDecision(params),
+   245→    });
+   246→
+   247→    this.registerTool({
+   248→      name: 'resolveConflict',
+   249→      description: 'Resolve a conflict between agents or outputs',
+   250→      execute: async (params: {
+   251→        conflict: {
+   252→          description: string;
+   253→          parties: string[];
+   254→          positions: Array<{ party: string; position: string }>;
+   255→        };
+   256→        resolutionStrategy?: string;
+   257→      }) => this.resolveConflict(params),
+   258→    });
+   259→
+   260→    this.registerTool({
+   261→      name: 'evaluateEvidence',
+   262→      description: 'Evaluate evidence supporting different claims',
+   263→      execute: async (params: {
+   264→        claims: Array<{
+   265→          id: string;
+   266→          claim: string;
+   267→          evidence: Array<{ type: string; strength: number; description: string }>;
+   268→        }>;
+   269→        standards?: string;
+   270→      }) => this.evaluateEvidence(params),
+   271→    });
+   272→
+   273→    this.registerTool({
+   274→      name: 'generateRuling',
+   275→      description: 'Generate a formal ruling on a matter',
+   276→      execute: async (params: {
+   277→        caseId: string;
+   278→        findings: Array<{ fact: string; confidence: number; source: string }>;
+   279→        precedent?: Record<string, any>;
+   280→      }) => this.generateRuling(params),
+   281→    });
+   282→
+   283→    this.registerTool({
+   284→      name: 'explainReasoning',
+   285→      description: 'Explain the reasoning behind a decision or ruling',
+   286→      execute: async (params: { decisionId: string; depth?: string; audience?: string }) =>
+   287→        this.explainReasoning(params),
+   288→    });
+   289→
+   290→    await this.storeInWorkingMemory('judge:initializedAt', new Date().toISOString(), 600000);
+   291→    this.logger.log('MetaJudge agent initialized with 6 tools');
+   292→  }
+   293→
+   294→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   295→    const startTime = Date.now();
+   296→    // Bridge: use LLM for arbitration, conflict resolution, and evidence evaluation
+   297→    if (this.bridge) {
+   298→      try {
+   299→        const llmResult = await this.bridge.callLLM({
+   300→          systemPrompt: `You are the ${this.config.name} agent in the Meta-Intelligence cluster. Analyze the following task and provide detailed arbitration, conflict resolution, and evidence evaluation.`,
+   301→          userPrompt: JSON.stringify(input.payload),
+   302→          temperature: 0.3,
+   303→          maxTokens: 2048,
+   304→        });
+   305→
+   306→        const analysis = llmResult.content;
+   307→
+   308→        return this.createAgentOutput(
+   309→          input.taskId,
+   310→          true,
+   311→          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+   312→          undefined,
+   313→          startTime,
+   314→        );
+   315→      } catch (error) {
+   316→        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+   317→      }
+   318→    }
+   319→
+   320→const { action, ...params } = input.payload;
+   321→
+   322→    if (!action) {
+   323→      return this.createAgentOutput(
+   324→        input.taskId,
+   325→        false,
+   326→        null,
+   327→        'Missing required parameter: action',
+   328→        startTime,
+   329→      );
+   330→    }
+   331→
+   332→    const supportedActions = [
+   333→      'arbitrate',
+   334→      'makeDecision',
+   335→      'resolveConflict',
+   336→      'evaluateEvidence',
+   337→      'generateRuling',
+   338→      'explainReasoning',
+   339→    ];
+   340→
+   341→    if (!supportedActions.includes(action)) {
+   342→      return this.createAgentOutput(
+   343→        input.taskId,
+   344→        false,
+   345→        null,
+   346→        `Unknown judge action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   347→        startTime,
+   348→      );
+   349→    }
+   350→
+   351→    try {
+   352→      const tool = this.getTool(action);
+   353→      if (!tool) {
+   354→        return this.createAgentOutput(
+   355→          input.taskId,
+   356→          false,
+   357→          null,
+   358→          `Tool not found: ${action}`,
+   359→          startTime,
+   360→        );
+   361→      }
+   362→      const result = await tool.execute(params);
+   363→      await this.storeInWorkingMemory(
+   364→        `judge:last:${action}`,
+   365→        { params, result, timestamp: new Date() },
+   366→        300000,
+   367→      );
+   368→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   369→    } catch (error) {
+   370→      const msg = (error as Error).message;
+   371→      this.logger.error(`MetaJudge execution failed for ${action}: ${msg}`);
+   372→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   373→    }
+   374→  }
+   375→
+   376→  protected async onDestroy(): Promise<void> {
+   377→    this.decisions.clear();
+   378→    this.logger.log('MetaJudge agent destroyed, decisions cleared');
+   379→  }
+   380→
+   381→  // ─── Tool Implementations ──────────────────────────────────────
+   382→
+   383→  private async arbitrate(params: {
+   384→    proposals: Array<{ id: string; content: any; score?: number }>;
+   385→    criteria?: string[];
+   386→    context?: Record<string, any>;
+   387→  }): Promise<{
+   388→    ruling: string;
+   389→    winner: string;
+   390→    scores: Record<string, number>;
+   391→    reasoning: string;
+   392→  }> {
+   393→    const { proposals, criteria = ['quality', 'feasibility', 'alignment'], context = {} } = params;
+   394→
+   395→    if (!proposals || !Array.isArray(proposals) || proposals.length < 2) {
+   396→      throw new Error('At least two proposals are required for arbitration');
+   397→    }
+   398→
+   399→    const scores: Record<string, number> = {};
+   400→
+   401→    for (const proposal of proposals) {
+   402→      let totalScore = proposal.score || 50;
+   403→      const content = proposal.content;
+   404→
+   405→      if (typeof content === 'object' && content !== null) {
+   406→        if (content.success === true) totalScore += 15;
+   407→        if (content.error) totalScore -= 20;
+   408→        if (content.result) totalScore += 10;
+   409→        const keys = Object.keys(content);
+   410→        const filledKeys = keys.filter((k) => content[k] !== null && content[k] !== undefined);
+   411→        if (keys.length > 0) totalScore += Math.round((filledKeys.length / keys.length) * 15);
+   412→      }
+   413→
+   414→      if (typeof content === 'string') {
+   415→        totalScore += Math.min(content.length / 10, 10);
+   416→      }
+   417→
+   418→      scores[proposal.id] = Math.round(Math.max(0, Math.min(100, totalScore)));
+   419→    }
+   420→
+   421→    const sorted = Object.entries(scores).sort(([, a], [, b]) => b - a);
+   422→    const winner = sorted[0][0];
+   423→
+   424→    const reasoning =
+   425→      `After evaluating ${proposals.length} proposals against criteria [${criteria.join(', ')}], ` +
+   426→      `proposal "${winner}" scored highest at ${sorted[0][1]} points. ` +
+   427→      `The margin of victory was ${sorted[0][1] - (sorted[1]?.[1] || 0)} points.`;
+   428→
+   429→    this.logger.log(`Arbitration complete: winner=${winner}, proposals=${proposals.length}`);
+   430→
+   431→    return {
+   432→      ruling: `Proposal "${winner}" is selected as the best option`,
+   433→      winner,
+   434→      scores,
+   435→      reasoning,
+   436→    };
+   437→  }
+   438→
+   439→  private async makeDecision(params: {
+   440→    question: string;
+   441→    options?: Array<{ id: string; label: string; weight?: number }>;
+   442→    decisionCriteria?: Record<string, number>;
+   443→  }): Promise<{
+   444→    decision: string;
+   445→    chosenOption: string;
+   446→    confidence: number;
+   447→    rationale: string;
+   448→  }> {
+   449→    const { question, options = [], decisionCriteria = {} } = params;
+   450→
+   451→    if (!question || typeof question !== 'string') {
+   452→      throw new Error('Valid question string is required for decision making');
+   453→    }
+   454→
+   455→    const decisionId = this.generateId();
+   456→
+   457→    let chosenOption: string;
+   458→    let confidence: number;
+   459→    let rationale: string;
+   460→
+   461→    if (options.length === 0) {
+   462→      // Binary decision based on question analysis
+   463→      const affirmativeWords = ['should', 'can', 'will', 'approve', 'accept', 'proceed'];
+   464→      const negativeWords = ['should not', 'cannot', 'reject', 'deny', 'block', 'cancel'];
+   465→      const lower = question.toLowerCase();
+   466→
+   467→      const hasAffirmative = affirmativeWords.some((w) => lower.includes(w));
+   468→      const hasNegative = negativeWords.some((w) => lower.includes(w));
+   469→
+   470→      chosenOption =
+   471→        hasAffirmative && !hasNegative ? 'yes' : hasNegative ? 'no' : 'conditional-yes';
+   472→      confidence = 0.6 + Math.random() * 0.3;
+   473→      rationale =
+   474→        `Based on analysis of the question "${question.substring(0, 100)}", ` +
+   475→        `the decision is "${chosenOption}" with moderate confidence. `;
+   476→    } else {
+   477→      // Multi-option decision
+   478→      const weighted = options.map((opt) => {
+   479→        const weight = opt.weight || 1;
+   480→        const criteriaBoost = decisionCriteria[opt.id] || 0;
+   481→        return {
+   482→          id: opt.id,
+   483→          label: opt.label,
+   484→          score: weight * 50 + criteriaBoost * 10 + Math.random() * 20,
+   485→        };
+   486→      });
+   487→
+   488→      weighted.sort((a, b) => b.score - a.score);
+   489→      chosenOption = weighted[0].id;
+   490→      confidence = Math.min(0.95, 0.5 + (weighted[0].score - (weighted[1]?.score || 0)) / 100);
+   491→
+   492→      rationale =
+   493→        `Evaluated ${options.length} options. "${weighted[0].label}" scored highest ` +
+   494→        `(${Math.round(weighted[0].score)} points) based on weighted criteria analysis.`;
+   495→    }
+   496→
+   497→    const record: DecisionRecord = {
+   498→      id: decisionId,
+   499→      question,
+   500→      decision: chosenOption,
+   501→      confidence,
+   502→      rationale,
+   503→      timestamp: new Date(),
+   504→    };
+   505→
+   506→    this.decisions.set(decisionId, record);
+   507→
+   508→    this.logger.log(
+   509→      `Decision made: id=${decisionId}, choice=${chosenOption}, confidence=${confidence.toFixed(2)}`,
+   510→    );
+   511→
+   512→    return {
+   513→      decision: chosenOption,
+   514→      chosenOption,
+   515→      confidence: Math.round(confidence * 100) / 100,
+   516→      rationale,
+   517→    };
+   518→  }
+   519→
+   520→  private async resolveConflict(params: {
+   521→    conflict: {
+   522→      description: string;
+   523→      parties: string[];
+   524→      positions: Array<{ party: string; position: string }>;
+   525→    };
+   526→    resolutionStrategy?: string;
+   527→  }): Promise<{
+   528→    resolution: string;
+   529→    method: string;
+   530→    outcome: Record<string, any>;
+   531→    satisfiedParties: string[];
+   532→  }> {
+   533→    const { conflict, resolutionStrategy = 'compromise' } = params;
+   534→
+   535→    if (!conflict || !conflict.description) {
+   536→      throw new Error('Valid conflict object with description is required');
+   537→    }
+   538→
+   539→    const { parties, positions } = conflict;
+   540→    const satisfiedParties: string[] = [];
+   541→    let resolution: string;
+   542→    const outcome: Record<string, any> = {};
+   543→
+   544→    switch (resolutionStrategy) {
+   545→      case 'compromise':
+   546→        resolution = `Compromise reached: merged elements from ${positions.length} positions into a unified approach`;
+   547→        for (const party of parties) {
+   548→          outcome[party] = { role: 'participant', satisfaction: 0.6 + Math.random() * 0.3 };
+   549→          if (outcome[party].satisfaction > 0.5) satisfiedParties.push(party);
+   550→        }
+   551→        break;
+   552→
+   553→      case 'winner-take-all': {
+   554→        const winner = parties[Math.floor(Math.random() * parties.length)];
+   555→        resolution = `Winner-take-all: "${winner}" position adopted as the final resolution`;
+   556→        for (const party of parties) {
+   557→          outcome[party] = {
+   558→            role: party === winner ? 'winner' : 'loser',
+   559→            satisfaction: party === winner ? 1.0 : 0.2,
+   560→          };
+   561→          if (outcome[party].satisfaction > 0.5) satisfiedParties.push(party);
+   562→        }
+   563→        break;
+   564→      }
+   565→
+   566→      case 'merge':
+   567→        resolution = `Merge: combined key elements from all ${positions.length} positions into a comprehensive solution`;
+   568→        for (const party of parties) {
+   569→          outcome[party] = { role: 'contributor', satisfaction: 0.7 + Math.random() * 0.2 };
+   570→          if (outcome[party].satisfaction > 0.5) satisfiedParties.push(party);
+   571→        }
+   572→        break;
+   573→
+   574→      case 'escalate':
+   575→        resolution =
+   576→          'Escalated: conflict requires higher-level review and cannot be resolved at this level';
+   577→        for (const party of parties) {
+   578→          outcome[party] = { role: 'escalated', satisfaction: 0.3 };
+   579→        }
+   580→        break;
+   581→
+   582→      default:
+   583→        resolution = `Resolved using default compromise strategy`;
+   584→        satisfiedParties.push(...parties);
+   585→    }
+   586→
+   587→    this.logger.log(
+   588→      `Conflict resolved: strategy=${resolutionStrategy}, parties=${parties.length}, satisfied=${satisfiedParties.length}`,
+   589→    );
+   590→
+   591→    return { resolution, method: resolutionStrategy, outcome, satisfiedParties };
+   592→  }
+   593→
+   594→  private async evaluateEvidence(params: {
+   595→    claims: Array<{
+   596→      id: string;
+   597→      claim: string;
+   598→      evidence: Array<{ type: string; strength: number; description: string }>;
+   599→    }>;
+   600→    standards?: string;
+   601→  }): Promise<{
+   602→    evaluations: Array<{
+   603→      claimId: string;
+   604→      score: number;
+   605→      evidenceCount: number;
+   606→      meetsStandard: boolean;
+   607→    }>;
+   608→    strongestClaim: string;
+   609→    evidenceScore: number;
+   610→  }> {
+   611→    const { claims, standards = 'preponderance' } = params;
+   612→
+   613→    if (!claims || !Array.isArray(claims) || claims.length === 0) {
+   614→      throw new Error('Non-empty claims array is required for evidence evaluation');
+   615→    }
+   616→
+   617→    const thresholds: Record<string, number> = {
+   618→      preponderance: 51,
+   619→      'clear-and-convincing': 75,
+   620→      'beyond-reasonable-doubt': 95,
+   621→    };
+   622→
+   623→    const threshold = thresholds[standards] || 51;
+   624→
+   625→    const evaluations = claims.map((claim) => {
+   626→      const evidenceCount = claim.evidence?.length || 0;
+   627→      const avgStrength =
+   628→        evidenceCount > 0
+   629→          ? claim.evidence.reduce((sum, e) => sum + e.strength, 0) / evidenceCount
+   630→          : 0;
+   631→
+   632→      // Score based on evidence quantity and quality
+   633→      let score = Math.round(avgStrength * 100);
+   634→      if (evidenceCount >= 3) score += 10;
+   635→      if (evidenceCount >= 5) score += 5;
+   636→      score = Math.min(100, score);
+   637→
+   638→      return {
+   639→        claimId: claim.id,
+   640→        score,
+   641→        evidenceCount,
+   642→        meetsStandard: score >= threshold,
+   643→      };
+   644→    });
+   645→
+   646→    evaluations.sort((a, b) => b.score - a.score);
+   647→    const strongestClaim = evaluations[0]?.claimId || '';
+   648→    const evidenceScore =
+   649→      evaluations.length > 0
+   650→        ? Math.round(evaluations.reduce((sum, e) => sum + e.score, 0) / evaluations.length)
+   651→        : 0;
+   652→
+   653→    this.logger.log(
+   654→      `Evidence evaluated: claims=${claims.length}, standard=${standards}, strongest=${strongestClaim}`,
+   655→    );
+   656→
+   657→    return { evaluations, strongestClaim, evidenceScore };
+   658→  }
+   659→
+   660→  private async generateRuling(params: {
+   661→    caseId: string;
+   662→    findings: Array<{ fact: string; confidence: number; source: string }>;
+   663→    precedent?: Record<string, any>;
+   664→  }): Promise<{
+   665→    rulingId: string;
+   666→    decision: string;
+   667→    conditions: string[];
+   668→    effectiveDate: string;
+   669→  }> {
+   670→    const { caseId, findings, precedent = {} } = params;
+   671→
+   672→    if (!caseId || typeof caseId !== 'string') {
+   673→      throw new Error('Valid caseId string is required');
+   674→    }
+   675→    if (!findings || !Array.isArray(findings) || findings.length === 0) {
+   676→      throw new Error('Non-empty findings array is required');
+   677→    }
+   678→
+   679→    const rulingId = this.generateId();
+   680→
+   681→    // Analyze findings
+   682→    const highConfidenceFindings = findings.filter((f) => f.confidence >= 0.7);
+   683→    const avgConfidence = findings.reduce((sum, f) => sum + f.confidence, 0) / findings.length;
+   684→
+   685→    let decision: string;
+   686→    if (avgConfidence >= 0.8) {
+   687→      decision = 'Ruling in favor: evidence strongly supports the claim';
+   688→    } else if (avgConfidence >= 0.6) {
+   689→      decision = 'Conditional ruling: evidence moderately supports the claim with reservations';
+   690→    } else if (avgConfidence >= 0.4) {
+   691→      decision = 'Inconclusive ruling: evidence is insufficient for a definitive decision';
+   692→    } else {
+   693→      decision = 'Ruling against: evidence does not support the claim';
+   694→    }
+   695→
+   696→    const conditions: string[] = [];
+   697→
+   698→    if (avgConfidence < 0.8) {
+   699→      conditions.push('Ruling is subject to revision if additional evidence is presented');
+   700→    }
+   701→
+   702→    if (highConfidenceFindings.length < findings.length) {
+   703→      conditions.push('Some findings have low confidence and should be verified');
+   704→    }
+   705→
+   706→    conditions.push('This ruling is based on available evidence at the time of decision');
+   707→
+   708→    if (precedent.reference) {
+   709→      conditions.push(`Precedent considered: ${precedent.reference}`);
+   710→    }
+   711→
+   712→    const effectiveDate = new Date().toISOString();
+   713→
+   714→    await this.storeInLongTermMemory(`ruling:${rulingId}`, {
+   715→      caseId,
+   716→      decision,
+   717→      findingsCount: findings.length,
+   718→      avgConfidence,
+   719→      timestamp: effectiveDate,
+   720→    });
+   721→
+   722→    this.logger.log(
+   723→      `Ruling generated: id=${rulingId}, caseId=${caseId}, confidence=${avgConfidence.toFixed(2)}`,
+   724→    );
+   725→
+   726→    return { rulingId, decision, conditions, effectiveDate };
+   727→  }
+   728→
+   729→  private async explainReasoning(params: {
+   730→    decisionId: string;
+   731→    depth?: string;
+   732→    audience?: string;
+   733→  }): Promise<{
+   734→    explanation: string;
+   735→    keyFactors: Array<{ factor: string; weight: number; description: string }>;
+   736→    alternatives: Array<{ option: string; reason: string }>;
+   737→    assumptions: string[];
+   738→  }> {
+   739→    const { decisionId, depth = 'detailed', audience = 'technical' } = params;
+   740→
+   741→    if (!decisionId || typeof decisionId !== 'string') {
+   742→      throw new Error('Valid decisionId string is required');
+   743→    }
+   744→
+   745→    const record = this.decisions.get(decisionId);
+   746→
+   747→    const keyFactors: Array<{ factor: string; weight: number; description: string }> = [
+   748→      {
+   749→        factor: 'Evidence Quality',
+   750→        weight: 0.35,
+   751→        description: 'Strength and reliability of available evidence',
+   752→      },
+   753→      {
+   754→        factor: 'Consistency',
+   755→        weight: 0.25,
+   756→        description: 'Consistency of evidence with established patterns',
+   757→      },
+   758→      { factor: 'Completeness', weight: 0.2, description: 'Completeness of the information base' },
+   759→      {
+   760→        factor: 'Risk Assessment',
+   761→        weight: 0.2,
+   762→        description: 'Potential risks associated with each option',
+   763→      },
+   764→    ];
+   765→
+   766→    const alternatives: Array<{ option: string; reason: string }> = [
+   767→      { option: 'Alternative A', reason: 'Lower risk but also lower potential benefit' },
+   768→      { option: 'Alternative B', reason: 'Higher potential but with greater uncertainty' },
+   769→    ];
+   770→
+   771→    const assumptions: string[] = [
+   772→      'Available evidence is representative of the full situation',
+   773→      'Decision criteria weights are appropriate for this context',
+   774→      'No critical information has been omitted from consideration',
+   775→    ];
+   776→
+   777→    let explanation: string;
+   778→
+   779→    if (record) {
+   780→      explanation = `Decision "${record.decision}" was made for question: "${record.question.substring(0, 80)}". `;
+   781→      explanation += `Confidence: ${(record.confidence * 100).toFixed(0)}%. `;
+   782→      explanation += `Rationale: ${record.rationale}`;
+   783→    } else {
+   784→      explanation = `Decision ${decisionId} was evaluated based on weighted factors. `;
+   785→      explanation += `The primary driver was evidence quality (35% weight), followed by consistency (25%), `;
+   786→      explanation += `completeness (20%), and risk assessment (20%).`;
+   787→    }
+   788→
+   789→    if (depth === 'summary') {
+   790→      explanation = explanation.split('.')[0] + '.';
+   791→    } else if (depth === 'comprehensive') {
+   792→      explanation += ` Key assumptions include: ${assumptions.join('; ')}. `;
+   793→      explanation += `Alternative options considered: ${alternatives.map((a) => a.option).join(', ')}.`;
+   794→    }
+   795→
+   796→    if (audience === 'business') {
+   797→      explanation = explanation.replace(/weight: \d+\.\d+/g, 'significant factor');
+   798→    } else if (audience === 'general') {
+   799→      explanation = explanation.replace(/\d+%/g, 'a portion of');
+   800→    }
+   801→
+   802→    this.logger.log(
+   803→      `Reasoning explained: decisionId=${decisionId}, depth=${depth}, audience=${audience}`,
+   804→    );
+   805→
+   806→    return { explanation, keyFactors, alternatives, assumptions };
+   807→  }
+   808→}
+   809→

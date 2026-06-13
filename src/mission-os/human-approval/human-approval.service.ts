@@ -365,12 +365,8 @@ export class HumanApprovalService implements OnModuleInit {
       request.status = ApprovalStatus.EXPIRED;
       request.metadata.expiredDuringApproval = true;
       this.emitEvent(ApprovalEventType.APPROVAL_EXPIRED, request);
-      this.logger.warn(
-        `Approval request "${requestId}" expired before it could be approved`,
-      );
-      throw new Error(
-        `Approval request "${requestId}" has expired and can no longer be approved`,
-      );
+      this.logger.warn(`Approval request "${requestId}" expired before it could be approved`);
+      throw new Error(`Approval request "${requestId}" has expired and can no longer be approved`);
     }
 
     request.status = ApprovalStatus.APPROVED;
@@ -499,7 +495,7 @@ export class HumanApprovalService implements OnModuleInit {
    * Get all pending approval requests, optionally filtered by agent ID.
    */
   getPendingRequests(agentId?: string): ApprovalRequest[] {
-    let results: ApprovalRequest[] = [];
+    const results: ApprovalRequest[] = [];
 
     for (const request of this.requests.values()) {
       if (request.status === ApprovalStatus.PENDING) {
@@ -510,9 +506,7 @@ export class HumanApprovalService implements OnModuleInit {
     }
 
     // Sort by requestedAt ascending (oldest first — most urgent)
-    results.sort(
-      (a, b) => a.requestedAt.getTime() - b.requestedAt.getTime(),
-    );
+    results.sort((a, b) => a.requestedAt.getTime() - b.requestedAt.getTime());
 
     return results.map((r) => ({ ...r }));
   }
@@ -532,9 +526,7 @@ export class HumanApprovalService implements OnModuleInit {
     }
 
     // Sort by requestedAt descending (most recent first)
-    results.sort(
-      (a, b) => b.requestedAt.getTime() - a.requestedAt.getTime(),
-    );
+    results.sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime());
 
     return results.map((r) => ({ ...r }));
   }
@@ -601,7 +593,8 @@ export class HumanApprovalService implements OnModuleInit {
     return {
       allowed: false,
       requestId: request.id,
-      reason: `Action requires human approval. Risk level: "${riskAssessment.riskLevel}". ` +
+      reason:
+        `Action requires human approval. Risk level: "${riskAssessment.riskLevel}". ` +
         `Request ${request.id} is pending. Expires at ${request.expiresAt.toISOString()}.`,
     };
   }
@@ -657,7 +650,8 @@ export class HumanApprovalService implements OnModuleInit {
   assessRisk(actionType: ApprovalActionType, payload: any): RiskAssessment {
     const factors: string[] = [];
     let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'medium';
-    let reversibility: 'reversible' | 'partially_reversible' | 'irreversible' = 'partially_reversible';
+    let reversibility: 'reversible' | 'partially_reversible' | 'irreversible' =
+      'partially_reversible';
     let impactDescription = '';
 
     const p = payload ?? {};
@@ -673,12 +667,14 @@ export class HumanApprovalService implements OnModuleInit {
           reversibility = 'irreversible';
           factors.push('Deletion targets production environment');
           factors.push('Production data loss is irreversible');
-          impactDescription = 'Irreversible deletion in production — data will be permanently lost with no recovery path.';
+          impactDescription =
+            'Irreversible deletion in production — data will be permanently lost with no recovery path.';
         } else if (target.includes('database') || target.includes('db')) {
           riskLevel = 'critical';
           reversibility = 'irreversible';
           factors.push('Database deletion is irreversible without backup');
-          impactDescription = 'Database deletion — data will be permanently lost unless a backup exists.';
+          impactDescription =
+            'Database deletion — data will be permanently lost unless a backup exists.';
         } else if (target.includes('user') || target.includes('account')) {
           riskLevel = 'high';
           reversibility = 'partially_reversible';
@@ -688,12 +684,14 @@ export class HumanApprovalService implements OnModuleInit {
           riskLevel = 'low';
           reversibility = 'reversible';
           factors.push('Deletion in non-production environment');
-          impactDescription = 'Deletion in test/staging — limited blast radius, usually recoverable.';
+          impactDescription =
+            'Deletion in test/staging — limited blast radius, usually recoverable.';
         } else {
           riskLevel = 'medium';
           reversibility = 'partially_reversible';
           factors.push('Generic deletion operation');
-          impactDescription = 'Deletion of a resource — may be partially recoverable depending on backup state.';
+          impactDescription =
+            'Deletion of a resource — may be partially recoverable depending on backup state.';
         }
         break;
       }
@@ -726,9 +724,10 @@ export class HumanApprovalService implements OnModuleInit {
         }
 
         reversibility = rollbackPlan ? 'partially_reversible' : 'irreversible';
-        impactDescription = hasTests && hasReview && rollbackPlan
-          ? 'Production deployment with proper safeguards — reversible via rollback.'
-          : 'Production deployment with incomplete safeguards — potential for prolonged outage or data issues.';
+        impactDescription =
+          hasTests && hasReview && rollbackPlan
+            ? 'Production deployment with proper safeguards — reversible via rollback.'
+            : 'Production deployment with incomplete safeguards — potential for prolonged outage or data issues.';
         break;
       }
 
@@ -837,7 +836,8 @@ export class HumanApprovalService implements OnModuleInit {
         }
 
         reversibility = 'partially_reversible';
-        impactDescription = 'Social media post is public-facing and may be screenshotted or shared before deletion is possible.';
+        impactDescription =
+          'Social media post is public-facing and may be screenshotted or shared before deletion is possible.';
         break;
       }
 
@@ -890,7 +890,8 @@ export class HumanApprovalService implements OnModuleInit {
         }
 
         reversibility = 'partially_reversible';
-        impactDescription = 'DNS changes propagate globally with TTL delays — even after reverting, users may experience prolonged outage due to DNS caching.';
+        impactDescription =
+          'DNS changes propagate globally with TTL delays — even after reverting, users may experience prolonged outage due to DNS caching.';
         break;
       }
 
@@ -951,7 +952,8 @@ export class HumanApprovalService implements OnModuleInit {
         }
 
         reversibility = 'reversible';
-        impactDescription = 'API key rotation is generally reversible (old key can be restored), but there may be a brief service interruption during propagation.';
+        impactDescription =
+          'API key rotation is generally reversible (old key can be restored), but there may be a brief service interruption during propagation.';
         break;
       }
 
@@ -1012,7 +1014,8 @@ export class HumanApprovalService implements OnModuleInit {
         }
 
         reversibility = 'irreversible';
-        impactDescription = 'Once user data is exported, it cannot be "un-exported" — the data exists outside the system and may be distributed further.';
+        impactDescription =
+          'Once user data is exported, it cannot be "un-exported" — the data exists outside the system and may be distributed further.';
         break;
       }
 
@@ -1042,7 +1045,8 @@ export class HumanApprovalService implements OnModuleInit {
         }
 
         reversibility = 'reversible';
-        impactDescription = 'Scaling operations are generally reversible (scale back down), though there may be brief performance impact during the transition.';
+        impactDescription =
+          'Scaling operations are generally reversible (scale back down), though there may be brief performance impact during the transition.';
         break;
       }
 

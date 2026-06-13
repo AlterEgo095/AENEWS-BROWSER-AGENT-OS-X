@@ -197,7 +197,9 @@ export class MissionRuntimeEngine {
       // Parse plan from architecture output
       const plan = this.extractPlan(analysisResult, request.instruction);
       this.memoryService.storePlan(missionId, plan);
-      this.logger.log(`Plan: ${plan.phases?.length || 0} phases, ${plan.requiredCapabilities?.length || 0} capabilities`);
+      this.logger.log(
+        `Plan: ${plan.phases?.length || 0} phases, ${plan.requiredCapabilities?.length || 0} capabilities`,
+      );
 
       // ─── Step 5: Resolve capabilities ────────────────────
       this.updateState(missionId, MissionState.RESEARCH, 'Resolving capabilities');
@@ -210,7 +212,13 @@ export class MissionRuntimeEngine {
       // ─── Step 6: Execute Build via dev connectors ────────
       this.updateState(missionId, MissionState.BUILDING, 'Building');
 
-      const buildResult = await this.executeBuild(request.instruction, plan, workspaceDir, missionId, previousResults);
+      const buildResult = await this.executeBuild(
+        request.instruction,
+        plan,
+        workspaceDir,
+        missionId,
+        previousResults,
+      );
       totalCost += buildResult.costUsd;
       this.mergeArtifacts(buildResult, mission);
       this.memoryService.storeBuildResults(missionId, buildResult.output);
@@ -218,14 +226,24 @@ export class MissionRuntimeEngine {
       // ─── Step 7: Testing via dev.test + dev.qa ───────────
       this.updateState(missionId, MissionState.TESTING, 'Testing');
 
-      const testResult = await this.executeTesting(request.instruction, workspaceDir, missionId, previousResults);
+      const testResult = await this.executeTesting(
+        request.instruction,
+        workspaceDir,
+        missionId,
+        previousResults,
+      );
       totalCost += testResult.costUsd;
       this.memoryService.storeTestResults(missionId, testResult.output);
 
       // ─── Step 8: Auditing via cert connectors ────────────
       this.updateState(missionId, MissionState.AUDITING, 'Auditing');
 
-      const auditResult = await this.executeAudit(request.instruction, workspaceDir, missionId, previousResults);
+      const auditResult = await this.executeAudit(
+        request.instruction,
+        workspaceDir,
+        missionId,
+        previousResults,
+      );
       totalCost += auditResult.costUsd;
       this.mergeArtifacts(auditResult, mission);
       this.memoryService.storeAuditResults(missionId, auditResult.output);
@@ -248,7 +266,9 @@ export class MissionRuntimeEngine {
       this.memoryService.storeCertification(missionId, finalCert);
 
       if (!finalCert.certified) {
-        this.logger.warn(`Certification failed after ${finalCert.repairAttempts} repair attempts: ${finalCert.reasons.join(', ')}`);
+        this.logger.warn(
+          `Certification failed after ${finalCert.repairAttempts} repair attempts: ${finalCert.reasons.join(', ')}`,
+        );
       }
 
       // ─── Step 10: Document via dev.documentation ─────────
@@ -266,7 +286,12 @@ export class MissionRuntimeEngine {
       this.mergeArtifacts(docResult, mission);
 
       // Generate report
-      const reportContent = this.generateReport(mission, finalCert, testResult.output, auditResult.output);
+      const reportContent = this.generateReport(
+        mission,
+        finalCert,
+        testResult.output,
+        auditResult.output,
+      );
       const reportDir = path.join(workspaceDir, 'docs');
       fs.mkdirSync(reportDir, { recursive: true });
       const reportPath = path.join(reportDir, 'REPORT.md');
@@ -306,7 +331,7 @@ export class MissionRuntimeEngine {
       const totalDuration = Date.now() - startTime;
       this.logger.log(
         `═══ MISSION COMPLETE: ${missionId} ═══ ${mission.artifacts.length} artifacts, ` +
-        `$${totalCost.toFixed(2)}, ${totalDuration}ms, certified=${finalCert.certified}`,
+          `$${totalCost.toFixed(2)}, ${totalDuration}ms, certified=${finalCert.certified}`,
       );
 
       const result = this.buildResult(mission, startTime, totalCost, finalCert.certified);
@@ -463,7 +488,13 @@ export class MissionRuntimeEngine {
       return {
         success: true,
         artifacts: [],
-        output: { score: 70, passed: true, findings: [], fallback: true, originalError: originalError.message },
+        output: {
+          score: 70,
+          passed: true,
+          findings: [],
+          fallback: true,
+          originalError: originalError.message,
+        },
         costUsd: 0,
         durationMs: 0,
       };
@@ -682,43 +713,62 @@ export class MissionRuntimeEngine {
     // Audit scoring — extract findings from connector output
     const secFindings = auditOutput?.securityAudit?.findings || [];
     const archFindings = auditOutput?.architectureReview?.findings || [];
-    const allFindings = [...(Array.isArray(secFindings) ? secFindings : []), ...(Array.isArray(archFindings) ? archFindings : [])];
+    const allFindings = [
+      ...(Array.isArray(secFindings) ? secFindings : []),
+      ...(Array.isArray(archFindings) ? archFindings : []),
+    ];
 
     const criticalFindings = allFindings.filter((f: any) => {
       const str = typeof f === 'string' ? f.toLowerCase() : JSON.stringify(f).toLowerCase();
-      return str.includes('no source') || str.includes('injection') || str.includes('execute') || str.includes('malicious');
+      return (
+        str.includes('no source') ||
+        str.includes('injection') ||
+        str.includes('execute') ||
+        str.includes('malicious')
+      );
     });
     const minorFindings = allFindings.filter((f: any) => !criticalFindings.includes(f));
 
     if (criticalFindings.length > 0) {
       score -= 20;
-      reasons.push(...criticalFindings.slice(0, 3).map((f: any) => typeof f === 'string' ? f : JSON.stringify(f)));
+      reasons.push(
+        ...criticalFindings
+          .slice(0, 3)
+          .map((f: any) => (typeof f === 'string' ? f : JSON.stringify(f))),
+      );
     }
     if (minorFindings.length > 0) {
       score -= Math.min(10, minorFindings.length * 3);
-      if (minorFindings.length <= 3) reasons.push(...minorFindings.map((f: any) => typeof f === 'string' ? f : JSON.stringify(f)));
+      if (minorFindings.length <= 3)
+        reasons.push(
+          ...minorFindings.map((f: any) => (typeof f === 'string' ? f : JSON.stringify(f))),
+        );
       else reasons.push(`${minorFindings.length} minor findings`);
     }
 
     // Missing artifacts
-    if (mission.artifacts.filter(a => a.type === 'source').length === 0) {
+    if (mission.artifacts.filter((a) => a.type === 'source').length === 0) {
       score -= 40;
       reasons.push('No source code');
     }
-    if (!mission.artifacts.find(a => a.name === 'README.md')) {
+    if (!mission.artifacts.find((a) => a.name === 'README.md')) {
       score -= 10;
       reasons.push('No README');
     }
-    if (!mission.artifacts.find(a => a.name === 'Dockerfile')) {
+    if (!mission.artifacts.find((a) => a.name === 'Dockerfile')) {
       score -= 10;
       reasons.push('No Dockerfile');
     }
-    if (!mission.artifacts.some(a => a.type === 'test')) {
+    if (!mission.artifacts.some((a) => a.type === 'test')) {
       score -= 10;
       reasons.push('No test files');
     }
 
-    return { certified: score >= this.QUALITY_GATE_THRESHOLD, qualityScore: Math.max(0, score), reasons };
+    return {
+      certified: score >= this.QUALITY_GATE_THRESHOLD,
+      qualityScore: Math.max(0, score),
+      reasons,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -774,7 +824,12 @@ export class MissionRuntimeEngine {
         this.mergeArtifacts(retestResult, mission);
 
         // Re-audit
-        const reauditResult = await this.executeAudit(instruction, workspaceDir, missionId, previousResults);
+        const reauditResult = await this.executeAudit(
+          instruction,
+          workspaceDir,
+          missionId,
+          previousResults,
+        );
         repairCost += reauditResult.costUsd;
         this.mergeArtifacts(reauditResult, mission);
 
@@ -806,7 +861,12 @@ export class MissionRuntimeEngine {
         repairCost += retestResult.costUsd;
 
         // Re-audit
-        const reauditResult = await this.executeAudit(instruction, workspaceDir, missionId, previousResults);
+        const reauditResult = await this.executeAudit(
+          instruction,
+          workspaceDir,
+          missionId,
+          previousResults,
+        );
         repairCost += reauditResult.costUsd;
 
         currentCert = this.computeCertification(mission, retestResult.output, reauditResult.output);
@@ -815,11 +875,15 @@ export class MissionRuntimeEngine {
       attempts = attempt;
 
       if (currentCert.qualityScore >= this.QUALITY_GATE_THRESHOLD) {
-        this.logger.log(`  Repair succeeded: score ${currentCert.qualityScore} >= ${this.QUALITY_GATE_THRESHOLD}`);
+        this.logger.log(
+          `  Repair succeeded: score ${currentCert.qualityScore} >= ${this.QUALITY_GATE_THRESHOLD}`,
+        );
         break;
       }
 
-      this.logger.warn(`  Repair attempt ${attempt} did not pass: score ${currentCert.qualityScore}`);
+      this.logger.warn(
+        `  Repair attempt ${attempt} did not pass: score ${currentCert.qualityScore}`,
+      );
     }
 
     // If still below threshold after all attempts, deliver anyway but mark as uncertified
@@ -872,20 +936,43 @@ export class MissionRuntimeEngine {
 
   private heuristicPlan(instruction: string): any {
     const lower = instruction.toLowerCase();
-    const hasBackend = lower.includes('api') || lower.includes('backend') || lower.includes('server')
-      || lower.includes('database') || lower.includes('erp') || lower.includes('crm') || lower.includes('todo');
+    const hasBackend =
+      lower.includes('api') ||
+      lower.includes('backend') ||
+      lower.includes('server') ||
+      lower.includes('database') ||
+      lower.includes('erp') ||
+      lower.includes('crm') ||
+      lower.includes('todo');
 
     return {
       objective: instruction,
-      techStack: hasBackend ? ['HTML', 'CSS', 'JavaScript', 'Node.js'] : ['HTML', 'CSS', 'JavaScript'],
+      techStack: hasBackend
+        ? ['HTML', 'CSS', 'JavaScript', 'Node.js']
+        : ['HTML', 'CSS', 'JavaScript'],
       phases: [
         { name: 'Frontend', capabilities: ['dev.frontend'], estimatedMinutes: 30 },
-        ...(hasBackend ? [{ name: 'Backend', capabilities: ['dev.backend', 'dev.database'], estimatedMinutes: 45 }] : []),
+        ...(hasBackend
+          ? [
+              {
+                name: 'Backend',
+                capabilities: ['dev.backend', 'dev.database'],
+                estimatedMinutes: 45,
+              },
+            ]
+          : []),
         { name: 'Docker', capabilities: ['dev.docker'], estimatedMinutes: 5 },
         { name: 'Testing', capabilities: ['dev.test', 'dev.qa'], estimatedMinutes: 15 },
       ],
       requiredCapabilities: hasBackend
-        ? ['dev.frontend', 'dev.backend', 'dev.database', 'dev.docker', 'dev.test', 'dev.documentation']
+        ? [
+            'dev.frontend',
+            'dev.backend',
+            'dev.database',
+            'dev.docker',
+            'dev.test',
+            'dev.documentation',
+          ]
         : ['dev.frontend', 'dev.docker', 'dev.test', 'dev.documentation'],
       deliverables: ['index.html', 'style.css', 'app.js', 'tests/', 'README.md', 'Dockerfile'],
       complexity: hasBackend ? 'medium' : 'low',
@@ -903,7 +990,7 @@ export class MissionRuntimeEngine {
   private mergeArtifacts(connectorResult: ConnectorOutput, mission: RuntimeMission): void {
     if (!connectorResult.artifacts?.length) return;
 
-    const existingNames = new Set(mission.artifacts.map(a => a.name));
+    const existingNames = new Set(mission.artifacts.map((a) => a.name));
 
     for (const ga of connectorResult.artifacts) {
       const runtimeArtifact: RuntimeArtifact = {
@@ -947,10 +1034,10 @@ ${mission.instruction}
 - **Repair Attempts**: ${certResult.repairAttempts}
 
 ## Artifacts
-${mission.artifacts.map(a => `- **${a.name}** (${a.type}, ${a.size} bytes)`).join('\n')}
+${mission.artifacts.map((a) => `- **${a.name}** (${a.type}, ${a.size} bytes)`).join('\n')}
 
 ## Certification Details
-${certResult.reasons.length > 0 ? certResult.reasons.map(r => `- ⚠️ ${r}`).join('\n') : 'All checks passed.'}
+${certResult.reasons.length > 0 ? certResult.reasons.map((r) => `- ⚠️ ${r}`).join('\n') : 'All checks passed.'}
 
 ## Duration
 Started: ${mission.startedAt.toISOString()}
@@ -984,12 +1071,16 @@ Generated by AENEWS Software Factory — powered by ConnectorRegistry`;
       };
       const trigger = triggerMap[state];
       if (trigger) {
-        this.stateMachine.transition({
-          missionId,
-          contractId: mission?.contractId || '',
-          currentState,
-          trigger,
-        }).catch(() => { /* state machine errors are non-critical */ });
+        this.stateMachine
+          .transition({
+            missionId,
+            contractId: mission?.contractId || '',
+            currentState,
+            trigger,
+          })
+          .catch(() => {
+            /* state machine errors are non-critical */
+          });
       }
     }
     this.logger.log(`[${missionId}] State: ${state} — ${phase}`);
@@ -1024,13 +1115,13 @@ Generated by AENEWS Software Factory — powered by ConnectorRegistry`;
   }
 
   getActiveMissions(): RuntimeMission[] {
-    return Array.from(this.missions.values())
-      .filter(m => m.status !== MissionState.COMPLETED && m.status !== MissionState.ARCHIVED);
+    return Array.from(this.missions.values()).filter(
+      (m) => m.status !== MissionState.COMPLETED && m.status !== MissionState.ARCHIVED,
+    );
   }
 
   getCompletedMissions(): RuntimeMission[] {
-    return Array.from(this.missions.values())
-      .filter(m => m.status === MissionState.COMPLETED);
+    return Array.from(this.missions.values()).filter((m) => m.status === MissionState.COMPLETED);
   }
 
   getWorkspaceDir(missionId: string): string | undefined {

@@ -1,10 +1,10 @@
 /**
  * AENEWS Software Factory — Mission Orchestrator (New Pipeline)
- * 
+ *
  * The central orchestrator that implements the new flow:
- * 
+ *
  *   Mission → Kernel → Execution Graph → Capability Resolver → Worker Factory → Certification → Delivery
- * 
+ *
  * 3 concepts only:
  *   1. Mission   → what the client requests
  *   2. Capabilities → what the platform knows how to do
@@ -131,7 +131,9 @@ export class MissionOrchestratorPipeline {
     // Step 2: Negotiate Contract Feasibility
     const negotiation = this.contractService.negotiate(contract);
     if (!negotiation.accepted) {
-      this.logger.error(`Mission ${missionId} rejected: feasibility ${negotiation.feasibilityScore}`);
+      this.logger.error(
+        `Mission ${missionId} rejected: feasibility ${negotiation.feasibilityScore}`,
+      );
       const execState = this.orchestrator.registerMission(missionId, contract.id);
       return {
         missionId,
@@ -165,7 +167,7 @@ export class MissionOrchestratorPipeline {
     });
 
     // Step 5: Auto-start Pipeline
-    this.executePipeline(missionId).catch(err => {
+    this.executePipeline(missionId).catch((err) => {
       this.logger.error(`Pipeline failed for ${missionId}: ${err.message}`);
     });
 
@@ -202,31 +204,38 @@ export class MissionOrchestratorPipeline {
 
       // Phase 2: CAPABILITY RESOLUTION
       await this.transitionTo(missionId, TransitionTrigger.START_RESEARCH, MissionState.RESEARCH);
-      this.orchestrator.updateMission(missionId, { currentPhase: 'Capability Resolution', progress: 15 });
+      this.orchestrator.updateMission(missionId, {
+        currentPhase: 'Capability Resolution',
+        progress: 15,
+      });
 
       const resolution = this.capabilityResolver.resolve({
         missionId,
         instruction: context?.instruction || '',
-        explicitCapabilities: plan.requiredCapabilities.length > 0 ? plan.requiredCapabilities : undefined,
+        explicitCapabilities:
+          plan.requiredCapabilities.length > 0 ? plan.requiredCapabilities : undefined,
         inferredPacks: plan.requiredPacks,
       });
 
       this.memoryService.storeResearch(missionId, {
         plan,
         resolution,
-        requiredCapabilities: resolution.requiredCapabilities.map(c => c.capabilityId),
+        requiredCapabilities: resolution.requiredCapabilities.map((c) => c.capabilityId),
         packsNeeded: resolution.packsNeeded,
         confidence: resolution.confidence,
       });
 
       // Phase 3: EXECUTION GRAPH BUILDING
       await this.transitionTo(missionId, TransitionTrigger.START_BUILD, MissionState.BUILDING);
-      this.orchestrator.updateMission(missionId, { currentPhase: 'Building Execution Graph', progress: 25 });
+      this.orchestrator.updateMission(missionId, {
+        currentPhase: 'Building Execution Graph',
+        progress: 25,
+      });
 
       const graphPlan = this.graphBuilder.buildGraph({
         missionId,
         instruction: context?.instruction || '',
-        requiredCapabilities: resolution.requiredCapabilities.map(c => c.capabilityId),
+        requiredCapabilities: resolution.requiredCapabilities.map((c) => c.capabilityId),
         requiredPacks: resolution.packsNeeded,
         estimatedComplexity: plan.complexity,
       });
@@ -244,11 +253,14 @@ export class MissionOrchestratorPipeline {
       this.logger.log(`Mission workspace: ${workspaceDir}`);
 
       // Phase 4: WORKER CREATION & EXECUTION
-      this.orchestrator.updateMission(missionId, { currentPhase: 'Spawning Workers', progress: 35 });
+      this.orchestrator.updateMission(missionId, {
+        currentPhase: 'Spawning Workers',
+        progress: 35,
+      });
 
       for (const phase of graphPlan.phases) {
         for (const nodeId of phase.nodeIds) {
-          const node = graphPlan.graph.nodes.find(n => n.id === nodeId);
+          const node = graphPlan.graph.nodes.find((n) => n.id === nodeId);
           if (!node || node.status === GraphNodeStatus.COMPLETED) continue;
 
           // Check budget
@@ -309,7 +321,11 @@ export class MissionOrchestratorPipeline {
             const retryCount = node.retryCount || 0;
             const maxRetries = node.maxRetries || 2;
             const recoveryDecision = this.recovery.handleNodeFailure(
-              missionId, nodeId, execResult.error || 'Unknown', retryCount, maxRetries,
+              missionId,
+              nodeId,
+              execResult.error || 'Unknown',
+              retryCount,
+              maxRetries,
             );
 
             if (recoveryDecision.action === 'retry') {
@@ -337,14 +353,24 @@ export class MissionOrchestratorPipeline {
       await this.transitionTo(missionId, TransitionTrigger.START_AUDIT, MissionState.AUDITING);
       this.orchestrator.updateMission(missionId, { currentPhase: 'Auditing', progress: 70 });
 
-      const auditResults = this.certManager.certify(missionId, this.memoryService.getAllResults(missionId));
+      const auditResults = this.certManager.certify(
+        missionId,
+        this.memoryService.getAllResults(missionId),
+      );
       this.memoryService.storeAuditResults(missionId, auditResults);
 
       // Phase 7: CERTIFICATION
-      await this.transitionTo(missionId, TransitionTrigger.START_CERTIFICATION, MissionState.CERTIFYING);
+      await this.transitionTo(
+        missionId,
+        TransitionTrigger.START_CERTIFICATION,
+        MissionState.CERTIFYING,
+      );
       this.orchestrator.updateMission(missionId, { currentPhase: 'Certifying', progress: 80 });
 
-      const certResult = this.certManager.certify(missionId, this.memoryService.getAllResults(missionId));
+      const certResult = this.certManager.certify(
+        missionId,
+        this.memoryService.getAllResults(missionId),
+      );
       this.memoryService.storeCertification(missionId, certResult);
 
       if (!certResult.certified) {
@@ -405,8 +431,9 @@ export class MissionOrchestratorPipeline {
    * List all active missions
    */
   getActiveMissions(): MissionExecution[] {
-    return this.orchestrator.getActiveMissions()
-      .map(m => this.getExecution(m.missionId))
+    return this.orchestrator
+      .getActiveMissions()
+      .map((m) => this.getExecution(m.missionId))
       .filter(Boolean) as MissionExecution[];
   }
 
@@ -497,7 +524,12 @@ export class MissionOrchestratorPipeline {
     const artifacts: any[] = [];
     for (const [, data] of Object.entries(results)) {
       if (data?.executionPlan) {
-        artifacts.push({ name: 'execution-plan.json', type: 'plan', path: '/artifacts/execution-plan.json', size: 2000 });
+        artifacts.push({
+          name: 'execution-plan.json',
+          type: 'plan',
+          path: '/artifacts/execution-plan.json',
+          size: 2000,
+        });
       }
       if (data?.artifacts) {
         if (Array.isArray(data.artifacts)) {

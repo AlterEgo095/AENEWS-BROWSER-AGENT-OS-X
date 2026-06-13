@@ -4,13 +4,11 @@
  * and module boundary enforcement across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const ARCHITECTURE_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Module or system to audit' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -49,7 +51,11 @@ export const ARCHITECTURE_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           rootPath: { type: 'string', description: 'Root path to scan for circular deps' },
-          excludePatterns: { type: 'array', items: { type: 'string' }, description: 'Paths to exclude' },
+          excludePatterns: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Paths to exclude',
+          },
         },
         required: ['rootPath'],
       },
@@ -69,7 +75,11 @@ export const ARCHITECTURE_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           modules: { type: 'array', items: { type: 'string' }, description: 'Modules to analyze' },
-          couplingType: { type: 'string', enum: ['afferent', 'efferent', 'both'], description: 'Coupling direction' },
+          couplingType: {
+            type: 'string',
+            enum: ['afferent', 'efferent', 'both'],
+            description: 'Coupling direction',
+          },
         },
       },
       outputSchema: {
@@ -87,8 +97,14 @@ export const ARCHITECTURE_AUDITOR_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          architecture: { type: 'string', description: 'Architecture pattern (hexagonal, layered, clean)' },
-          enforceRules: { type: 'boolean', description: 'Whether to enforce boundary rules strictly' },
+          architecture: {
+            type: 'string',
+            description: 'Architecture pattern (hexagonal, layered, clean)',
+          },
+          enforceRules: {
+            type: 'boolean',
+            description: 'Whether to enforce boundary rules strictly',
+          },
         },
       },
       outputSchema: {
@@ -100,7 +116,12 @@ export const ARCHITECTURE_AUDITOR_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['certification:audit', 'certification:architecture', 'read:module', 'read:dependency'],
+  permissions: [
+    'certification:audit',
+    'certification:architecture',
+    'read:module',
+    'read:dependency',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
@@ -127,6 +148,11 @@ interface DependencyCycle {
 
 @Injectable()
 export class ArchitectureAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private auditLog: ArchitectureIssue[] = [];
   private detectedCycles: DependencyCycle[] = [];
 
@@ -138,8 +164,7 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-architecture',
       description: 'Perform a full architecture integrity audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
@@ -167,8 +192,29 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real architecture review connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.ARCHITECTURE_REVIEW, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -183,10 +229,7 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
           );
           break;
         case 'analyze-coupling':
-          result = await this.analyzeCoupling(
-            input.payload.modules,
-            input.payload.couplingType,
-          );
+          result = await this.analyzeCoupling(input.payload.modules, input.payload.couplingType);
           break;
         case 'check-boundaries':
           result = await this.checkBoundaries(
@@ -199,13 +242,7 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -228,12 +265,10 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
     for (let i = 0; i < auditDepth; i++) {
       const issue: ArchitectureIssue = {
         id: this.generateId(),
-        severity: (['low', 'medium', 'high', 'critical'] as const)[
-          Math.floor(Math.random() * 4)
-        ],
-        category: (['circular_dependency', 'tight_coupling', 'boundary_violation', 'layer_crossing'] as const)[
-          i % 4
-        ],
+        severity: (['low', 'medium', 'high', 'critical'] as const)[Math.floor(Math.random() * 4)],
+        category: (
+          ['circular_dependency', 'tight_coupling', 'boundary_violation', 'layer_crossing'] as const
+        )[i % 4],
         description: `Architecture issue detected in ${target}: ${['Circular import chain', 'Tight coupling between modules', 'Layer boundary violation', 'Cross-layer direct access'][i % 4]}`,
         source: `module-${i}`,
         target: `module-${(i + 1) % auditDepth}`,
@@ -242,29 +277,50 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
       this.auditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'circular_dependency')) {
-      recommendations.push('Resolve circular dependencies by introducing dependency injection or event-driven communication');
+      recommendations.push(
+        'Resolve circular dependencies by introducing dependency injection or event-driven communication',
+      );
     }
     if (issues.some((i) => i.category === 'tight_coupling')) {
-      recommendations.push('Reduce coupling by introducing interfaces and abstracting module boundaries');
+      recommendations.push(
+        'Reduce coupling by introducing interfaces and abstracting module boundaries',
+      );
     }
     if (issues.some((i) => i.category === 'boundary_violation')) {
       recommendations.push('Enforce module boundaries using architectural fitness functions');
     }
     if (issues.some((i) => i.category === 'layer_crossing')) {
-      recommendations.push('Implement strict layer communication rules to prevent cross-layer access');
+      recommendations.push(
+        'Implement strict layer communication rules to prevent cross-layer access',
+      );
     }
 
     this.logger.log(
       `Architecture audit completed for ${target}: score ${score}, ${issues.length} issues`,
     );
 
-    await this.storeInWorkingMemory('lastAuditResult', { target, score, issueCount: issues.length }, 300000);
+    await this.storeInWorkingMemory(
+      'lastAuditResult',
+      { target, score, issueCount: issues.length },
+      300000,
+    );
 
     return { score, issues, recommendations };
   }
@@ -308,9 +364,7 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
         ? 'medium'
         : 'low';
 
-    this.logger.log(
-      `Circular dependency detection for ${rootPath}: ${cycles.length} cycles found`,
-    );
+    this.logger.log(`Circular dependency detection for ${rootPath}: ${cycles.length} cycles found`);
 
     return { cycles, totalCycles: cycles.length, severity };
   }
@@ -323,9 +377,10 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
     highCouplingPairs: any[];
     instabilityScores: Record<string, number>;
   }> {
-    const targetModules = modules.length > 0
-      ? modules
-      : ['agents', 'gateway', 'memory', 'orchestrator', 'security', 'browser'];
+    const targetModules =
+      modules.length > 0
+        ? modules
+        : ['agents', 'gateway', 'memory', 'orchestrator', 'security', 'browser'];
 
     const couplingMatrix: Record<string, Record<string, number>> = {};
     const highCouplingPairs: any[] = [];
@@ -346,7 +401,8 @@ export class ArchitectureAuditorAgent extends BaseAgentService {
       }
       // Instability = efferent coupling / (afferent + efferent)
       const efferent = Object.values(couplingMatrix[mod]).reduce((s, v) => s + v, 0);
-      instabilityScores[mod] = Math.round((efferent / (efferent + targetModules.length)) * 100) / 100;
+      instabilityScores[mod] =
+        Math.round((efferent / (efferent + targetModules.length)) * 100) / 100;
     }
 
     this.logger.log(

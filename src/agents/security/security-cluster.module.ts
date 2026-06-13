@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { ThreatDetectionAgentService } from './threat-detection/threat-detection-agent.service';
 import { AuthenticationAgentService } from './authentication/authentication-agent.service';
 import { EncryptionAgentService } from './encryption/encryption-agent.service';
@@ -15,7 +16,7 @@ import { AuditAgentService } from './audit/audit-agent.service';
 import { IncidentResponseAgentService } from './incident-response/incident-response-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Threat Detection — scanForThreats, analyzeAnomaly, detectIntrusion, monitorTraffic, assessVulnerability, generateThreatReport
     ThreatDetectionAgentService,

@@ -73,11 +73,11 @@ type CertificationDomain = (typeof CERTIFICATION_DOMAINS)[number];
 
 const DOMAIN_WEIGHTS: Record<CertificationDomain, number> = {
   functionality: 0.25,
-  reliability: 0.20,
+  reliability: 0.2,
   performance: 0.15,
-  security: 0.20,
-  maintainability: 0.10,
-  documentation: 0.10,
+  security: 0.2,
+  maintainability: 0.1,
+  documentation: 0.1,
 };
 
 // ─── Service ────────────────────────────────────────────────────────
@@ -90,7 +90,10 @@ export class CertificationTeamService {
   private readonly runs = new Map<string, CertificationRun>();
 
   /** Task execution log */
-  private readonly taskLog = new Map<string, { task: CertificationTask; result: CertificationResult }>();
+  private readonly taskLog = new Map<
+    string,
+    { task: CertificationTask; result: CertificationResult }
+  >();
 
   /** Cumulative team metrics */
   private metrics = {
@@ -159,12 +162,12 @@ export class CertificationTeamService {
         } else {
           this.metrics.certificationsFailed++;
         }
-        this.metrics.averageScore =
-          Math.round(
-            ((this.metrics.averageScore * (this.metrics.certificationsPassed + this.metrics.certificationsFailed - 1)) +
-              result.score) /
-              (this.metrics.certificationsPassed + this.metrics.certificationsFailed),
-          );
+        this.metrics.averageScore = Math.round(
+          (this.metrics.averageScore *
+            (this.metrics.certificationsPassed + this.metrics.certificationsFailed - 1) +
+            result.score) /
+            (this.metrics.certificationsPassed + this.metrics.certificationsFailed),
+        );
       }
 
       this.taskLog.set(task.id, { task, result });
@@ -203,10 +206,7 @@ export class CertificationTeamService {
    * Execute a test suite against a target.
    * Produces domain results for functionality and reliability.
    */
-  async runTests(
-    target: string,
-    missionId?: string,
-  ): Promise<CertificationResult> {
+  async runTests(target: string, missionId?: string): Promise<CertificationResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
 
@@ -239,14 +239,23 @@ export class CertificationTeamService {
         details: `Flaky test rate: ${(Math.random() * 5).toFixed(1)}%, retry success rate: ${(95 + Math.random() * 5).toFixed(1)}%`,
         issues:
           reliabilityScore < 90
-            ? ['2 tests exhibit flaky behavior under load', 'Timeout threshold too aggressive for CI']
+            ? [
+                '2 tests exhibit flaky behavior under load',
+                'Timeout threshold too aggressive for CI',
+              ]
             : [],
       },
     ];
 
     const weightedScore = Math.round(
-      domains.reduce((sum, d) => sum + d.score * (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5), 0) /
-        domains.reduce((sum, d) => sum + (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5), 0),
+      domains.reduce(
+        (sum, d) => sum + d.score * (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5),
+        0,
+      ) /
+        domains.reduce(
+          (sum, d) => sum + (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5),
+          0,
+        ),
     );
 
     this.recordRun(projectId, domains);
@@ -265,10 +274,7 @@ export class CertificationTeamService {
   /**
    * Audit code quality and produce maintainability + security domain results.
    */
-  async auditCode(
-    code: string,
-    missionId?: string,
-  ): Promise<CertificationResult> {
+  async auditCode(code: string, missionId?: string): Promise<CertificationResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
 
@@ -277,10 +283,7 @@ export class CertificationTeamService {
     await this.sleep(1000 + Math.random() * 800);
 
     const codeLength = typeof code === 'string' ? code.length : 5000;
-    const maintainabilityScore = Math.max(
-      40,
-      Math.min(100, 95 - Math.floor(codeLength / 500)),
-    );
+    const maintainabilityScore = Math.max(40, Math.min(100, 95 - Math.floor(codeLength / 500)));
     const securityScore = Math.floor(Math.random() * 30) + 65; // 65-95
 
     const domains: CertificationDomainResult[] = [
@@ -315,8 +318,14 @@ export class CertificationTeamService {
     ];
 
     const weightedScore = Math.round(
-      domains.reduce((sum, d) => sum + d.score * (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5), 0) /
-        domains.reduce((sum, d) => sum + (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5), 0),
+      domains.reduce(
+        (sum, d) => sum + d.score * (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5),
+        0,
+      ) /
+        domains.reduce(
+          (sum, d) => sum + (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5),
+          0,
+        ),
     );
 
     this.recordRun(projectId, domains);
@@ -386,7 +395,8 @@ export class CertificationTeamService {
 
     const regressionPenalty = regressions.length * 10;
     const reliabilityScore = Math.max(0, 100 - regressionPenalty);
-    const functionalityScore = regressions.length === 0 ? 95 : Math.max(50, 90 - regressions.length * 15);
+    const functionalityScore =
+      regressions.length === 0 ? 95 : Math.max(50, 90 - regressions.length * 15);
 
     const domains: CertificationDomainResult[] = [
       {
@@ -406,8 +416,14 @@ export class CertificationTeamService {
     ];
 
     const weightedScore = Math.round(
-      domains.reduce((sum, d) => sum + d.score * (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5), 0) /
-        domains.reduce((sum, d) => sum + (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5), 0),
+      domains.reduce(
+        (sum, d) => sum + d.score * (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5),
+        0,
+      ) /
+        domains.reduce(
+          (sum, d) => sum + (DOMAIN_WEIGHTS[d.domain as CertificationDomain] || 0.5),
+          0,
+        ),
     );
 
     this.recordRun(projectId, domains);
@@ -426,10 +442,7 @@ export class CertificationTeamService {
   /**
    * Benchmark performance against target thresholds.
    */
-  async benchmarkPerformance(
-    target: string,
-    missionId?: string,
-  ): Promise<CertificationResult> {
+  async benchmarkPerformance(target: string, missionId?: string): Promise<CertificationResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
 
@@ -491,10 +504,7 @@ export class CertificationTeamService {
   /**
    * Perform a security scan on the target.
    */
-  async securityScan(
-    target: string,
-    missionId?: string,
-  ): Promise<CertificationResult> {
+  async securityScan(target: string, missionId?: string): Promise<CertificationResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
 
@@ -513,7 +523,8 @@ export class CertificationTeamService {
     );
 
     const allIssues: string[] = [];
-    if (criticalVulns > 0) allIssues.push(`${criticalVulns} critical vulnerabilities (CVEs) detected`);
+    if (criticalVulns > 0)
+      allIssues.push(`${criticalVulns} critical vulnerabilities (CVEs) detected`);
     if (highVulns > 0) allIssues.push(`${highVulns} high-severity issues found`);
     if (mediumVulns > 0) allIssues.push(`${mediumVulns} medium-severity warnings`);
     if (criticalVulns > 0) allIssues.push('Outdated dependency with known exploit path');
@@ -545,10 +556,7 @@ export class CertificationTeamService {
   /**
    * Check documentation completeness.
    */
-  async checkDocumentation(
-    target: string,
-    missionId?: string,
-  ): Promise<CertificationResult> {
+  async checkDocumentation(target: string, missionId?: string): Promise<CertificationResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
 
@@ -612,13 +620,7 @@ export class CertificationTeamService {
     this.logger.log(`Running FULL certification for mission ${missionId}`);
 
     // Run all domain checks
-    const [
-      testResult,
-      auditResult,
-      perfResult,
-      secResult,
-      docResult,
-    ] = await Promise.all([
+    const [testResult, auditResult, perfResult, secResult, docResult] = await Promise.all([
       this.runTests('full-suite', missionId),
       this.auditCode('// full-codebase', missionId),
       this.benchmarkPerformance('full-stack', missionId),
@@ -667,8 +669,7 @@ export class CertificationTeamService {
       '',
       'Domain Breakdown:',
       ...allDomains.map(
-        (d) =>
-          `  ${d.domain}: ${d.score}/100 ${d.passed ? '✓ PASS' : '✗ FAIL'} — ${d.details}`,
+        (d) => `  ${d.domain}: ${d.score}/100 ${d.passed ? '✓ PASS' : '✗ FAIL'} — ${d.details}`,
       ),
       '',
       `Overall: ${overallScore}/100 — ${overallPassed ? 'CERTIFIED ✓' : 'NOT CERTIFIED ✗'}`,
@@ -709,15 +710,13 @@ export class CertificationTeamService {
       lastRunAt: Date;
     }>;
   } {
-    const runSummaries = Array.from(this.runs.entries()).map(
-      ([missionId, run]) => ({
-        missionId,
-        totalRuns: run.totalRuns,
-        lastScore: run.lastScore,
-        lastPassed: run.lastPassed,
-        lastRunAt: run.lastRunAt,
-      }),
-    );
+    const runSummaries = Array.from(this.runs.entries()).map(([missionId, run]) => ({
+      missionId,
+      totalRuns: run.totalRuns,
+      lastScore: run.lastScore,
+      lastPassed: run.lastPassed,
+      lastRunAt: run.lastRunAt,
+    }));
 
     return {
       team: 'certification',

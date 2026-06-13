@@ -17,11 +17,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  CapabilityId,
-  CapabilityPack,
-  OfficeCapability,
-} from '../interfaces';
+import { CapabilityId, CapabilityPack, OfficeCapability } from '../interfaces';
 import {
   ICapabilityConnector,
   ConnectorInput,
@@ -99,7 +95,8 @@ export class OfficeConnector implements ICapabilityConnector {
 
   private async executePdf(input: ConnectorInput): Promise<ConnectorOutput> {
     const llmResult = await this.llm.call({
-      systemPrompt: 'You are a professional report writer. Generate a comprehensive report in markdown that can be converted to PDF.',
+      systemPrompt:
+        'You are a professional report writer. Generate a comprehensive report in markdown that can be converted to PDF.',
       userPrompt: `Generate a professional PDF report for: "${input.instruction}"\n${input.parameters.context ? `Context: ${JSON.stringify(input.parameters.context)}` : ''}\n\nInclude: executive summary, methodology, findings, recommendations, conclusion. Use markdown formatting.`,
       maxTokens: 4096,
     });
@@ -122,7 +119,8 @@ export class OfficeConnector implements ICapabilityConnector {
 
   private async executeDocx(input: ConnectorInput): Promise<ConnectorOutput> {
     const llmResult = await this.llm.call({
-      systemPrompt: 'You are a professional document writer. Generate a complete document with proper headings and sections.',
+      systemPrompt:
+        'You are a professional document writer. Generate a complete document with proper headings and sections.',
       userPrompt: `Generate a professional document for: "${input.instruction}"\n\nUse markdown format with clear headings (# H1, ## H2, ### H3).`,
       maxTokens: 4096,
     });
@@ -168,7 +166,8 @@ export class OfficeConnector implements ICapabilityConnector {
 
   private async executePowerpoint(input: ConnectorInput): Promise<ConnectorOutput> {
     const llmResult = await this.llm.call({
-      systemPrompt: 'You are a presentation designer. Generate a detailed presentation outline in markdown.',
+      systemPrompt:
+        'You are a presentation designer. Generate a detailed presentation outline in markdown.',
       userPrompt: `Create a presentation outline for: "${input.instruction}"\n\nFormat:\n# Slide 1: Title\n- Bullet 1\n- Bullet 2\n\n# Slide 2: ...\n\nCreate 8-12 slides with clear talking points.`,
       maxTokens: 4096,
     });
@@ -296,7 +295,10 @@ export class OfficeConnector implements ICapabilityConnector {
 
   // ─── Generic fallback ───────────────────────────────────────
 
-  private async executeGenericOffice(capId: OfficeCapability, input: ConnectorInput): Promise<ConnectorOutput> {
+  private async executeGenericOffice(
+    capId: OfficeCapability,
+    input: ConnectorInput,
+  ): Promise<ConnectorOutput> {
     const llmResult = await this.llm.call({
       systemPrompt: 'You are a professional content generator. Create the requested content.',
       userPrompt: `Generate content for: "${capId}" — "${input.instruction}"`,
@@ -310,7 +312,14 @@ export class OfficeConnector implements ICapabilityConnector {
 
     return {
       success: true,
-      artifacts: [this.makeArtifact(`${capId.replace('office.', '')}.md`, 'document', docPath, llmResult.content)],
+      artifacts: [
+        this.makeArtifact(
+          `${capId.replace('office.', '')}.md`,
+          'document',
+          docPath,
+          llmResult.content,
+        ),
+      ],
       output: { content: llmResult.content.substring(0, 500) },
       costUsd: llmResult.costUsd,
       durationMs: 0,
@@ -319,8 +328,19 @@ export class OfficeConnector implements ICapabilityConnector {
 
   // ─── Helpers ────────────────────────────────────────────────
 
-  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, content: string): GeneratedArtifact {
-    return { name, type, path: fullPath, size: Buffer.byteLength(content), content: content.substring(0, 500) };
+  private makeArtifact(
+    name: string,
+    type: GeneratedArtifact['type'],
+    fullPath: string,
+    content: string,
+  ): GeneratedArtifact {
+    return {
+      name,
+      type,
+      path: fullPath,
+      size: Buffer.byteLength(content),
+      content: content.substring(0, 500),
+    };
   }
 
   private generateICS(event: any): string {

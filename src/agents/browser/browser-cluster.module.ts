@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { NavigationAgentService } from './navigation/navigation-agent.service';
 import { ClickAgentService } from './click/click-agent.service';
 import { FormFillingAgentService } from './form-filling/form-filling-agent.service';
@@ -26,7 +27,7 @@ import { ScrollManagementAgentService } from './scroll-management/scroll-managem
 import { CaptchaSolvingAgentService } from './captcha-solving/captcha-solving-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Navigation — URL navigation, redirects, history
     NavigationAgentService,

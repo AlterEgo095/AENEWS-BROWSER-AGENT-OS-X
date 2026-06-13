@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Execution Team
- * 
+ *
  * Responsible for: Browser operations, Coding, Office/Document ops, Deployment
  * Executes the planned work and produces artifacts.
  */
@@ -98,7 +98,10 @@ export class ExecutionTeamService {
           type: 'source_code',
           path: `/missions/${missionId}/code/`,
           createdAt: new Date(),
-          metadata: { filesCreated: codeArtifacts.filesCreated, linesOfCode: codeArtifacts.linesOfCode },
+          metadata: {
+            filesCreated: codeArtifacts.filesCreated,
+            linesOfCode: codeArtifacts.linesOfCode,
+          },
         });
       }
 
@@ -153,7 +156,10 @@ export class ExecutionTeamService {
   /**
    * Execute browser automation tasks
    */
-  private async executeBrowserOps(missionId: string, plan: MissionPlan): Promise<BrowserExecutionData> {
+  private async executeBrowserOps(
+    missionId: string,
+    plan: MissionPlan,
+  ): Promise<BrowserExecutionData> {
     this.logger.log(`Executing browser operations for mission ${missionId}`);
 
     return {
@@ -192,7 +198,10 @@ export class ExecutionTeamService {
   /**
    * Execute document generation tasks
    */
-  private async executeDocumentOps(missionId: string, plan: MissionPlan): Promise<DocumentExecutionData> {
+  private async executeDocumentOps(
+    missionId: string,
+    plan: MissionPlan,
+  ): Promise<DocumentExecutionData> {
     this.logger.log(`Executing document operations for mission ${missionId}`);
 
     return {
@@ -205,7 +214,10 @@ export class ExecutionTeamService {
   /**
    * Execute deployment tasks
    */
-  private async executeDeployment(missionId: string, plan: MissionPlan): Promise<DeploymentExecutionData> {
+  private async executeDeployment(
+    missionId: string,
+    plan: MissionPlan,
+  ): Promise<DeploymentExecutionData> {
     this.logger.log(`Executing deployment for mission ${missionId}`);
 
     return {

@@ -4,13 +4,11 @@
  * and resource utilization across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -105,7 +103,12 @@ export const PERFORMANCE_AUDITOR_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['certification:audit', 'certification:performance', 'read:metrics', 'read:resources'],
+  permissions: [
+    'certification:audit',
+    'certification:performance',
+    'read:metrics',
+    'read:resources',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
@@ -126,6 +129,11 @@ interface PerformanceIssue {
 
 @Injectable()
 export class PerformanceAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private performanceLog: PerformanceIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -136,8 +144,7 @@ export class PerformanceAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-performance',
       description: 'Perform a comprehensive performance audit',
-      execute: async (target: string, duration?: number) =>
-        this.performAudit({ target, duration }),
+      execute: async (target: string, duration?: number) => this.performAudit({ target, duration }),
     });
 
     this.registerTool({
@@ -157,16 +164,36 @@ export class PerformanceAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'profile-resources',
       description: 'Profile CPU, memory, and I/O resource utilization',
-      execute: async (target: string, duration?: number) =>
-        this.profileResources(target, duration),
+      execute: async (target: string, duration?: number) => this.profileResources(target, duration),
     });
 
     this.logger.log('PerformanceAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real performance connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.PERFORMANCE, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -175,10 +202,7 @@ export class PerformanceAuditorAgent extends BaseAgentService {
           result = await this.performAudit(input.payload);
           break;
         case 'measure-latency':
-          result = await this.measureLatency(
-            input.payload.endpoint,
-            input.payload.iterations,
-          );
+          result = await this.measureLatency(input.payload.endpoint, input.payload.iterations);
           break;
         case 'benchmark-throughput':
           result = await this.benchmarkThroughput(
@@ -188,23 +212,14 @@ export class PerformanceAuditorAgent extends BaseAgentService {
           );
           break;
         case 'profile-resources':
-          result = await this.profileResources(
-            input.payload.target,
-            input.payload.duration,
-          );
+          result = await this.profileResources(input.payload.target, input.payload.duration);
           break;
         default:
           result = { action, status: 'unknown_action' };
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -238,7 +253,8 @@ export class PerformanceAuditorAgent extends BaseAgentService {
       if (exceedsThreshold) {
         const issue: PerformanceIssue = {
           id: this.generateId(),
-          severity: metric > threshold * 1.5 ? 'critical' : metric > threshold * 1.2 ? 'high' : 'medium',
+          severity:
+            metric > threshold * 1.5 ? 'critical' : metric > threshold * 1.2 ? 'high' : 'medium',
           category,
           description: `Performance issue in ${target}: ${category} metric (${metric}) exceeds threshold (${threshold})`,
           metric,
@@ -249,19 +265,34 @@ export class PerformanceAuditorAgent extends BaseAgentService {
       }
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'latency')) {
       recommendations.push('Optimize hot paths and implement caching strategies to reduce latency');
     }
     if (issues.some((i) => i.category === 'throughput')) {
-      recommendations.push('Scale horizontally and optimize connection pooling to improve throughput');
+      recommendations.push(
+        'Scale horizontally and optimize connection pooling to improve throughput',
+      );
     }
     if (issues.some((i) => i.category === 'memory')) {
-      recommendations.push('Investigate memory leaks and optimize data structures to reduce memory usage');
+      recommendations.push(
+        'Investigate memory leaks and optimize data structures to reduce memory usage',
+      );
     }
 
     this.logger.log(
@@ -294,9 +325,7 @@ export class PerformanceAuditorAgent extends BaseAgentService {
     const p99Ms = samples[Math.floor(samples.length * 0.99)];
     const maxMs = samples[samples.length - 1];
 
-    this.logger.log(
-      `Latency measurement for ${endpoint}: avg ${avgLatencyMs}ms, p99 ${p99Ms}ms`,
-    );
+    this.logger.log(`Latency measurement for ${endpoint}: avg ${avgLatencyMs}ms, p99 ${p99Ms}ms`);
 
     return { avgLatencyMs, p50Ms, p95Ms, p99Ms, maxMs, samples: iterations };
   }
@@ -338,13 +367,25 @@ export class PerformanceAuditorAgent extends BaseAgentService {
 
     const bottlenecks = [];
     if (cpuUsage > 80) {
-      bottlenecks.push({ resource: 'cpu', usage: cpuUsage, recommendation: 'Scale vertically or optimize CPU-intensive operations' });
+      bottlenecks.push({
+        resource: 'cpu',
+        usage: cpuUsage,
+        recommendation: 'Scale vertically or optimize CPU-intensive operations',
+      });
     }
     if (memoryUsage > 800) {
-      bottlenecks.push({ resource: 'memory', usage: memoryUsage, recommendation: 'Investigate memory leaks and optimize data retention' });
+      bottlenecks.push({
+        resource: 'memory',
+        usage: memoryUsage,
+        recommendation: 'Investigate memory leaks and optimize data retention',
+      });
     }
     if (ioWait > 20) {
-      bottlenecks.push({ resource: 'io', usage: ioWait, recommendation: 'Optimize I/O operations with batching and async patterns' });
+      bottlenecks.push({
+        resource: 'io',
+        usage: ioWait,
+        recommendation: 'Optimize I/O operations with batching and async patterns',
+      });
     }
 
     this.logger.log(

@@ -136,11 +136,21 @@ export class MemoryTeamService {
           result = await this.getContext(task.missionId);
           break;
         case 'project':
-          result = { taskId: '', success: true, data: await this.getProject(task.params.projectId), durationMs: 0 };
+          result = {
+            taskId: '',
+            success: true,
+            data: await this.getProject(task.params.projectId),
+            durationMs: 0,
+          };
           result.durationMs = Date.now() - start;
           break;
         case 'preferences':
-          result = { taskId: '', success: true, data: await this.getPreferences(task.params.userId), durationMs: 0 };
+          result = {
+            taskId: '',
+            success: true,
+            data: await this.getPreferences(task.params.userId),
+            durationMs: 0,
+          };
           result.durationMs = Date.now() - start;
           break;
         case 'summarize':
@@ -157,9 +167,7 @@ export class MemoryTeamService {
       this.metrics.totalDurationMs += result.durationMs;
 
       this.taskLog.set(task.id, { task, result });
-      this.logger.log(
-        `Memory task [${task.capability}] completed in ${result.durationMs}ms`,
-      );
+      this.logger.log(`Memory task [${task.capability}] completed in ${result.durationMs}ms`);
       return result;
     } catch (error) {
       const durationMs = Date.now() - start;
@@ -175,9 +183,7 @@ export class MemoryTeamService {
       this.metrics.totalDurationMs += durationMs;
 
       this.taskLog.set(task.id, { task, result });
-      this.logger.error(
-        `Memory task [${task.capability}] failed: ${(error as Error).message}`,
-      );
+      this.logger.error(`Memory task [${task.capability}] failed: ${(error as Error).message}`);
       return result;
     }
   }
@@ -533,18 +539,16 @@ export class MemoryTeamService {
       lastActivity: Date;
     }>;
   } {
-    const missionSummaries = Array.from(this.missions.entries()).map(
-      ([missionId, mission]) => ({
-        missionId,
-        status: mission.status,
-        entryCount: mission.entries.size,
-        timelineEventCount: mission.timeline.length,
-        lastActivity:
-          mission.timeline.length > 0
-            ? mission.timeline[mission.timeline.length - 1].timestamp
-            : mission.createdAt,
-      }),
-    );
+    const missionSummaries = Array.from(this.missions.entries()).map(([missionId, mission]) => ({
+      missionId,
+      status: mission.status,
+      entryCount: mission.entries.size,
+      timelineEventCount: mission.timeline.length,
+      lastActivity:
+        mission.timeline.length > 0
+          ? mission.timeline[mission.timeline.length - 1].timestamp
+          : mission.createdAt,
+    }));
 
     return {
       team: 'memory',
@@ -653,9 +657,10 @@ export class MemoryTeamService {
 
     for (let i = 0; i < dimensions; i++) {
       // Use seed + position to generate each dimension
-      const value = Math.sin(seed * (i + 1) * 0.001) * 0.5 +
-                    Math.cos(i * 0.1) * 0.3 +
-                    (Math.random() - 0.5) * 0.1; // Small random noise
+      const value =
+        Math.sin(seed * (i + 1) * 0.001) * 0.5 +
+        Math.cos(i * 0.1) * 0.3 +
+        (Math.random() - 0.5) * 0.1; // Small random noise
       embedding.push(value);
     }
 

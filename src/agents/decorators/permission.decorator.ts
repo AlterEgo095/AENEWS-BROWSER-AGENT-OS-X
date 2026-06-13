@@ -125,11 +125,7 @@ export function RequirePermission(
     mode = optionsOrResource.mode || 'all';
   }
 
-  return (
-    target: any,
-    propertyKey: string | symbol,
-    descriptor: PropertyDescriptor,
-  ) => {
+  return (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
     const permissionMeta = {
       requirements,
       mode,
@@ -175,9 +171,7 @@ export function RequirePermission(
 /**
  * Helper to extract permission requirements from a class.
  */
-export function getPermissionRequirements(
-  target: Function,
-): Array<{
+export function getPermissionRequirements(target: Function): Array<{
   requirements: PermissionRequirement[];
   mode: string;
   methodName: string;

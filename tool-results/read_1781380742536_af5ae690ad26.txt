@@ -1,0 +1,979 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Document Agent
+     3→ * Manages document creation, editing, conversion, text extraction,
+     4→ * merging, and template application for office documents.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const DOCUMENT_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'office-document',
+    20→  name: 'Document',
+    21→  cluster: AgentCluster.OFFICE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Document management agent that handles creating, editing, converting, extracting text, merging documents, and applying templates to office documents.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'createDocument',
+    28→      description: 'Create a new document with specified format, content, and metadata',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          title: { type: 'string', description: 'Document title' },
+    33→          format: {
+    34→            type: 'string',
+    35→            enum: ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'],
+    36→            description: 'Document format',
+    37→          },
+    38→          content: { type: 'string', description: 'Initial document content' },
+    39→          author: { type: 'string', description: 'Document author' },
+    40→          template: { type: 'string', description: 'Template to apply' },
+    41→          metadata: { type: 'object', description: 'Additional metadata key-value pairs' },
+    42→        },
+    43→        required: ['title', 'format'],
+    44→      },
+    45→      outputSchema: {
+    46→        type: 'object',
+    47→        properties: {
+    48→          documentId: { type: 'string' },
+    49→          format: { type: 'string' },
+    50→          createdAt: { type: 'string' },
+    51→        },
+    52→      },
+    53→    },
+    54→    {
+    55→      name: 'editDocument',
+    56→      description:
+    57→        'Edit an existing document by applying insert, replace, delete, or append operations',
+    58→      inputSchema: {
+    59→        type: 'object',
+    60→        properties: {
+    61→          documentId: { type: 'string', description: 'ID of the document to edit' },
+    62→          operations: {
+    63→            type: 'array',
+    64→            items: { type: 'object' },
+    65→            description: 'List of edit operations to apply',
+    66→          },
+    67→        },
+    68→        required: ['documentId', 'operations'],
+    69→      },
+    70→      outputSchema: {
+    71→        type: 'object',
+    72→        properties: {
+    73→          documentId: { type: 'string' },
+    74→          appliedOperations: { type: 'number' },
+    75→          status: { type: 'string' },
+    76→        },
+    77→      },
+    78→    },
+    79→    {
+    80→      name: 'convertFormat',
+    81→      description: 'Convert a document from one format to another',
+    82→      inputSchema: {
+    83→        type: 'object',
+    84→        properties: {
+    85→          documentId: { type: 'string', description: 'ID of the document to convert' },
+    86→          targetFormat: {
+    87→            type: 'string',
+    88→            enum: ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'],
+    89→            description: 'Target format',
+    90→          },
+    91→          options: { type: 'object', description: 'Conversion options' },
+    92→        },
+    93→        required: ['documentId', 'targetFormat'],
+    94→      },
+    95→      outputSchema: {
+    96→        type: 'object',
+    97→        properties: {
+    98→          documentId: { type: 'string' },
+    99→          convertedDocumentId: { type: 'string' },
+   100→          sourceFormat: { type: 'string' },
+   101→          targetFormat: { type: 'string' },
+   102→          status: { type: 'string' },
+   103→        },
+   104→      },
+   105→    },
+   106→    {
+   107→      name: 'extractText',
+   108→      description: 'Extract plain text content from a document',
+   109→      inputSchema: {
+   110→        type: 'object',
+   111→        properties: {
+   112→          documentId: { type: 'string', description: 'ID of the document to extract text from' },
+   113→          includeMetadata: {
+   114→            type: 'boolean',
+   115→            default: false,
+   116→            description: 'Include document metadata in extraction',
+   117→          },
+   118→          pageRange: { type: 'object', description: 'Specific page range to extract from' },
+   119→        },
+   120→        required: ['documentId'],
+   121→      },
+   122→      outputSchema: {
+   123→        type: 'object',
+   124→        properties: {
+   125→          documentId: { type: 'string' },
+   126→          text: { type: 'string' },
+   127→          pageCount: { type: 'number' },
+   128→          wordCount: { type: 'number' },
+   129→        },
+   130→      },
+   131→    },
+   132→    {
+   133→      name: 'mergeDocuments',
+   134→      description: 'Merge multiple documents into a single document',
+   135→      inputSchema: {
+   136→        type: 'object',
+   137→        properties: {
+   138→          documentIds: {
+   139→            type: 'array',
+   140→            items: { type: 'string' },
+   141→            description: 'IDs of documents to merge',
+   142→          },
+   143→          outputTitle: { type: 'string', description: 'Title for the merged document' },
+   144→          outputFormat: { type: 'string', description: 'Format for the merged document' },
+   145→          separator: { type: 'string', description: 'Separator between merged sections' },
+   146→        },
+   147→        required: ['documentIds'],
+   148→      },
+   149→      outputSchema: {
+   150→        type: 'object',
+   151→        properties: {
+   152→          mergedDocumentId: { type: 'string' },
+   153→          sourceDocumentCount: { type: 'number' },
+   154→          status: { type: 'string' },
+   155→        },
+   156→      },
+   157→    },
+   158→    {
+   159→      name: 'applyTemplate',
+   160→      description: 'Apply a template to an existing document or create from template',
+   161→      inputSchema: {
+   162→        type: 'object',
+   163→        properties: {
+   164→          documentId: {
+   165→            type: 'string',
+   166→            description: 'ID of the document to apply template to (optional for new)',
+   167→          },
+   168→          templateId: { type: 'string', description: 'Template identifier to apply' },
+   169→          variables: {
+   170→            type: 'object',
+   171→            description: 'Key-value pairs for template variable substitution',
+   172→          },
+   173→        },
+   174→        required: ['templateId'],
+   175→      },
+   176→      outputSchema: {
+   177→        type: 'object',
+   178→        properties: {
+   179→          documentId: { type: 'string' },
+   180→          templateId: { type: 'string' },
+   181→          substitutedVars: { type: 'array', items: { type: 'string' } },
+   182→          status: { type: 'string' },
+   183→        },
+   184→      },
+   185→    },
+   186→  ],
+   187→  permissions: [
+   188→    'execute:task',
+   189→    'read:document',
+   190→    'write:document',
+   191→    'convert:document',
+   192→    'merge:document',
+   193→  ],
+   194→  maxConcurrentTasks: 4,
+   195→  timeout: 45000,
+   196→  retryPolicy: {
+   197→    maxRetries: 2,
+   198→    backoffMs: 1500,
+   199→    exponentialBackoff: true,
+   200→  },
+   201→};
+   202→
+   203→// ─── Internal Types ───────────────────────────────────────────────
+   204→
+   205→interface Document {
+   206→  id: string;
+   207→  title: string;
+   208→  format: string;
+   209→  content: string;
+   210→  author: string;
+   211→  metadata: Record<string, any>;
+   212→  createdAt: Date;
+   213→  updatedAt: Date;
+   214→  version: number;
+   215→  pageCount: number;
+   216→}
+   217→
+   218→interface DocumentTemplate {
+   219→  id: string;
+   220→  name: string;
+   221→  format: string;
+   222→  content: string;
+   223→  variables: string[];
+   224→  description: string;
+   225→}
+   226→
+   227→interface EditOperation {
+   228→  type: 'insert' | 'replace' | 'delete' | 'append';
+   229→  position?: number;
+   230→  text?: string;
+   231→  search?: string;
+   232→  replacement?: string;
+   233→  start?: number;
+   234→  end?: number;
+   235→}
+   236→
+   237→// ─── Agent Service ────────────────────────────────────────────────
+   238→
+   239→@Injectable()
+   240→export class DocumentAgentService extends BaseAgentService {
+   241→  private documents: Map<string, Document> = new Map();
+   242→  private templates: Map<string, DocumentTemplate> = new Map();
+   243→  private documentCounter: number = 0;
+   244→
+   245→  protected defineConfig(): AgentConfig {
+   246→    return DOCUMENT_AGENT_CONFIG;
+   247→  }
+   248→
+   249→  protected async onInitialize(): Promise<void> {
+   250→    // Seed built-in templates
+   251→    this.seedTemplates();
+   252→
+   253→    // Register tools
+   254→    this.registerTool({
+   255→      name: 'createDocument',
+   256→      description: 'Create a new document with specified format, content, and metadata',
+   257→      execute: async (params: {
+   258→        title: string;
+   259→        format: string;
+   260→        content?: string;
+   261→        author?: string;
+   262→        template?: string;
+   263→        metadata?: Record<string, any>;
+   264→      }) => this.createDocument(params),
+   265→    });
+   266→
+   267→    this.registerTool({
+   268→      name: 'editDocument',
+   269→      description: 'Edit an existing document by applying operations',
+   270→      execute: async (params: { documentId: string; operations: EditOperation[] }) =>
+   271→        this.editDocument(params),
+   272→    });
+   273→
+   274→    this.registerTool({
+   275→      name: 'convertFormat',
+   276→      description: 'Convert a document from one format to another',
+   277→      execute: async (params: {
+   278→        documentId: string;
+   279→        targetFormat: string;
+   280→        options?: Record<string, any>;
+   281→      }) => this.convertFormat(params),
+   282→    });
+   283→
+   284→    this.registerTool({
+   285→      name: 'extractText',
+   286→      description: 'Extract plain text content from a document',
+   287→      execute: async (params: {
+   288→        documentId: string;
+   289→        includeMetadata?: boolean;
+   290→        pageRange?: { start: number; end: number };
+   291→      }) => this.extractText(params),
+   292→    });
+   293→
+   294→    this.registerTool({
+   295→      name: 'mergeDocuments',
+   296→      description: 'Merge multiple documents into a single document',
+   297→      execute: async (params: {
+   298→        documentIds: string[];
+   299→        outputTitle?: string;
+   300→        outputFormat?: string;
+   301→        separator?: string;
+   302→      }) => this.mergeDocuments(params),
+   303→    });
+   304→
+   305→    this.registerTool({
+   306→      name: 'applyTemplate',
+   307→      description: 'Apply a template to a document',
+   308→      execute: async (params: {
+   309→        documentId?: string;
+   310→        templateId: string;
+   311→        variables?: Record<string, string>;
+   312→      }) => this.applyTemplate(params),
+   313→    });
+   314→
+   315→    await this.storeInWorkingMemory('document:initializedAt', new Date().toISOString(), 600000);
+   316→    this.logger.log('Document agent initialized with 6 tools');
+   317→  }
+   318→
+   319→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   320→    const startTime = Date.now();
+   321→    const { action, ...params } = input.payload;
+   322→
+   323→    if (!action) {
+   324→      return this.createAgentOutput(
+   325→        input.taskId,
+   326→        false,
+   327→        null,
+   328→        'Missing required parameter: action',
+   329→        startTime,
+   330→      );
+   331→    }
+   332→
+   333→    const supportedActions = [
+   334→      'createDocument',
+   335→      'editDocument',
+   336→      'convertFormat',
+   337→      'extractText',
+   338→      'mergeDocuments',
+   339→      'applyTemplate',
+   340→    ];
+   341→
+   342→    if (!supportedActions.includes(action)) {
+   343→      return this.createAgentOutput(
+   344→        input.taskId,
+   345→        false,
+   346→        null,
+   347→        `Unknown document action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   348→        startTime,
+   349→      );
+   350→    }
+   351→
+   352→    try {
+   353→      const tool = this.getTool(action);
+   354→      if (!tool) {
+   355→        return this.createAgentOutput(
+   356→          input.taskId,
+   357→          false,
+   358→          null,
+   359→          `Tool not found: ${action}`,
+   360→          startTime,
+   361→        );
+   362→      }
+   363→
+   364→      const result = await tool.execute(params);
+   365→
+   366→      await this.storeInWorkingMemory(
+   367→        `document:last:${action}`,
+   368→        { params, result, timestamp: new Date() },
+   369→        300000,
+   370→      );
+   371→
+   372→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   373→    } catch (error) {
+   374→      const msg = (error as Error).message;
+   375→      this.logger.error(`Document execution failed for ${action}: ${msg}`);
+   376→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   377→    }
+   378→  }
+   379→
+   380→  protected async onDestroy(): Promise<void> {
+   381→    this.documents.clear();
+   382→    this.templates.clear();
+   383→    this.documentCounter = 0;
+   384→    this.logger.log('Document agent destroyed, documents and templates cleared');
+   385→  }
+   386→
+   387→  // ─── Tool Implementations ──────────────────────────────────────
+   388→
+   389→  private async createDocument(params: {
+   390→    title: string;
+   391→    format: string;
+   392→    content?: string;
+   393→    author?: string;
+   394→    template?: string;
+   395→    metadata?: Record<string, any>;
+   396→  }): Promise<{
+   397→    documentId: string;
+   398→    format: string;
+   399→    createdAt: string;
+   400→  }> {
+   401→    const {
+   402→      title,
+   403→      format,
+   404→      content = '',
+   405→      author = 'agent@aenews.system',
+   406→      template,
+   407→      metadata = {},
+   408→    } = params;
+   409→
+   410→    if (!title || typeof title !== 'string') {
+   411→      throw new Error('A valid document title is required');
+   412→    }
+   413→
+   414→    const validFormats = ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'];
+   415→    if (!validFormats.includes(format)) {
+   416→      throw new Error(`Invalid format: ${format}. Supported: ${validFormats.join(', ')}`);
+   417→    }
+   418→
+   419→    let documentContent = content;
+   420→
+   421→    // Apply template if specified
+   422→    if (template) {
+   423→      const tmpl = this.templates.get(template);
+   424→      if (tmpl) {
+   425→        documentContent = tmpl.content;
+   426→        if (metadata.variables) {
+   427→          for (const [key, value] of Object.entries(metadata.variables)) {
+   428→            documentContent = documentContent.replaceAll(`{{${key}}}`, String(value));
+   429→          }
+   430→        }
+   431→      }
+   432→    }
+   433→
+   434→    const documentId = this.generateDocumentId();
+   435→    const document: Document = {
+   436→      id: documentId,
+   437→      title,
+   438→      format,
+   439→      content: documentContent,
+   440→      author,
+   441→      metadata,
+   442→      createdAt: new Date(),
+   443→      updatedAt: new Date(),
+   444→      version: 1,
+   445→      pageCount: this.estimatePageCount(documentContent),
+   446→    };
+   447→
+   448→    this.documents.set(documentId, document);
+   449→
+   450→    this.logger.log(`Created document: ${documentId}, title="${title}", format=${format}`);
+   451→
+   452→    return {
+   453→      documentId,
+   454→      format,
+   455→      createdAt: document.createdAt.toISOString(),
+   456→    };
+   457→  }
+   458→
+   459→  private async editDocument(params: { documentId: string; operations: EditOperation[] }): Promise<{
+   460→    documentId: string;
+   461→    appliedOperations: number;
+   462→    status: string;
+   463→  }> {
+   464→    const { documentId, operations } = params;
+   465→
+   466→    if (!documentId || typeof documentId !== 'string') {
+   467→      throw new Error('A valid documentId is required');
+   468→    }
+   469→    if (!operations || !Array.isArray(operations) || operations.length === 0) {
+   470→      throw new Error('At least one edit operation is required');
+   471→    }
+   472→
+   473→    const document = this.documents.get(documentId);
+   474→    if (!document) {
+   475→      throw new Error(`Document not found: ${documentId}`);
+   476→    }
+   477→
+   478→    let content = document.content;
+   479→    let appliedOperations = 0;
+   480→
+   481→    for (const op of operations) {
+   482→      try {
+   483→        switch (op.type) {
+   484→          case 'insert': {
+   485→            if (op.position === undefined || op.text === undefined) {
+   486→              throw new Error('Insert operation requires position and text');
+   487→            }
+   488→            const pos = Math.min(op.position, content.length);
+   489→            content = content.slice(0, pos) + op.text + content.slice(pos);
+   490→            appliedOperations++;
+   491→            break;
+   492→          }
+   493→          case 'replace': {
+   494→            if (op.search === undefined || op.replacement === undefined) {
+   495→              throw new Error('Replace operation requires search and replacement');
+   496→            }
+   497→            const occurrences = (content.match(new RegExp(this.escapeRegex(op.search), 'g')) || [])
+   498→              .length;
+   499→            content = content.replaceAll(op.search, op.replacement);
+   500→            if (occurrences > 0) appliedOperations++;
+   501→            break;
+   502→          }
+   503→          case 'delete': {
+   504→            if (op.start === undefined || op.end === undefined) {
+   505→              throw new Error('Delete operation requires start and end positions');
+   506→            }
+   507→            content = content.slice(0, op.start) + content.slice(op.end);
+   508→            appliedOperations++;
+   509→            break;
+   510→          }
+   511→          case 'append': {
+   512→            if (op.text === undefined) {
+   513→              throw new Error('Append operation requires text');
+   514→            }
+   515→            content += op.text;
+   516→            appliedOperations++;
+   517→            break;
+   518→          }
+   519→          default:
+   520→            this.logger.warn(`Unknown edit operation type: ${op.type}`);
+   521→        }
+   522→      } catch (opError) {
+   523→        this.logger.warn(`Edit operation failed: ${(opError as Error).message}, skipping`);
+   524→      }
+   525→    }
+   526→
+   527→    document.content = content;
+   528→    document.updatedAt = new Date();
+   529→    document.version++;
+   530→    document.pageCount = this.estimatePageCount(content);
+   531→
+   532→    this.logger.log(
+   533→      `Edited document: ${documentId}, applied=${appliedOperations}/${operations.length}`,
+   534→    );
+   535→
+   536→    return {
+   537→      documentId,
+   538→      appliedOperations,
+   539→      status: 'updated',
+   540→    };
+   541→  }
+   542→
+   543→  private async convertFormat(params: {
+   544→    documentId: string;
+   545→    targetFormat: string;
+   546→    options?: Record<string, any>;
+   547→  }): Promise<{
+   548→    documentId: string;
+   549→    convertedDocumentId: string;
+   550→    sourceFormat: string;
+   551→    targetFormat: string;
+   552→    status: string;
+   553→  }> {
+   554→    const { documentId, targetFormat, options = {} } = params;
+   555→
+   556→    if (!documentId || typeof documentId !== 'string') {
+   557→      throw new Error('A valid documentId is required');
+   558→    }
+   559→
+   560→    const validFormats = ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'];
+   561→    if (!validFormats.includes(targetFormat)) {
+   562→      throw new Error(
+   563→        `Invalid target format: ${targetFormat}. Supported: ${validFormats.join(', ')}`,
+   564→      );
+   565→    }
+   566→
+   567→    const sourceDocument = this.documents.get(documentId);
+   568→    if (!sourceDocument) {
+   569→      throw new Error(`Document not found: ${documentId}`);
+   570→    }
+   571→
+   572→    if (sourceDocument.format === targetFormat) {
+   573→      throw new Error(`Document is already in ${targetFormat} format`);
+   574→    }
+   575→
+   576→    // Convert content based on source and target format
+   577→    const convertedContent = this.performConversion(
+   578→      sourceDocument.content,
+   579→      sourceDocument.format,
+   580→      targetFormat,
+   581→      options,
+   582→    );
+   583→
+   584→    const convertedDocumentId = this.generateDocumentId();
+   585→    const convertedDocument: Document = {
+   586→      id: convertedDocumentId,
+   587→      title: sourceDocument.title,
+   588→      format: targetFormat,
+   589→      content: convertedContent,
+   590→      author: sourceDocument.author,
+   591→      metadata: {
+   592→        ...sourceDocument.metadata,
+   593→        convertedFrom: documentId,
+   594→        sourceFormat: sourceDocument.format,
+   595→        convertedAt: new Date().toISOString(),
+   596→      },
+   597→      createdAt: new Date(),
+   598→      updatedAt: new Date(),
+   599→      version: 1,
+   600→      pageCount: this.estimatePageCount(convertedContent),
+   601→    };
+   602→
+   603→    this.documents.set(convertedDocumentId, convertedDocument);
+   604→
+   605→    this.logger.log(
+   606→      `Converted document: ${documentId} (${sourceDocument.format}) -> ${convertedDocumentId} (${targetFormat})`,
+   607→    );
+   608→
+   609→    return {
+   610→      documentId,
+   611→      convertedDocumentId,
+   612→      sourceFormat: sourceDocument.format,
+   613→      targetFormat,
+   614→      status: 'converted',
+   615→    };
+   616→  }
+   617→
+   618→  private async extractText(params: {
+   619→    documentId: string;
+   620→    includeMetadata?: boolean;
+   621→    pageRange?: { start: number; end: number };
+   622→  }): Promise<{
+   623→    documentId: string;
+   624→    text: string;
+   625→    pageCount: number;
+   626→    wordCount: number;
+   627→  }> {
+   628→    const { documentId, includeMetadata = false, pageRange } = params;
+   629→
+   630→    if (!documentId || typeof documentId !== 'string') {
+   631→      throw new Error('A valid documentId is required');
+   632→    }
+   633→
+   634→    const document = this.documents.get(documentId);
+   635→    if (!document) {
+   636→      throw new Error(`Document not found: ${documentId}`);
+   637→    }
+   638→
+   639→    // Strip format-specific markup to get plain text
+   640→    let text = this.stripMarkup(document.content, document.format);
+   641→
+   642→    // Apply page range if specified
+   643→    if (pageRange) {
+   644→      const lines = text.split('\n');
+   645→      const linesPerPage = 50; // Approximate lines per page
+   646→      const startLine = pageRange.start * linesPerPage;
+   647→      const endLine = pageRange.end * linesPerPage;
+   648→      text = lines.slice(startLine, endLine).join('\n');
+   649→    }
+   650→
+   651→    const wordCount = text.split(/\s+/).filter((w) => w.length > 0).length;
+   652→
+   653→    const result: any = {
+   654→      documentId,
+   655→      text,
+   656→      pageCount: document.pageCount,
+   657→      wordCount,
+   658→    };
+   659→
+   660→    if (includeMetadata) {
+   661→      result.metadata = {
+   662→        title: document.title,
+   663→        author: document.author,
+   664→        format: document.format,
+   665→        createdAt: document.createdAt,
+   666→        updatedAt: document.updatedAt,
+   667→        version: document.version,
+   668→      };
+   669→    }
+   670→
+   671→    this.logger.log(`Extracted text from document: ${documentId}, words=${wordCount}`);
+   672→
+   673→    return result;
+   674→  }
+   675→
+   676→  private async mergeDocuments(params: {
+   677→    documentIds: string[];
+   678→    outputTitle?: string;
+   679→    outputFormat?: string;
+   680→    separator?: string;
+   681→  }): Promise<{
+   682→    mergedDocumentId: string;
+   683→    sourceDocumentCount: number;
+   684→    status: string;
+   685→  }> {
+   686→    const { documentIds, outputTitle, outputFormat, separator = '\n\n---\n\n' } = params;
+   687→
+   688→    if (!documentIds || !Array.isArray(documentIds) || documentIds.length < 2) {
+   689→      throw new Error('At least two document IDs are required for merging');
+   690→    }
+   691→
+   692→    const sourceDocs: Document[] = [];
+   693→    for (const id of documentIds) {
+   694→      const doc = this.documents.get(id);
+   695→      if (!doc) {
+   696→        throw new Error(`Document not found: ${id}`);
+   697→      }
+   698→      sourceDocs.push(doc);
+   699→    }
+   700→
+   701→    // Determine output format (use first document's format if not specified)
+   702→    const format = outputFormat || sourceDocs[0].format;
+   703→    const validFormats = ['docx', 'pdf', 'html', 'md', 'txt', 'rtf'];
+   704→    if (!validFormats.includes(format)) {
+   705→      throw new Error(`Invalid output format: ${format}`);
+   706→    }
+   707→
+   708→    // Merge contents
+   709→    const mergedContent = sourceDocs
+   710→      .map((doc) => this.stripMarkup(doc.content, doc.format))
+   711→      .join(separator);
+   712→
+   713→    const title = outputTitle || `Merged: ${sourceDocs.map((d) => d.title).join(' + ')}`;
+   714→
+   715→    const mergedDocumentId = this.generateDocumentId();
+   716→    const mergedDocument: Document = {
+   717→      id: mergedDocumentId,
+   718→      title,
+   719→      format,
+   720→      content: this.applyFormatMarkup(mergedContent, format),
+   721→      author: 'agent@aenews.system',
+   722→      metadata: {
+   723→        mergedFrom: documentIds,
+   724→        mergedAt: new Date().toISOString(),
+   725→      },
+   726→      createdAt: new Date(),
+   727→      updatedAt: new Date(),
+   728→      version: 1,
+   729→      pageCount: this.estimatePageCount(mergedContent),
+   730→    };
+   731→
+   732→    this.documents.set(mergedDocumentId, mergedDocument);
+   733→
+   734→    this.logger.log(`Merged ${documentIds.length} documents into: ${mergedDocumentId}`);
+   735→
+   736→    return {
+   737→      mergedDocumentId,
+   738→      sourceDocumentCount: documentIds.length,
+   739→      status: 'merged',
+   740→    };
+   741→  }
+   742→
+   743→  private async applyTemplate(params: {
+   744→    documentId?: string;
+   745→    templateId: string;
+   746→    variables?: Record<string, string>;
+   747→  }): Promise<{
+   748→    documentId: string;
+   749→    templateId: string;
+   750→    substitutedVars: string[];
+   751→    status: string;
+   752→  }> {
+   753→    const { documentId, templateId, variables = {} } = params;
+   754→
+   755→    if (!templateId || typeof templateId !== 'string') {
+   756→      throw new Error('A valid templateId is required');
+   757→    }
+   758→
+   759→    const template = this.templates.get(templateId);
+   760→    if (!template) {
+   761→      const available = Array.from(this.templates.keys()).join(', ');
+   762→      throw new Error(`Template not found: ${templateId}. Available: ${available}`);
+   763→    }
+   764→
+   765→    let content = template.content;
+   766→    const substitutedVars: string[] = [];
+   767→
+   768→    // Substitute variables
+   769→    for (const [key, value] of Object.entries(variables)) {
+   770→      const placeholder = `{{${key}}}`;
+   771→      if (content.includes(placeholder)) {
+   772→        content = content.replaceAll(placeholder, value);
+   773→        substitutedVars.push(key);
+   774→      }
+   775→    }
+   776→
+   777→    // Check for unsubstituted variables
+   778→    const remainingPlaceholders = content.match(/\{\{(\w+)\}\}/g);
+   779→    if (remainingPlaceholders) {
+   780→      const missingVars = remainingPlaceholders.map((p) => p.replace(/[{}]/g, ''));
+   781→      this.logger.warn(`Unsubstituted template variables: ${missingVars.join(', ')}`);
+   782→    }
+   783→
+   784→    let targetDocumentId = documentId;
+   785→
+   786→    if (targetDocumentId) {
+   787→      // Apply to existing document
+   788→      const document = this.documents.get(targetDocumentId);
+   789→      if (!document) {
+   790→        throw new Error(`Document not found: ${targetDocumentId}`);
+   791→      }
+   792→      document.content = content;
+   793→      document.updatedAt = new Date();
+   794→      document.version++;
+   795→      document.pageCount = this.estimatePageCount(content);
+   796→    } else {
+   797→      // Create new document from template
+   798→      targetDocumentId = this.generateDocumentId();
+   799→      const newDoc: Document = {
+   800→        id: targetDocumentId,
+   801→        title: `Document from template: ${template.name}`,
+   802→        format: template.format,
+   803→        content,
+   804→        author: 'agent@aenews.system',
+   805→        metadata: {
+   806→          templateId,
+   807→          substitutedVars,
+   808→        },
+   809→        createdAt: new Date(),
+   810→        updatedAt: new Date(),
+   811→        version: 1,
+   812→        pageCount: this.estimatePageCount(content),
+   813→      };
+   814→      this.documents.set(targetDocumentId, newDoc);
+   815→    }
+   816→
+   817→    this.logger.log(
+   818→      `Applied template: ${templateId}, doc=${targetDocumentId}, substituted=${substitutedVars.length} var(s)`,
+   819→    );
+   820→
+   821→    return {
+   822→      documentId: targetDocumentId,
+   823→      templateId,
+   824→      substitutedVars,
+   825→      status: 'applied',
+   826→    };
+   827→  }
+   828→
+   829→  // ─── Private Helpers ───────────────────────────────────────────
+   830→
+   831→  private seedTemplates(): void {
+   832→    const builtInTemplates: DocumentTemplate[] = [
+   833→      {
+   834→        id: 'business-letter',
+   835→        name: 'Business Letter',
+   836→        format: 'docx',
+   837→        content: `{{senderName}}\n{{senderAddress}}\n{{date}}\n\n{{recipientName}}\n{{recipientAddress}}\n\nDear {{recipientName}},\n\n{{body}}\n\nSincerely,\n{{senderName}}`,
+   838→        variables: [
+   839→          'senderName',
+   840→          'senderAddress',
+   841→          'date',
+   842→          'recipientName',
+   843→          'recipientAddress',
+   844→          'body',
+   845→        ],
+   846→        description: 'Standard business letter format',
+   847→      },
+   848→      {
+   849→        id: 'meeting-notes',
+   850→        name: 'Meeting Notes',
+   851→        format: 'md',
+   852→        content: `# Meeting Notes: {{meetingTitle}}\n\n**Date:** {{date}}\n**Attendees:** {{attendees}}\n**Location:** {{location}}\n\n## Agenda\n\n{{agenda}}\n\n## Discussion\n\n{{discussion}}\n\n## Action Items\n\n{{actionItems}}\n\n## Next Meeting\n\n{{nextMeeting}}`,
+   853→        variables: [
+   854→          'meetingTitle',
+   855→          'date',
+   856→          'attendees',
+   857→          'location',
+   858→          'agenda',
+   859→          'discussion',
+   860→          'actionItems',
+   861→          'nextMeeting',
+   862→        ],
+   863→        description: 'Meeting notes template with structured sections',
+   864→      },
+   865→      {
+   866→        id: 'report',
+   867→        name: 'Report',
+   868→        format: 'docx',
+   869→        content: `# {{reportTitle}}\n\n**Author:** {{author}}\n**Date:** {{date}}\n**Version:** {{version}}\n\n## Executive Summary\n\n{{summary}}\n\n## Introduction\n\n{{introduction}}\n\n## Findings\n\n{{findings}}\n\n## Conclusions\n\n{{conclusions}}\n\n## Recommendations\n\n{{recommendations}}`,
+   870→        variables: [
+   871→          'reportTitle',
+   872→          'author',
+   873→          'date',
+   874→          'version',
+   875→          'summary',
+   876→          'introduction',
+   877→          'findings',
+   878→          'conclusions',
+   879→          'recommendations',
+   880→        ],
+   881→        description: 'Structured report template',
+   882→      },
+   883→      {
+   884→        id: 'memo',
+   885→        name: 'Memo',
+   886→        format: 'docx',
+   887→        content: `MEMORANDUM\n\n**TO:** {{to}}\n**FROM:** {{from}}\n**DATE:** {{date}}\n**SUBJECT:** {{subject}}\n\n{{body}}`,
+   888→        variables: ['to', 'from', 'date', 'subject', 'body'],
+   889→        description: 'Internal memo template',
+   890→      },
+   891→    ];
+   892→
+   893→    for (const template of builtInTemplates) {
+   894→      this.templates.set(template.id, template);
+   895→    }
+   896→  }
+   897→
+   898→  private generateDocumentId(): string {
+   899→    this.documentCounter++;
+   900→    return `doc-${Date.now()}-${this.documentCounter}`;
+   901→  }
+   902→
+   903→  private estimatePageCount(content: string): number {
+   904→    if (!content) return 0;
+   905→    const words = content.split(/\s+/).filter((w) => w.length > 0).length;
+   906→    return Math.max(1, Math.ceil(words / 250)); // ~250 words per page
+   907→  }
+   908→
+   909→  private stripMarkup(content: string, format: string): string {
+   910→    switch (format) {
+   911→      case 'html': {
+   912→        // Remove HTML tags
+   913→        return content
+   914→          .replace(/<[^>]*>/g, '')
+   915→          .replace(/&nbsp;/g, ' ')
+   916→          .replace(/&amp;/g, '&')
+   917→          .replace(/&lt;/g, '<')
+   918→          .replace(/&gt;/g, '>')
+   919→          .replace(/&quot;/g, '"')
+   920→          .trim();
+   921→      }
+   922→      case 'md': {
+   923→        // Remove markdown formatting
+   924→        return content
+   925→          .replace(/^#{1,6}\s+/gm, '')
+   926→          .replace(/\*\*(.*?)\*\*/g, '$1')
+   927→          .replace(/\*(.*?)\*/g, '$1')
+   928→          .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+   929→          .replace(/^[-*]\s+/gm, '- ')
+   930→          .trim();
+   931→      }
+   932→      case 'rtf': {
+   933→        // Remove RTF control words
+   934→        return content
+   935→          .replace(/\\[a-z]+\d*\s?/gi, '')
+   936→          .replace(/[{}]/g, '')
+   937→          .trim();
+   938→      }
+   939→      case 'docx':
+   940→      case 'pdf':
+   941→      case 'txt':
+   942→      default:
+   943→        return content;
+   944→    }
+   945→  }
+   946→
+   947→  private applyFormatMarkup(text: string, format: string): string {
+   948→    switch (format) {
+   949→      case 'html':
+   950→        return text
+   951→          .split('\n')
+   952→          .map((line) => (line.trim() ? `<p>${line}</p>` : ''))
+   953→          .join('\n');
+   954→      case 'md':
+   955→        return text;
+   956→      case 'txt':
+   957→        return text;
+   958→      default:
+   959→        return text;
+   960→    }
+   961→  }
+   962→
+   963→  private performConversion(
+   964→    content: string,
+   965→    sourceFormat: string,
+   966→    targetFormat: string,
+   967→    options: Record<string, any>,
+   968→  ): string {
+   969→    // First, strip source format markup to plain text
+   970→    const plainText = this.stripMarkup(content, sourceFormat);
+   971→    // Then, apply target format markup
+   972→    return this.applyFormatMarkup(plainText, targetFormat);
+   973→  }
+   974→
+   975→  private escapeRegex(str: string): string {
+   976→    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+   977→  }
+   978→}
+   979→

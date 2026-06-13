@@ -1,0 +1,1759 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Code Review Agent
+     3→ * Reviews code for quality, security vulnerabilities, best practices, bugs, and complexity.
+     4→ * Provides structured feedback with severity ratings and actionable suggestions.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const CODE_REVIEW_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'coding-code-review',
+    20→  name: 'CodeReview',
+    21→  cluster: AgentCluster.CODING,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Review code for quality, security vulnerabilities, best practices, bugs, and complexity. Provides structured feedback with severity ratings and actionable improvement suggestions.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'reviewCode',
+    28→      description: 'Perform a comprehensive code review covering quality, style, and correctness',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          code: { type: 'string', description: 'Source code to review' },
+    33→          language: { type: 'string', description: 'Programming language' },
+    34→          filePath: { type: 'string', description: 'File path for context' },
+    35→          severityThreshold: { type: 'string', enum: ['low', 'medium', 'high'], default: 'low' },
+    36→        },
+    37→        required: ['code', 'language'],
+    38→      },
+    39→      outputSchema: {
+    40→        type: 'object',
+    41→        properties: {
+    42→          issues: { type: 'array', items: { type: 'object' } },
+    43→          score: { type: 'number' },
+    44→          summary: { type: 'string' },
+    45→        },
+    46→      },
+    47→    },
+    48→    {
+    49→      name: 'checkBestPractices',
+    50→      description: 'Check code against language-specific best practices and design patterns',
+    51→      inputSchema: {
+    52→        type: 'object',
+    53→        properties: {
+    54→          code: { type: 'string', description: 'Source code to check' },
+    55→          language: { type: 'string', description: 'Programming language' },
+    56→          framework: { type: 'string', description: 'Framework context' },
+    57→        },
+    58→        required: ['code', 'language'],
+    59→      },
+    60→      outputSchema: {
+    61→        type: 'object',
+    62→        properties: {
+    63→          practices: { type: 'array', items: { type: 'object' } },
+    64→          adherence: { type: 'number' },
+    65→          suggestions: { type: 'array', items: { type: 'string' } },
+    66→        },
+    67→      },
+    68→    },
+    69→    {
+    70→      name: 'findBugs',
+    71→      description: 'Detect potential bugs, logic errors, and runtime issues in code',
+    72→      inputSchema: {
+    73→        type: 'object',
+    74→        properties: {
+    75→          code: { type: 'string', description: 'Source code to analyze' },
+    76→          language: { type: 'string', description: 'Programming language' },
+    77→          includeWarnings: { type: 'boolean', default: true },
+    78→        },
+    79→        required: ['code', 'language'],
+    80→      },
+    81→      outputSchema: {
+    82→        type: 'object',
+    83→        properties: {
+    84→          bugs: { type: 'array', items: { type: 'object' } },
+    85→          warnings: { type: 'array', items: { type: 'object' } },
+    86→          riskLevel: { type: 'string' },
+    87→        },
+    88→      },
+    89→    },
+    90→    {
+    91→      name: 'checkSecurity',
+    92→      description: 'Scan code for security vulnerabilities and compliance issues',
+    93→      inputSchema: {
+    94→        type: 'object',
+    95→        properties: {
+    96→          code: { type: 'string', description: 'Source code to scan' },
+    97→          language: { type: 'string', description: 'Programming language' },
+    98→          owaspCompliance: { type: 'boolean', default: true },
+    99→        },
+   100→        required: ['code', 'language'],
+   101→      },
+   102→      outputSchema: {
+   103→        type: 'object',
+   104→        properties: {
+   105→          vulnerabilities: { type: 'array', items: { type: 'object' } },
+   106→          riskScore: { type: 'number' },
+   107→          complianceIssues: { type: 'array', items: { type: 'string' } },
+   108→        },
+   109→      },
+   110→    },
+   111→    {
+   112→      name: 'analyzeComplexity',
+   113→      description: 'Analyze code complexity metrics: cyclomatic, cognitive, and nesting depth',
+   114→      inputSchema: {
+   115→        type: 'object',
+   116→        properties: {
+   117→          code: { type: 'string', description: 'Source code to analyze' },
+   118→          language: { type: 'string', description: 'Programming language' },
+   119→          thresholds: { type: 'object', description: 'Custom complexity thresholds' },
+   120→        },
+   121→        required: ['code', 'language'],
+   122→      },
+   123→      outputSchema: {
+   124→        type: 'object',
+   125→        properties: {
+   126→          cyclomaticComplexity: { type: 'number' },
+   127→          cognitiveComplexity: { type: 'number' },
+   128→          nestingDepth: { type: 'number' },
+   129→          maintainabilityIndex: { type: 'number' },
+   130→          hotspots: { type: 'array', items: { type: 'object' } },
+   131→        },
+   132→      },
+   133→    },
+   134→  ],
+   135→  permissions: ['execute:task', 'read:code', 'read:repository', 'write:review', 'read:security'],
+   136→  maxConcurrentTasks: 6,
+   137→  timeout: 45000,
+   138→  retryPolicy: {
+   139→    maxRetries: 2,
+   140→    backoffMs: 1000,
+   141→    exponentialBackoff: true,
+   142→  },
+   143→};
+   144→
+   145→// ─── Internal Types ───────────────────────────────────────────────
+   146→
+   147→interface ReviewIssue {
+   148→  severity: 'low' | 'medium' | 'high' | 'critical';
+   149→  category: string;
+   150→  message: string;
+   151→  line: number;
+   152→  column?: number;
+   153→  ruleId: string;
+   154→  suggestion: string;
+   155→}
+   156→
+   157→interface BugFinding {
+   158→  type: 'bug' | 'warning' | 'info';
+   159→  severity: 'low' | 'medium' | 'high' | 'critical';
+   160→  message: string;
+   161→  line: number;
+   162→  confidence: number;
+   163→  fix: string;
+   164→}
+   165→
+   166→interface SecurityVulnerability {
+   167→  id: string;
+   168→  category: string;
+   169→  severity: 'low' | 'medium' | 'high' | 'critical';
+   170→  title: string;
+   171→  description: string;
+   172→  line: number;
+   173→  cwe?: string;
+   174→  owasp?: string;
+   175→  remediation: string;
+   176→}
+   177→
+   178→interface ComplexityHotspot {
+   179→  functionName: string;
+   180→  startLine: number;
+   181→  endLine: number;
+   182→  cyclomatic: number;
+   183→  cognitive: number;
+   184→  nesting: number;
+   185→  suggestion: string;
+   186→}
+   187→
+   188→// ─── Agent Service ────────────────────────────────────────────────
+   189→
+   190→@Injectable()
+   191→export class CodeReviewAgentService extends BaseAgentService {
+   192→  private reviewHistory: Array<{
+   193→    action: string;
+   194→    language: string;
+   195→    timestamp: Date;
+   196→    issueCount: number;
+   197→  }> = [];
+   198→
+   199→  protected defineConfig(): AgentConfig {
+   200→    return CODE_REVIEW_AGENT_CONFIG;
+   201→  }
+   202→
+   203→  protected async onInitialize(): Promise<void> {
+   204→    this.registerTool({
+   205→      name: 'reviewCode',
+   206→      description: 'Perform a comprehensive code review',
+   207→      execute: async (params: {
+   208→        code: string;
+   209→        language: string;
+   210→        filePath?: string;
+   211→        severityThreshold?: string;
+   212→      }) => this.reviewCode(params),
+   213→    });
+   214→
+   215→    this.registerTool({
+   216→      name: 'checkBestPractices',
+   217→      description: 'Check code against best practices',
+   218→      execute: async (params: { code: string; language: string; framework?: string }) =>
+   219→        this.checkBestPractices(params),
+   220→    });
+   221→
+   222→    this.registerTool({
+   223→      name: 'findBugs',
+   224→      description: 'Detect potential bugs and logic errors',
+   225→      execute: async (params: { code: string; language: string; includeWarnings?: boolean }) =>
+   226→        this.findBugs(params),
+   227→    });
+   228→
+   229→    this.registerTool({
+   230→      name: 'checkSecurity',
+   231→      description: 'Scan code for security vulnerabilities',
+   232→      execute: async (params: { code: string; language: string; owaspCompliance?: boolean }) =>
+   233→        this.checkSecurity(params),
+   234→    });
+   235→
+   236→    this.registerTool({
+   237→      name: 'analyzeComplexity',
+   238→      description: 'Analyze code complexity metrics',
+   239→      execute: async (params: {
+   240→        code: string;
+   241→        language: string;
+   242→        thresholds?: Record<string, number>;
+   243→      }) => this.analyzeComplexity(params),
+   244→    });
+   245→
+   246→    await this.storeInWorkingMemory('review:initializedAt', new Date().toISOString(), 600000);
+   247→    this.logger.log('CodeReview agent initialized with 5 tools');
+   248→  }
+   249→
+   250→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   251→    const startTime = Date.now();
+   252→    const { action, ...params } = input.payload;
+   253→
+   254→    if (!action) {
+   255→      return this.createAgentOutput(
+   256→        input.taskId,
+   257→        false,
+   258→        null,
+   259→        'Missing required parameter: action',
+   260→        startTime,
+   261→      );
+   262→    }
+   263→
+   264→    const supportedActions = [
+   265→      'reviewCode',
+   266→      'checkBestPractices',
+   267→      'findBugs',
+   268→      'checkSecurity',
+   269→      'analyzeComplexity',
+   270→    ];
+   271→
+   272→    if (!supportedActions.includes(action)) {
+   273→      return this.createAgentOutput(
+   274→        input.taskId,
+   275→        false,
+   276→        null,
+   277→        `Unknown code review action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   278→        startTime,
+   279→      );
+   280→    }
+   281→
+   282→    try {
+   283→      const tool = this.getTool(action);
+   284→      if (!tool) {
+   285→        return this.createAgentOutput(
+   286→          input.taskId,
+   287→          false,
+   288→          null,
+   289→          `Tool not found: ${action}`,
+   290→          startTime,
+   291→        );
+   292→      }
+   293→
+   294→      const result = await tool.execute(params);
+   295→
+   296→      this.reviewHistory.push({
+   297→        action,
+   298→        language: params.language || 'unknown',
+   299→        timestamp: new Date(),
+   300→        issueCount:
+   301→          result.issues?.length || result.bugs?.length || result.vulnerabilities?.length || 0,
+   302→      });
+   303→
+   304→      // Store the review result for future reference
+   305→      await this.storeInWorkingMemory(
+   306→        `review:last:${action}`,
+   307→        { params, result, timestamp: new Date() },
+   308→        300000,
+   309→      );
+   310→
+   311→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   312→    } catch (error) {
+   313→      const msg = (error as Error).message;
+   314→      this.logger.error(`CodeReview execution failed for ${action}: ${msg}`);
+   315→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   316→    }
+   317→  }
+   318→
+   319→  protected async onDestroy(): Promise<void> {
+   320→    this.reviewHistory = [];
+   321→    this.logger.log('CodeReview agent destroyed, history cleared');
+   322→  }
+   323→
+   324→  // ─── Tool Implementations ──────────────────────────────────────
+   325→
+   326→  private async reviewCode(params: {
+   327→    code: string;
+   328→    language: string;
+   329→    filePath?: string;
+   330→    severityThreshold?: string;
+   331→  }): Promise<{
+   332→    issues: ReviewIssue[];
+   333→    score: number;
+   334→    summary: string;
+   335→    filePath?: string;
+   336→  }> {
+   337→    const { code, language, filePath, severityThreshold = 'low' } = params;
+   338→
+   339→    if (!code || typeof code !== 'string') {
+   340→      throw new Error('Source code is required for review');
+   341→    }
+   342→    if (!language || typeof language !== 'string') {
+   343→      throw new Error('Programming language is required');
+   344→    }
+   345→
+   346→    const lines = code.split('\n');
+   347→    const issues: ReviewIssue[] = [];
+   348→
+   349→    // Style and formatting checks
+   350→    this.checkFormatting(lines, issues, language);
+   351→
+   352→    // Naming conventions
+   353→    this.checkNamingConventions(lines, issues, language);
+   354→
+   355→    // Code structure checks
+   356→    this.checkCodeStructure(lines, issues, language);
+   357→
+   358→    // Error handling checks
+   359→    this.checkErrorHandling(lines, issues, language);
+   360→
+   361→    // Performance anti-patterns
+   362→    this.checkPerformanceAntiPatterns(lines, issues, language);
+   363→
+   364→    // Filter by severity threshold
+   365→    const severityOrder: Record<string, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+   366→    const minSeverity = severityOrder[severityThreshold] || 0;
+   367→    const filteredIssues = issues.filter(
+   368→      (issue) => (severityOrder[issue.severity] || 0) >= minSeverity,
+   369→    );
+   370→
+   371→    // Calculate review score (0-100)
+   372→    const score = this.calculateReviewScore(lines.length, filteredIssues);
+   373→
+   374→    // Generate summary
+   375→    const criticalCount = filteredIssues.filter((i) => i.severity === 'critical').length;
+   376→    const highCount = filteredIssues.filter((i) => i.severity === 'high').length;
+   377→    const mediumCount = filteredIssues.filter((i) => i.severity === 'medium').length;
+   378→    const lowCount = filteredIssues.filter((i) => i.severity === 'low').length;
+   379→
+   380→    const summary =
+   381→      `Code review complete: ${filteredIssues.length} issue(s) found ` +
+   382→      `(${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low). ` +
+   383→      `Score: ${score}/100.`;
+   384→
+   385→    this.logger.log(`Code review: ${filteredIssues.length} issues, score=${score}`);
+   386→
+   387→    return { issues: filteredIssues, score, summary, filePath };
+   388→  }
+   389→
+   390→  private async checkBestPractices(params: {
+   391→    code: string;
+   392→    language: string;
+   393→    framework?: string;
+   394→  }): Promise<{
+   395→    practices: Array<{ name: string; followed: boolean; details: string; suggestion?: string }>;
+   396→    adherence: number;
+   397→    suggestions: string[];
+   398→  }> {
+   399→    const { code, language, framework } = params;
+   400→
+   401→    if (!code || typeof code !== 'string') {
+   402→      throw new Error('Source code is required');
+   403→    }
+   404→    if (!language || typeof language !== 'string') {
+   405→      throw new Error('Programming language is required');
+   406→    }
+   407→
+   408→    const lines = code.split('\n');
+   409→    const practices: Array<{
+   410→      name: string;
+   411→      followed: boolean;
+   412→      details: string;
+   413→      suggestion?: string;
+   414→    }> = [];
+   415→    const suggestions: string[] = [];
+   416→
+   417→    // Language-agnostic best practices
+   418→    practices.push({
+   419→      name: 'Single Responsibility Principle',
+   420→      followed: this.checkSingleResponsibility(lines),
+   421→      details: 'Each function/class should have one reason to change',
+   422→      suggestion: 'Consider splitting large functions into smaller, focused ones',
+   423→    });
+   424→
+   425→    practices.push({
+   426→      name: "DRY (Don't Repeat Yourself)",
+   427→      followed: this.checkDRY(lines),
+   428→      details: 'Avoid code duplication',
+   429→      suggestion: 'Extract repeated code into reusable functions or utilities',
+   430→    });
+   431→
+   432→    practices.push({
+   433→      name: 'Proper Error Handling',
+   434→      followed: this.checkProperErrorHandling(lines, language),
+   435→      details: 'All error-prone operations should have proper error handling',
+   436→      suggestion: 'Add try-catch blocks around operations that can fail',
+   437→    });
+   438→
+   439→    practices.push({
+   440→      name: 'Consistent Naming',
+   441→      followed: this.checkConsistentNaming(lines, language),
+   442→      details: 'Naming conventions should be consistent throughout the codebase',
+   443→      suggestion: 'Follow language-specific naming conventions (camelCase, snake_case, etc.)',
+   444→    });
+   445→
+   446→    practices.push({
+   447→      name: 'No Magic Numbers',
+   448→      followed: this.checkMagicNumbers(lines),
+   449→      details: 'Avoid unexplained numeric literals',
+   450→      suggestion: 'Extract magic numbers into named constants',
+   451→    });
+   452→
+   453→    // Language-specific practices
+   454→    if (language === 'typescript' || language === 'javascript') {
+   455→      practices.push({
+   456→        name: 'Use Strict Mode',
+   457→        followed:
+   458→          code.includes('"use strict"') ||
+   459→          code.includes("'use strict'") ||
+   460→          language === 'typescript',
+   461→        details: 'Enable strict mode for better error detection',
+   462→        suggestion: 'Add "use strict" directive or use TypeScript strict mode',
+   463→      });
+   464→
+   465→      practices.push({
+   466→        name: 'Prefer Const Over Let',
+   467→        followed: this.checkConstOverLet(code),
+   468→        details: 'Use const for variables that are not reassigned',
+   469→        suggestion: 'Replace let with const where the variable is not reassigned',
+   470→      });
+   471→
+   472→      if (framework === 'nestjs') {
+   473→        practices.push({
+   474→          name: 'Dependency Injection',
+   475→          followed: code.includes('constructor(') && code.includes('@Injectable'),
+   476→          details: 'Use NestJS dependency injection pattern',
+   477→          suggestion: 'Inject dependencies through constructor parameters',
+   478→        });
+   479→      }
+   480→    }
+   481→
+   482→    if (language === 'python') {
+   483→      practices.push({
+   484→        name: 'Type Hints',
+   485→        followed: code.includes('def ') && code.includes(': ') && code.includes('-> '),
+   486→        details: 'Use Python type hints for better code documentation',
+   487→        suggestion: 'Add type hints to function signatures',
+   488→      });
+   489→    }
+   490→
+   491→    const followedCount = practices.filter((p) => p.followed).length;
+   492→    const adherence = Math.round((followedCount / practices.length) * 100);
+   493→
+   494→    for (const practice of practices) {
+   495→      if (!practice.followed && practice.suggestion) {
+   496→        suggestions.push(practice.suggestion);
+   497→      }
+   498→    }
+   499→
+   500→    this.logger.log(
+   501→      `Best practices check: ${followedCount}/${practices.length} followed, ${adherence}% adherence`,
+   502→    );
+   503→
+   504→    return { practices, adherence, suggestions };
+   505→  }
+   506→
+   507→  private async findBugs(params: {
+   508→    code: string;
+   509→    language: string;
+   510→    includeWarnings?: boolean;
+   511→  }): Promise<{
+   512→    bugs: BugFinding[];
+   513→    warnings: BugFinding[];
+   514→    riskLevel: string;
+   515→  }> {
+   516→    const { code, language, includeWarnings = true } = params;
+   517→
+   518→    if (!code || typeof code !== 'string') {
+   519→      throw new Error('Source code is required');
+   520→    }
+   521→    if (!language || typeof language !== 'string') {
+   522→      throw new Error('Programming language is required');
+   523→    }
+   524→
+   525→    const lines = code.split('\n');
+   526→    const bugs: BugFinding[] = [];
+   527→    const warnings: BugFinding[] = [];
+   528→
+   529→    // Bug detection patterns
+   530→    this.detectOffByOneErrors(lines, bugs, language);
+   531→    this.detectNullReferenceRisks(lines, bugs, language);
+   532→    this.detectResourceLeaks(lines, bugs, language);
+   533→    this.detectRaceConditions(lines, bugs, language);
+   534→    this.detectUnhandledPromises(lines, bugs, language);
+   535→    this.detectIncorrectComparisons(lines, bugs, language);
+   536→
+   537→    // Warning-level patterns
+   538→    if (includeWarnings) {
+   539→      this.detectUnusedVariables(lines, warnings, language);
+   540→      this.detectUnreachableCode(lines, warnings, language);
+   541→      this.detectImplicitTypeCoercion(lines, warnings, language);
+   542→    }
+   543→
+   544→    // Calculate overall risk level
+   545→    const criticalBugs = bugs.filter((b) => b.severity === 'critical').length;
+   546→    const highBugs = bugs.filter((b) => b.severity === 'high').length;
+   547→    let riskLevel = 'low';
+   548→    if (criticalBugs > 0) riskLevel = 'critical';
+   549→    else if (highBugs > 2) riskLevel = 'high';
+   550→    else if (highBugs > 0 || bugs.length > 5) riskLevel = 'medium';
+   551→
+   552→    this.logger.log(
+   553→      `Bug detection: ${bugs.length} bug(s), ${warnings.length} warning(s), risk=${riskLevel}`,
+   554→    );
+   555→
+   556→    return { bugs, warnings, riskLevel };
+   557→  }
+   558→
+   559→  private async checkSecurity(params: {
+   560→    code: string;
+   561→    language: string;
+   562→    owaspCompliance?: boolean;
+   563→  }): Promise<{
+   564→    vulnerabilities: SecurityVulnerability[];
+   565→    riskScore: number;
+   566→    complianceIssues: string[];
+   567→  }> {
+   568→    const { code, language, owaspCompliance = true } = params;
+   569→
+   570→    if (!code || typeof code !== 'string') {
+   571→      throw new Error('Source code is required');
+   572→    }
+   573→    if (!language || typeof language !== 'string') {
+   574→      throw new Error('Programming language is required');
+   575→    }
+   576→
+   577→    const lines = code.split('\n');
+   578→    const vulnerabilities: SecurityVulnerability[] = [];
+   579→    const complianceIssues: string[] = [];
+   580→
+   581→    // Security checks
+   582→    this.detectSQLInjection(lines, vulnerabilities, language);
+   583→    this.detectXSSVulnerabilities(lines, vulnerabilities, language);
+   584→    this.detectInsecureDependencies(lines, vulnerabilities, language);
+   585→    this.detectHardcodedSecrets(lines, vulnerabilities, language);
+   586→    this.detectInsecureCrypto(lines, vulnerabilities, language);
+   587→    this.detectPathTraversal(lines, vulnerabilities, language);
+   588→    this.detectCommandInjection(lines, vulnerabilities, language);
+   589→
+   590→    // OWASP compliance checks
+   591→    if (owaspCompliance) {
+   592→      this.checkOWASPCompliance(code, vulnerabilities, complianceIssues);
+   593→    }
+   594→
+   595→    // Calculate risk score (0-100, lower is better)
+   596→    const riskScore = this.calculateSecurityRiskScore(vulnerabilities);
+   597→
+   598→    this.logger.log(
+   599→      `Security scan: ${vulnerabilities.length} vulnerability(ies), risk score=${riskScore}`,
+   600→    );
+   601→
+   602→    return { vulnerabilities, riskScore, complianceIssues };
+   603→  }
+   604→
+   605→  private async analyzeComplexity(params: {
+   606→    code: string;
+   607→    language: string;
+   608→    thresholds?: Record<string, number>;
+   609→  }): Promise<{
+   610→    cyclomaticComplexity: number;
+   611→    cognitiveComplexity: number;
+   612→    nestingDepth: number;
+   613→    maintainabilityIndex: number;
+   614→    hotspots: ComplexityHotspot[];
+   615→  }> {
+   616→    const { code, language, thresholds } = params;
+   617→
+   618→    if (!code || typeof code !== 'string') {
+   619→      throw new Error('Source code is required');
+   620→    }
+   621→    if (!language || typeof language !== 'string') {
+   622→      throw new Error('Programming language is required');
+   623→    }
+   624→
+   625→    const defaultThresholds = {
+   626→      maxCyclomatic: 10,
+   627→      maxCognitive: 15,
+   628→      maxNesting: 4,
+   629→      minMaintainability: 20,
+   630→    };
+   631→
+   632→    const effectiveThresholds = { ...defaultThresholds, ...thresholds };
+   633→
+   634→    const lines = code.split('\n');
+   635→
+   636→    // Calculate overall metrics
+   637→    const cyclomaticComplexity = this.calculateCyclomaticComplexity(lines, language);
+   638→    const cognitiveComplexity = this.calculateCognitiveComplexity(lines, language);
+   639→    const nestingDepth = this.calculateMaxNesting(lines, language);
+   640→    const maintainabilityIndex = this.calculateMaintainabilityIndex(
+   641→      lines.length,
+   642→      cyclomaticComplexity,
+   643→    );
+   644→
+   645→    // Find complexity hotspots (functions with high complexity)
+   646→    const hotspots = this.findComplexityHotspots(lines, language, effectiveThresholds);
+   647→
+   648→    this.logger.log(
+   649→      `Complexity analysis: cyclomatic=${cyclomaticComplexity}, cognitive=${cognitiveComplexity}, ` +
+   650→        `nesting=${nestingDepth}, maintainability=${maintainabilityIndex}`,
+   651→    );
+   652→
+   653→    return {
+   654→      cyclomaticComplexity,
+   655→      cognitiveComplexity,
+   656→      nestingDepth,
+   657→      maintainabilityIndex,
+   658→      hotspots,
+   659→    };
+   660→  }
+   661→
+   662→  // ─── Formatting Checks ────────────────────────────────────────
+   663→
+   664→  private checkFormatting(lines: string[], issues: ReviewIssue[], language: string): void {
+   665→    for (let i = 0; i < lines.length; i++) {
+   666→      const line = lines[i];
+   667→
+   668→      // Line too long
+   669→      if (line.length > 120) {
+   670→        issues.push({
+   671→          severity: 'low',
+   672→          category: 'formatting',
+   673→          message: `Line exceeds 120 characters (${line.length})`,
+   674→          line: i + 1,
+   675→          ruleId: 'max-line-length',
+   676→          suggestion: 'Break the line into multiple lines for readability',
+   677→        });
+   678→      }
+   679→
+   680→      // Trailing whitespace
+   681→      if (line !== line.trimEnd() && line.trimEnd().length > 0) {
+   682→        issues.push({
+   683→          severity: 'low',
+   684→          category: 'formatting',
+   685→          message: 'Trailing whitespace detected',
+   686→          line: i + 1,
+   687→          ruleId: 'no-trailing-whitespace',
+   688→          suggestion: 'Remove trailing whitespace',
+   689→        });
+   690→      }
+   691→
+   692→      // Mixed indentation
+   693→      if (line.match(/^\t/) && lines.some((l) => l.match(/^ /))) {
+   694→        issues.push({
+   695→          severity: 'medium',
+   696→          category: 'formatting',
+   697→          message: 'Mixed tabs and spaces for indentation',
+   698→          line: i + 1,
+   699→          ruleId: 'no-mixed-indent',
+   700→          suggestion: 'Use consistent indentation (prefer spaces or tabs, not both)',
+   701→        });
+   702→      }
+   703→    }
+   704→
+   705→    // Check for missing final newline
+   706→    if (lines.length > 0 && lines[lines.length - 1] !== '') {
+   707→      issues.push({
+   708→        severity: 'low',
+   709→        category: 'formatting',
+   710→        message: 'Missing newline at end of file',
+   711→        line: lines.length,
+   712→        ruleId: 'eol-last',
+   713→        suggestion: 'Add a newline at the end of the file',
+   714→      });
+   715→    }
+   716→  }
+   717→
+   718→  // ─── Naming Convention Checks ──────────────────────────────────
+   719→
+   720→  private checkNamingConventions(lines: string[], issues: ReviewIssue[], language: string): void {
+   721→    for (let i = 0; i < lines.length; i++) {
+   722→      const line = lines[i];
+   723→
+   724→      if (language === 'typescript' || language === 'javascript') {
+   725→        // Check for single-letter variable names (excluding loop vars)
+   726→        const varMatch = line.match(/(?:const|let|var)\s+([a-z])\s*=/);
+   727→        if (varMatch && !['i', 'j', 'k', 'x', 'y', 'z', '_'].includes(varMatch[1])) {
+   728→          issues.push({
+   729→            severity: 'low',
+   730→            category: 'naming',
+   731→            message: `Single-letter variable name "${varMatch[1]}" is not descriptive`,
+   732→            line: i + 1,
+   733→            ruleId: 'descriptive-variable-names',
+   734→            suggestion: 'Use a descriptive variable name that conveys purpose',
+   735→          });
+   736→        }
+   737→      }
+   738→
+   739→      // Check for overly long names
+   740→      const longNameMatch = line.match(/(?:function|class|const|let|var|def)\s+(\w{50,})/);
+   741→      if (longNameMatch) {
+   742→        issues.push({
+   743→          severity: 'low',
+   744→          category: 'naming',
+   745→          message: `Name "${longNameMatch[1].substring(0, 30)}..." is too long`,
+   746→          line: i + 1,
+   747→          ruleId: 'max-name-length',
+   748→          suggestion: 'Use a shorter but still descriptive name',
+   749→        });
+   750→      }
+   751→    }
+   752→  }
+   753→
+   754→  // ─── Code Structure Checks ─────────────────────────────────────
+   755→
+   756→  private checkCodeStructure(lines: string[], issues: ReviewIssue[], language: string): void {
+   757→    // Check for functions that are too long
+   758→    let functionStart = -1;
+   759→    let functionBraceCount = 0;
+   760→    let functionName = '';
+   761→
+   762→    for (let i = 0; i < lines.length; i++) {
+   763→      const line = lines[i];
+   764→
+   765→      // Detect function start
+   766→      const funcMatch = line.match(
+   767→        new RegExp(
+   768→          '(?:function\\s+(\\w+)|(?:const|let)\\s+(\\w+)\\s*=\\s*(?:async\\s+)?(?:function|\\()',
+   769→        ),
+   770→      );
+   771→      if (funcMatch && functionStart === -1) {
+   772→        functionName = funcMatch[1] || funcMatch[2];
+   773→        functionStart = i;
+   774→        functionBraceCount = 0;
+   775→      }
+   776→
+   777→      // Track brace depth
+   778→      if (functionStart !== -1) {
+   779→        functionBraceCount += (line.match(/{/g) || []).length;
+   780→        functionBraceCount -= (line.match(/}/g) || []).length;
+   781→
+   782→        if (functionBraceCount <= 0 && functionStart !== -1) {
+   783→          const functionLength = i - functionStart + 1;
+   784→          if (functionLength > 50) {
+   785→            issues.push({
+   786→              severity: 'medium',
+   787→              category: 'structure',
+   788→              message: `Function "${functionName}" is too long (${functionLength} lines)`,
+   789→              line: functionStart + 1,
+   790→              ruleId: 'max-function-length',
+   791→              suggestion: 'Break the function into smaller, focused functions',
+   792→            });
+   793→          }
+   794→          functionStart = -1;
+   795→        }
+   796→      }
+   797→    }
+   798→
+   799→    // Check for too many parameters
+   800→    for (let i = 0; i < lines.length; i++) {
+   801→      const line = lines[i];
+   802→      const paramMatch = line.match(
+   803→        /(?:function\s+\w+|(?:const|let)\s+\w+\s*=\s*(?:async\s+)?)\(([^)]*)\)/,
+   804→      );
+   805→      if (paramMatch) {
+   806→        const params = paramMatch[1].split(',').filter((p) => p.trim().length > 0);
+   807→        if (params.length > 5) {
+   808→          issues.push({
+   809→            severity: 'medium',
+   810→            category: 'structure',
+   811→            message: `Function has too many parameters (${params.length})`,
+   812→            line: i + 1,
+   813→            ruleId: 'max-params',
+   814→            suggestion: 'Consider using an options object pattern instead of many parameters',
+   815→          });
+   816→        }
+   817→      }
+   818→    }
+   819→  }
+   820→
+   821→  // ─── Error Handling Checks ─────────────────────────────────────
+   822→
+   823→  private checkErrorHandling(lines: string[], issues: ReviewIssue[], language: string): void {
+   824→    for (let i = 0; i < lines.length; i++) {
+   825→      const line = lines[i];
+   826→
+   827→      // Empty catch block
+   828→      if (line.match(/catch\s*\(/) && i + 1 < lines.length) {
+   829→        const nextLine = lines[i + 1].trim();
+   830→        if (nextLine === '}' || nextLine === '') {
+   831→          issues.push({
+   832→            severity: 'high',
+   833→            category: 'error-handling',
+   834→            message: 'Empty catch block silently swallows errors',
+   835→            line: i + 1,
+   836→            ruleId: 'no-empty-catch',
+   837→            suggestion: 'Handle the error appropriately or re-throw it',
+   838→          });
+   839→        }
+   840→      }
+   841→
+   842→      // Catch with only console.log
+   843→      if (line.match(/catch/) && i + 1 < lines.length) {
+   844→        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+   845→          if (lines[j].includes('console.log') && !lines[j].includes('console.error')) {
+   846→            issues.push({
+   847→              severity: 'medium',
+   848→              category: 'error-handling',
+   849→              message: 'Catch block only logs error without proper handling',
+   850→              line: i + 1,
+   851→              ruleId: 'proper-error-handling',
+   852→              suggestion: 'Implement proper error handling or recovery logic',
+   853→            });
+   854→            break;
+   855→          }
+   856→          if (lines[j].includes('}')) break;
+   857→        }
+   858→      }
+   859→
+   860→      // Unhandled promise (missing await or .catch)
+   861→      if (
+   862→        (language === 'typescript' || language === 'javascript') &&
+   863→        line.includes('.then(') &&
+   864→        !line.includes('.catch(')
+   865→      ) {
+   866→        const remainingCode = lines.slice(i).join('\n');
+   867→        if (!remainingCode.substring(0, 200).includes('.catch(')) {
+   868→          issues.push({
+   869→            severity: 'medium',
+   870→            category: 'error-handling',
+   871→            message: 'Promise chain missing .catch() handler',
+   872→            line: i + 1,
+   873→            ruleId: 'no-unhandled-promise',
+   874→            suggestion: 'Add .catch() handler or use async/await with try-catch',
+   875→          });
+   876→        }
+   877→      }
+   878→    }
+   879→  }
+   880→
+   881→  // ─── Performance Anti-Pattern Checks ──────────────────────────
+   882→
+   883→  private checkPerformanceAntiPatterns(
+   884→    lines: string[],
+   885→    issues: ReviewIssue[],
+   886→    language: string,
+   887→  ): void {
+   888→    for (let i = 0; i < lines.length; i++) {
+   889→      const line = lines[i];
+   890→
+   891→      // Array mutation in loop
+   892→      if (line.match(/\.push\(|\.splice\(/) && i > 0) {
+   893→        for (let j = Math.max(0, i - 3); j < i; j++) {
+   894→          if (lines[j].match(/for\s*\(|\.forEach\(|\.map\(/)) {
+   895→            issues.push({
+   896→              severity: 'medium',
+   897→              category: 'performance',
+   898→              message: 'Array mutation inside loop can be inefficient',
+   899→              line: i + 1,
+   900→              ruleId: 'no-mutation-in-loop',
+   901→              suggestion: 'Use functional approaches like map/filter/reduce or collect items first',
+   902→            });
+   903→            break;
+   904→          }
+   905→        }
+   906→      }
+   907→
+   908→      // Synchronous file operations
+   909→      if (line.includes('readFileSync') || line.includes('writeFileSync')) {
+   910→        issues.push({
+   911→          severity: 'medium',
+   912→          category: 'performance',
+   913→          message: 'Synchronous file operation blocks the event loop',
+   914→          line: i + 1,
+   915→          ruleId: 'no-sync-file-ops',
+   916→          suggestion: 'Use async file operations (readFile, writeFile) instead',
+   917→        });
+   918→      }
+   919→
+   920→      // Nested loops (O(n²) complexity indicator)
+   921→      let indentLevel = 0;
+   922→      const match = line.match(/^(\s*)/);
+   923→      if (match) indentLevel = match[1].length;
+   924→
+   925→      if (line.match(/for\s*\(|while\s*\(|\.forEach\(/)) {
+   926→        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+   927→          const innerMatch = lines[j].match(/^(\s*)/);
+   928→          if (
+   929→            innerMatch &&
+   930→            innerMatch[1].length > indentLevel &&
+   931→            lines[j].match(/for\s*\(|while\s*\(|\.forEach\(/)
+   932→          ) {
+   933→            issues.push({
+   934→              severity: 'medium',
+   935→              category: 'performance',
+   936→              message: 'Nested loop detected — potential O(n²) complexity',
+   937→              line: j + 1,
+   938→              ruleId: 'no-nested-loops',
+   939→              suggestion: 'Consider optimizing with hash maps, sorting, or breaking early',
+   940→            });
+   941→            break;
+   942→          }
+   943→        }
+   944→      }
+   945→    }
+   946→  }
+   947→
+   948→  // ─── Bug Detection Methods ─────────────────────────────────────
+   949→
+   950→  private detectOffByOneErrors(lines: string[], bugs: BugFinding[], language: string): void {
+   951→    for (let i = 0; i < lines.length; i++) {
+   952→      const line = lines[i];
+   953→
+   954→      // Loop with <= for array length
+   955→      if (line.match(/i\s*<=\s*\w+\.length/) || line.match(/i\s*<=\s*len\(/)) {
+   956→        bugs.push({
+   957→          type: 'bug',
+   958→          severity: 'high',
+   959→          message: 'Potential off-by-one error: using <= with length',
+   960→          line: i + 1,
+   961→          confidence: 0.7,
+   962→          fix: 'Use < instead of <= when iterating array indices',
+   963→        });
+   964→      }
+   965→    }
+   966→  }
+   967→
+   968→  private detectNullReferenceRisks(lines: string[], bugs: BugFinding[], language: string): void {
+   969→    for (let i = 0; i < lines.length; i++) {
+   970→      const line = lines[i];
+   971→
+   972→      // Property access on potentially null/undefined object
+   973→      if (
+   974→        line.match(/\w+\.\w+\.\w+/) &&
+   975→        !line.includes('?.') &&
+   976→        !line.includes('null') &&
+   977→        !line.includes('undefined')
+   978→      ) {
+   979→        bugs.push({
+   980→          type: 'warning',
+   981→          severity: 'medium',
+   982→          message: 'Deep property access without null checking',
+   983→          line: i + 1,
+   984→          confidence: 0.5,
+   985→          fix: 'Use optional chaining (?.) or add null checks before accessing nested properties',
+   986→        });
+   987→      }
+   988→    }
+   989→  }
+   990→
+   991→  private detectResourceLeaks(lines: string[], bugs: BugFinding[], language: string): void {
+   992→    if (language === 'typescript' || language === 'javascript') {
+   993→      for (let i = 0; i < lines.length; i++) {
+   994→        const line = lines[i];
+   995→
+   996→        // Open file/connection without close
+   997→        if (
+   998→          line.includes('open(') ||
+   999→          line.includes('createConnection(') ||
+  1000→          line.includes('connect(')
+  1001→        ) {
+  1002→          const remainingCode = lines.slice(i + 1).join('\n');
+  1003→          if (
+  1004→            !remainingCode.includes('.close(') &&
+  1005→            !remainingCode.includes('.end(') &&
+  1006→            !remainingCode.includes('finally')
+  1007→          ) {
+  1008→            bugs.push({
+  1009→              type: 'bug',
+  1010→              severity: 'high',
+  1011→              message: 'Resource opened but may not be properly closed',
+  1012→              line: i + 1,
+  1013→              confidence: 0.6,
+  1014→              fix: 'Ensure resource is closed in a finally block or use with/resource pattern',
+  1015→            });
+  1016→          }
+  1017→        }
+  1018→      }
+  1019→    }
+  1020→  }
+  1021→
+  1022→  private detectRaceConditions(lines: string[], bugs: BugFinding[], language: string): void {
+  1023→    for (let i = 0; i < lines.length; i++) {
+  1024→      const line = lines[i];
+  1025→
+  1026→      // Shared mutable state in async context
+  1027→      if (line.includes('await ') && i > 0) {
+  1028→        for (let j = Math.max(0, i - 3); j < i; j++) {
+  1029→          if (
+  1030→            lines[j].match(/\w+\[\w+\]\s*=/) &&
+  1031→            !lines[j].includes('const ') &&
+  1032→            !lines[j].includes('let ')
+  1033→          ) {
+  1034→            bugs.push({
+  1035→              type: 'warning',
+  1036→              severity: 'high',
+  1037→              message:
+  1038→                'Potential race condition: shared mutable state modified around async boundary',
+  1039→              line: i + 1,
+  1040→              confidence: 0.4,
+  1041→              fix: 'Use proper synchronization or make state immutable',
+  1042→            });
+  1043→            break;
+  1044→          }
+  1045→        }
+  1046→      }
+  1047→    }
+  1048→  }
+  1049→
+  1050→  private detectUnhandledPromises(lines: string[], bugs: BugFinding[], language: string): void {
+  1051→    if (language === 'typescript' || language === 'javascript') {
+  1052→      for (let i = 0; i < lines.length; i++) {
+  1053→        const line = lines[i];
+  1054→
+  1055→        // Floating promise (call returning promise without await/catch)
+  1056→        const floatingPromise = line.match(/^(\s*)(\w+)\(/);
+  1057→        if (floatingPromise) {
+  1058→          const indent = floatingPromise[1];
+  1059→          // Check if this is inside an async function and not awaited
+  1060→          if (
+  1061→            !line.includes('await ') &&
+  1062→            !line.includes('.then(') &&
+  1063→            !line.includes('.catch(') &&
+  1064→            !line.includes('//')
+  1065→          ) {
+  1066→            const surroundingContext = lines.slice(Math.max(0, i - 2), i).join('\n');
+  1067→            if (surroundingContext.includes('async ')) {
+  1068→              bugs.push({
+  1069→                type: 'warning',
+  1070→                severity: 'medium',
+  1071→                message: 'Possible unhandled promise — missing await',
+  1072→                line: i + 1,
+  1073→                confidence: 0.3,
+  1074→                fix: 'Add await keyword or handle the promise with .then()/.catch()',
+  1075→              });
+  1076→            }
+  1077→          }
+  1078→        }
+  1079→      }
+  1080→    }
+  1081→  }
+  1082→
+  1083→  private detectIncorrectComparisons(lines: string[], bugs: BugFinding[], language: string): void {
+  1084→    if (language === 'typescript' || language === 'javascript') {
+  1085→      for (let i = 0; i < lines.length; i++) {
+  1086→        const line = lines[i];
+  1087→
+  1088→        // Use of == instead of ===
+  1089→        const looseEq = line.match(/[^=!]==[^=]/);
+  1090→        if (looseEq) {
+  1091→          bugs.push({
+  1092→            type: 'warning',
+  1093→            severity: 'medium',
+  1094→            message: 'Loose equality (==) can lead to unexpected type coercion',
+  1095→            line: i + 1,
+  1096→            confidence: 0.8,
+  1097→            fix: 'Use strict equality (===) instead of loose equality (==)',
+  1098→          });
+  1099→        }
+  1100→
+  1101→        // Assignment in condition
+  1102→        const assignInCond = line.match(/if\s*\(\s*\w+\s*=[^=]/);
+  1103→        if (assignInCond) {
+  1104→          bugs.push({
+  1105→            type: 'bug',
+  1106→            severity: 'high',
+  1107→            message: 'Assignment in conditional — likely intended to be comparison',
+  1108→            line: i + 1,
+  1109→            confidence: 0.85,
+  1110→            fix: 'Use === for comparison or wrap assignment in extra parentheses to indicate intent',
+  1111→          });
+  1112→        }
+  1113→      }
+  1114→    }
+  1115→  }
+  1116→
+  1117→  // ─── Warning Detection Methods ─────────────────────────────────
+  1118→
+  1119→  private detectUnusedVariables(lines: string[], warnings: BugFinding[], language: string): void {
+  1120→    const varDeclarations: Array<{ name: string; line: number }> = [];
+  1121→
+  1122→    for (let i = 0; i < lines.length; i++) {
+  1123→      const line = lines[i];
+  1124→      const match = line.match(/(?:const|let|var)\s+(\w+)\s*=/);
+  1125→      if (match) {
+  1126→        varDeclarations.push({ name: match[1], line: i + 1 });
+  1127→      }
+  1128→    }
+  1129→
+  1130→    const code = lines.join('\n');
+  1131→    for (const decl of varDeclarations) {
+  1132→      // Count occurrences (excluding the declaration itself)
+  1133→      const regex = new RegExp(`\\b${decl.name}\\b`, 'g');
+  1134→      const matches = code.match(regex);
+  1135→      if (matches && matches.length <= 1) {
+  1136→        warnings.push({
+  1137→          type: 'warning',
+  1138→          severity: 'low',
+  1139→          message: `Variable "${decl.name}" is declared but never used`,
+  1140→          line: decl.line,
+  1141→          confidence: 0.75,
+  1142→          fix: 'Remove the unused variable or prefix with underscore to indicate intentional',
+  1143→        });
+  1144→      }
+  1145→    }
+  1146→  }
+  1147→
+  1148→  private detectUnreachableCode(lines: string[], warnings: BugFinding[], language: string): void {
+  1149→    for (let i = 0; i < lines.length - 1; i++) {
+  1150→      const line = lines[i].trim();
+  1151→
+  1152→      // After return/throw/break/continue
+  1153→      if (line.match(/^(return|throw|break|continue)/)) {
+  1154→        const nextLine = lines[i + 1].trim();
+  1155→        if (
+  1156→          nextLine &&
+  1157→          !nextLine.startsWith('//') &&
+  1158→          !nextLine.startsWith('}') &&
+  1159→          !nextLine.startsWith('case')
+  1160→        ) {
+  1161→          warnings.push({
+  1162→            type: 'warning',
+  1163→            severity: 'medium',
+  1164→            message: 'Unreachable code detected after control flow statement',
+  1165→            line: i + 2,
+  1166→            confidence: 0.9,
+  1167→            fix: 'Remove the unreachable code or fix the control flow',
+  1168→          });
+  1169→        }
+  1170→      }
+  1171→    }
+  1172→  }
+  1173→
+  1174→  private detectImplicitTypeCoercion(
+  1175→    lines: string[],
+  1176→    warnings: BugFinding[],
+  1177→    language: string,
+  1178→  ): void {
+  1179→    if (language === 'typescript' || language === 'javascript') {
+  1180→      for (let i = 0; i < lines.length; i++) {
+  1181→        const line = lines[i];
+  1182→
+  1183→        // String concatenation with numbers
+  1184→        if (line.match(/\+\s*['"`]/) || line.match(/['"`]\s*\+/)) {
+  1185→          const hasNumberNearby = line.match(/\d/);
+  1186→          if (hasNumberNearby) {
+  1187→            warnings.push({
+  1188→              type: 'warning',
+  1189→              severity: 'low',
+  1190→              message: 'Potential implicit type coercion in string concatenation',
+  1191→              line: i + 1,
+  1192→              confidence: 0.4,
+  1193→              fix: 'Use template literals or explicit String() conversion',
+  1194→            });
+  1195→          }
+  1196→        }
+  1197→      }
+  1198→    }
+  1199→  }
+  1200→
+  1201→  // ─── Security Detection Methods ────────────────────────────────
+  1202→
+  1203→  private detectSQLInjection(
+  1204→    lines: string[],
+  1205→    vulns: SecurityVulnerability[],
+  1206→    language: string,
+  1207→  ): void {
+  1208→    for (let i = 0; i < lines.length; i++) {
+  1209→      const line = lines[i];
+  1210→
+  1211→      // String concatenation in SQL queries
+  1212→      if (
+  1213→        line.match(/(SELECT|INSERT|UPDATE|DELETE|DROP).*\+/i) ||
+  1214→        line.match(/(SELECT|INSERT|UPDATE|DELETE|DROP).*\$\{/i)
+  1215→      ) {
+  1216→        vulns.push({
+  1217→          id: `SQL-${i + 1}`,
+  1218→          category: 'Injection',
+  1219→          severity: 'critical',
+  1220→          title: 'SQL Injection vulnerability',
+  1221→          description: 'SQL query constructed with string concatenation or interpolation',
+  1222→          line: i + 1,
+  1223→          cwe: 'CWE-89',
+  1224→          owasp: 'A03:2021-Injection',
+  1225→          remediation: 'Use parameterized queries or ORM methods instead of string concatenation',
+  1226→        });
+  1227→      }
+  1228→    }
+  1229→  }
+  1230→
+  1231→  private detectXSSVulnerabilities(
+  1232→    lines: string[],
+  1233→    vulns: SecurityVulnerability[],
+  1234→    language: string,
+  1235→  ): void {
+  1236→    for (let i = 0; i < lines.length; i++) {
+  1237→      const line = lines[i];
+  1238→
+  1239→      // innerHTML with dynamic content
+  1240→      if (line.includes('innerHTML') && !line.includes('sanitize') && !line.includes('escape')) {
+  1241→        vulns.push({
+  1242→          id: `XSS-${i + 1}`,
+  1243→          category: 'XSS',
+  1244→          severity: 'high',
+  1245→          title: 'Cross-Site Scripting (XSS) vulnerability',
+  1246→          description: 'innerHTML used with potentially unsanitized content',
+  1247→          line: i + 1,
+  1248→          cwe: 'CWE-79',
+  1249→          owasp: 'A03:2021-Injection',
+  1250→          remediation:
+  1251→            'Sanitize user input before rendering or use textContent instead of innerHTML',
+  1252→        });
+  1253→      }
+  1254→
+  1255→      // dangerouslySetInnerHTML (React)
+  1256→      if (line.includes('dangerouslySetInnerHTML') && !line.includes('sanitize')) {
+  1257→        vulns.push({
+  1258→          id: `XSS-REACT-${i + 1}`,
+  1259→          category: 'XSS',
+  1260→          severity: 'high',
+  1261→          title: 'React XSS via dangerouslySetInnerHTML',
+  1262→          description: 'dangerouslySetInnerHTML used without sanitization',
+  1263→          line: i + 1,
+  1264→          cwe: 'CWE-79',
+  1265→          owasp: 'A03:2021-Injection',
+  1266→          remediation: 'Use DOMPurify or similar library to sanitize HTML before rendering',
+  1267→        });
+  1268→      }
+  1269→    }
+  1270→  }
+  1271→
+  1272→  private detectInsecureDependencies(
+  1273→    lines: string[],
+  1274→    vulns: SecurityVulnerability[],
+  1275→    language: string,
+  1276→  ): void {
+  1277→    for (let i = 0; i < lines.length; i++) {
+  1278→      const line = lines[i];
+  1279→
+  1280→      // Known insecure patterns
+  1281→      if (line.includes('eval(')) {
+  1282→        vulns.push({
+  1283→          id: `INSECURE-${i + 1}`,
+  1284→          category: 'Code Injection',
+  1285→          severity: 'critical',
+  1286→          title: 'Use of eval() is insecure',
+  1287→          description: 'eval() can execute arbitrary code and should never be used with user input',
+  1288→          line: i + 1,
+  1289→          cwe: 'CWE-94',
+  1290→          owasp: 'A03:2021-Injection',
+  1291→          remediation:
+  1292→            'Replace eval() with safer alternatives (JSON.parse, Function constructor, etc.)',
+  1293→        });
+  1294→      }
+  1295→
+  1296→      if (line.includes('http://') && !line.includes('localhost') && !line.includes('127.0.0.1')) {
+  1297→        vulns.push({
+  1298→          id: `INSECURE-HTTP-${i + 1}`,
+  1299→          category: 'Data Transmission',
+  1300→          severity: 'medium',
+  1301→          title: 'Insecure HTTP URL detected',
+  1302→          description: 'HTTP URLs transmit data unencrypted; use HTTPS instead',
+  1303→          line: i + 1,
+  1304→          cwe: 'CWE-319',
+  1305→          owasp: 'A02:2021-Cryptographic Failures',
+  1306→          remediation: 'Replace http:// with https:// for all external URLs',
+  1307→        });
+  1308→      }
+  1309→    }
+  1310→  }
+  1311→
+  1312→  private detectHardcodedSecrets(
+  1313→    lines: string[],
+  1314→    vulns: SecurityVulnerability[],
+  1315→    language: string,
+  1316→  ): void {
+  1317→    const secretPatterns = [
+  1318→      { pattern: /(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]+['"]/i, name: 'Password' },
+  1319→      { pattern: /(?:api[_-]?key|apikey)\s*[:=]\s*['"][^'"]+['"]/i, name: 'API Key' },
+  1320→      { pattern: /(?:secret|token)\s*[:=]\s*['"][^'"]+['"]/i, name: 'Secret/Token' },
+  1321→      { pattern: /(?:private[_-]?key)\s*[:=]\s*['"][^'"]+['"]/i, name: 'Private Key' },
+  1322→    ];
+  1323→
+  1324→    for (let i = 0; i < lines.length; i++) {
+  1325→      const line = lines[i];
+  1326→
+  1327→      for (const { pattern, name } of secretPatterns) {
+  1328→        if (
+  1329→          pattern.test(line) &&
+  1330→          !line.includes('process.env') &&
+  1331→          !line.includes('ENV') &&
+  1332→          !line.includes('config.')
+  1333→        ) {
+  1334→          vulns.push({
+  1335→            id: `SECRET-${i + 1}`,
+  1336→            category: 'Sensitive Data Exposure',
+  1337→            severity: 'high',
+  1338→            title: `Hardcoded ${name} detected`,
+  1339→            description: `${name} is hardcoded in source code instead of using environment variables`,
+  1340→            line: i + 1,
+  1341→            cwe: 'CWE-798',
+  1342→            owasp: 'A07:2021-Identification and Authentication Failures',
+  1343→            remediation: 'Move secrets to environment variables or a secure vault',
+  1344→          });
+  1345→        }
+  1346→      }
+  1347→    }
+  1348→  }
+  1349→
+  1350→  private detectInsecureCrypto(
+  1351→    lines: string[],
+  1352→    vulns: SecurityVulnerability[],
+  1353→    language: string,
+  1354→  ): void {
+  1355→    for (let i = 0; i < lines.length; i++) {
+  1356→      const line = lines[i];
+  1357→
+  1358→      // Weak hash algorithms
+  1359→      if (line.includes('md5') || line.includes('sha1')) {
+  1360→        vulns.push({
+  1361→          id: `CRYPTO-${i + 1}`,
+  1362→          category: 'Cryptographic Failure',
+  1363→          severity: 'high',
+  1364→          title: 'Weak cryptographic algorithm',
+  1365→          description:
+  1366→            'MD5/SHA1 are cryptographically broken and should not be used for security purposes',
+  1367→          line: i + 1,
+  1368→          cwe: 'CWE-328',
+  1369→          owasp: 'A02:2021-Cryptographic Failures',
+  1370→          remediation: 'Use SHA-256 or stronger algorithms for hashing',
+  1371→        });
+  1372→      }
+  1373→
+  1374→      // Weak random number generation
+  1375→      if (
+  1376→        line.includes('Math.random()') &&
+  1377→        (line.includes('token') ||
+  1378→          line.includes('key') ||
+  1379→          line.includes('password') ||
+  1380→          line.includes('secret'))
+  1381→      ) {
+  1382→        vulns.push({
+  1383→          id: `CRYPTO-RNG-${i + 1}`,
+  1384→          category: 'Cryptographic Failure',
+  1385→          severity: 'high',
+  1386→          title: 'Insecure random number generation for security context',
+  1387→          description: 'Math.random() is not cryptographically secure',
+  1388→          line: i + 1,
+  1389→          cwe: 'CWE-338',
+  1390→          owasp: 'A02:2021-Cryptographic Failures',
+  1391→          remediation:
+  1392→            'Use crypto.randomBytes() or window.crypto.getRandomValues() for security-sensitive randomness',
+  1393→        });
+  1394→      }
+  1395→    }
+  1396→  }
+  1397→
+  1398→  private detectPathTraversal(
+  1399→    lines: string[],
+  1400→    vulns: SecurityVulnerability[],
+  1401→    language: string,
+  1402→  ): void {
+  1403→    for (let i = 0; i < lines.length; i++) {
+  1404→      const line = lines[i];
+  1405→
+  1406→      if (
+  1407→        (line.includes('readFile') ||
+  1408→          line.includes('readFileSync') ||
+  1409→          line.includes('writeFile')) &&
+  1410→        line.includes('req.') &&
+  1411→        !line.includes('path.normalize') &&
+  1412→        !line.includes('path.resolve')
+  1413→      ) {
+  1414→        vulns.push({
+  1415→          id: `PATH-${i + 1}`,
+  1416→          category: 'Path Traversal',
+  1417→          severity: 'high',
+  1418→          title: 'Potential path traversal vulnerability',
+  1419→          description: 'File path derived from user input without sanitization',
+  1420→          line: i + 1,
+  1421→          cwe: 'CWE-22',
+  1422→          owasp: 'A01:2021-Broken Access Control',
+  1423→          remediation: 'Validate and sanitize file paths, use path.resolve() with a base directory',
+  1424→        });
+  1425→      }
+  1426→    }
+  1427→  }
+  1428→
+  1429→  private detectCommandInjection(
+  1430→    lines: string[],
+  1431→    vulns: SecurityVulnerability[],
+  1432→    language: string,
+  1433→  ): void {
+  1434→    for (let i = 0; i < lines.length; i++) {
+  1435→      const line = lines[i];
+  1436→
+  1437→      if (
+  1438→        (line.includes('exec(') || line.includes('execSync(') || line.includes('spawn(')) &&
+  1439→        (line.includes('req.') || line.includes('params.') || line.includes('body.'))
+  1440→      ) {
+  1441→        vulns.push({
+  1442→          id: `CMD-${i + 1}`,
+  1443→          category: 'Command Injection',
+  1444→          severity: 'critical',
+  1445→          title: 'OS command injection vulnerability',
+  1446→          description: 'OS command executed with potentially unsanitized user input',
+  1447→          line: i + 1,
+  1448→          cwe: 'CWE-78',
+  1449→          owasp: 'A03:2021-Injection',
+  1450→          remediation:
+  1451→            'Use parameterized command execution or avoid shell commands with user input',
+  1452→        });
+  1453→      }
+  1454→    }
+  1455→  }
+  1456→
+  1457→  private checkOWASPCompliance(
+  1458→    code: string,
+  1459→    vulns: SecurityVulnerability[],
+  1460→    issues: string[],
+  1461→  ): void {
+  1462→    const owaspTop10 = [
+  1463→      'A01:2021-Broken Access Control',
+  1464→      'A02:2021-Cryptographic Failures',
+  1465→      'A03:2021-Injection',
+  1466→      'A04:2021-Insecure Design',
+  1467→      'A05:2021-Security Misconfiguration',
+  1468→      'A06:2021-Vulnerable and Outdated Components',
+  1469→      'A07:2021-Identification and Authentication Failures',
+  1470→      'A08:2021-Software and Data Integrity Failures',
+  1471→      'A09:2021-Security Logging and Monitoring Failures',
+  1472→      'A10:2021-Server-Side Request Forgery',
+  1473→    ];
+  1474→
+  1475→    const foundCategories = new Set(vulns.map((v) => v.owasp).filter(Boolean));
+  1476→
+  1477→    for (const category of owaspTop10) {
+  1478→      if (foundCategories.has(category)) {
+  1479→        issues.push(`OWASP compliance issue: ${category} - vulnerabilities detected`);
+  1480→      }
+  1481→    }
+  1482→
+  1483→    // Check for missing security headers/patterns
+  1484→    if (
+  1485→      !code.includes('helmet') &&
+  1486→      !code.includes('cors') &&
+  1487→      (code.includes('express') || code.includes('app.use'))
+  1488→    ) {
+  1489→      issues.push(
+  1490→        'OWASP A05: Security Misconfiguration - Missing security middleware (helmet, cors)',
+  1491→      );
+  1492→    }
+  1493→
+  1494→    if (!code.includes('rate') && !code.includes('throttle') && code.includes('app.post')) {
+  1495→      issues.push('OWASP A04: Insecure Design - Missing rate limiting on POST endpoints');
+  1496→    }
+  1497→  }
+  1498→
+  1499→  // ─── Complexity Calculation Methods ────────────────────────────
+  1500→
+  1501→  private calculateCyclomaticComplexity(lines: string[], language: string): number {
+  1502→    let complexity = 1; // Base complexity
+  1503→
+  1504→    const branchKeywords = [
+  1505→      /\bif\b/,
+  1506→      /\belse\s+if\b/,
+  1507→      /\bfor\b/,
+  1508→      /\bwhile\b/,
+  1509→      /\bcase\b/,
+  1510→      /\bcatch\b/,
+  1511→      /\?.*:/,
+  1512→      /\&\&/,
+  1513→      /\|\|/,
+  1514→    ];
+  1515→
+  1516→    for (const line of lines) {
+  1517→      for (const keyword of branchKeywords) {
+  1518→        const matches = line.match(new RegExp(keyword.source, 'g'));
+  1519→        if (matches) {
+  1520→          complexity += matches.length;
+  1521→        }
+  1522→      }
+  1523→    }
+  1524→
+  1525→    return complexity;
+  1526→  }
+  1527→
+  1528→  private calculateCognitiveComplexity(lines: string[], language: string): number {
+  1529→    let complexity = 0;
+  1530→    let nestingLevel = 0;
+  1531→
+  1532→    for (const line of lines) {
+  1533→      const trimmed = line.trim();
+  1534→
+  1535→      // Increase nesting
+  1536→      if (trimmed.includes('{')) nestingLevel += (trimmed.match(/{/g) || []).length;
+  1537→
+  1538→      // Cognitive complexity adds nesting level for each branch
+  1539→      if (
+  1540→        trimmed.match(/\bif\b/) ||
+  1541→        trimmed.match(/\belse\b/) ||
+  1542→        trimmed.match(/\bfor\b/) ||
+  1543→        trimmed.match(/\bwhile\b/) ||
+  1544→        trimmed.match(/\bcatch\b/) ||
+  1545→        trimmed.match(/\bswitch\b/)
+  1546→      ) {
+  1547→        complexity += 1 + Math.max(0, nestingLevel - 1);
+  1548→      }
+  1549→
+  1550→      // Logical operators
+  1551→      complexity += (trimmed.match(/&&/g) || []).length;
+  1552→      complexity += (trimmed.match(/\|\|/g) || []).length;
+  1553→
+  1554→      // Decrease nesting
+  1555→      if (trimmed.includes('}')) nestingLevel -= (trimmed.match(/}/g) || []).length;
+  1556→      nestingLevel = Math.max(0, nestingLevel);
+  1557→    }
+  1558→
+  1559→    return complexity;
+  1560→  }
+  1561→
+  1562→  private calculateMaxNesting(lines: string[], language: string): number {
+  1563→    let maxNesting = 0;
+  1564→    let currentNesting = 0;
+  1565→
+  1566→    for (const line of lines) {
+  1567→      currentNesting += (line.match(/{/g) || []).length;
+  1568→      currentNesting -= (line.match(/}/g) || []).length;
+  1569→      currentNesting = Math.max(0, currentNesting);
+  1570→      maxNesting = Math.max(maxNesting, currentNesting);
+  1571→    }
+  1572→
+  1573→    return maxNesting;
+  1574→  }
+  1575→
+  1576→  private calculateMaintainabilityIndex(linesOfCode: number, cyclomaticComplexity: number): number {
+  1577→    // Simplified Maintainability Index (Microsoft formula approximation)
+  1578→    const avgLineLength = 40; // Assumed average
+  1579→    const halsteadVolume = linesOfCode * avgLineLength;
+  1580→    const mi = Math.max(
+  1581→      0,
+  1582→      171 -
+  1583→        5.2 * Math.log(halsteadVolume + 1) -
+  1584→        0.23 * cyclomaticComplexity -
+  1585→        16.2 * Math.log(linesOfCode + 1),
+  1586→    );
+  1587→    return Math.round(Math.min(100, Math.max(0, mi)));
+  1588→  }
+  1589→
+  1590→  private findComplexityHotspots(
+  1591→    lines: string[],
+  1592→    language: string,
+  1593→    thresholds: Record<string, number>,
+  1594→  ): ComplexityHotspot[] {
+  1595→    const hotspots: ComplexityHotspot[] = [];
+  1596→    let funcStart = -1;
+  1597→    let funcName = '';
+  1598→    let braceCount = 0;
+  1599→
+  1600→    for (let i = 0; i < lines.length; i++) {
+  1601→      const line = lines[i];
+  1602→
+  1603→      const funcMatch = line.match(
+  1604→        /(?:function\s+(\w+)|(?:const|let)\s+(\w+)\s*=\s*(?:async\s+)?(?:function|\())/,
+  1605→      );
+  1606→      if (funcMatch && funcStart === -1) {
+  1607→        funcName = funcMatch[1] || funcMatch[2];
+  1608→        funcStart = i;
+  1609→        braceCount = 0;
+  1610→      }
+  1611→
+  1612→      if (funcStart !== -1) {
+  1613→        braceCount += (line.match(/{/g) || []).length;
+  1614→        braceCount -= (line.match(/}/g) || []).length;
+  1615→
+  1616→        if (braceCount <= 0) {
+  1617→          const funcLines = lines.slice(funcStart, i + 1);
+  1618→          const cyclomatic = this.calculateCyclomaticComplexity(funcLines, language);
+  1619→          const cognitive = this.calculateCognitiveComplexity(funcLines, language);
+  1620→          const nesting = this.calculateMaxNesting(funcLines, language);
+  1621→
+  1622→          if (
+  1623→            cyclomatic > thresholds.maxCyclomatic ||
+  1624→            cognitive > thresholds.maxCognitive ||
+  1625→            nesting > thresholds.maxNesting
+  1626→          ) {
+  1627→            hotspots.push({
+  1628→              functionName: funcName,
+  1629→              startLine: funcStart + 1,
+  1630→              endLine: i + 1,
+  1631→              cyclomatic,
+  1632→              cognitive,
+  1633→              nesting,
+  1634→              suggestion: `Function "${funcName}" has high complexity (cyclomatic=${cyclomatic}, cognitive=${cognitive}, nesting=${nesting}). Consider refactoring into smaller functions.`,
+  1635→            });
+  1636→          }
+  1637→
+  1638→          funcStart = -1;
+  1639→        }
+  1640→      }
+  1641→    }
+  1642→
+  1643→    return hotspots;
+  1644→  }
+  1645→
+  1646→  // ─── Best Practice Check Helpers ───────────────────────────────
+  1647→
+  1648→  private checkSingleResponsibility(lines: string[]): boolean {
+  1649→    // If file has >3 class/function declarations, likely violates SRP
+  1650→    const declarations = lines.filter((l) => l.match(/^(export\s+)?(class|function|interface)\s/));
+  1651→    return declarations.length <= 3;
+  1652→  }
+  1653→
+  1654→  private checkDRY(lines: string[]): boolean {
+  1655→    // Check for 3+ identical non-trivial lines
+  1656→    const lineCounts = new Map<string, number>();
+  1657→    for (const line of lines) {
+  1658→      const trimmed = line.trim();
+  1659→      if (trimmed.length > 20 && !trimmed.startsWith('//') && !trimmed.startsWith('*')) {
+  1660→        lineCounts.set(trimmed, (lineCounts.get(trimmed) || 0) + 1);
+  1661→      }
+  1662→    }
+  1663→
+  1664→    const duplicates = Array.from(lineCounts.entries()).filter(([, count]) => count >= 3);
+  1665→    return duplicates.length === 0;
+  1666→  }
+  1667→
+  1668→  private checkProperErrorHandling(lines: string[], language: string): boolean {
+  1669→    const asyncOps = lines.filter((l) => l.includes('await ') || l.includes('.then('));
+  1670→    const tryCatchBlocks = lines.filter((l) => l.includes('try {') || l.includes('catch ('));
+  1671→    const catches = lines.filter((l) => l.includes('.catch('));
+  1672→
+  1673→    if (asyncOps.length === 0) return true;
+  1674→    return tryCatchBlocks.length + catches.length > 0;
+  1675→  }
+  1676→
+  1677→  private checkConsistentNaming(lines: string[], language: string): boolean {
+  1678→    const camelCase = lines.filter((l) =>
+  1679→      l.match(/(?:const|let|function)\s+[a-z][a-zA-Z0-9]*\s*[=(]/),
+  1680→    );
+  1681→    const snakeCase = lines.filter((l) =>
+  1682→      l.match(/(?:const|let|function|def)\s+[a-z][a-z_0-9]*\s*[=(]/),
+  1683→    );
+  1684→    const pascalCase = lines.filter((l) => l.match(/(?:class|interface)\s+[A-Z][a-zA-Z0-9]*\s*{/));
+  1685→
+  1686→    // If mixing styles significantly
+  1687→    if (language === 'typescript' || language === 'javascript') {
+  1688→      return snakeCase.length <= camelCase.length;
+  1689→    }
+  1690→    if (language === 'python') {
+  1691→      return camelCase.length <= snakeCase.length;
+  1692→    }
+  1693→    return true;
+  1694→  }
+  1695→
+  1696→  private checkMagicNumbers(lines: string[]): boolean {
+  1697→    const magicNumberPattern = /(?:==|!=|>=|<=|>|<|\+)\s*(?!\d+\.\d+)(\d{2,})\s*[;)\]}/]/;
+  1698→    const violations = lines.filter((l) => {
+  1699→      const match = l.match(magicNumberPattern);
+  1700→      return match && !l.includes('//') && match[1] !== '0' && match[1] !== '1';
+  1701→    });
+  1702→    return violations.length <= 2;
+  1703→  }
+  1704→
+  1705→  private checkConstOverLet(code: string): boolean {
+  1706→    const letCount = (code.match(/\blet\s+/g) || []).length;
+  1707→    const constCount = (code.match(/\bconst\s+/g) || []).length;
+  1708→    return constCount >= letCount;
+  1709→  }
+  1710→
+  1711→  // ─── Score Calculations ────────────────────────────────────────
+  1712→
+  1713→  private calculateReviewScore(totalLines: number, issues: ReviewIssue[]): number {
+  1714→    let score = 100;
+  1715→
+  1716→    for (const issue of issues) {
+  1717→      switch (issue.severity) {
+  1718→        case 'critical':
+  1719→          score -= 15;
+  1720→          break;
+  1721→        case 'high':
+  1722→          score -= 8;
+  1723→          break;
+  1724→        case 'medium':
+  1725→          score -= 3;
+  1726→          break;
+  1727→        case 'low':
+  1728→          score -= 1;
+  1729→          break;
+  1730→      }
+  1731→    }
+  1732→
+  1733→    return Math.max(0, Math.min(100, score));
+  1734→  }
+  1735→
+  1736→  private calculateSecurityRiskScore(vulns: SecurityVulnerability[]): number {
+  1737→    let score = 0;
+  1738→
+  1739→    for (const vuln of vulns) {
+  1740→      switch (vuln.severity) {
+  1741→        case 'critical':
+  1742→          score += 25;
+  1743→          break;
+  1744→        case 'high':
+  1745→          score += 15;
+  1746→          break;
+  1747→        case 'medium':
+  1748→          score += 8;
+  1749→          break;
+  1750→        case 'low':
+  1751→          score += 3;
+  1752→          break;
+  1753→      }
+  1754→    }
+  1755→
+  1756→    return Math.min(100, score);
+  1757→  }
+  1758→}
+  1759→

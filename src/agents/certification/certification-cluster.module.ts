@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { ArchitectureAuditorAgent } from './architecture/architecture-auditor-agent.service';
 import { SecurityAuditorAgent } from './security/security-auditor-agent.service';
 import { PerformanceAuditorAgent } from './performance/performance-auditor-agent.service';
@@ -22,7 +23,7 @@ import { ObservabilityAuditorAgent } from './observability/observability-auditor
 import { AIQualityAuditorAgent } from './ai-quality/ai-quality-auditor-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Architecture Auditor — audits architecture integrity, circular deps, coupling
     ArchitectureAuditorAgent,

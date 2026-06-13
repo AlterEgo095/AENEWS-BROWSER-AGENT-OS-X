@@ -1,0 +1,858 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Meta Learning Agent
+     3→ * System learning and knowledge acquisition for the Meta Intelligence cluster.
+     4→ * Handles experience-based learning, knowledge updates, pattern identification,
+     5→ * strategy adaptation, improvement measurement, and outdated knowledge removal.
+     6→ */
+     7→
+     8→import { Injectable } from '@nestjs/common';
+     9→import { BaseAgentService } from '../../base/base-agent.service';
+    10→import {
+    11→  AgentConfig,
+    12→  AgentCluster,
+    13→  AgentInput,
+    14→  AgentOutput,
+    15→} from '../../interfaces/agent.interface';
+    16→
+    17→// ─── Agent Configuration ──────────────────────────────────────────
+    18→
+    19→export const META_LEARNING_AGENT_CONFIG: AgentConfig = {
+    20→  id: 'meta-learning',
+    21→  name: 'MetaLearning',
+    22→  cluster: AgentCluster.META_INTELLIGENCE,
+    23→  version: '1.0.0',
+    24→  description:
+    25→    'System learning agent that learns from experience, updates knowledge, identifies patterns, adapts strategies, measures improvement, and forgets outdated knowledge across the Meta Intelligence cluster.',
+    26→  capabilities: [
+    27→    {
+    28→      name: 'learnFromExperience',
+    29→      description: 'Learn from a specific experience or task outcome',
+    30→      inputSchema: {
+    31→        type: 'object',
+    32→        properties: {
+    33→          experience: {
+    34→            type: 'object',
+    35→            description: 'Experience data including outcome and context',
+    36→          },
+    37→          category: { type: 'string', description: 'Category of experience' },
+    38→        },
+    39→        required: ['experience'],
+    40→      },
+    41→      outputSchema: {
+    42→        type: 'object',
+    43→        properties: {
+    44→          learningId: { type: 'string' },
+    45→          insights: { type: 'array', items: { type: 'string' } },
+    46→          knowledgeUpdates: { type: 'number' },
+    47→          applicableScenarios: { type: 'array', items: { type: 'string' } },
+    48→        },
+    49→      },
+    50→    },
+    51→    {
+    52→      name: 'updateKnowledge',
+    53→      description: 'Update the knowledge base with new information',
+    54→      inputSchema: {
+    55→        type: 'object',
+    56→        properties: {
+    57→          domain: { type: 'string', description: 'Knowledge domain' },
+    58→          facts: { type: 'array', items: { type: 'object' }, description: 'Facts to add/update' },
+    59→          mergeStrategy: {
+    60→            type: 'string',
+    61→            enum: ['replace', 'merge', 'append'],
+    62→            description: 'How to merge with existing knowledge',
+    63→          },
+    64→        },
+    65→        required: ['domain', 'facts'],
+    66→      },
+    67→      outputSchema: {
+    68→        type: 'object',
+    69→        properties: {
+    70→          updateId: { type: 'string' },
+    71→          factsAdded: { type: 'number' },
+    72→          factsUpdated: { type: 'number' },
+    73→          conflictsResolved: { type: 'number' },
+    74→        },
+    75→      },
+    76→    },
+    77→    {
+    78→      name: 'identifyPatterns',
+    79→      description: 'Identify patterns in historical data and experiences',
+    80→      inputSchema: {
+    81→        type: 'object',
+    82→        properties: {
+    83→          data: {
+    84→            type: 'array',
+    85→            items: { type: 'object' },
+    86→            description: 'Data to analyze for patterns',
+    87→          },
+    88→          patternTypes: {
+    89→            type: 'array',
+    90→            items: { type: 'string' },
+    91→            description: 'Types of patterns to look for',
+    92→          },
+    93→          minConfidence: { type: 'number', description: 'Minimum confidence threshold' },
+    94→        },
+    95→        required: ['data'],
+    96→      },
+    97→      outputSchema: {
+    98→        type: 'object',
+    99→        properties: {
+   100→          patterns: { type: 'array', items: { type: 'object' } },
+   101→          patternCount: { type: 'number' },
+   102→          strongestPattern: { type: 'object' },
+   103→        },
+   104→      },
+   105→    },
+   106→    {
+   107→      name: 'adaptStrategy',
+   108→      description: 'Adapt a strategy based on learned insights',
+   109→      inputSchema: {
+   110→        type: 'object',
+   111→        properties: {
+   112→          currentStrategy: { type: 'object', description: 'Current strategy to adapt' },
+   113→          insights: {
+   114→            type: 'array',
+   115→            items: { type: 'object' },
+   116→            description: 'Insights to incorporate',
+   117→          },
+   118→          adaptationRate: { type: 'number', description: 'How aggressively to adapt (0-1)' },
+   119→        },
+   120→        required: ['currentStrategy'],
+   121→      },
+   122→      outputSchema: {
+   123→        type: 'object',
+   124→        properties: {
+   125→          adaptedStrategy: { type: 'object' },
+   126→          changes: { type: 'array', items: { type: 'object' } },
+   127→          confidence: { type: 'number' },
+   128→        },
+   129→      },
+   130→    },
+   131→    {
+   132→      name: 'measureImprovement',
+   133→      description: 'Measure improvement over time for a given metric',
+   134→      inputSchema: {
+   135→        type: 'object',
+   136→        properties: {
+   137→          metric: { type: 'string', description: 'Metric to measure' },
+   138→          baseline: { type: 'number', description: 'Baseline value' },
+   139→          current: { type: 'number', description: 'Current value' },
+   140→          history: { type: 'array', items: { type: 'number' }, description: 'Historical values' },
+   141→        },
+   142→        required: ['metric', 'baseline', 'current'],
+   143→      },
+   144→      outputSchema: {
+   145→        type: 'object',
+   146→        properties: {
+   147→          improvement: { type: 'number' },
+   148→          percentageChange: { type: 'number' },
+   149→          trend: { type: 'string' },
+   150→          significance: { type: 'string' },
+   151→        },
+   152→      },
+   153→    },
+   154→    {
+   155→      name: 'forgetOutdated',
+   156→      description: 'Remove or deprioritize outdated knowledge',
+   157→      inputSchema: {
+   158→        type: 'object',
+   159→        properties: {
+   160→          domain: { type: 'string', description: 'Knowledge domain to clean' },
+   161→          maxAge: { type: 'number', description: 'Maximum age in days for knowledge retention' },
+   162→          relevanceThreshold: { type: 'number', description: 'Minimum relevance score to retain' },
+   163→        },
+   164→        required: ['domain'],
+   165→      },
+   166→      outputSchema: {
+   167→        type: 'object',
+   168→        properties: {
+   169→          removed: { type: 'number' },
+   170→          retained: { type: 'number' },
+   171→          archived: { type: 'number' },
+   172→          cleanupId: { type: 'string' },
+   173→        },
+   174→      },
+   175→    },
+   176→  ],
+   177→  permissions: [
+   178→    'execute:task',
+   179→    'read:knowledge',
+   180→    'write:knowledge',
+   181→    'read:experience',
+   182→    'write:learning',
+   183→  ],
+   184→  maxConcurrentTasks: 4,
+   185→  timeout: 60000,
+   186→  retryPolicy: {
+   187→    maxRetries: 2,
+   188→    backoffMs: 2000,
+   189→    exponentialBackoff: true,
+   190→  },
+   191→};
+   192→
+   193→// ─── Internal Types ───────────────────────────────────────────────
+   194→
+   195→interface KnowledgeEntry {
+   196→  id: string;
+   197→  domain: string;
+   198→  fact: Record<string, any>;
+   199→  confidence: number;
+   200→  createdAt: Date;
+   201→  lastAccessedAt: Date;
+   202→  accessCount: number;
+   203→}
+   204→
+   205→interface Pattern {
+   206→  id: string;
+   207→  type: string;
+   208→  description: string;
+   209→  confidence: number;
+   210→  occurrences: number;
+   211→  dataPoints: number;
+   212→}
+   213→
+   214→// ─── Agent Service ────────────────────────────────────────────────
+   215→
+   216→@Injectable()
+   217→export class LearningAgentService extends BaseAgentService {
+   218→  private knowledgeBase: Map<string, KnowledgeEntry> = new Map();
+   219→  private identifiedPatterns: Pattern[] = [];
+   220→
+   221→  protected defineConfig(): AgentConfig {
+   222→    return META_LEARNING_AGENT_CONFIG;
+   223→  }
+   224→
+   225→  protected async onInitialize(): Promise<void> {
+   226→    this.registerTool({
+   227→      name: 'learnFromExperience',
+   228→      description: 'Learn from a specific experience or task outcome',
+   229→      execute: async (params: { experience: Record<string, any>; category?: string }) =>
+   230→        this.learnFromExperience(params),
+   231→    });
+   232→
+   233→    this.registerTool({
+   234→      name: 'updateKnowledge',
+   235→      description: 'Update the knowledge base with new information',
+   236→      execute: async (params: {
+   237→        domain: string;
+   238→        facts: Array<{ key: string; value: any; confidence?: number }>;
+   239→        mergeStrategy?: string;
+   240→      }) => this.updateKnowledge(params),
+   241→    });
+   242→
+   243→    this.registerTool({
+   244→      name: 'identifyPatterns',
+   245→      description: 'Identify patterns in historical data and experiences',
+   246→      execute: async (params: {
+   247→        data: Array<Record<string, any>>;
+   248→        patternTypes?: string[];
+   249→        minConfidence?: number;
+   250→      }) => this.identifyPatterns(params),
+   251→    });
+   252→
+   253→    this.registerTool({
+   254→      name: 'adaptStrategy',
+   255→      description: 'Adapt a strategy based on learned insights',
+   256→      execute: async (params: {
+   257→        currentStrategy: Record<string, any>;
+   258→        insights?: Array<{ insight: string; confidence: number; applicability: number }>;
+   259→        adaptationRate?: number;
+   260→      }) => this.adaptStrategy(params),
+   261→    });
+   262→
+   263→    this.registerTool({
+   264→      name: 'measureImprovement',
+   265→      description: 'Measure improvement over time for a given metric',
+   266→      execute: async (params: {
+   267→        metric: string;
+   268→        baseline: number;
+   269→        current: number;
+   270→        history?: number[];
+   271→      }) => this.measureImprovement(params),
+   272→    });
+   273→
+   274→    this.registerTool({
+   275→      name: 'forgetOutdated',
+   276→      description: 'Remove or deprioritize outdated knowledge',
+   277→      execute: async (params: { domain: string; maxAge?: number; relevanceThreshold?: number }) =>
+   278→        this.forgetOutdated(params),
+   279→    });
+   280→
+   281→    await this.storeInWorkingMemory('learning:initializedAt', new Date().toISOString(), 600000);
+   282→    this.logger.log('MetaLearning agent initialized with 6 tools');
+   283→  }
+   284→
+   285→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   286→    const startTime = Date.now();
+   287→    const { action, ...params } = input.payload;
+   288→
+   289→    if (!action) {
+   290→      return this.createAgentOutput(
+   291→        input.taskId,
+   292→        false,
+   293→        null,
+   294→        'Missing required parameter: action',
+   295→        startTime,
+   296→      );
+   297→    }
+   298→
+   299→    const supportedActions = [
+   300→      'learnFromExperience',
+   301→      'updateKnowledge',
+   302→      'identifyPatterns',
+   303→      'adaptStrategy',
+   304→      'measureImprovement',
+   305→      'forgetOutdated',
+   306→    ];
+   307→
+   308→    if (!supportedActions.includes(action)) {
+   309→      return this.createAgentOutput(
+   310→        input.taskId,
+   311→        false,
+   312→        null,
+   313→        `Unknown learning action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   314→        startTime,
+   315→      );
+   316→    }
+   317→
+   318→    try {
+   319→      const tool = this.getTool(action);
+   320→      if (!tool) {
+   321→        return this.createAgentOutput(
+   322→          input.taskId,
+   323→          false,
+   324→          null,
+   325→          `Tool not found: ${action}`,
+   326→          startTime,
+   327→        );
+   328→      }
+   329→      const result = await tool.execute(params);
+   330→      await this.storeInWorkingMemory(
+   331→        `learning:last:${action}`,
+   332→        { params, result, timestamp: new Date() },
+   333→        300000,
+   334→      );
+   335→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   336→    } catch (error) {
+   337→      const msg = (error as Error).message;
+   338→      this.logger.error(`MetaLearning execution failed for ${action}: ${msg}`);
+   339→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   340→    }
+   341→  }
+   342→
+   343→  protected async onDestroy(): Promise<void> {
+   344→    this.knowledgeBase.clear();
+   345→    this.identifiedPatterns = [];
+   346→    this.logger.log('MetaLearning agent destroyed, knowledge base and patterns cleared');
+   347→  }
+   348→
+   349→  // ─── Tool Implementations ──────────────────────────────────────
+   350→
+   351→  private async learnFromExperience(params: {
+   352→    experience: Record<string, any>;
+   353→    category?: string;
+   354→  }): Promise<{
+   355→    learningId: string;
+   356→    insights: string[];
+   357→    knowledgeUpdates: number;
+   358→    applicableScenarios: string[];
+   359→  }> {
+   360→    const { experience, category = 'general' } = params;
+   361→
+   362→    if (!experience || typeof experience !== 'object') {
+   363→      throw new Error('Valid experience object is required');
+   364→    }
+   365→
+   366→    const learningId = this.generateId();
+   367→    const insights: string[] = [];
+   368→    let knowledgeUpdates = 0;
+   369→
+   370→    // Extract insights from experience
+   371→    if (experience.success === true) {
+   372→      insights.push('Successful outcome: the approach taken was effective');
+   373→      insights.push('Consider repeating the successful strategy in similar scenarios');
+   374→    } else if (experience.success === false) {
+   375→      insights.push('Unsuccessful outcome: review the approach for potential improvements');
+   376→      insights.push('Identify and avoid similar patterns in the future');
+   377→    }
+   378→
+   379→    if (experience.error) {
+   380→      insights.push(`Error encountered: ${String(experience.error).substring(0, 100)}`);
+   381→      insights.push('Implement error prevention mechanisms for this class of errors');
+   382→    }
+   383→
+   384→    if (experience.duration) {
+   385→      insights.push(`Task took ${experience.duration}ms to complete`);
+   386→      if (experience.duration > 30000) {
+   387→        insights.push('Long execution time suggests optimization opportunity');
+   388→      }
+   389→    }
+   390→
+   391→    if (insights.length === 0) {
+   392→      insights.push('Experience recorded for future pattern analysis');
+   393→      insights.push('Insufficient signal for specific learning extraction');
+   394→    }
+   395→
+   396→    // Update knowledge base
+   397→    const entry: KnowledgeEntry = {
+   398→      id: this.generateId(),
+   399→      domain: category,
+   400→      fact: { experience, insights },
+   401→      confidence: 0.7 + Math.random() * 0.2,
+   402→      createdAt: new Date(),
+   403→      lastAccessedAt: new Date(),
+   404→      accessCount: 1,
+   405→    };
+   406→
+   407→    this.knowledgeBase.set(entry.id, entry);
+   408→    knowledgeUpdates++;
+   409→
+   410→    const applicableScenarios = [
+   411→      `Similar ${category} tasks with comparable parameters`,
+   412→      `Tasks involving ${experience.agentId || 'the same agent'}`,
+   413→      `Scenarios requiring ${category} domain knowledge`,
+   414→    ];
+   415→
+   416→    await this.storeInLongTermMemory(`learning:${learningId}`, {
+   417→      category,
+   418→      insights,
+   419→      timestamp: new Date().toISOString(),
+   420→    });
+   421→
+   422→    this.logger.log(
+   423→      `Experience learned: id=${learningId}, insights=${insights.length}, category=${category}`,
+   424→    );
+   425→
+   426→    return { learningId, insights, knowledgeUpdates, applicableScenarios };
+   427→  }
+   428→
+   429→  private async updateKnowledge(params: {
+   430→    domain: string;
+   431→    facts: Array<{ key: string; value: any; confidence?: number }>;
+   432→    mergeStrategy?: string;
+   433→  }): Promise<{
+   434→    updateId: string;
+   435→    factsAdded: number;
+   436→    factsUpdated: number;
+   437→    conflictsResolved: number;
+   438→  }> {
+   439→    const { domain, facts, mergeStrategy = 'merge' } = params;
+   440→
+   441→    if (!domain || typeof domain !== 'string') {
+   442→      throw new Error('Valid domain string is required');
+   443→    }
+   444→    if (!facts || !Array.isArray(facts) || facts.length === 0) {
+   445→      throw new Error('Non-empty facts array is required');
+   446→    }
+   447→
+   448→    const updateId = this.generateId();
+   449→    let factsAdded = 0;
+   450→    let factsUpdated = 0;
+   451→    let conflictsResolved = 0;
+   452→
+   453→    for (const fact of facts) {
+   454→      const key = `${domain}:${fact.key}`;
+   455→      const existing = this.knowledgeBase.get(key);
+   456→
+   457→      if (existing) {
+   458→        switch (mergeStrategy) {
+   459→          case 'replace':
+   460→            existing.fact = { key: fact.key, value: fact.value };
+   461→            existing.confidence = fact.confidence || existing.confidence;
+   462→            existing.lastAccessedAt = new Date();
+   463→            factsUpdated++;
+   464→            break;
+   465→          case 'append':
+   466→            const existingValues = Array.isArray(existing.fact.value)
+   467→              ? existing.fact.value
+   468→              : [existing.fact.value];
+   469→            existingValues.push(fact.value);
+   470→            existing.fact.value = existingValues;
+   471→            existing.lastAccessedAt = new Date();
+   472→            factsUpdated++;
+   473→            break;
+   474→          case 'merge':
+   475→          default:
+   476→            if (existing.fact.value !== fact.value) {
+   477→              conflictsResolved++;
+   478→              existing.fact.value =
+   479→                fact.confidence && existing.confidence < fact.confidence
+   480→                  ? fact.value
+   481→                  : existing.fact.value;
+   482→              existing.confidence = Math.max(existing.confidence, fact.confidence || 0.5);
+   483→            }
+   484→            existing.lastAccessedAt = new Date();
+   485→            factsUpdated++;
+   486→            break;
+   487→        }
+   488→      } else {
+   489→        const entry: KnowledgeEntry = {
+   490→          id: key,
+   491→          domain,
+   492→          fact: { key: fact.key, value: fact.value },
+   493→          confidence: fact.confidence || 0.5,
+   494→          createdAt: new Date(),
+   495→          lastAccessedAt: new Date(),
+   496→          accessCount: 0,
+   497→        };
+   498→        this.knowledgeBase.set(key, entry);
+   499→        factsAdded++;
+   500→      }
+   501→    }
+   502→
+   503→    this.logger.log(
+   504→      `Knowledge updated: domain=${domain}, added=${factsAdded}, updated=${factsUpdated}, conflicts=${conflictsResolved}`,
+   505→    );
+   506→
+   507→    return { updateId, factsAdded, factsUpdated, conflictsResolved };
+   508→  }
+   509→
+   510→  private async identifyPatterns(params: {
+   511→    data: Array<Record<string, any>>;
+   512→    patternTypes?: string[];
+   513→    minConfidence?: number;
+   514→  }): Promise<{
+   515→    patterns: Array<{
+   516→      id: string;
+   517→      type: string;
+   518→      description: string;
+   519→      confidence: number;
+   520→      occurrences: number;
+   521→    }>;
+   522→    patternCount: number;
+   523→    strongestPattern: { id: string; type: string; description: string; confidence: number } | null;
+   524→  }> {
+   525→    const {
+   526→      data,
+   527→      patternTypes = ['frequency', 'correlation', 'sequence'],
+   528→      minConfidence = 0.5,
+   529→    } = params;
+   530→
+   531→    if (!data || !Array.isArray(data) || data.length < 2) {
+   532→      throw new Error('At least two data points are required for pattern identification');
+   533→    }
+   534→
+   535→    const patterns: Array<{
+   536→      id: string;
+   537→      type: string;
+   538→      description: string;
+   539→      confidence: number;
+   540→      occurrences: number;
+   541→    }> = [];
+   542→
+   543→    // Frequency patterns
+   544→    if (patternTypes.includes('frequency')) {
+   545→      const valueCounts: Record<string, number> = {};
+   546→      for (const item of data) {
+   547→        for (const [key, value] of Object.entries(item)) {
+   548→          const serialized = `${key}=${JSON.stringify(value)}`;
+   549→          valueCounts[serialized] = (valueCounts[serialized] || 0) + 1;
+   550→        }
+   551→      }
+   552→
+   553→      for (const [serialized, count] of Object.entries(valueCounts)) {
+   554→        const frequency = count / data.length;
+   555→        if (frequency >= 0.3 && frequency < 1.0) {
+   556→          patterns.push({
+   557→            id: this.generateId(),
+   558→            type: 'frequency',
+   559→            description: `Value "${serialized}" appears in ${Math.round(frequency * 100)}% of data points`,
+   560→            confidence: Math.min(0.95, frequency + 0.1),
+   561→            occurrences: count,
+   562→          });
+   563→        }
+   564→      }
+   565→    }
+   566→
+   567→    // Correlation patterns
+   568→    if (patternTypes.includes('correlation')) {
+   569→      const keys = [...new Set(data.flatMap((d) => Object.keys(d)))];
+   570→      if (keys.length >= 2) {
+   571→        for (let i = 0; i < Math.min(keys.length - 1, 5); i++) {
+   572→          for (let j = i + 1; j < Math.min(keys.length, 5); j++) {
+   573→            const correlation = this.calculateSimpleCorrelation(data, keys[i], keys[j]);
+   574→            if (Math.abs(correlation) > 0.5) {
+   575→              patterns.push({
+   576→                id: this.generateId(),
+   577→                type: 'correlation',
+   578→                description: `Correlation between "${keys[i]}" and "${keys[j]}" (r=${correlation.toFixed(2)})`,
+   579→                confidence: Math.abs(correlation),
+   580→                occurrences: data.length,
+   581→              });
+   582→            }
+   583→          }
+   584→        }
+   585→      }
+   586→    }
+   587→
+   588→    // Sequence patterns
+   589→    if (patternTypes.includes('sequence') && data.length >= 3) {
+   590→      // Check for sequential ordering patterns
+   591→      const statusKeys = data.flatMap((d) =>
+   592→        Object.keys(d).filter((k) => k.includes('status') || k.includes('state')),
+   593→      );
+   594→      const uniqueStatuses = [...new Set(statusKeys)];
+   595→      if (uniqueStatuses.length > 0) {
+   596→        patterns.push({
+   597→          id: this.generateId(),
+   598→          type: 'sequence',
+   599→          description: `Sequential progression detected across ${data.length} data points`,
+   600→          confidence: 0.6 + Math.random() * 0.2,
+   601→          occurrences: data.length - 1,
+   602→        });
+   603→      }
+   604→    }
+   605→
+   606→    // Filter by minimum confidence
+   607→    const filteredPatterns = patterns.filter((p) => p.confidence >= minConfidence);
+   608→
+   609→    // Store identified patterns
+   610→    for (const pattern of filteredPatterns) {
+   611→      this.identifiedPatterns.push({
+   612→        ...pattern,
+   613→        dataPoints: data.length,
+   614→      });
+   615→    }
+   616→
+   617→    const strongestPattern =
+   618→      filteredPatterns.length > 0
+   619→        ? filteredPatterns.reduce((a, b) => (a.confidence > b.confidence ? a : b))
+   620→        : null;
+   621→
+   622→    this.logger.log(
+   623→      `Patterns identified: total=${filteredPatterns.length}, strongest=${strongestPattern?.type || 'none'}`,
+   624→    );
+   625→
+   626→    return { patterns: filteredPatterns, patternCount: filteredPatterns.length, strongestPattern };
+   627→  }
+   628→
+   629→  private async adaptStrategy(params: {
+   630→    currentStrategy: Record<string, any>;
+   631→    insights?: Array<{ insight: string; confidence: number; applicability: number }>;
+   632→    adaptationRate?: number;
+   633→  }): Promise<{
+   634→    adaptedStrategy: Record<string, any>;
+   635→    changes: Array<{ parameter: string; oldValue: any; newValue: any; reason: string }>;
+   636→    confidence: number;
+   637→  }> {
+   638→    const { currentStrategy, insights = [], adaptationRate = 0.3 } = params;
+   639→
+   640→    if (!currentStrategy || typeof currentStrategy !== 'object') {
+   641→      throw new Error('Valid currentStrategy object is required');
+   642→    }
+   643→
+   644→    const adaptedStrategy = JSON.parse(JSON.stringify(currentStrategy));
+   645→    const changes: Array<{ parameter: string; oldValue: any; newValue: any; reason: string }> = [];
+   646→
+   647→    // Apply insights with the specified adaptation rate
+   648→    for (const insight of insights) {
+   649→      if (insight.confidence < 0.5 || insight.applicability < 0.3) continue;
+   650→
+   651→      // Adapt timeout based on insights
+   652→      if (insight.insight.toLowerCase().includes('timeout') && adaptedStrategy.timeout) {
+   653→        const oldTimeout = adaptedStrategy.timeout;
+   654→        adaptedStrategy.timeout = Math.round(oldTimeout * (1 + adaptationRate * 0.5));
+   655→        changes.push({
+   656→          parameter: 'timeout',
+   657→          oldValue: oldTimeout,
+   658→          newValue: adaptedStrategy.timeout,
+   659→          reason: `Increased timeout based on insight: ${insight.insight.substring(0, 80)}`,
+   660→        });
+   661→      }
+   662→
+   663→      // Adapt retry policy
+   664→      if (insight.insight.toLowerCase().includes('retry') && adaptedStrategy.retryPolicy) {
+   665→        const oldRetries = adaptedStrategy.retryPolicy.maxRetries || 2;
+   666→        adaptedStrategy.retryPolicy.maxRetries = oldRetries + Math.ceil(adaptationRate);
+   667→        changes.push({
+   668→          parameter: 'retryPolicy.maxRetries',
+   669→          oldValue: oldRetries,
+   670→          newValue: adaptedStrategy.retryPolicy.maxRetries,
+   671→          reason: `Adjusted retry count based on insight: ${insight.insight.substring(0, 80)}`,
+   672→        });
+   673→      }
+   674→
+   675→      // Adapt concurrency
+   676→      if (
+   677→        insight.insight.toLowerCase().includes('concurrent') &&
+   678→        adaptedStrategy.maxConcurrentTasks
+   679→      ) {
+   680→        const oldConcurrency = adaptedStrategy.maxConcurrentTasks;
+   681→        adaptedStrategy.maxConcurrentTasks = Math.max(
+   682→          1,
+   683→          Math.round(oldConcurrency * (1 - adaptationRate * 0.2)),
+   684→        );
+   685→        changes.push({
+   686→          parameter: 'maxConcurrentTasks',
+   687→          oldValue: oldConcurrency,
+   688→          newValue: adaptedStrategy.maxConcurrentTasks,
+   689→          reason: `Adjusted concurrency based on insight: ${insight.insight.substring(0, 80)}`,
+   690→        });
+   691→      }
+   692→    }
+   693→
+   694→    // Default adaptations if no specific insights matched
+   695→    if (changes.length === 0 && Object.keys(currentStrategy).length > 0) {
+   696→      adaptedStrategy._adaptedAt = new Date().toISOString();
+   697→      adaptedStrategy._adaptationRate = adaptationRate;
+   698→      changes.push({
+   699→        parameter: '_adaptedAt',
+   700→        oldValue: null,
+   701→        newValue: adaptedStrategy._adaptedAt,
+   702→        reason: 'General adaptation applied based on available context',
+   703→      });
+   704→    }
+   705→
+   706→    const avgInsightConfidence =
+   707→      insights.length > 0
+   708→        ? insights.reduce((sum, i) => sum + i.confidence, 0) / insights.length
+   709→        : 0.5;
+   710→
+   711→    const confidence = Math.min(0.9, 0.5 + avgInsightConfidence * adaptationRate);
+   712→
+   713→    this.logger.log(
+   714→      `Strategy adapted: changes=${changes.length}, rate=${adaptationRate}, confidence=${confidence.toFixed(2)}`,
+   715→    );
+   716→
+   717→    return { adaptedStrategy, changes, confidence };
+   718→  }
+   719→
+   720→  private async measureImprovement(params: {
+   721→    metric: string;
+   722→    baseline: number;
+   723→    current: number;
+   724→    history?: number[];
+   725→  }): Promise<{
+   726→    improvement: number;
+   727→    percentageChange: number;
+   728→    trend: string;
+   729→    significance: string;
+   730→  }> {
+   731→    const { metric, baseline, current, history = [] } = params;
+   732→
+   733→    if (!metric || typeof metric !== 'string') {
+   734→      throw new Error('Valid metric name string is required');
+   735→    }
+   736→    if (typeof baseline !== 'number' || typeof current !== 'number') {
+   737→      throw new Error('Baseline and current must be numbers');
+   738→    }
+   739→
+   740→    const improvement = current - baseline;
+   741→    const percentageChange =
+   742→      baseline !== 0 ? Math.round((improvement / Math.abs(baseline)) * 10000) / 100 : 0;
+   743→
+   744→    // Determine trend
+   745→    let trend: string;
+   746→    if (history.length >= 3) {
+   747→      const recent = history.slice(-3);
+   748→      const isIncreasing = recent.every((v, i) => i === 0 || v >= recent[i - 1]);
+   749→      const isDecreasing = recent.every((v, i) => i === 0 || v <= recent[i - 1]);
+   750→
+   751→      if (isIncreasing && improvement > 0) trend = 'improving';
+   752→      else if (isDecreasing && improvement < 0) trend = 'declining';
+   753→      else trend = 'fluctuating';
+   754→    } else if (improvement > 0) {
+   755→      trend = 'improving';
+   756→    } else if (improvement < 0) {
+   757→      trend = 'declining';
+   758→    } else {
+   759→      trend = 'stable';
+   760→    }
+   761→
+   762→    // Determine significance
+   763→    let significance: string;
+   764→    const absChange = Math.abs(percentageChange);
+   765→    if (absChange >= 50) significance = 'highly-significant';
+   766→    else if (absChange >= 20) significance = 'significant';
+   767→    else if (absChange >= 5) significance = 'moderate';
+   768→    else if (absChange >= 1) significance = 'minor';
+   769→    else significance = 'negligible';
+   770→
+   771→    this.logger.log(
+   772→      `Improvement measured: metric=${metric}, change=${percentageChange.toFixed(2)}%, trend=${trend}`,
+   773→    );
+   774→
+   775→    return { improvement, percentageChange, trend, significance };
+   776→  }
+   777→
+   778→  private async forgetOutdated(params: {
+   779→    domain: string;
+   780→    maxAge?: number;
+   781→    relevanceThreshold?: number;
+   782→  }): Promise<{
+   783→    removed: number;
+   784→    retained: number;
+   785→    archived: number;
+   786→    cleanupId: string;
+   787→  }> {
+   788→    const { domain, maxAge = 90, relevanceThreshold = 0.3 } = params;
+   789→
+   790→    if (!domain || typeof domain !== 'string') {
+   791→      throw new Error('Valid domain string is required');
+   792→    }
+   793→
+   794→    const cleanupId = this.generateId();
+   795→    const now = Date.now();
+   796→    const maxAgeMs = maxAge * 24 * 60 * 60 * 1000;
+   797→
+   798→    let removed = 0;
+   799→    let retained = 0;
+   800→    let archived = 0;
+   801→
+   802→    for (const [key, entry] of this.knowledgeBase.entries()) {
+   803→      if (entry.domain !== domain) continue;
+   804→
+   805→      const age = now - entry.createdAt.getTime();
+   806→      const isOld = age > maxAgeMs;
+   807→      const isIrrelevant = entry.confidence < relevanceThreshold && entry.accessCount < 2;
+   808→
+   809→      if (isOld && isIrrelevant) {
+   810→        this.knowledgeBase.delete(key);
+   811→        removed++;
+   812→      } else if (isOld) {
+   813→        // Archive but don't delete
+   814→        entry.confidence *= 0.8; // Reduce confidence of old entries
+   815→        archived++;
+   816→        retained++;
+   817→      } else if (isIrrelevant) {
+   818→        this.knowledgeBase.delete(key);
+   819→        removed++;
+   820→      } else {
+   821→        retained++;
+   822→      }
+   823→    }
+   824→
+   825→    this.logger.log(
+   826→      `Knowledge cleanup: domain=${domain}, removed=${removed}, retained=${retained}, archived=${archived}`,
+   827→    );
+   828→
+   829→    return { removed, retained, archived, cleanupId };
+   830→  }
+   831→
+   832→  // ─── Private Helpers ───────────────────────────────────────────
+   833→
+   834→  private calculateSimpleCorrelation(
+   835→    data: Array<Record<string, any>>,
+   836→    keyA: string,
+   837→    keyB: string,
+   838→  ): number {
+   839→    const pairs = data
+   840→      .filter((d) => typeof d[keyA] === 'number' && typeof d[keyB] === 'number')
+   841→      .map((d) => [d[keyA] as number, d[keyB] as number]);
+   842→
+   843→    if (pairs.length < 3) return 0;
+   844→
+   845→    const n = pairs.length;
+   846→    const sumA = pairs.reduce((s, p) => s + p[0], 0);
+   847→    const sumB = pairs.reduce((s, p) => s + p[1], 0);
+   848→    const sumAB = pairs.reduce((s, p) => s + p[0] * p[1], 0);
+   849→    const sumA2 = pairs.reduce((s, p) => s + p[0] * p[0], 0);
+   850→    const sumB2 = pairs.reduce((s, p) => s + p[1] * p[1], 0);
+   851→
+   852→    const denominator = Math.sqrt((n * sumA2 - sumA * sumA) * (n * sumB2 - sumB * sumB));
+   853→    if (denominator === 0) return 0;
+   854→
+   855→    return (n * sumAB - sumA * sumB) / denominator;
+   856→  }
+   857→}
+   858→

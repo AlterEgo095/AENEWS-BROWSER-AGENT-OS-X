@@ -1250,7 +1250,12 @@ export class ArchitectCertificationService {
               cycles.push({
                 nodes: cyclePath,
                 length: cyclePath.length - 1,
-                severity: cyclePath.length <= 2 ? 'critical' as const : cyclePath.length <= 4 ? 'warning' as const : 'info' as const,
+                severity:
+                  cyclePath.length <= 2
+                    ? ('critical' as const)
+                    : cyclePath.length <= 4
+                      ? ('warning' as const)
+                      : ('info' as const),
                 description: `Circular dependency: ${cyclePath.join(' → ')}`,
               });
             }

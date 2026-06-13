@@ -119,7 +119,14 @@ export class ConnectorRegistry {
 
   private getCapabilityIdsForPack(pack: CapabilityPack): CapabilityId[] {
     // Import capability enums and filter by pack prefix
-    const { BrowserCapability, DevCapability, OfficeCapability, BusinessCapability, CertCapability, DeliveryCapability } = require('../interfaces');
+    const {
+      BrowserCapability,
+      DevCapability,
+      OfficeCapability,
+      BusinessCapability,
+      CertCapability,
+      DeliveryCapability,
+    } = require('../interfaces');
 
     const packMap: Record<string, any> = {
       [CapabilityPack.BROWSER]: BrowserCapability,

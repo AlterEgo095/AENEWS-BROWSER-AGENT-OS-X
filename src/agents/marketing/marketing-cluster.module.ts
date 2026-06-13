@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { ContentCreationAgentService } from './content-creation/content-creation-agent.service';
 import { SEOOptimizationAgentService } from './seo/seo-agent.service';
 import { SocialMediaAgentService } from './social-media/social-media-agent.service';
@@ -17,7 +18,7 @@ import { InfluencerAgentService } from './influencer/influencer-agent.service';
 import { AdCampaignAgentService } from './ad-campaign/ad-campaign-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Content Creation — blog posts, ad copy, social posts, headlines, slogans, content rewriting
     ContentCreationAgentService,

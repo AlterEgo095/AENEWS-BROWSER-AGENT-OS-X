@@ -4,13 +4,11 @@
  * authentication mechanisms, and data protection across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const SECURITY_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'System or component to audit' },
-          scope: { type: 'string', enum: ['full', 'authentication', 'authorization', 'injection', 'data-protection'], description: 'Audit scope' },
+          scope: {
+            type: 'string',
+            enum: ['full', 'authentication', 'authorization', 'injection', 'data-protection'],
+            description: 'Audit scope',
+          },
         },
         required: ['target'],
       },
@@ -49,7 +51,11 @@ export const SECURITY_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Target to check for injection vulnerabilities' },
-          injectionTypes: { type: 'array', items: { type: 'string' }, description: 'Injection types to check' },
+          injectionTypes: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Injection types to check',
+          },
         },
         required: ['target'],
       },
@@ -68,7 +74,10 @@ export const SECURITY_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Target system for RBAC audit' },
-          checkPrivilegeEscalation: { type: 'boolean', description: 'Check for privilege escalation paths' },
+          checkPrivilegeEscalation: {
+            type: 'boolean',
+            description: 'Check for privilege escalation paths',
+          },
         },
       },
       outputSchema: {
@@ -100,7 +109,12 @@ export const SECURITY_AUDITOR_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['certification:audit', 'certification:security', 'read:security', 'read:permission'],
+  permissions: [
+    'certification:audit',
+    'certification:security',
+    'read:security',
+    'read:permission',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
@@ -111,7 +125,12 @@ export const SECURITY_AUDITOR_CONFIG: AgentConfig = {
 interface SecurityIssue {
   id: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  category: 'injection' | 'authentication' | 'authorization' | 'data_protection' | 'misconfiguration';
+  category:
+    | 'injection'
+    | 'authentication'
+    | 'authorization'
+    | 'data_protection'
+    | 'misconfiguration';
   description: string;
   cwe?: string;
   remediation: string;
@@ -121,6 +140,11 @@ interface SecurityIssue {
 
 @Injectable()
 export class SecurityAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private vulnerabilityLog: SecurityIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -131,8 +155,7 @@ export class SecurityAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-security',
       description: 'Perform a comprehensive security audit',
-      execute: async (target: string, scope?: string) =>
-        this.performAudit({ target, scope }),
+      execute: async (target: string, scope?: string) => this.performAudit({ target, scope }),
     });
 
     this.registerTool({
@@ -160,8 +183,29 @@ export class SecurityAuditorAgent extends BaseAgentService {
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real security audit connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.SECURITY_AUDIT, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -182,23 +226,14 @@ export class SecurityAuditorAgent extends BaseAgentService {
           );
           break;
         case 'audit-authentication':
-          result = await this.auditAuthentication(
-            input.payload.target,
-            input.payload.checkMFA,
-          );
+          result = await this.auditAuthentication(input.payload.target, input.payload.checkMFA);
           break;
         default:
           result = { action, status: 'unknown_action' };
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -215,7 +250,13 @@ export class SecurityAuditorAgent extends BaseAgentService {
     const recommendations: string[] = [];
 
     const auditScope = scope === 'full' ? 8 : 4;
-    const categories = ['injection', 'authentication', 'authorization', 'data_protection', 'misconfiguration'] as const;
+    const categories = [
+      'injection',
+      'authentication',
+      'authorization',
+      'data_protection',
+      'misconfiguration',
+    ] as const;
     const cweMap: Record<string, string> = {
       injection: 'CWE-89',
       authentication: 'CWE-287',
@@ -238,10 +279,21 @@ export class SecurityAuditorAgent extends BaseAgentService {
       this.vulnerabilityLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 30 : issue.severity === 'high' ? 20 : issue.severity === 'medium' ? 10 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 30
+              : issue.severity === 'high'
+                ? 20
+                : issue.severity === 'medium'
+                  ? 10
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'injection')) {
       recommendations.push('Implement parameterized queries and input sanitization');
@@ -361,10 +413,15 @@ export class SecurityAuditorAgent extends BaseAgentService {
     }
 
     const mfaStatus = checkMFA
-      ? Math.random() > 0.4 ? 'enabled' : 'partially_enabled'
+      ? Math.random() > 0.4
+        ? 'enabled'
+        : 'partially_enabled'
       : 'not_checked';
 
-    const authScore = Math.max(0, 100 - weaknesses.length * 12 - (mfaStatus === 'partially_enabled' ? 15 : 0));
+    const authScore = Math.max(
+      0,
+      100 - weaknesses.length * 12 - (mfaStatus === 'partially_enabled' ? 15 : 0),
+    );
 
     this.logger.log(
       `Authentication audit for ${target}: score ${authScore}, ${weaknesses.length} weaknesses, MFA: ${mfaStatus}`,

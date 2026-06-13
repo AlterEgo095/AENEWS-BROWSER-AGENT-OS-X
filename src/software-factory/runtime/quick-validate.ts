@@ -22,7 +22,7 @@ async function main() {
   const t2 = Date.now();
   const sz2 = await pool.screenshot('https://example.com', '/tmp/pool-warm.png', true);
   const d2 = Date.now() - t2;
-  console.log('   Warm (reused): ' + d2 + 'ms — ' + (d1/d2).toFixed(1) + 'x faster');
+  console.log('   Warm (reused): ' + d2 + 'ms — ' + (d1 / d2).toFixed(1) + 'x faster');
   await pool.close();
 
   // 2. Delivery ZIP
@@ -33,20 +33,40 @@ async function main() {
   fs.mkdirSync(ws, { recursive: true });
   fs.writeFileSync(path.join(ws, 'app.js'), 'console.log(42);');
   const r = await delivery.execute(DeliveryCapability.ZIP, {
-    missionId: 'val', instruction: 'ZIP', workspaceDir: ws,
-    parameters: {}, previousResults: new Map(), tools: [],
+    missionId: 'val',
+    instruction: 'ZIP',
+    workspaceDir: ws,
+    parameters: {},
+    previousResults: new Map(),
+    tools: [],
   });
   console.log('   Result: ' + (r.success ? 'OK' : 'FAIL') + ' in ' + r.durationMs + 'ms');
 
   // 3. LLMHelper chain context + cache
   console.log('\n3. Testing LLMHelper...');
   const llm = new LLMHelper();
-  const ctx = llm.buildChainContext(new Map([
-    ['dev.architecture', { success: true, artifacts: [{ name: 'ARCH.md', type: 'document', size: 5000 }], output: { architecture: 'REST API' } }]
-  ]), 1000);
+  const ctx = llm.buildChainContext(
+    new Map([
+      [
+        'dev.architecture',
+        {
+          success: true,
+          artifacts: [{ name: 'ARCH.md', type: 'document', size: 5000 }],
+          output: { architecture: 'REST API' },
+        },
+      ],
+    ]),
+    1000,
+  );
   console.log('   Chain context: ' + ctx.length + ' chars');
   const cacheStats = llm.getCacheStats();
-  console.log('   Cache: size=' + cacheStats.size + ', hitRate=' + (cacheStats.hitRate * 100).toFixed(0) + '%');
+  console.log(
+    '   Cache: size=' +
+      cacheStats.size +
+      ', hitRate=' +
+      (cacheStats.hitRate * 100).toFixed(0) +
+      '%',
+  );
 
   // 4. Build verification
   console.log('\n4. Build verification...');
@@ -63,4 +83,4 @@ async function main() {
   console.log('  5. domcontentloaded: faster page loads vs networkidle');
 }
 
-main().catch(e => console.error('ERROR:', e.message));
+main().catch((e) => console.error('ERROR:', e.message));

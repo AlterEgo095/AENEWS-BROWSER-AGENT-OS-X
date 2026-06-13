@@ -1,0 +1,877 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Backup Agent
+     3→ * Backup management, restore, scheduling, and verification.
+     4→ * Creates and restores backups, schedules automated backups, verifies integrity, and manages backup lifecycle.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const BACKUP_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'infrastructure-backup',
+    20→  name: 'Backup',
+    21→  cluster: AgentCluster.INFRASTRUCTURE,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Backup management, restore, scheduling, and verification. Creates and restores backups, schedules automated backups, verifies backup integrity, lists backups, and manages backup deletion.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'createBackup',
+    28→      description: 'Create a backup of a resource or service',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          resource: {
+    33→            type: 'string',
+    34→            description: 'Resource to back up (e.g., "database", "files", "config")',
+    35→          },
+    36→          serviceName: { type: 'string', description: 'Service name' },
+    37→          type: { type: 'string', enum: ['full', 'incremental', 'snapshot'], default: 'full' },
+    38→          destination: {
+    39→            type: 'string',
+    40→            description: 'Backup destination (e.g., "s3", "local", "gcs")',
+    41→          },
+    42→          compression: { type: 'boolean', default: true },
+    43→          encryption: { type: 'boolean', default: true },
+    44→          tags: { type: 'object', description: 'Tags for the backup' },
+    45→        },
+    46→        required: ['resource', 'serviceName'],
+    47→      },
+    48→      outputSchema: {
+    49→        type: 'object',
+    50→        properties: {
+    51→          backupId: { type: 'string' },
+    52→          status: { type: 'string' },
+    53→          size: { type: 'number' },
+    54→        },
+    55→      },
+    56→    },
+    57→    {
+    58→      name: 'restoreBackup',
+    59→      description: 'Restore from a backup',
+    60→      inputSchema: {
+    61→        type: 'object',
+    62→        properties: {
+    63→          backupId: { type: 'string' },
+    64→          targetResource: { type: 'string', description: 'Target resource to restore to' },
+    65→          targetService: { type: 'string', description: 'Target service (defaults to original)' },
+    66→          pointInTime: { type: 'string', description: 'Point-in-time restore (ISO 8601)' },
+    67→          dryRun: { type: 'boolean', default: false },
+    68→        },
+    69→        required: ['backupId'],
+    70→      },
+    71→      outputSchema: {
+    72→        type: 'object',
+    73→        properties: {
+    74→          restoreId: { type: 'string' },
+    75→          success: { type: 'boolean' },
+    76→        },
+    77→      },
+    78→    },
+    79→    {
+    80→      name: 'scheduleBackup',
+    81→      description: 'Schedule automated backups',
+    82→      inputSchema: {
+    83→        type: 'object',
+    84→        properties: {
+    85→          name: { type: 'string' },
+    86→          resource: { type: 'string' },
+    87→          serviceName: { type: 'string' },
+    88→          cronExpression: { type: 'string', description: 'Cron expression for schedule' },
+    89→          type: {
+    90→            type: 'string',
+    91→            enum: ['full', 'incremental', 'snapshot'],
+    92→            default: 'incremental',
+    93→          },
+    94→          retention: { type: 'number', description: 'Number of backups to retain' },
+    95→          destination: { type: 'string', default: 's3' },
+    96→        },
+    97→        required: ['name', 'resource', 'serviceName', 'cronExpression'],
+    98→      },
+    99→      outputSchema: {
+   100→        type: 'object',
+   101→        properties: {
+   102→          scheduleId: { type: 'string' },
+   103→          nextRun: { type: 'string' },
+   104→        },
+   105→      },
+   106→    },
+   107→    {
+   108→      name: 'verifyBackup',
+   109→      description: 'Verify the integrity of a backup',
+   110→      inputSchema: {
+   111→        type: 'object',
+   112→        properties: {
+   113→          backupId: { type: 'string' },
+   114→          verificationType: {
+   115→            type: 'string',
+   116→            enum: ['checksum', 'restore_test', 'metadata', 'full'],
+   117→            default: 'checksum',
+   118→          },
+   119→        },
+   120→        required: ['backupId'],
+   121→      },
+   122→      outputSchema: {
+   123→        type: 'object',
+   124→        properties: {
+   125→          backupId: { type: 'string' },
+   126→          valid: { type: 'boolean' },
+   127→        },
+   128→      },
+   129→    },
+   130→    {
+   131→      name: 'listBackups',
+   132→      description: 'List backups with optional filters',
+   133→      inputSchema: {
+   134→        type: 'object',
+   135→        properties: {
+   136→          serviceName: { type: 'string' },
+   137→          resource: { type: 'string' },
+   138→          status: {
+   139→            type: 'string',
+   140→            enum: ['completed', 'in_progress', 'failed', 'all'],
+   141→            default: 'all',
+   142→          },
+   143→          limit: { type: 'number', default: 50 },
+   144→        },
+   145→      },
+   146→      outputSchema: {
+   147→        type: 'object',
+   148→        properties: {
+   149→          backups: { type: 'array' },
+   150→          total: { type: 'number' },
+   151→        },
+   152→      },
+   153→    },
+   154→    {
+   155→      name: 'deleteBackup',
+   156→      description: 'Delete a backup',
+   157→      inputSchema: {
+   158→        type: 'object',
+   159→        properties: {
+   160→          backupId: { type: 'string' },
+   161→          reason: { type: 'string' },
+   162→          force: { type: 'boolean', default: false },
+   163→        },
+   164→        required: ['backupId'],
+   165→      },
+   166→      outputSchema: {
+   167→        type: 'object',
+   168→        properties: {
+   169→          deleted: { type: 'boolean' },
+   170→          backupId: { type: 'string' },
+   171→        },
+   172→      },
+   173→    },
+   174→  ],
+   175→  permissions: [
+   176→    'execute:task',
+   177→    'create:backup',
+   178→    'restore:backup',
+   179→    'delete:backup',
+   180→    'read:backup',
+   181→    'schedule:backup',
+   182→  ],
+   183→  maxConcurrentTasks: 2,
+   184→  timeout: 300000,
+   185→  retryPolicy: {
+   186→    maxRetries: 2,
+   187→    backoffMs: 3000,
+   188→    exponentialBackoff: true,
+   189→  },
+   190→};
+   191→
+   192→// ─── Internal Types ───────────────────────────────────────────────
+   193→
+   194→interface BackupRecord {
+   195→  id: string;
+   196→  resource: string;
+   197→  serviceName: string;
+   198→  type: 'full' | 'incremental' | 'snapshot';
+   199→  status: 'completed' | 'in_progress' | 'failed' | 'verifying';
+   200→  destination: string;
+   201→  sizeBytes: number;
+   202→  compressed: boolean;
+   203→  encrypted: boolean;
+   204→  checksum: string;
+   205→  tags: Record<string, string>;
+   206→  createdAt: Date;
+   207→  completedAt?: Date;
+   208→  durationMs?: number;
+   209→}
+   210→
+   211→interface BackupSchedule {
+   212→  id: string;
+   213→  name: string;
+   214→  resource: string;
+   215→  serviceName: string;
+   216→  cronExpression: string;
+   217→  type: 'full' | 'incremental' | 'snapshot';
+   218→  retention: number;
+   219→  destination: string;
+   220→  enabled: boolean;
+   221→  lastRun?: Date;
+   222→  nextRun: Date;
+   223→  createdAt: Date;
+   224→}
+   225→
+   226→// ─── Agent Service ────────────────────────────────────────────────
+   227→
+   228→@Injectable()
+   229→export class BackupAgentService extends BaseAgentService {
+   230→  private backups: Map<string, BackupRecord> = new Map();
+   231→  private schedules: Map<string, BackupSchedule> = new Map();
+   232→  private backupCounter = 0;
+   233→  private scheduleCounter = 0;
+   234→
+   235→  protected defineConfig(): AgentConfig {
+   236→    return BACKUP_AGENT_CONFIG;
+   237→  }
+   238→
+   239→  protected async onInitialize(): Promise<void> {
+   240→    this.registerTool({
+   241→      name: 'createBackup',
+   242→      description: 'Create a backup of a resource or service',
+   243→      execute: async (params: {
+   244→        resource: string;
+   245→        serviceName: string;
+   246→        type?: string;
+   247→        destination?: string;
+   248→        compression?: boolean;
+   249→        encryption?: boolean;
+   250→        tags?: Record<string, string>;
+   251→      }) => this.createBackup(params),
+   252→    });
+   253→
+   254→    this.registerTool({
+   255→      name: 'restoreBackup',
+   256→      description: 'Restore from a backup',
+   257→      execute: async (params: {
+   258→        backupId: string;
+   259→        targetResource?: string;
+   260→        targetService?: string;
+   261→        pointInTime?: string;
+   262→        dryRun?: boolean;
+   263→      }) => this.restoreBackup(params),
+   264→    });
+   265→
+   266→    this.registerTool({
+   267→      name: 'scheduleBackup',
+   268→      description: 'Schedule automated backups',
+   269→      execute: async (params: {
+   270→        name: string;
+   271→        resource: string;
+   272→        serviceName: string;
+   273→        cronExpression: string;
+   274→        type?: string;
+   275→        retention?: number;
+   276→        destination?: string;
+   277→      }) => this.scheduleBackup(params),
+   278→    });
+   279→
+   280→    this.registerTool({
+   281→      name: 'verifyBackup',
+   282→      description: 'Verify backup integrity',
+   283→      execute: async (params: { backupId: string; verificationType?: string }) =>
+   284→        this.verifyBackup(params),
+   285→    });
+   286→
+   287→    this.registerTool({
+   288→      name: 'listBackups',
+   289→      description: 'List backups with optional filters',
+   290→      execute: async (params: {
+   291→        serviceName?: string;
+   292→        resource?: string;
+   293→        status?: string;
+   294→        limit?: number;
+   295→      }) => this.listBackups(params),
+   296→    });
+   297→
+   298→    this.registerTool({
+   299→      name: 'deleteBackup',
+   300→      description: 'Delete a backup',
+   301→      execute: async (params: { backupId: string; reason?: string; force?: boolean }) =>
+   302→        this.deleteBackup(params),
+   303→    });
+   304→
+   305→    // Seed some initial backup data
+   306→    this.seedInitialBackups();
+   307→
+   308→    await this.storeInWorkingMemory('backup:initializedAt', new Date().toISOString(), 600000);
+   309→    this.logger.log('Backup agent initialized with 6 tools');
+   310→  }
+   311→
+   312→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   313→    const startTime = Date.now();
+   314→    const { action, ...params } = input.payload;
+   315→
+   316→    if (!action) {
+   317→      return this.createAgentOutput(
+   318→        input.taskId,
+   319→        false,
+   320→        null,
+   321→        'Missing required parameter: action',
+   322→        startTime,
+   323→      );
+   324→    }
+   325→
+   326→    const supportedActions = [
+   327→      'createBackup',
+   328→      'restoreBackup',
+   329→      'scheduleBackup',
+   330→      'verifyBackup',
+   331→      'listBackups',
+   332→      'deleteBackup',
+   333→    ];
+   334→
+   335→    if (!supportedActions.includes(action)) {
+   336→      return this.createAgentOutput(
+   337→        input.taskId,
+   338→        false,
+   339→        null,
+   340→        `Unknown backup action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   341→        startTime,
+   342→      );
+   343→    }
+   344→
+   345→    try {
+   346→      const tool = this.getTool(action);
+   347→      if (!tool) {
+   348→        return this.createAgentOutput(
+   349→          input.taskId,
+   350→          false,
+   351→          null,
+   352→          `Tool not found: ${action}`,
+   353→          startTime,
+   354→        );
+   355→      }
+   356→
+   357→      const result = await tool.execute(params);
+   358→
+   359→      await this.storeInWorkingMemory(
+   360→        `backup:last:${action}`,
+   361→        { params, result, timestamp: new Date() },
+   362→        300000,
+   363→      );
+   364→
+   365→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   366→    } catch (error) {
+   367→      const msg = (error as Error).message;
+   368→      this.logger.error(`Backup execution failed for ${action}: ${msg}`);
+   369→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   370→    }
+   371→  }
+   372→
+   373→  protected async onDestroy(): Promise<void> {
+   374→    this.backups.clear();
+   375→    this.schedules.clear();
+   376→    this.logger.log('Backup agent destroyed, state cleared');
+   377→  }
+   378→
+   379→  // ─── Tool Implementations ──────────────────────────────────────
+   380→
+   381→  private async createBackup(params: {
+   382→    resource: string;
+   383→    serviceName: string;
+   384→    type?: string;
+   385→    destination?: string;
+   386→    compression?: boolean;
+   387→    encryption?: boolean;
+   388→    tags?: Record<string, string>;
+   389→  }): Promise<{
+   390→    backupId: string;
+   391→    resource: string;
+   392→    serviceName: string;
+   393→    type: string;
+   394→    status: string;
+   395→    destination: string;
+   396→    sizeBytes: number;
+   397→    compressed: boolean;
+   398→    encrypted: boolean;
+   399→    checksum: string;
+   400→    durationMs: number;
+   401→  }> {
+   402→    const {
+   403→      resource,
+   404→      serviceName,
+   405→      type = 'full',
+   406→      destination = 's3',
+   407→      compression = true,
+   408→      encryption = true,
+   409→      tags = {},
+   410→    } = params;
+   411→
+   412→    if (!resource || typeof resource !== 'string') {
+   413→      throw new Error('Resource is required');
+   414→    }
+   415→    if (!serviceName || typeof serviceName !== 'string') {
+   416→      throw new Error('Service name is required');
+   417→    }
+   418→
+   419→    const validTypes = ['full', 'incremental', 'snapshot'];
+   420→    if (!validTypes.includes(type)) {
+   421→      throw new Error(`Invalid backup type: ${type}. Valid: ${validTypes.join(', ')}`);
+   422→    }
+   423→
+   424→    const validDestinations = ['s3', 'local', 'gcs', 'azure'];
+   425→    if (!validDestinations.includes(destination)) {
+   426→      throw new Error(
+   427→        `Invalid destination: ${destination}. Valid: ${validDestinations.join(', ')}`,
+   428→      );
+   429→    }
+   430→
+   431→    this.backupCounter++;
+   432→    const backupId = `backup-${this.backupCounter}-${Date.now()}`;
+   433→    const durationMs =
+   434→      type === 'full'
+   435→        ? Math.floor(Math.random() * 300000) + 60000
+   436→        : type === 'incremental'
+   437→          ? Math.floor(Math.random() * 120000) + 15000
+   438→          : Math.floor(Math.random() * 60000) + 5000;
+   439→
+   440→    const baseSize =
+   441→      type === 'full'
+   442→        ? Math.floor(Math.random() * 10737418240) + 1073741824
+   443→        : type === 'incremental'
+   444→          ? Math.floor(Math.random() * 107374182) + 10485760
+   445→          : Math.floor(Math.random() * 5368709120) + 536870912;
+   446→
+   447→    const sizeBytes = compression ? Math.round(baseSize * 0.6) : baseSize;
+   448→    const checksum = this.generateChecksum();
+   449→
+   450→    const record: BackupRecord = {
+   451→      id: backupId,
+   452→      resource,
+   453→      serviceName,
+   454→      type: type as 'full' | 'incremental' | 'snapshot',
+   455→      status: 'completed',
+   456→      destination,
+   457→      sizeBytes,
+   458→      compressed: compression,
+   459→      encrypted: encryption,
+   460→      checksum,
+   461→      tags,
+   462→      createdAt: new Date(),
+   463→      completedAt: new Date(),
+   464→      durationMs,
+   465→    };
+   466→
+   467→    this.backups.set(backupId, record);
+   468→
+   469→    this.logger.log(
+   470→      `Created backup: ${backupId}, ${serviceName}/${resource}, type=${type}, size=${this.formatBytes(sizeBytes)}, ${durationMs}ms`,
+   471→    );
+   472→
+   473→    return {
+   474→      backupId,
+   475→      resource,
+   476→      serviceName,
+   477→      type,
+   478→      status: 'completed',
+   479→      destination,
+   480→      sizeBytes,
+   481→      compressed: compression,
+   482→      encrypted: encryption,
+   483→      checksum,
+   484→      durationMs,
+   485→    };
+   486→  }
+   487→
+   488→  private async restoreBackup(params: {
+   489→    backupId: string;
+   490→    targetResource?: string;
+   491→    targetService?: string;
+   492→    pointInTime?: string;
+   493→    dryRun?: boolean;
+   494→  }): Promise<{
+   495→    restoreId: string;
+   496→    backupId: string;
+   497→    targetResource: string;
+   498→    targetService: string;
+   499→    dryRun: boolean;
+   500→    success: boolean;
+   501→    durationMs: number;
+   502→    message: string;
+   503→  }> {
+   504→    const { backupId, targetResource, targetService, pointInTime, dryRun = false } = params;
+   505→
+   506→    if (!backupId || typeof backupId !== 'string') {
+   507→      throw new Error('Backup ID is required');
+   508→    }
+   509→
+   510→    const backup = this.backups.get(backupId);
+   511→    if (!backup) {
+   512→      throw new Error(`Backup not found: ${backupId}`);
+   513→    }
+   514→    if (backup.status !== 'completed') {
+   515→      throw new Error(`Backup ${backupId} is not in a completed state (current: ${backup.status})`);
+   516→    }
+   517→
+   518→    this.backupCounter++;
+   519→    const restoreId = `restore-${this.backupCounter}-${Date.now()}`;
+   520→    const effectiveTargetResource = targetResource || backup.resource;
+   521→    const effectiveTargetService = targetService || backup.serviceName;
+   522→    const durationMs = Math.floor(Math.random() * 180000) + 30000;
+   523→
+   524→    const message = dryRun
+   525→      ? `Dry run: Would restore ${backup.serviceName}/${backup.resource} to ${effectiveTargetService}/${effectiveTargetResource}${pointInTime ? ` at ${pointInTime}` : ''}`
+   526→      : `Restored ${backup.serviceName}/${backup.resource} to ${effectiveTargetService}/${effectiveTargetResource}${pointInTime ? ` at ${pointInTime}` : ''} successfully`;
+   527→
+   528→    this.logger.log(
+   529→      `Restore ${dryRun ? '(dry run) ' : ''}: ${backupId} → ${effectiveTargetService}/${effectiveTargetResource}, ${durationMs}ms`,
+   530→    );
+   531→
+   532→    return {
+   533→      restoreId,
+   534→      backupId,
+   535→      targetResource: effectiveTargetResource,
+   536→      targetService: effectiveTargetService,
+   537→      dryRun,
+   538→      success: true,
+   539→      durationMs,
+   540→      message,
+   541→    };
+   542→  }
+   543→
+   544→  private async scheduleBackup(params: {
+   545→    name: string;
+   546→    resource: string;
+   547→    serviceName: string;
+   548→    cronExpression: string;
+   549→    type?: string;
+   550→    retention?: number;
+   551→    destination?: string;
+   552→  }): Promise<{
+   553→    scheduleId: string;
+   554→    name: string;
+   555→    cronExpression: string;
+   556→    nextRun: string;
+   557→    enabled: boolean;
+   558→    created: boolean;
+   559→  }> {
+   560→    const {
+   561→      name,
+   562→      resource,
+   563→      serviceName,
+   564→      cronExpression,
+   565→      type = 'incremental',
+   566→      retention = 7,
+   567→      destination = 's3',
+   568→    } = params;
+   569→
+   570→    if (!name || typeof name !== 'string') {
+   571→      throw new Error('Schedule name is required');
+   572→    }
+   573→    if (!resource || typeof resource !== 'string') {
+   574→      throw new Error('Resource is required');
+   575→    }
+   576→    if (!serviceName || typeof serviceName !== 'string') {
+   577→      throw new Error('Service name is required');
+   578→    }
+   579→    if (!cronExpression || typeof cronExpression !== 'string') {
+   580→      throw new Error('Cron expression is required');
+   581→    }
+   582→
+   583→    const validTypes = ['full', 'incremental', 'snapshot'];
+   584→    if (!validTypes.includes(type)) {
+   585→      throw new Error(`Invalid backup type: ${type}. Valid: ${validTypes.join(', ')}`);
+   586→    }
+   587→
+   588→    this.scheduleCounter++;
+   589→    const scheduleId = `schedule-${this.scheduleCounter}-${Date.now()}`;
+   590→
+   591→    // Simulate next run based on cron (just use near-future)
+   592→    const nextRun = new Date(Date.now() + Math.floor(Math.random() * 86400000) + 3600000);
+   593→
+   594→    this.schedules.set(scheduleId, {
+   595→      id: scheduleId,
+   596→      name,
+   597→      resource,
+   598→      serviceName,
+   599→      cronExpression,
+   600→      type: type as 'full' | 'incremental' | 'snapshot',
+   601→      retention,
+   602→      destination,
+   603→      enabled: true,
+   604→      nextRun,
+   605→      createdAt: new Date(),
+   606→    });
+   607→
+   608→    this.logger.log(
+   609→      `Scheduled backup: ${name} [${scheduleId}], ${serviceName}/${resource}, cron="${cronExpression}", next run: ${nextRun.toISOString()}`,
+   610→    );
+   611→
+   612→    return {
+   613→      scheduleId,
+   614→      name,
+   615→      cronExpression,
+   616→      nextRun: nextRun.toISOString(),
+   617→      enabled: true,
+   618→      created: true,
+   619→    };
+   620→  }
+   621→
+   622→  private async verifyBackup(params: { backupId: string; verificationType?: string }): Promise<{
+   623→    backupId: string;
+   624→    verificationType: string;
+   625→    valid: boolean;
+   626→    checks: Array<{ name: string; passed: boolean; details: string }>;
+   627→    verifiedAt: string;
+   628→  }> {
+   629→    const { backupId, verificationType = 'checksum' } = params;
+   630→
+   631→    if (!backupId || typeof backupId !== 'string') {
+   632→      throw new Error('Backup ID is required');
+   633→    }
+   634→
+   635→    const backup = this.backups.get(backupId);
+   636→    if (!backup) {
+   637→      throw new Error(`Backup not found: ${backupId}`);
+   638→    }
+   639→
+   640→    const validTypes = ['checksum', 'restore_test', 'metadata', 'full'];
+   641→    if (!validTypes.includes(verificationType)) {
+   642→      throw new Error(
+   643→        `Invalid verification type: ${verificationType}. Valid: ${validTypes.join(', ')}`,
+   644→      );
+   645→    }
+   646→
+   647→    const checks: Array<{ name: string; passed: boolean; details: string }> = [];
+   648→
+   649→    // Checksum verification
+   650→    if (verificationType === 'checksum' || verificationType === 'full') {
+   651→      const passed = Math.random() > 0.05;
+   652→      checks.push({
+   653→        name: 'checksum',
+   654→        passed,
+   655→        details: passed
+   656→          ? `Checksum ${backup.checksum} verified successfully`
+   657→          : `Checksum mismatch: expected ${backup.checksum}, got ${this.generateChecksum()}`,
+   658→      });
+   659→    }
+   660→
+   661→    // Metadata verification
+   662→    if (verificationType === 'metadata' || verificationType === 'full') {
+   663→      const passed = Math.random() > 0.02;
+   664→      checks.push({
+   665→        name: 'metadata',
+   666→        passed,
+   667→        details: passed
+   668→          ? 'All metadata fields are valid and complete'
+   669→          : 'Missing required metadata fields: encryption_key_id',
+   670→      });
+   671→    }
+   672→
+   673→    // Restore test
+   674→    if (verificationType === 'restore_test' || verificationType === 'full') {
+   675→      const passed = Math.random() > 0.08;
+   676→      checks.push({
+   677→        name: 'restore_test',
+   678→        passed,
+   679→        details: passed
+   680→          ? `Test restore completed successfully in ${Math.floor(Math.random() * 60000) + 5000}ms`
+   681→          : 'Test restore failed: data corruption detected in block 42',
+   682→      });
+   683→    }
+   684→
+   685→    const valid = checks.every((c) => c.passed);
+   686→
+   687→    // Update backup status
+   688→    if (verificationType === 'full' && valid) {
+   689→      backup.status = 'completed';
+   690→    }
+   691→
+   692→    this.logger.log(
+   693→      `Verified backup ${backupId} (${verificationType}): ${valid ? 'PASSED' : 'FAILED'}`,
+   694→    );
+   695→
+   696→    return {
+   697→      backupId,
+   698→      verificationType,
+   699→      valid,
+   700→      checks,
+   701→      verifiedAt: new Date().toISOString(),
+   702→    };
+   703→  }
+   704→
+   705→  private async listBackups(params: {
+   706→    serviceName?: string;
+   707→    resource?: string;
+   708→    status?: string;
+   709→    limit?: number;
+   710→  }): Promise<{
+   711→    backups: Array<{
+   712→      id: string;
+   713→      resource: string;
+   714→      serviceName: string;
+   715→      type: string;
+   716→      status: string;
+   717→      destination: string;
+   718→      sizeBytes: number;
+   719→      createdAt: string;
+   720→      durationMs?: number;
+   721→    }>;
+   722→    total: number;
+   723→  }> {
+   724→    const { serviceName, resource, status = 'all', limit = 50 } = params;
+   725→
+   726→    if (limit < 1 || limit > 500) {
+   727→      throw new Error('Limit must be between 1 and 500');
+   728→    }
+   729→
+   730→    let records = Array.from(this.backups.values());
+   731→
+   732→    if (serviceName) {
+   733→      records = records.filter((b) => b.serviceName === serviceName);
+   734→    }
+   735→    if (resource) {
+   736→      records = records.filter((b) => b.resource === resource);
+   737→    }
+   738→    if (status !== 'all') {
+   739→      records = records.filter((b) => b.status === status);
+   740→    }
+   741→
+   742→    records.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+   743→    records = records.slice(0, limit);
+   744→
+   745→    const mapped = records.map((b) => ({
+   746→      id: b.id,
+   747→      resource: b.resource,
+   748→      serviceName: b.serviceName,
+   749→      type: b.type,
+   750→      status: b.status,
+   751→      destination: b.destination,
+   752→      sizeBytes: b.sizeBytes,
+   753→      createdAt: b.createdAt.toISOString(),
+   754→      durationMs: b.durationMs,
+   755→    }));
+   756→
+   757→    this.logger.log(`listBackups: ${mapped.length} backups returned`);
+   758→
+   759→    return { backups: mapped, total: mapped.length };
+   760→  }
+   761→
+   762→  private async deleteBackup(params: {
+   763→    backupId: string;
+   764→    reason?: string;
+   765→    force?: boolean;
+   766→  }): Promise<{
+   767→    deleted: boolean;
+   768→    backupId: string;
+   769→    reason?: string;
+   770→    message: string;
+   771→  }> {
+   772→    const { backupId, reason, force = false } = params;
+   773→
+   774→    if (!backupId || typeof backupId !== 'string') {
+   775→      throw new Error('Backup ID is required');
+   776→    }
+   777→
+   778→    const backup = this.backups.get(backupId);
+   779→    if (!backup) {
+   780→      throw new Error(`Backup not found: ${backupId}`);
+   781→    }
+   782→
+   783→    // Safety check: don't delete recent backups without force
+   784→    if (!force) {
+   785→      const ageMs = Date.now() - backup.createdAt.getTime();
+   786→      if (ageMs < 86400000) {
+   787→        throw new Error(
+   788→          `Backup ${backupId} was created less than 24 hours ago. Use force: true to delete anyway.`,
+   789→        );
+   790→      }
+   791→    }
+   792→
+   793→    this.backups.delete(backupId);
+   794→
+   795→    this.logger.log(`Deleted backup ${backupId}, reason: ${reason || 'N/A'}, forced: ${force}`);
+   796→
+   797→    return {
+   798→      deleted: true,
+   799→      backupId,
+   800→      reason,
+   801→      message: `Backup ${backupId} (${backup.serviceName}/${backup.resource}) deleted successfully`,
+   802→    };
+   803→  }
+   804→
+   805→  // ─── Helpers ────────────────────────────────────────────────────
+   806→
+   807→  private generateChecksum(): string {
+   808→    const chars = '0123456789abcdef';
+   809→    let hash = '';
+   810→    for (let i = 0; i < 64; i++) {
+   811→      hash += chars[Math.floor(Math.random() * chars.length)];
+   812→    }
+   813→    return hash;
+   814→  }
+   815→
+   816→  private formatBytes(bytes: number): string {
+   817→    if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`;
+   818→    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+   819→    return `${(bytes / 1024).toFixed(1)} KB`;
+   820→  }
+   821→
+   822→  private seedInitialBackups(): void {
+   823→    const seedData = [
+   824→      {
+   825→        resource: 'database',
+   826→        serviceName: 'user-service',
+   827→        type: 'full' as const,
+   828→        destination: 's3',
+   829→      },
+   830→      {
+   831→        resource: 'database',
+   832→        serviceName: 'payment-service',
+   833→        type: 'full' as const,
+   834→        destination: 's3',
+   835→      },
+   836→      {
+   837→        resource: 'files',
+   838→        serviceName: 'media-service',
+   839→        type: 'incremental' as const,
+   840→        destination: 'gcs',
+   841→      },
+   842→      {
+   843→        resource: 'config',
+   844→        serviceName: 'api-gateway',
+   845→        type: 'snapshot' as const,
+   846→        destination: 'local',
+   847→      },
+   848→    ];
+   849→
+   850→    for (const data of seedData) {
+   851→      this.backupCounter++;
+   852→      const backupId = `backup-seed-${this.backupCounter}`;
+   853→      const sizeBytes =
+   854→        data.type === 'full'
+   855→          ? Math.floor(Math.random() * 5368709120) + 1073741824
+   856→          : Math.floor(Math.random() * 536870912) + 10485760;
+   857→
+   858→      this.backups.set(backupId, {
+   859→        id: backupId,
+   860→        resource: data.resource,
+   861→        serviceName: data.serviceName,
+   862→        type: data.type,
+   863→        status: 'completed',
+   864→        destination: data.destination,
+   865→        sizeBytes,
+   866→        compressed: true,
+   867→        encrypted: true,
+   868→        checksum: this.generateChecksum(),
+   869→        tags: { environment: 'production', seeded: 'true' },
+   870→        createdAt: new Date(Date.now() - Math.random() * 604800000),
+   871→        completedAt: new Date(Date.now() - Math.random() * 604800000),
+   872→        durationMs: Math.floor(Math.random() * 300000) + 30000,
+   873→      });
+   874→    }
+   875→  }
+   876→}
+   877→

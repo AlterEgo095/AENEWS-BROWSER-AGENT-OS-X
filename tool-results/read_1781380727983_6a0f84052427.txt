@@ -1,0 +1,1180 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Dependency Agent
+     3→ * Manages project dependencies, checks for vulnerabilities, updates packages,
+     4→ * audits dependencies, and resolves version conflicts.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const DEPENDENCY_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'coding-dependency',
+    20→  name: 'Dependency',
+    21→  cluster: AgentCluster.CODING,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Manage project dependencies, check for security vulnerabilities, update packages, audit dependency trees, and resolve version conflicts. Supports npm, yarn, and pnpm ecosystems.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'listDependencies',
+    28→      description: 'List all project dependencies with version and status information',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          packageJson: { type: 'object', description: 'Parsed package.json contents' },
+    33→          includeDev: { type: 'boolean', default: true, description: 'Include devDependencies' },
+    34→          includeTransitive: {
+    35→            type: 'boolean',
+    36→            default: false,
+    37→            description: 'Include transitive dependencies',
+    38→          },
+    39→          filter: { type: 'string', description: 'Filter pattern for dependency names' },
+    40→        },
+    41→        required: ['packageJson'],
+    42→      },
+    43→      outputSchema: {
+    44→        type: 'object',
+    45→        properties: {
+    46→          dependencies: { type: 'array', items: { type: 'object' } },
+    47→          totalCount: { type: 'number' },
+    48→          outdatedCount: { type: 'number' },
+    49→        },
+    50→      },
+    51→    },
+    52→    {
+    53→      name: 'checkVulnerabilities',
+    54→      description: 'Check dependencies for known security vulnerabilities',
+    55→      inputSchema: {
+    56→        type: 'object',
+    57→        properties: {
+    58→          packageJson: { type: 'object', description: 'Parsed package.json contents' },
+    59→          severityThreshold: {
+    60→            type: 'string',
+    61→            enum: ['low', 'moderate', 'high', 'critical'],
+    62→            default: 'low',
+    63→          },
+    64→          includeDev: { type: 'boolean', default: true },
+    65→        },
+    66→        required: ['packageJson'],
+    67→      },
+    68→      outputSchema: {
+    69→        type: 'object',
+    70→        properties: {
+    71→          vulnerabilities: { type: 'array', items: { type: 'object' } },
+    72→          totalVulnerabilities: { type: 'number' },
+    73→          riskScore: { type: 'number' },
+    74→          summary: { type: 'string' },
+    75→        },
+    76→      },
+    77→    },
+    78→    {
+    79→      name: 'updateDependency',
+    80→      description: 'Update a specific dependency to a target version',
+    81→      inputSchema: {
+    82→        type: 'object',
+    83→        properties: {
+    84→          packageName: { type: 'string', description: 'Name of the package to update' },
+    85→          currentVersion: { type: 'string', description: 'Current version' },
+    86→          targetVersion: { type: 'string', description: 'Target version (or "latest")' },
+    87→          packageJson: { type: 'object', description: 'Current package.json' },
+    88→          isDevDependency: { type: 'boolean', default: false },
+    89→        },
+    90→        required: ['packageName', 'targetVersion', 'packageJson'],
+    91→      },
+    92→      outputSchema: {
+    93→        type: 'object',
+    94→        properties: {
+    95→          updatedPackageJson: { type: 'object' },
+    96→          changeDescription: { type: 'string' },
+    97→          breakingChanges: { type: 'array', items: { type: 'string' } },
+    98→          migrationSteps: { type: 'array', items: { type: 'string' } },
+    99→        },
+   100→      },
+   101→    },
+   102→    {
+   103→      name: 'auditDependencies',
+   104→      description: 'Perform a comprehensive audit of the dependency tree',
+   105→      inputSchema: {
+   106→        type: 'object',
+   107→        properties: {
+   108→          packageJson: { type: 'object', description: 'Parsed package.json contents' },
+   109→          checkUnused: { type: 'boolean', default: true },
+   110→          checkOutdated: { type: 'boolean', default: true },
+   111→          checkLicenses: { type: 'boolean', default: true },
+   112→        },
+   113→        required: ['packageJson'],
+   114→      },
+   115→      outputSchema: {
+   116→        type: 'object',
+   117→        properties: {
+   118→          unusedDependencies: { type: 'array', items: { type: 'string' } },
+   119→          outdatedDependencies: { type: 'array', items: { type: 'object' } },
+   120→          licenseIssues: { type: 'array', items: { type: 'object' } },
+   121→          healthScore: { type: 'number' },
+   122→          recommendations: { type: 'array', items: { type: 'string' } },
+   123→        },
+   124→      },
+   125→    },
+   126→    {
+   127→      name: 'resolveConflict',
+   128→      description: 'Resolve version conflicts between dependencies',
+   129→      inputSchema: {
+   130→        type: 'object',
+   131→        properties: {
+   132→          conflicts: {
+   133→            type: 'array',
+   134→            items: { type: 'object', description: 'Version conflict descriptions' },
+   135→          },
+   136→          packageJson: { type: 'object', description: 'Current package.json' },
+   137→          strategy: {
+   138→            type: 'string',
+   139→            enum: ['newest', 'oldest', 'semver-compatible', 'manual'],
+   140→            default: 'semver-compatible',
+   141→          },
+   142→        },
+   143→        required: ['conflicts', 'packageJson'],
+   144→      },
+   145→      outputSchema: {
+   146→        type: 'object',
+   147→        properties: {
+   148→          resolvedPackageJson: { type: 'object' },
+   149→          resolutions: { type: 'array', items: { type: 'object' } },
+   150→          unresolved: { type: 'array', items: { type: 'object' } },
+   151→        },
+   152→      },
+   153→    },
+   154→  ],
+   155→  permissions: [
+   156→    'execute:task',
+   157→    'read:package',
+   158→    'write:package',
+   159→    'read:registry',
+   160→    'execute:install',
+   161→  ],
+   162→  maxConcurrentTasks: 3,
+   163→  timeout: 120000,
+   164→  retryPolicy: {
+   165→    maxRetries: 2,
+   166→    backoffMs: 2000,
+   167→    exponentialBackoff: true,
+   168→  },
+   169→};
+   170→
+   171→// ─── Internal Types ───────────────────────────────────────────────
+   172→
+   173→interface DependencyInfo {
+   174→  name: string;
+   175→  version: string;
+   176→  latestVersion: string;
+   177→  type: 'production' | 'development' | 'peer' | 'optional';
+   178→  outdated: boolean;
+   179→  deprecated: boolean;
+   180→  license: string;
+   181→  description: string;
+   182→}
+   183→
+   184→interface VulnerabilityInfo {
+   185→  package: string;
+   186→  severity: 'low' | 'moderate' | 'high' | 'critical';
+   187→  title: string;
+   188→  cve?: string;
+   189→  vulnerableVersions: string;
+   190→  patchedVersions: string;
+   191→  recommendation: string;
+   192→  url: string;
+   193→}
+   194→
+   195→interface OutdatedDependency {
+   196→  name: string;
+   197→  current: string;
+   198→  wanted: string;
+   199→  latest: string;
+   200→  type: string;
+   201→}
+   202→
+   203→interface LicenseIssue {
+   204→  package: string;
+   205→  license: string;
+   206→  issue: string;
+   207→  severity: 'low' | 'medium' | 'high';
+   208→}
+   209→
+   210→interface ConflictResolution {
+   211→  package: string;
+   212→  conflictVersions: string[];
+   213→  resolvedVersion: string;
+   214→  strategy: string;
+   215→  reason: string;
+   216→}
+   217→
+   218→// ─── Known Vulnerability Database (Simulated) ────────────────────
+   219→
+   220→const KNOWN_VULNERABILITIES: Array<{
+   221→  package: string;
+   222→  versions: string;
+   223→  severity: VulnerabilityInfo['severity'];
+   224→  title: string;
+   225→  cve: string;
+   226→  patched: string;
+   227→}> = [
+   228→  {
+   229→    package: 'lodash',
+   230→    versions: '<4.17.21',
+   231→    severity: 'high',
+   232→    title: 'Prototype Pollution',
+   233→    cve: 'CVE-2020-8203',
+   234→    patched: '>=4.17.21',
+   235→  },
+   236→  {
+   237→    package: 'express',
+   238→    versions: '<4.17.3',
+   239→    severity: 'moderate',
+   240→    title: 'Open Redirect',
+   241→    cve: 'CVE-2021-44906',
+   242→    patched: '>=4.17.3',
+   243→  },
+   244→  {
+   245→    package: 'axios',
+   246→    versions: '<0.21.1',
+   247→    severity: 'high',
+   248→    title: 'Server-Side Request Forgery',
+   249→    cve: 'CVE-2021-3749',
+   250→    patched: '>=0.21.1',
+   251→  },
+   252→  {
+   253→    package: 'node-fetch',
+   254→    versions: '<2.6.7',
+   255→    severity: 'high',
+   256→    title: 'ReDoS via Content-Length Header',
+   257→    cve: 'CVE-2022-0235',
+   258→    patched: '>=2.6.7',
+   259→  },
+   260→  {
+   261→    package: 'jsonwebtoken',
+   262→    versions: '<9.0.0',
+   263→    severity: 'moderate',
+   264→    title: 'Insecure default algorithm',
+   265→    cve: 'CVE-2022-23529',
+   266→    patched: '>=9.0.0',
+   267→  },
+   268→  {
+   269→    package: 'debug',
+   270→    versions: '<2.6.9',
+   271→    severity: 'moderate',
+   272→    title: 'Regular Expression Denial of Service',
+   273→    cve: 'CVE-2017-16119',
+   274→    patched: '>=2.6.9',
+   275→  },
+   276→  {
+   277→    package: 'minimist',
+   278→    versions: '<0.2.1',
+   279→    severity: 'low',
+   280→    title: 'Prototype Pollution',
+   281→    cve: 'CVE-2020-7598',
+   282→    patched: '>=0.2.1',
+   283→  },
+   284→  {
+   285→    package: 'yargs-parser',
+   286→    versions: '<5.0.1',
+   287→    severity: 'low',
+   288→    title: 'Prototype Pollution',
+   289→    cve: 'CVE-2020-7608',
+   290→    patched: '>=5.0.1',
+   291→  },
+   292→];
+   293→
+   294→// ─── Agent Service ────────────────────────────────────────────────
+   295→
+   296→@Injectable()
+   297→export class DependencyAgentService extends BaseAgentService {
+   298→  private auditHistory: Array<{ timestamp: Date; healthScore: number }> = [];
+   299→
+   300→  protected defineConfig(): AgentConfig {
+   301→    return DEPENDENCY_AGENT_CONFIG;
+   302→  }
+   303→
+   304→  protected async onInitialize(): Promise<void> {
+   305→    this.registerTool({
+   306→      name: 'listDependencies',
+   307→      description: 'List all project dependencies',
+   308→      execute: async (params: {
+   309→        packageJson: Record<string, any>;
+   310→        includeDev?: boolean;
+   311→        includeTransitive?: boolean;
+   312→        filter?: string;
+   313→      }) => this.listDependencies(params),
+   314→    });
+   315→
+   316→    this.registerTool({
+   317→      name: 'checkVulnerabilities',
+   318→      description: 'Check dependencies for security vulnerabilities',
+   319→      execute: async (params: {
+   320→        packageJson: Record<string, any>;
+   321→        severityThreshold?: string;
+   322→        includeDev?: boolean;
+   323→      }) => this.checkVulnerabilities(params),
+   324→    });
+   325→
+   326→    this.registerTool({
+   327→      name: 'updateDependency',
+   328→      description: 'Update a dependency to a target version',
+   329→      execute: async (params: {
+   330→        packageName: string;
+   331→        targetVersion: string;
+   332→        packageJson: Record<string, any>;
+   333→        currentVersion?: string;
+   334→        isDevDependency?: boolean;
+   335→      }) => this.updateDependency(params),
+   336→    });
+   337→
+   338→    this.registerTool({
+   339→      name: 'auditDependencies',
+   340→      description: 'Perform comprehensive dependency audit',
+   341→      execute: async (params: {
+   342→        packageJson: Record<string, any>;
+   343→        checkUnused?: boolean;
+   344→        checkOutdated?: boolean;
+   345→        checkLicenses?: boolean;
+   346→      }) => this.auditDependencies(params),
+   347→    });
+   348→
+   349→    this.registerTool({
+   350→      name: 'resolveConflict',
+   351→      description: 'Resolve version conflicts between dependencies',
+   352→      execute: async (params: {
+   353→        conflicts: Array<{ package: string; requiredBy: string[]; versions: string[] }>;
+   354→        packageJson: Record<string, any>;
+   355→        strategy?: string;
+   356→      }) => this.resolveConflict(params),
+   357→    });
+   358→
+   359→    await this.storeInWorkingMemory('deps:initializedAt', new Date().toISOString(), 600000);
+   360→    this.logger.log('Dependency agent initialized with 5 tools');
+   361→  }
+   362→
+   363→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   364→    const startTime = Date.now();
+   365→    const { action, ...params } = input.payload;
+   366→
+   367→    if (!action) {
+   368→      return this.createAgentOutput(
+   369→        input.taskId,
+   370→        false,
+   371→        null,
+   372→        'Missing required parameter: action',
+   373→        startTime,
+   374→      );
+   375→    }
+   376→
+   377→    const supportedActions = [
+   378→      'listDependencies',
+   379→      'checkVulnerabilities',
+   380→      'updateDependency',
+   381→      'auditDependencies',
+   382→      'resolveConflict',
+   383→    ];
+   384→
+   385→    if (!supportedActions.includes(action)) {
+   386→      return this.createAgentOutput(
+   387→        input.taskId,
+   388→        false,
+   389→        null,
+   390→        `Unknown dependency action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   391→        startTime,
+   392→      );
+   393→    }
+   394→
+   395→    try {
+   396→      const tool = this.getTool(action);
+   397→      if (!tool) {
+   398→        return this.createAgentOutput(
+   399→          input.taskId,
+   400→          false,
+   401→          null,
+   402→          `Tool not found: ${action}`,
+   403→          startTime,
+   404→        );
+   405→      }
+   406→
+   407→      const result = await tool.execute(params);
+   408→
+   409→      await this.storeInWorkingMemory(
+   410→        `deps:last:${action}`,
+   411→        { params, result, timestamp: new Date() },
+   412→        300000,
+   413→      );
+   414→
+   415→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   416→    } catch (error) {
+   417→      const msg = (error as Error).message;
+   418→      this.logger.error(`Dependency execution failed for ${action}: ${msg}`);
+   419→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   420→    }
+   421→  }
+   422→
+   423→  protected async onDestroy(): Promise<void> {
+   424→    this.auditHistory = [];
+   425→    this.logger.log('Dependency agent destroyed, history cleared');
+   426→  }
+   427→
+   428→  // ─── Tool Implementations ──────────────────────────────────────
+   429→
+   430→  private async listDependencies(params: {
+   431→    packageJson: Record<string, any>;
+   432→    includeDev?: boolean;
+   433→    includeTransitive?: boolean;
+   434→    filter?: string;
+   435→  }): Promise<{
+   436→    dependencies: DependencyInfo[];
+   437→    totalCount: number;
+   438→    outdatedCount: number;
+   439→  }> {
+   440→    const { packageJson, includeDev = true, includeTransitive = false, filter } = params;
+   441→
+   442→    if (!packageJson || typeof packageJson !== 'object') {
+   443→      throw new Error('Valid package.json object is required');
+   444→    }
+   445→
+   446→    const dependencies: DependencyInfo[] = [];
+   447→
+   448→    // Parse production dependencies
+   449→    const prodDeps = packageJson.dependencies || {};
+   450→    for (const [name, version] of Object.entries(prodDeps)) {
+   451→      if (filter && !name.includes(filter)) continue;
+   452→      dependencies.push(this.createDependencyInfo(name, version as string, 'production'));
+   453→    }
+   454→
+   455→    // Parse dev dependencies
+   456→    if (includeDev) {
+   457→      const devDeps = packageJson.devDependencies || {};
+   458→      for (const [name, version] of Object.entries(devDeps)) {
+   459→        if (filter && !name.includes(filter)) continue;
+   460→        dependencies.push(this.createDependencyInfo(name, version as string, 'development'));
+   461→      }
+   462→    }
+   463→
+   464→    // Parse peer dependencies
+   465→    const peerDeps = packageJson.peerDependencies || {};
+   466→    for (const [name, version] of Object.entries(peerDeps)) {
+   467→      if (filter && !name.includes(filter)) continue;
+   468→      dependencies.push(this.createDependencyInfo(name, version as string, 'peer'));
+   469→    }
+   470→
+   471→    // Parse optional dependencies
+   472→    const optDeps = packageJson.optionalDependencies || {};
+   473→    for (const [name, version] of Object.entries(optDeps)) {
+   474→      if (filter && !name.includes(filter)) continue;
+   475→      dependencies.push(this.createDependencyInfo(name, version as string, 'optional'));
+   476→    }
+   477→
+   478→    const outdatedCount = dependencies.filter((d) => d.outdated).length;
+   479→
+   480→    this.logger.log(`Listed dependencies: ${dependencies.length} total, ${outdatedCount} outdated`);
+   481→
+   482→    return { dependencies, totalCount: dependencies.length, outdatedCount };
+   483→  }
+   484→
+   485→  private async checkVulnerabilities(params: {
+   486→    packageJson: Record<string, any>;
+   487→    severityThreshold?: string;
+   488→    includeDev?: boolean;
+   489→  }): Promise<{
+   490→    vulnerabilities: VulnerabilityInfo[];
+   491→    totalVulnerabilities: number;
+   492→    riskScore: number;
+   493→    summary: string;
+   494→  }> {
+   495→    const { packageJson, severityThreshold = 'low', includeDev = true } = params;
+   496→
+   497→    if (!packageJson || typeof packageJson !== 'object') {
+   498→      throw new Error('Valid package.json object is required');
+   499→    }
+   500→
+   501→    const vulnerabilities: VulnerabilityInfo[] = [];
+   502→    const allDeps: Record<string, string> = { ...(packageJson.dependencies || {}) };
+   503→    if (includeDev) {
+   504→      Object.assign(allDeps, packageJson.devDependencies || {});
+   505→    }
+   506→
+   507→    const severityOrder: Record<string, number> = { low: 0, moderate: 1, high: 2, critical: 3 };
+   508→    const minSeverity = severityOrder[severityThreshold] || 0;
+   509→
+   510→    // Check each dependency against known vulnerability database
+   511→    for (const [name, version] of Object.entries(allDeps)) {
+   512→      const cleanVersion = this.cleanVersion(version);
+   513→      const knownVulns = KNOWN_VULNERABILITIES.filter((v) => v.package === name);
+   514→
+   515→      for (const vuln of knownVulns) {
+   516→        if (this.isVersionVulnerable(cleanVersion, vuln.versions)) {
+   517→          const severity = severityOrder[vuln.severity] || 0;
+   518→          if (severity >= minSeverity) {
+   519→            vulnerabilities.push({
+   520→              package: name,
+   521→              severity: vuln.severity,
+   522→              title: vuln.title,
+   523→              cve: vuln.cve,
+   524→              vulnerableVersions: vuln.versions,
+   525→              patchedVersions: vuln.patched,
+   526→              recommendation: `Upgrade ${name} to ${vuln.patched}`,
+   527→              url: `https://nvd.nist.gov/vuln/detail/${vuln.cve}`,
+   528→            });
+   529→          }
+   530→        }
+   531→      }
+   532→    }
+   533→
+   534→    // Simulate additional vulnerability checks
+   535→    this.simulateAdditionalVulnerabilityChecks(allDeps, vulnerabilities, minSeverity);
+   536→
+   537→    // Calculate risk score
+   538→    const riskScore = this.calculateVulnerabilityRiskScore(vulnerabilities);
+   539→
+   540→    // Generate summary
+   541→    const critical = vulnerabilities.filter((v) => v.severity === 'critical').length;
+   542→    const high = vulnerabilities.filter((v) => v.severity === 'high').length;
+   543→    const moderate = vulnerabilities.filter((v) => v.severity === 'moderate').length;
+   544→    const low = vulnerabilities.filter((v) => v.severity === 'low').length;
+   545→
+   546→    const summary =
+   547→      `Found ${vulnerabilities.length} vulnerabilities: ` +
+   548→      `${critical} critical, ${high} high, ${moderate} moderate, ${low} low. ` +
+   549→      `Risk score: ${riskScore}/100.`;
+   550→
+   551→    this.logger.log(
+   552→      `Vulnerability check: ${vulnerabilities.length} found, risk score=${riskScore}`,
+   553→    );
+   554→
+   555→    return { vulnerabilities, totalVulnerabilities: vulnerabilities.length, riskScore, summary };
+   556→  }
+   557→
+   558→  private async updateDependency(params: {
+   559→    packageName: string;
+   560→    targetVersion: string;
+   561→    packageJson: Record<string, any>;
+   562→    currentVersion?: string;
+   563→    isDevDependency?: boolean;
+   564→  }): Promise<{
+   565→    updatedPackageJson: Record<string, any>;
+   566→    changeDescription: string;
+   567→    breakingChanges: string[];
+   568→    migrationSteps: string[];
+   569→  }> {
+   570→    const {
+   571→      packageName,
+   572→      targetVersion,
+   573→      packageJson,
+   574→      currentVersion,
+   575→      isDevDependency = false,
+   576→    } = params;
+   577→
+   578→    if (!packageName || typeof packageName !== 'string') {
+   579→      throw new Error('Package name is required');
+   580→    }
+   581→    if (!targetVersion || typeof targetVersion !== 'string') {
+   582→      throw new Error('Target version is required');
+   583→    }
+   584→    if (!packageJson || typeof packageJson !== 'object') {
+   585→      throw new Error('Valid package.json object is required');
+   586→    }
+   587→
+   588→    // Find the current version
+   589→    const resolvedCurrentVersion =
+   590→      currentVersion ||
+   591→      packageJson.dependencies?.[packageName] ||
+   592→      packageJson.devDependencies?.[packageName];
+   593→
+   594→    if (!resolvedCurrentVersion) {
+   595→      throw new Error(`Package "${packageName}" not found in dependencies`);
+   596→    }
+   597→
+   598→    // Determine the target version
+   599→    const resolvedTarget =
+   600→      targetVersion === 'latest' ? this.simulateLatestVersion(packageName) : targetVersion;
+   601→
+   602→    // Create updated package.json
+   603→    const updatedPackageJson = { ...packageJson };
+   604→
+   605→    if (isDevDependency || packageJson.devDependencies?.[packageName]) {
+   606→      if (!updatedPackageJson.devDependencies) updatedPackageJson.devDependencies = {};
+   607→      updatedPackageJson.devDependencies[packageName] = `^${resolvedTarget}`;
+   608→    } else {
+   609→      if (!updatedPackageJson.dependencies) updatedPackageJson.dependencies = {};
+   610→      updatedPackageJson.dependencies[packageName] = `^${resolvedTarget}`;
+   611→    }
+   612→
+   613→    // Detect breaking changes
+   614→    const breakingChanges = this.detectBreakingChanges(
+   615→      packageName,
+   616→      this.cleanVersion(resolvedCurrentVersion),
+   617→      resolvedTarget,
+   618→    );
+   619→
+   620→    // Generate migration steps
+   621→    const migrationSteps = this.generateMigrationSteps(
+   622→      packageName,
+   623→      resolvedCurrentVersion,
+   624→      resolvedTarget,
+   625→      breakingChanges,
+   626→    );
+   627→
+   628→    const changeDescription = `Updated ${packageName} from ${resolvedCurrentVersion} to ^${resolvedTarget}`;
+   629→
+   630→    this.logger.log(`Updated dependency: ${changeDescription}`);
+   631→
+   632→    return {
+   633→      updatedPackageJson,
+   634→      changeDescription,
+   635→      breakingChanges,
+   636→      migrationSteps,
+   637→    };
+   638→  }
+   639→
+   640→  private async auditDependencies(params: {
+   641→    packageJson: Record<string, any>;
+   642→    checkUnused?: boolean;
+   643→    checkOutdated?: boolean;
+   644→    checkLicenses?: boolean;
+   645→  }): Promise<{
+   646→    unusedDependencies: string[];
+   647→    outdatedDependencies: OutdatedDependency[];
+   648→    licenseIssues: LicenseIssue[];
+   649→    healthScore: number;
+   650→    recommendations: string[];
+   651→  }> {
+   652→    const { packageJson, checkUnused = true, checkOutdated = true, checkLicenses = true } = params;
+   653→
+   654→    if (!packageJson || typeof packageJson !== 'object') {
+   655→      throw new Error('Valid package.json object is required');
+   656→    }
+   657→
+   658→    const unusedDependencies: string[] = [];
+   659→    const outdatedDependencies: OutdatedDependency[] = [];
+   660→    const licenseIssues: LicenseIssue[] = [];
+   661→    const recommendations: string[] = [];
+   662→
+   663→    // Check for unused dependencies
+   664→    if (checkUnused) {
+   665→      const allDeps = {
+   666→        ...(packageJson.dependencies || {}),
+   667→        ...(packageJson.devDependencies || {}),
+   668→      };
+   669→
+   670→      for (const name of Object.keys(allDeps)) {
+   671→        // Simulate unused detection based on common patterns
+   672→        if (this.isLikelyUnused(name, packageJson)) {
+   673→          unusedDependencies.push(name);
+   674→        }
+   675→      }
+   676→
+   677→      if (unusedDependencies.length > 0) {
+   678→        recommendations.push(
+   679→          `Found ${unusedDependencies.length} potentially unused dependencies. Review and remove them to reduce bundle size.`,
+   680→        );
+   681→      }
+   682→    }
+   683→
+   684→    // Check for outdated dependencies
+   685→    if (checkOutdated) {
+   686→      const allDeps = {
+   687→        ...(packageJson.dependencies || {}),
+   688→        ...(packageJson.devDependencies || {}),
+   689→      };
+   690→
+   691→      for (const [name, version] of Object.entries(allDeps)) {
+   692→        const cleanVer = this.cleanVersion(version as string);
+   693→        const latest = this.simulateLatestVersion(name);
+   694→        const currentMajor = parseInt(cleanVer.split('.')[0], 10);
+   695→        const latestMajor = parseInt(latest.split('.')[0], 10);
+   696→
+   697→        if (latestMajor > currentMajor) {
+   698→          outdatedDependencies.push({
+   699→            name,
+   700→            current: cleanVer,
+   701→            wanted: `${currentMajor}.${this.simulateMinorVersion()}.0`,
+   702→            latest,
+   703→            type: packageJson.dependencies?.[name] ? 'production' : 'development',
+   704→          });
+   705→        }
+   706→      }
+   707→
+   708→      if (outdatedDependencies.length > 0) {
+   709→        recommendations.push(
+   710→          `Found ${outdatedDependencies.length} outdated dependencies. Consider updating them for security and feature improvements.`,
+   711→        );
+   712→      }
+   713→    }
+   714→
+   715→    // Check license issues
+   716→    if (checkLicenses) {
+   717→      const allDeps = {
+   718→        ...(packageJson.dependencies || {}),
+   719→        ...(packageJson.devDependencies || {}),
+   720→      };
+   721→
+   722→      const problematicLicenses = ['GPL-3.0', 'AGPL-3.0', 'GPL-2.0', 'SSPL-1.0'];
+   723→
+   724→      for (const name of Object.keys(allDeps)) {
+   725→        const simulatedLicense = this.simulateLicense(name);
+   726→        if (problematicLicenses.includes(simulatedLicense)) {
+   727→          licenseIssues.push({
+   728→            package: name,
+   729→            license: simulatedLicense,
+   730→            issue: `${simulatedLicense} is a copyleft license that may require source code disclosure`,
+   731→            severity: 'high',
+   732→          });
+   733→        } else if (simulatedLicense === 'UNLICENSED') {
+   734→          licenseIssues.push({
+   735→            package: name,
+   736→            license: simulatedLicense,
+   737→            issue: 'Package has no license specified',
+   738→            severity: 'medium',
+   739→          });
+   740→        }
+   741→      }
+   742→
+   743→      if (licenseIssues.length > 0) {
+   744→        recommendations.push(
+   745→          `Found ${licenseIssues.length} license issue(s). Review and ensure compliance with your project's license policy.`,
+   746→        );
+   747→      }
+   748→    }
+   749→
+   750→    // Calculate health score
+   751→    const healthScore = this.calculateDependencyHealthScore(
+   752→      unusedDependencies.length,
+   753→      outdatedDependencies.length,
+   754→      licenseIssues.length,
+   755→      Object.keys({ ...(packageJson.dependencies || {}), ...(packageJson.devDependencies || {}) })
+   756→        .length,
+   757→    );
+   758→
+   759→    // General recommendations
+   760→    if (Object.keys(packageJson.dependencies || {}).length > 30) {
+   761→      recommendations.push(
+   762→        'Project has many production dependencies. Consider reducing dependency count for better maintainability.',
+   763→      );
+   764→    }
+   765→
+   766→    this.auditHistory.push({ timestamp: new Date(), healthScore });
+   767→
+   768→    this.logger.log(
+   769→      `Dependency audit: ${unusedDependencies.length} unused, ${outdatedDependencies.length} outdated, ${licenseIssues.length} license issues, health=${healthScore}`,
+   770→    );
+   771→
+   772→    return {
+   773→      unusedDependencies,
+   774→      outdatedDependencies,
+   775→      licenseIssues,
+   776→      healthScore,
+   777→      recommendations,
+   778→    };
+   779→  }
+   780→
+   781→  private async resolveConflict(params: {
+   782→    conflicts: Array<{ package: string; requiredBy: string[]; versions: string[] }>;
+   783→    packageJson: Record<string, any>;
+   784→    strategy?: string;
+   785→  }): Promise<{
+   786→    resolvedPackageJson: Record<string, any>;
+   787→    resolutions: ConflictResolution[];
+   788→    unresolved: Array<{ package: string; reason: string }>;
+   789→  }> {
+   790→    const { conflicts, packageJson, strategy = 'semver-compatible' } = params;
+   791→
+   792→    if (!conflicts || !Array.isArray(conflicts) || conflicts.length === 0) {
+   793→      throw new Error('At least one conflict description is required');
+   794→    }
+   795→    if (!packageJson || typeof packageJson !== 'object') {
+   796→      throw new Error('Valid package.json object is required');
+   797→    }
+   798→
+   799→    const resolutions: ConflictResolution[] = [];
+   800→    const unresolved: Array<{ package: string; reason: string }> = [];
+   801→    const resolvedPackageJson = { ...packageJson };
+   802→
+   803→    for (const conflict of conflicts) {
+   804→      if (!conflict.package || !conflict.versions || conflict.versions.length < 2) {
+   805→        unresolved.push({
+   806→          package: conflict.package || 'unknown',
+   807→          reason: 'Invalid conflict description: must specify package and at least 2 versions',
+   808→        });
+   809→        continue;
+   810→      }
+   811→
+   812→      try {
+   813→        const resolution = this.resolveVersionConflict(conflict, strategy);
+   814→        resolutions.push(resolution);
+   815→
+   816→        // Apply resolution to package.json
+   817→        if (resolvedPackageJson.dependencies?.[conflict.package]) {
+   818→          resolvedPackageJson.dependencies[conflict.package] = `^${resolution.resolvedVersion}`;
+   819→        }
+   820→        if (resolvedPackageJson.devDependencies?.[conflict.package]) {
+   821→          resolvedPackageJson.devDependencies[conflict.package] = `^${resolution.resolvedVersion}`;
+   822→        }
+   823→
+   824→        // Add resolutions/overrides field if needed
+   825→        if (!resolvedPackageJson.resolutions) {
+   826→          resolvedPackageJson.resolutions = {};
+   827→        }
+   828→        resolvedPackageJson.resolutions[conflict.package] = resolution.resolvedVersion;
+   829→      } catch (error) {
+   830→        unresolved.push({
+   831→          package: conflict.package,
+   832→          reason: (error as Error).message,
+   833→        });
+   834→      }
+   835→    }
+   836→
+   837→    this.logger.log(
+   838→      `Resolved conflicts: ${resolutions.length} resolved, ${unresolved.length} unresolved, strategy=${strategy}`,
+   839→    );
+   840→
+   841→    return { resolvedPackageJson, resolutions, unresolved };
+   842→  }
+   843→
+   844→  // ─── Helper Methods ───────────────────────────────────────────
+   845→
+   846→  private createDependencyInfo(
+   847→    name: string,
+   848→    version: string,
+   849→    type: DependencyInfo['type'],
+   850→  ): DependencyInfo {
+   851→    const cleanVer = this.cleanVersion(version);
+   852→    const latest = this.simulateLatestVersion(name);
+   853→    const currentMajor = parseInt(cleanVer.split('.')[0], 10) || 0;
+   854→    const latestMajor = parseInt(latest.split('.')[0], 10) || 0;
+   855→
+   856→    return {
+   857→      name,
+   858→      version: cleanVer,
+   859→      latestVersion: latest,
+   860→      type,
+   861→      outdated: latestMajor > currentMajor,
+   862→      deprecated: false,
+   863→      license: this.simulateLicense(name),
+   864→      description: `Package: ${name}`,
+   865→    };
+   866→  }
+   867→
+   868→  private cleanVersion(version: string): string {
+   869→    return version.replace(/^[\^~>=<]+/, '').replace(/-.*$/, '');
+   870→  }
+   871→
+   872→  private isVersionVulnerable(version: string, vulnerableRange: string): boolean {
+   873→    // Simplified version comparison
+   874→    const rangeMatch = vulnerableRange.match(/([<>=]+)([\d.]+)/);
+   875→    if (!rangeMatch) return false;
+   876→
+   877→    const operator = rangeMatch[1];
+   878→    const targetVersion = rangeMatch[2];
+   879→
+   880→    const vParts = version.split('.').map(Number);
+   881→    const tParts = targetVersion.split('.').map(Number);
+   882→
+   883→    for (let i = 0; i < Math.max(vParts.length, tParts.length); i++) {
+   884→      const v = vParts[i] || 0;
+   885→      const t = tParts[i] || 0;
+   886→
+   887→      if (v < t) return operator.includes('<') || operator.includes('<=');
+   888→      if (v > t) return operator.includes('>') || operator.includes('>=');
+   889→    }
+   890→
+   891→    return operator.includes('=');
+   892→  }
+   893→
+   894→  private simulateLatestVersion(packageName: string): string {
+   895→    // Simulate latest version based on known packages
+   896→    const knownLatest: Record<string, string> = {
+   897→      express: '4.18.2',
+   898→      lodash: '4.17.21',
+   899→      axios: '1.6.0',
+   900→      react: '18.2.0',
+   901→      next: '14.0.0',
+   902→      typescript: '5.3.3',
+   903→      '@nestjs/common': '10.3.0',
+   904→      '@nestjs/core': '10.3.0',
+   905→      jest: '29.7.0',
+   906→      eslint: '8.56.0',
+   907→      prettier: '3.2.0',
+   908→      'node-fetch': '2.7.0',
+   909→      jsonwebtoken: '9.0.2',
+   910→      debug: '4.3.4',
+   911→      minimist: '1.2.8',
+   912→    };
+   913→
+   914→    if (knownLatest[packageName]) return knownLatest[packageName];
+   915→
+   916→    // Generate a plausible version
+   917→    const hash = packageName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+   918→    return `${(hash % 10) + 1}.${hash % 20}.${hash % 30}`;
+   919→  }
+   920→
+   921→  private simulateMinorVersion(): string {
+   922→    return String(Math.floor(Math.random() * 20) + 1);
+   923→  }
+   924→
+   925→  private simulateLicense(packageName: string): string {
+   926→    const knownLicenses: Record<string, string> = {
+   927→      express: 'MIT',
+   928→      lodash: 'MIT',
+   929→      axios: 'MIT',
+   930→      react: 'MIT',
+   931→      typescript: 'Apache-2.0',
+   932→      '@nestjs/common': 'MIT',
+   933→      jest: 'MIT',
+   934→    };
+   935→
+   936→    if (knownLicenses[packageName]) return knownLicenses[packageName];
+   937→
+   938→    const licenses = [
+   939→      'MIT',
+   940→      'MIT',
+   941→      'MIT',
+   942→      'Apache-2.0',
+   943→      'BSD-3-Clause',
+   944→      'ISC',
+   945→      'GPL-3.0',
+   946→      'UNLICENSED',
+   947→    ];
+   948→    const hash = packageName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+   949→    return licenses[hash % licenses.length];
+   950→  }
+   951→
+   952→  private simulateAdditionalVulnerabilityChecks(
+   953→    deps: Record<string, string>,
+   954→    vulnerabilities: VulnerabilityInfo[],
+   955→    minSeverity: number,
+   956→  ): void {
+   957→    // Check for packages with known risky patterns
+   958→    for (const [name, version] of Object.entries(deps)) {
+   959→      const cleanVer = this.cleanVersion(version);
+   960→
+   961→      // Very old major versions
+   962→      const major = parseInt(cleanVer.split('.')[0], 10) || 0;
+   963→      if (major > 0 && major < 2 && minSeverity <= 1) {
+   964→        const existing = vulnerabilities.find((v) => v.package === name);
+   965→        if (!existing) {
+   966→          vulnerabilities.push({
+   967→            package: name,
+   968→            severity: 'moderate',
+   969→            title: `Outdated major version of ${name}`,
+   970→            vulnerableVersions: version,
+   971→            patchedVersions: this.simulateLatestVersion(name),
+   972→            recommendation: `Consider upgrading ${name} to the latest version`,
+   973→            url: `https://www.npmjs.com/package/${name}`,
+   974→          });
+   975→        }
+   976→      }
+   977→    }
+   978→  }
+   979→
+   980→  private calculateVulnerabilityRiskScore(vulnerabilities: VulnerabilityInfo[]): number {
+   981→    let score = 0;
+   982→    for (const vuln of vulnerabilities) {
+   983→      switch (vuln.severity) {
+   984→        case 'critical':
+   985→          score += 25;
+   986→          break;
+   987→        case 'high':
+   988→          score += 15;
+   989→          break;
+   990→        case 'moderate':
+   991→          score += 8;
+   992→          break;
+   993→        case 'low':
+   994→          score += 3;
+   995→          break;
+   996→      }
+   997→    }
+   998→    return Math.min(100, score);
+   999→  }
+  1000→
+  1001→  private isLikelyUnused(name: string, packageJson: Record<string, any>): boolean {
+  1002→    // Heuristic: some packages are commonly installed but unused
+  1003→    const commonUnused = ['tslib', 'core-js', 'regenerator-runtime'];
+  1004→    if (commonUnused.includes(name)) return false; // These are actually used
+  1005→
+  1006→    // Very rarely used packages that are often installed by mistake
+  1007→    const rarelyUsed = ['left-pad', 'is-array', 'is-undefined'];
+  1008→    return rarelyUsed.includes(name);
+  1009→  }
+  1010→
+  1011→  private detectBreakingChanges(
+  1012→    packageName: string,
+  1013→    currentVersion: string,
+  1014→    targetVersion: string,
+  1015→  ): string[] {
+  1016→    const breakingChanges: string[] = [];
+  1017→    const currentMajor = parseInt(currentVersion.split('.')[0], 10) || 0;
+  1018→    const targetMajor = parseInt(targetVersion.split('.')[0], 10) || 0;
+  1019→
+  1020→    if (targetMajor > currentMajor) {
+  1021→      breakingChanges.push(
+  1022→        `Major version upgrade from v${currentMajor} to v${targetMajor} may contain breaking API changes`,
+  1023→      );
+  1024→      breakingChanges.push(`Review the migration guide for ${packageName} v${targetMajor}`);
+  1025→      breakingChanges.push(`Some APIs may have been removed or renamed`);
+  1026→    }
+  1027→
+  1028→    // Package-specific breaking changes
+  1029→    if (packageName === 'express' && targetMajor >= 5) {
+  1030→      breakingChanges.push('Express v5 removes deprecated methods: app.del(), app.param() changes');
+  1031→    }
+  1032→    if (packageName === 'react' && targetMajor >= 18) {
+  1033→      breakingChanges.push(
+  1034→        'React 18 introduces automatic batching; use flushSync for synchronous updates',
+  1035→      );
+  1036→    }
+  1037→    if (packageName === 'typescript' && targetMajor >= 5) {
+  1038→      breakingChanges.push(
+  1039→        'TypeScript 5 has stricter type checks; some previously compiling code may error',
+  1040→      );
+  1041→    }
+  1042→
+  1043→    return breakingChanges;
+  1044→  }
+  1045→
+  1046→  private generateMigrationSteps(
+  1047→    packageName: string,
+  1048→    currentVersion: string,
+  1049→    targetVersion: string,
+  1050→    breakingChanges: string[],
+  1051→  ): string[] {
+  1052→    const steps: string[] = [];
+  1053→
+  1054→    steps.push(`1. Update package: npm install ${packageName}@${targetVersion}`);
+  1055→    steps.push(`2. Run type checking: npx tsc --noEmit`);
+  1056→    steps.push(`3. Run test suite: npm test`);
+  1057→
+  1058→    if (breakingChanges.length > 0) {
+  1059→      steps.push(`4. Review and fix breaking changes:`);
+  1060→      for (const change of breakingChanges) {
+  1061→        steps.push(`   - ${change}`);
+  1062→      }
+  1063→      steps.push(
+  1064→        `5. Check the official migration guide: https://github.com/${packageName}/${packageName}/blob/main/MIGRATION.md`,
+  1065→      );
+  1066→      steps.push(`6. Update any related type definitions if using TypeScript`);
+  1067→      steps.push(`7. Verify all integration tests pass`);
+  1068→    }
+  1069→
+  1070→    return steps;
+  1071→  }
+  1072→
+  1073→  private calculateDependencyHealthScore(
+  1074→    unusedCount: number,
+  1075→    outdatedCount: number,
+  1076→    licenseIssueCount: number,
+  1077→    totalDeps: number,
+  1078→  ): number {
+  1079→    let score = 100;
+  1080→
+  1081→    // Deduct for unused dependencies
+  1082→    score -= Math.min(20, unusedCount * 5);
+  1083→
+  1084→    // Deduct for outdated dependencies
+  1085→    score -= Math.min(30, outdatedCount * 5);
+  1086→
+  1087→    // Deduct for license issues
+  1088→    score -= Math.min(25, licenseIssueCount * 10);
+  1089→
+  1090→    // Penalty for too many dependencies
+  1091→    if (totalDeps > 50) score -= 5;
+  1092→    if (totalDeps > 100) score -= 10;
+  1093→
+  1094→    return Math.max(0, Math.min(100, score));
+  1095→  }
+  1096→
+  1097→  private resolveVersionConflict(
+  1098→    conflict: { package: string; requiredBy: string[]; versions: string[] },
+  1099→    strategy: string,
+  1100→  ): ConflictResolution {
+  1101→    const versions = conflict.versions.map((v) => this.cleanVersion(v));
+  1102→
+  1103→    let resolvedVersion: string;
+  1104→    let reason: string;
+  1105→
+  1106→    switch (strategy) {
+  1107→      case 'newest': {
+  1108→        resolvedVersion = this.findNewestVersion(versions);
+  1109→        reason = `Selected newest version ${resolvedVersion} among conflicting versions: ${versions.join(', ')}`;
+  1110→        break;
+  1111→      }
+  1112→      case 'oldest': {
+  1113→        resolvedVersion = this.findOldestVersion(versions);
+  1114→        reason = `Selected oldest compatible version ${resolvedVersion} for maximum compatibility`;
+  1115→        break;
+  1116→      }
+  1117→      case 'semver-compatible': {
+  1118→        resolvedVersion = this.findSemverCompatibleVersion(versions);
+  1119→        reason = `Found semver-compatible version ${resolvedVersion} that satisfies all requirements`;
+  1120→        break;
+  1121→      }
+  1122→      case 'manual': {
+  1123→        throw new Error(
+  1124→          `Manual resolution required for ${conflict.package}. Provide explicit version.`,
+  1125→        );
+  1126→      }
+  1127→      default: {
+  1128→        resolvedVersion = this.findSemverCompatibleVersion(versions);
+  1129→        reason = `Defaulted to semver-compatible strategy: resolved to ${resolvedVersion}`;
+  1130→      }
+  1131→    }
+  1132→
+  1133→    return {
+  1134→      package: conflict.package,
+  1135→      conflictVersions: conflict.versions,
+  1136→      resolvedVersion,
+  1137→      strategy,
+  1138→      reason,
+  1139→    };
+  1140→  }
+  1141→
+  1142→  private findNewestVersion(versions: string[]): string {
+  1143→    return versions.sort((a, b) => {
+  1144→      const aParts = a.split('.').map(Number);
+  1145→      const bParts = b.split('.').map(Number);
+  1146→      for (let i = 0; i < 3; i++) {
+  1147→        if ((aParts[i] || 0) !== (bParts[i] || 0)) return (bParts[i] || 0) - (aParts[i] || 0);
+  1148→      }
+  1149→      return 0;
+  1150→    })[0];
+  1151→  }
+  1152→
+  1153→  private findOldestVersion(versions: string[]): string {
+  1154→    return versions.sort((a, b) => {
+  1155→      const aParts = a.split('.').map(Number);
+  1156→      const bParts = b.split('.').map(Number);
+  1157→      for (let i = 0; i < 3; i++) {
+  1158→        if ((aParts[i] || 0) !== (bParts[i] || 0)) return (aParts[i] || 0) - (bParts[i] || 0);
+  1159→      }
+  1160→      return 0;
+  1161→    })[0];
+  1162→  }
+  1163→
+  1164→  private findSemverCompatibleVersion(versions: string[]): string {
+  1165→    // Find the highest version that is semver-compatible with all requirements
+  1166→    const newest = this.findNewestVersion(versions);
+  1167→
+  1168→    // If all versions share the same major, the newest is compatible
+  1169→    const majorGroups = new Set(versions.map((v) => v.split('.')[0]));
+  1170→    if (majorGroups.size === 1) {
+  1171→      return newest;
+  1172→    }
+  1173→
+  1174→    // If mixed majors, use the lowest common major version
+  1175→    const lowestMajor = Math.min(...Array.from(majorGroups).map(Number));
+  1176→    const compatible = versions.filter((v) => v.startsWith(`${lowestMajor}.`));
+  1177→    return this.findNewestVersion(compatible);
+  1178→  }
+  1179→}
+  1180→

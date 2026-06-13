@@ -101,7 +101,12 @@ export class BusinessTeamService {
       return result;
     } catch (error) {
       const durationMs = Date.now() - start;
-      const result: BusinessResult = { taskId: task.id, success: false, error: (error as Error).message, durationMs };
+      const result: BusinessResult = {
+        taskId: task.id,
+        success: false,
+        error: (error as Error).message,
+        durationMs,
+      };
       this.metrics.totalTasks++;
       this.metrics.failedTasks++;
       this.metrics.totalDurationMs += durationMs;
@@ -116,7 +121,10 @@ export class BusinessTeamService {
   /**
    * Analyze market data and return insights.
    */
-  async analyzeMarket(data: { industry?: string; competitors?: string[]; region?: string }, missionId?: string): Promise<BusinessResult> {
+  async analyzeMarket(
+    data: { industry?: string; competitors?: string[]; region?: string },
+    missionId?: string,
+  ): Promise<BusinessResult> {
     const start = Date.now();
     const industry = data.industry || 'technology';
     const region = data.region || 'global';
@@ -139,7 +147,9 @@ export class BusinessTeamService {
         'Remote-first work culture becoming standard',
         'Data privacy regulations tightening globally',
       ],
-      competitorLandscape: (data.competitors || ['Competitor A', 'Competitor B', 'Competitor C']).map((name, i) => ({
+      competitorLandscape: (
+        data.competitors || ['Competitor A', 'Competitor B', 'Competitor C']
+      ).map((name, i) => ({
         name,
         marketShare: Math.round((30 - i * 8 + Math.random() * 5) * 10) / 10,
         strength: ['strong', 'moderate', 'emerging'][Math.min(i, 2)],
@@ -168,7 +178,12 @@ export class BusinessTeamService {
         'Target mid-market segment with product-led growth strategy',
         'Build moat through proprietary data assets and network effects',
       ],
-      metrics: { marketSizeBillions: marketSize, growthRatePercent: growthRate, opportunityScore: Math.round((60 + Math.random() * 40) * 10) / 10, riskIndex: Math.round((10 + Math.random() * 40) * 10) / 10 },
+      metrics: {
+        marketSizeBillions: marketSize,
+        growthRatePercent: growthRate,
+        opportunityScore: Math.round((60 + Math.random() * 40) * 10) / 10,
+        riskIndex: Math.round((10 + Math.random() * 40) * 10) / 10,
+      },
       durationMs: Date.now() - start,
     };
   }
@@ -194,10 +209,42 @@ export class BusinessTeamService {
       analyzedAt: new Date().toISOString(),
       overallScore,
       categories: {
-        technical: { score: technicalScore, issues: ['Missing meta description on 3 pages', 'Duplicate H1 tags found on homepage', 'Robots.txt blocking CSS resources', 'Missing structured data (JSON-LD) on product pages', 'XML sitemap not submitted to Google Search Console'] },
-        content: { score: contentScore, issues: ['Thin content detected on 12 pages (<300 words)', 'Missing alt text on 8 images', 'Keyword cannibalization between blog posts', 'Content freshness: 40% of pages not updated in 6+ months'] },
-        backlinks: { score: backlinkScore, issues: ['Low domain authority compared to competitors', '5 toxic backlinks identified', 'Missing link building strategy for high-value pages'] },
-        pageSpeed: { score: pageSpeedScore, issues: ['Largest Contentful Paint: 3.2s (target: <2.5s)', 'Cumulative Layout Shift: 0.15 (target: <0.1)', 'Unoptimized images adding 1.8s to load time', 'Render-blocking JavaScript detected'] },
+        technical: {
+          score: technicalScore,
+          issues: [
+            'Missing meta description on 3 pages',
+            'Duplicate H1 tags found on homepage',
+            'Robots.txt blocking CSS resources',
+            'Missing structured data (JSON-LD) on product pages',
+            'XML sitemap not submitted to Google Search Console',
+          ],
+        },
+        content: {
+          score: contentScore,
+          issues: [
+            'Thin content detected on 12 pages (<300 words)',
+            'Missing alt text on 8 images',
+            'Keyword cannibalization between blog posts',
+            'Content freshness: 40% of pages not updated in 6+ months',
+          ],
+        },
+        backlinks: {
+          score: backlinkScore,
+          issues: [
+            'Low domain authority compared to competitors',
+            '5 toxic backlinks identified',
+            'Missing link building strategy for high-value pages',
+          ],
+        },
+        pageSpeed: {
+          score: pageSpeedScore,
+          issues: [
+            'Largest Contentful Paint: 3.2s (target: <2.5s)',
+            'Cumulative Layout Shift: 0.15 (target: <0.1)',
+            'Unoptimized images adding 1.8s to load time',
+            'Render-blocking JavaScript detected',
+          ],
+        },
       },
       keywords: {
         ranking: Math.floor(Math.random() * 20) + 5,
@@ -210,7 +257,10 @@ export class BusinessTeamService {
     };
 
     const ctx = this.contexts.get(projectId);
-    if (ctx) { ctx.seoReports.push({ url, score: overallScore, timestamp: new Date() }); ctx.lastActivity = new Date(); }
+    if (ctx) {
+      ctx.seoReports.push({ url, score: overallScore, timestamp: new Date() });
+      ctx.lastActivity = new Date();
+    }
 
     return {
       taskId: '',
@@ -225,7 +275,14 @@ export class BusinessTeamService {
         'Update thin content pages to minimum 800 words',
         'Submit XML sitemap and monitor indexing status',
       ],
-      metrics: { overallScore, technicalScore, contentScore, backlinkScore, pageSpeedScore, estimatedTrafficImpact: Math.floor(Math.random() * 5000) + 1000 },
+      metrics: {
+        overallScore,
+        technicalScore,
+        contentScore,
+        backlinkScore,
+        pageSpeedScore,
+        estimatedTrafficImpact: Math.floor(Math.random() * 5000) + 1000,
+      },
       durationMs: Date.now() - start,
     };
   }
@@ -233,7 +290,17 @@ export class BusinessTeamService {
   /**
    * Create a marketing campaign from a spec.
    */
-  async createCampaign(spec: { name?: string; type?: string; channels?: string[]; budget?: number; targetAudience?: string; duration?: string }, missionId?: string): Promise<BusinessResult> {
+  async createCampaign(
+    spec: {
+      name?: string;
+      type?: string;
+      channels?: string[];
+      budget?: number;
+      targetAudience?: string;
+      duration?: string;
+    },
+    missionId?: string,
+  ): Promise<BusinessResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
     const campaignName = spec.name || 'Untitled Campaign';
@@ -254,12 +321,24 @@ export class BusinessTeamService {
       budget,
       estimatedReach: Math.floor(budget * (50 + Math.random() * 100)),
       estimatedCTR: Math.round((1 + Math.random() * 4) * 100) / 100,
-      estimatedConversions: Math.floor(budget * (0.5 + Math.random() * 2) / 100),
+      estimatedConversions: Math.floor((budget * (0.5 + Math.random() * 2)) / 100),
       timeline: spec.duration || '4 weeks',
       phases: [
-        { name: 'Planning & Creative', duration: 'Week 1', tasks: ['Brief development', 'Creative design', 'Copy writing'] },
-        { name: 'Launch & Optimize', duration: 'Weeks 2-3', tasks: ['Channel activation', 'A/B testing', 'Performance monitoring'] },
-        { name: 'Analysis & Report', duration: 'Week 4', tasks: ['Performance review', 'ROI calculation', 'Learnings document'] },
+        {
+          name: 'Planning & Creative',
+          duration: 'Week 1',
+          tasks: ['Brief development', 'Creative design', 'Copy writing'],
+        },
+        {
+          name: 'Launch & Optimize',
+          duration: 'Weeks 2-3',
+          tasks: ['Channel activation', 'A/B testing', 'Performance monitoring'],
+        },
+        {
+          name: 'Analysis & Report',
+          duration: 'Week 4',
+          tasks: ['Performance review', 'ROI calculation', 'Learnings document'],
+        },
       ],
       kpis: {
         impressions: `~${Math.floor(budget * 50)}`,
@@ -270,7 +349,15 @@ export class BusinessTeamService {
     };
 
     const ctx = this.contexts.get(projectId);
-    if (ctx) { ctx.campaigns.push({ id: campaignId, name: campaignName, status: 'draft', createdAt: new Date() }); ctx.lastActivity = new Date(); }
+    if (ctx) {
+      ctx.campaigns.push({
+        id: campaignId,
+        name: campaignName,
+        status: 'draft',
+        createdAt: new Date(),
+      });
+      ctx.lastActivity = new Date();
+    }
 
     return {
       taskId: '',
@@ -283,7 +370,12 @@ export class BusinessTeamService {
         'Prepare retargeting audience from initial campaign reach',
         'Schedule content calendar aligned with campaign phases',
       ],
-      metrics: { budget, estimatedReach: report.estimatedReach, estimatedConversions: report.estimatedConversions, projectedROI: Math.round(parseFloat(report.kpis.returnOnAdSpend) * 100) / 100 },
+      metrics: {
+        budget,
+        estimatedReach: report.estimatedReach,
+        estimatedConversions: report.estimatedConversions,
+        projectedROI: Math.round(parseFloat(report.kpis.returnOnAdSpend) * 100) / 100,
+      },
       durationMs: Date.now() - start,
     };
   }
@@ -291,7 +383,11 @@ export class BusinessTeamService {
   /**
    * Generate a report from data in the specified format.
    */
-  async generateReport(data: any, format: 'pdf' | 'html' | 'json' | 'csv' = 'json', missionId?: string): Promise<BusinessResult> {
+  async generateReport(
+    data: any,
+    format: 'pdf' | 'html' | 'json' | 'csv' = 'json',
+    missionId?: string,
+  ): Promise<BusinessResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
 
@@ -305,19 +401,32 @@ export class BusinessTeamService {
       summary: {
         totalRecords: Array.isArray(data) ? data.length : 1,
         dateRange: 'Last 30 days',
-        keyFindings: ['Revenue increased 12% month-over-month', 'Customer acquisition cost decreased by 8%', 'Churn rate stable at 3.2%', 'Net Promoter Score improved to 72'],
+        keyFindings: [
+          'Revenue increased 12% month-over-month',
+          'Customer acquisition cost decreased by 8%',
+          'Churn rate stable at 3.2%',
+          'Net Promoter Score improved to 72',
+        ],
       },
       sections: ['Executive Summary', 'Key Metrics', 'Trends Analysis', 'Recommendations'],
     };
 
     const ctx = this.contexts.get(projectId);
-    if (ctx) { ctx.reports.push({ type: 'business', format, timestamp: new Date() }); ctx.lastActivity = new Date(); }
+    if (ctx) {
+      ctx.reports.push({ type: 'business', format, timestamp: new Date() });
+      ctx.lastActivity = new Date();
+    }
 
     return {
       taskId: '',
       success: true,
       report,
-      recommendations: ['Increase investment in top-performing acquisition channels', 'Implement customer success program to reduce churn', 'Develop upsell strategy for existing customer base', 'Expand reporting to include cohort analysis'],
+      recommendations: [
+        'Increase investment in top-performing acquisition channels',
+        'Implement customer success program to reduce churn',
+        'Develop upsell strategy for existing customer base',
+        'Expand reporting to include cohort analysis',
+      ],
       metrics: { recordCount: report.summary.totalRecords, sectionsCount: report.sections.length },
       durationMs: Date.now() - start,
     };
@@ -346,12 +455,25 @@ export class BusinessTeamService {
         security: { score: Math.floor(Math.random() * 20) + 75, issues: 1 },
         seo: { score: Math.floor(Math.random() * 35) + 60, issues: 4 },
       },
-      criticalIssues: ['Missing Content-Security-Policy header', 'Forms missing CSRF protection tokens', 'PII exposed in client-side JavaScript variables'],
-      warnings: ['Deprecated API endpoints still active', 'Missing rate limiting on public APIs', 'Cookie consent banner not GDPR-compliant', 'Third-party scripts loading without SRI', 'HTTP/2 not enabled on origin server'],
+      criticalIssues: [
+        'Missing Content-Security-Policy header',
+        'Forms missing CSRF protection tokens',
+        'PII exposed in client-side JavaScript variables',
+      ],
+      warnings: [
+        'Deprecated API endpoints still active',
+        'Missing rate limiting on public APIs',
+        'Cookie consent banner not GDPR-compliant',
+        'Third-party scripts loading without SRI',
+        'HTTP/2 not enabled on origin server',
+      ],
     };
 
     const ctx = this.contexts.get(projectId);
-    if (ctx) { ctx.audits.push({ target: url, score: auditScore, timestamp: new Date() }); ctx.lastActivity = new Date(); }
+    if (ctx) {
+      ctx.audits.push({ target: url, score: auditScore, timestamp: new Date() });
+      ctx.lastActivity = new Date();
+    }
 
     return {
       taskId: '',
@@ -366,7 +488,11 @@ export class BusinessTeamService {
         'Implement proper rate limiting on all public endpoints',
         'Update cookie consent to meet GDPR and CCPA requirements',
       ],
-      metrics: { overallScore: auditScore, criticalIssues: report.criticalIssues.length, warnings: report.warnings.length },
+      metrics: {
+        overallScore: auditScore,
+        criticalIssues: report.criticalIssues.length,
+        warnings: report.warnings.length,
+      },
       durationMs: Date.now() - start,
     };
   }
@@ -381,7 +507,9 @@ export class BusinessTeamService {
     this.logger.log(`Analyzing dataset for mission ${projectId}`);
     await this.sleep(700 + Math.random() * 500);
 
-    const rowCount = Array.isArray(dataset) ? dataset.length : Math.floor(Math.random() * 10000) + 100;
+    const rowCount = Array.isArray(dataset)
+      ? dataset.length
+      : Math.floor(Math.random() * 10000) + 100;
 
     const report = {
       datasetSize: rowCount,
@@ -393,13 +521,21 @@ export class BusinessTeamService {
         min: Math.round(Math.random() * 50),
         max: Math.round(Math.random() * 2000 + 500),
       },
-      distribution: { skewness: Math.round((Math.random() * 2 - 1) * 100) / 100, kurtosis: Math.round((2 + Math.random() * 4) * 100) / 100, normality: Math.random() > 0.5 ? 'approximately normal' : 'non-normal' },
+      distribution: {
+        skewness: Math.round((Math.random() * 2 - 1) * 100) / 100,
+        kurtosis: Math.round((2 + Math.random() * 4) * 100) / 100,
+        normality: Math.random() > 0.5 ? 'approximately normal' : 'non-normal',
+      },
       correlations: [
         { variable1: 'revenue', variable2: 'marketing_spend', coefficient: 0.82 },
         { variable1: 'customer_count', variable2: 'support_tickets', coefficient: 0.71 },
         { variable1: 'price', variable2: 'conversion_rate', coefficient: -0.45 },
       ],
-      outliers: { detected: Math.floor(Math.random() * 20) + 2, percentage: Math.round((Math.random() * 5 + 1) * 100) / 100, method: 'IQR (1.5x)' },
+      outliers: {
+        detected: Math.floor(Math.random() * 20) + 2,
+        percentage: Math.round((Math.random() * 5 + 1) * 100) / 100,
+        method: 'IQR (1.5x)',
+      },
     };
 
     return {
@@ -413,14 +549,21 @@ export class BusinessTeamService {
         'Segment data by key categorical variables for deeper insights',
         'Set up automated monitoring for data drift detection',
       ],
-      metrics: { rowsAnalyzed: rowCount, correlationsFound: report.correlations.length, outliersDetected: report.outliers.detected },
+      metrics: {
+        rowsAnalyzed: rowCount,
+        correlationsFound: report.correlations.length,
+        outliersDetected: report.outliers.detected,
+      },
       durationMs: Date.now() - start,
     };
   }
 
   // ─── Additional Capabilities ──────────────────────────────────────
 
-  private async developStrategy(params: { industry?: string; goal?: string; timeframe?: string }, missionId: string): Promise<BusinessResult> {
+  private async developStrategy(
+    params: { industry?: string; goal?: string; timeframe?: string },
+    missionId: string,
+  ): Promise<BusinessResult> {
     const start = Date.now();
     const industry = params.industry || 'technology';
     const goal = params.goal || 'growth';
@@ -439,10 +582,26 @@ export class BusinessTeamService {
         { name: 'Talent & Culture', priority: 'medium', initiatives: 2 },
       ],
       roadmap: [
-        { quarter: 'Q1', focus: 'Foundation', keyMilestones: ['Market research', 'Team hiring', 'MVP planning'] },
-        { quarter: 'Q2', focus: 'Build & Launch', keyMilestones: ['Product launch', 'First 100 customers', 'Partnership deals'] },
-        { quarter: 'Q3', focus: 'Scale', keyMilestones: ['Series A fundraise', '1000 customers', 'International expansion'] },
-        { quarter: 'Q4', focus: 'Optimize', keyMilestones: ['Unit economics positive', 'Market leadership', 'Strategic acquisitions'] },
+        {
+          quarter: 'Q1',
+          focus: 'Foundation',
+          keyMilestones: ['Market research', 'Team hiring', 'MVP planning'],
+        },
+        {
+          quarter: 'Q2',
+          focus: 'Build & Launch',
+          keyMilestones: ['Product launch', 'First 100 customers', 'Partnership deals'],
+        },
+        {
+          quarter: 'Q3',
+          focus: 'Scale',
+          keyMilestones: ['Series A fundraise', '1000 customers', 'International expansion'],
+        },
+        {
+          quarter: 'Q4',
+          focus: 'Optimize',
+          keyMilestones: ['Unit economics positive', 'Market leadership', 'Strategic acquisitions'],
+        },
       ],
     };
 
@@ -457,12 +616,19 @@ export class BusinessTeamService {
         'Consider strategic partnerships for faster market access',
         'Maintain 18-month runway buffer for unexpected challenges',
       ],
-      metrics: { strategicPillars: report.strategicPillars.length, quarterlyMilestones: report.roadmap.length, estimatedROI: Math.round((3 + Math.random() * 7) * 10) / 10 },
+      metrics: {
+        strategicPillars: report.strategicPillars.length,
+        quarterlyMilestones: report.roadmap.length,
+        estimatedROI: Math.round((3 + Math.random() * 7) * 10) / 10,
+      },
       durationMs: Date.now() - start,
     };
   }
 
-  private async manageCRM(params: { action?: string; contactId?: string; data?: any }, missionId: string): Promise<BusinessResult> {
+  private async manageCRM(
+    params: { action?: string; contactId?: string; data?: any },
+    missionId: string,
+  ): Promise<BusinessResult> {
     const start = Date.now();
     const action = params.action || 'list';
 
@@ -470,7 +636,10 @@ export class BusinessTeamService {
     await this.sleep(200 + Math.random() * 300);
 
     const ctx = this.contexts.get(missionId);
-    if (ctx) { ctx.crmContacts += Math.floor(Math.random() * 5) + 1; ctx.lastActivity = new Date(); }
+    if (ctx) {
+      ctx.crmContacts += Math.floor(Math.random() * 5) + 1;
+      ctx.lastActivity = new Date();
+    }
 
     const report = {
       action,
@@ -493,8 +662,16 @@ export class BusinessTeamService {
       taskId: '',
       success: true,
       report,
-      recommendations: ['Follow up with leads older than 7 days', 'Schedule demo calls for qualified prospects', 'Update deal values based on latest conversations'],
-      metrics: { totalContacts: report.totalContacts, pipelineValue: Object.values(report.pipeline).reduce((a, b) => a + b, 0), conversionRate: Math.round((5 + Math.random() * 15) * 10) / 10 },
+      recommendations: [
+        'Follow up with leads older than 7 days',
+        'Schedule demo calls for qualified prospects',
+        'Update deal values based on latest conversations',
+      ],
+      metrics: {
+        totalContacts: report.totalContacts,
+        pipelineValue: Object.values(report.pipeline).reduce((a, b) => a + b, 0),
+        conversionRate: Math.round((5 + Math.random() * 15) * 10) / 10,
+      },
       durationMs: Date.now() - start,
     };
   }
@@ -507,26 +684,35 @@ export class BusinessTeamService {
     tasksCompleted: number;
     tasksFailed: number;
     avgDurationMs: number;
-    contexts: Array<{ missionId: string; campaignCount: number; seoReportCount: number; crmContacts: number; reportCount: number; auditCount: number; lastActivity: Date }>;
+    contexts: Array<{
+      missionId: string;
+      campaignCount: number;
+      seoReportCount: number;
+      crmContacts: number;
+      reportCount: number;
+      auditCount: number;
+      lastActivity: Date;
+    }>;
   } {
-    const contextSummaries = Array.from(this.contexts.entries()).map(
-      ([missionId, ctx]) => ({
-        missionId,
-        campaignCount: ctx.campaigns.length,
-        seoReportCount: ctx.seoReports.length,
-        crmContacts: ctx.crmContacts,
-        reportCount: ctx.reports.length,
-        auditCount: ctx.audits.length,
-        lastActivity: ctx.lastActivity,
-      }),
-    );
+    const contextSummaries = Array.from(this.contexts.entries()).map(([missionId, ctx]) => ({
+      missionId,
+      campaignCount: ctx.campaigns.length,
+      seoReportCount: ctx.seoReports.length,
+      crmContacts: ctx.crmContacts,
+      reportCount: ctx.reports.length,
+      auditCount: ctx.audits.length,
+      lastActivity: ctx.lastActivity,
+    }));
 
     return {
       team: 'business',
       activeContexts: this.contexts.size,
       tasksCompleted: this.metrics.successfulTasks,
       tasksFailed: this.metrics.failedTasks,
-      avgDurationMs: this.metrics.totalTasks > 0 ? Math.round(this.metrics.totalDurationMs / this.metrics.totalTasks) : 0,
+      avgDurationMs:
+        this.metrics.totalTasks > 0
+          ? Math.round(this.metrics.totalDurationMs / this.metrics.totalTasks)
+          : 0,
       contexts: contextSummaries,
     };
   }
@@ -536,7 +722,15 @@ export class BusinessTeamService {
   private ensureContext(missionId: string): BusinessContext {
     let ctx = this.contexts.get(missionId);
     if (!ctx) {
-      ctx = { missionId, campaigns: [], seoReports: [], crmContacts: 0, reports: [], audits: [], lastActivity: new Date() };
+      ctx = {
+        missionId,
+        campaigns: [],
+        seoReports: [],
+        crmContacts: 0,
+        reports: [],
+        audits: [],
+        lastActivity: new Date(),
+      };
       this.contexts.set(missionId, ctx);
       this.logger.log(`Created business context for mission ${missionId}`);
     }

@@ -1,10 +1,10 @@
 /**
  * AENEWS Software Factory — Capability Resolver
- * 
+ *
  * Matches mission requirements to available capabilities in the registry.
  * This is MORE important than an agent registry — it resolves what the
  * platform CAN DO, not what agents EXIST.
- * 
+ *
  * Mission → Planner → Execution Graph → Capability Resolver → Worker Factory
  */
 
@@ -62,7 +62,7 @@ export class CapabilityResolverService {
     const inferred = this.inferFromMissionText(requirements.instruction);
     for (const cap of inferred) {
       // Avoid duplicates
-      if (!resolved.find(r => r.capabilityId === cap.id)) {
+      if (!resolved.find((r) => r.capabilityId === cap.id)) {
         resolved.push({
           capabilityId: cap.id,
           definition: cap,
@@ -75,9 +75,9 @@ export class CapabilityResolverService {
     }
 
     // Step 3: Add implied capabilities (if you need frontend, you probably need architecture too)
-    const implied = this.resolveImpliedCapabilities(resolved.map(r => r.capabilityId));
+    const implied = this.resolveImpliedCapabilities(resolved.map((r) => r.capabilityId));
     for (const capId of implied) {
-      if (!resolved.find(r => r.capabilityId === capId)) {
+      if (!resolved.find((r) => r.capabilityId === capId)) {
         const definition = this.registry.getCapability(capId);
         if (definition) {
           resolved.push({
@@ -102,8 +102,11 @@ export class CapabilityResolverService {
     resolved.sort((a, b) => a.priority - b.priority);
 
     // Calculate estimates
-    const totalCost = resolved.reduce((sum, r) => sum + r.definition.cost.estimatedUsdPerExecution, 0);
-    const maxLatency = Math.max(...resolved.map(r => r.definition.latency.estimatedMs));
+    const totalCost = resolved.reduce(
+      (sum, r) => sum + r.definition.cost.estimatedUsdPerExecution,
+      0,
+    );
+    const maxLatency = Math.max(...resolved.map((r) => r.definition.latency.estimatedMs));
     const confidence = this.calculateConfidence(resolved, requirements.instruction);
 
     const resolution: CapabilityResolution = {
@@ -127,7 +130,7 @@ export class CapabilityResolverService {
    */
   resolveIds(requirements: MissionRequirements): CapabilityId[] {
     const resolution = this.resolve(requirements);
-    return resolution.requiredCapabilities.map(r => r.capabilityId);
+    return resolution.requiredCapabilities.map((r) => r.capabilityId);
   }
 
   // ─── Inference Engine ───────────────────────────────────────
@@ -138,7 +141,7 @@ export class CapabilityResolverService {
 
   private getMatchingKeyword(cap: CapabilityDefinition, text: string): string {
     const lower = text.toLowerCase();
-    const match = cap.keywords.find(k => lower.includes(k));
+    const match = cap.keywords.find((k) => lower.includes(k));
     return match || cap.name;
   }
 
@@ -174,7 +177,7 @@ export class CapabilityResolverService {
 
   private resolveImpliedCapabilities(current: CapabilityId[]): CapabilityId[] {
     const implied: CapabilityId[] = [];
-    const hasDevCap = current.some(c => c.startsWith('dev.'));
+    const hasDevCap = current.some((c) => c.startsWith('dev.'));
 
     // If any dev capability is needed, architecture is usually implied
     if (hasDevCap && !current.includes('dev.architecture' as CapabilityId)) {
@@ -182,7 +185,10 @@ export class CapabilityResolverService {
     }
 
     // If frontend + backend are both present, API is implied
-    if (current.includes('dev.frontend' as CapabilityId) && current.includes('dev.backend' as CapabilityId)) {
+    if (
+      current.includes('dev.frontend' as CapabilityId) &&
+      current.includes('dev.backend' as CapabilityId)
+    ) {
       if (!current.includes('dev.api' as CapabilityId)) {
         implied.push('dev.api' as CapabilityId);
       }
@@ -217,7 +223,7 @@ export class CapabilityResolverService {
     }
 
     for (const capId of defaultCertCaps) {
-      if (!resolved.find(r => r.capabilityId === capId)) {
+      if (!resolved.find((r) => r.capabilityId === capId)) {
         const definition = this.registry.getCapability(capId);
         if (definition) {
           resolved.push({
@@ -258,7 +264,7 @@ export class CapabilityResolverService {
     defaultDeliverCaps.push('delivery.pdf_report' as CapabilityId);
 
     for (const capId of defaultDeliverCaps) {
-      if (!resolved.find(r => r.capabilityId === capId)) {
+      if (!resolved.find((r) => r.capabilityId === capId)) {
         const definition = this.registry.getCapability(capId);
         if (definition) {
           resolved.push({
@@ -282,7 +288,7 @@ export class CapabilityResolverService {
     if (!cap) return 5;
 
     // If multiple keywords match, higher priority
-    const matchCount = cap.keywords.filter(k => lower.includes(k)).length;
+    const matchCount = cap.keywords.filter((k) => lower.includes(k)).length;
     if (matchCount >= 3) return 1;
     if (matchCount >= 2) return 2;
     return 3;
@@ -292,7 +298,7 @@ export class CapabilityResolverService {
     if (resolved.length === 0) return 0;
 
     // Base confidence on how many capabilities were explicitly inferred (not implied)
-    const explicitCount = resolved.filter(r => r.priority <= 3).length;
+    const explicitCount = resolved.filter((r) => r.priority <= 3).length;
     const total = resolved.length;
 
     const explicitRatio = explicitCount / total;

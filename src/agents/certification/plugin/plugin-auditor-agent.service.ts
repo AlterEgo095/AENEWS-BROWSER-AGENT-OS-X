@@ -4,13 +4,11 @@
  * and plugin communication boundaries across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const PLUGIN_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'Plugin or plugin system to audit' },
-          depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+          depth: {
+            type: 'string',
+            enum: ['surface', 'deep', 'exhaustive'],
+            description: 'Audit depth',
+          },
         },
         required: ['target'],
       },
@@ -49,7 +51,10 @@ export const PLUGIN_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           pluginId: { type: 'string', description: 'Plugin to check isolation for' },
-          checkResourceAccess: { type: 'boolean', description: 'Verify resource access boundaries' },
+          checkResourceAccess: {
+            type: 'boolean',
+            description: 'Verify resource access boundaries',
+          },
         },
         required: ['pluginId'],
       },
@@ -67,7 +72,11 @@ export const PLUGIN_AUDITOR_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          pluginIds: { type: 'array', items: { type: 'string' }, description: 'Plugins to check compatibility' },
+          pluginIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Plugins to check compatibility',
+          },
           apiVersion: { type: 'string', description: 'Host API version' },
         },
       },
@@ -118,6 +127,11 @@ interface PluginIssue {
 
 @Injectable()
 export class PluginAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private pluginAuditLog: PluginIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -128,8 +142,7 @@ export class PluginAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-plugin',
       description: 'Perform a comprehensive plugin system audit',
-      execute: async (target: string, depth?: string) =>
-        this.performAudit({ target, depth }),
+      execute: async (target: string, depth?: string) => this.performAudit({ target, depth }),
     });
 
     this.registerTool({
@@ -149,16 +162,36 @@ export class PluginAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'audit-lifecycle',
       description: 'Audit plugin lifecycle management',
-      execute: async (pluginId: string) =>
-        this.auditLifecycle(pluginId),
+      execute: async (pluginId: string) => this.auditLifecycle(pluginId),
     });
 
     this.logger.log('PluginAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real integration connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.INTEGRATION, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -173,10 +206,7 @@ export class PluginAuditorAgent extends BaseAgentService {
           );
           break;
         case 'check-compatibility':
-          result = await this.checkCompatibility(
-            input.payload.pluginIds,
-            input.payload.apiVersion,
-          );
+          result = await this.checkCompatibility(input.payload.pluginIds, input.payload.apiVersion);
           break;
         case 'audit-lifecycle':
           result = await this.auditLifecycle(input.payload.pluginId);
@@ -186,13 +216,7 @@ export class PluginAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -208,7 +232,13 @@ export class PluginAuditorAgent extends BaseAgentService {
     const issues: PluginIssue[] = [];
     const recommendations: string[] = [];
 
-    const categories = ['isolation', 'sandboxing', 'compatibility', 'lifecycle', 'communication'] as const;
+    const categories = [
+      'isolation',
+      'sandboxing',
+      'compatibility',
+      'lifecycle',
+      'communication',
+    ] as const;
     const auditDepth = depth === 'exhaustive' ? 8 : depth === 'deep' ? 5 : 3;
 
     for (let i = 0; i < auditDepth; i++) {
@@ -223,19 +253,36 @@ export class PluginAuditorAgent extends BaseAgentService {
       this.pluginAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 25
+              : issue.severity === 'high'
+                ? 15
+                : issue.severity === 'medium'
+                  ? 8
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'isolation')) {
-      recommendations.push('Enforce strict plugin isolation using sandboxed execution environments');
+      recommendations.push(
+        'Enforce strict plugin isolation using sandboxed execution environments',
+      );
     }
     if (issues.some((i) => i.category === 'sandboxing')) {
-      recommendations.push('Implement resource limits and capability restrictions in plugin sandboxes');
+      recommendations.push(
+        'Implement resource limits and capability restrictions in plugin sandboxes',
+      );
     }
     if (issues.some((i) => i.category === 'compatibility')) {
-      recommendations.push('Implement semantic versioning and compatibility checks for plugin APIs');
+      recommendations.push(
+        'Implement semantic versioning and compatibility checks for plugin APIs',
+      );
     }
 
     this.logger.log(
@@ -325,7 +372,14 @@ export class PluginAuditorAgent extends BaseAgentService {
   private async auditLifecycle(
     pluginId: string,
   ): Promise<{ lifecycleScore: number; stateTransitions: any[]; resourceLeaks: any[] }> {
-    const states = ['installed', 'activating', 'active', 'deactivating', 'inactive', 'uninstalling'];
+    const states = [
+      'installed',
+      'activating',
+      'active',
+      'deactivating',
+      'inactive',
+      'uninstalling',
+    ];
     const stateTransitions = [];
     const resourceLeaks: any[] = [];
 
@@ -351,7 +405,10 @@ export class PluginAuditorAgent extends BaseAgentService {
       });
     }
 
-    const lifecycleScore = Math.max(0, 100 - resourceLeaks.length * 20 - stateTransitions.filter((t) => !t.success).length * 10);
+    const lifecycleScore = Math.max(
+      0,
+      100 - resourceLeaks.length * 20 - stateTransitions.filter((t) => !t.success).length * 10,
+    );
 
     this.logger.log(
       `Lifecycle audit for ${pluginId}: score ${lifecycleScore}, ${resourceLeaks.length} resource leaks`,

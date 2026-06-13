@@ -122,9 +122,7 @@ export class MemoryService implements IMemoryService {
         this.logger.warn(`Unknown memory tier: ${tier}`);
     }
 
-    this.logger.debug?.(
-      `Stored ${key} in ${tier} memory for agent ${agentId}`,
-    );
+    this.logger.debug?.(`Stored ${key} in ${tier} memory for agent ${agentId}`);
 
     return entry;
   }
@@ -143,11 +141,7 @@ export class MemoryService implements IMemoryService {
     }
 
     // Otherwise, search tiers in order of speed (fastest first)
-    const tierOrder = [
-      MemoryTier.WORKING,
-      MemoryTier.SESSION,
-      MemoryTier.LONG_TERM,
-    ];
+    const tierOrder = [MemoryTier.WORKING, MemoryTier.SESSION, MemoryTier.LONG_TERM];
 
     for (const searchTier of tierOrder) {
       const entry = await this.retrieveFromTier<T>(agentId, key, searchTier);
@@ -165,27 +159,29 @@ export class MemoryService implements IMemoryService {
 
     // Query long-term memory (primary queryable tier)
     const ltResult = await this.longTermMemory.query<T>(query);
-    results.push(...ltResult.entries.map((entry) => {
-      const ltEntry = entry as any;
-      return {
-        id: ltEntry.id,
-        key: ltEntry.key,
-        value: ltEntry.value as T,
-        tier: MemoryTier.LONG_TERM,
-        agentId: ltEntry.agentId,
-        metadata: {
-          source: 'long_term_memory',
-          confidence: ltEntry.confidence ?? 1.0,
-          tags: ltEntry.tags ?? [],
-          accessCount: ltEntry.accessCount ?? 0,
-          lastAccessedAt: ltEntry.lastAccessedAt ?? new Date(),
-          size: this.estimateSize(ltEntry.value),
-          encoding: MemoryEncoding.JSON,
-        },
-        createdAt: ltEntry.createdAt,
-        updatedAt: ltEntry.updatedAt,
-      };
-    }));
+    results.push(
+      ...ltResult.entries.map((entry) => {
+        const ltEntry = entry as any;
+        return {
+          id: ltEntry.id,
+          key: ltEntry.key,
+          value: ltEntry.value as T,
+          tier: MemoryTier.LONG_TERM,
+          agentId: ltEntry.agentId,
+          metadata: {
+            source: 'long_term_memory',
+            confidence: ltEntry.confidence ?? 1.0,
+            tags: ltEntry.tags ?? [],
+            accessCount: ltEntry.accessCount ?? 0,
+            lastAccessedAt: ltEntry.lastAccessedAt ?? new Date(),
+            size: this.estimateSize(ltEntry.value),
+            encoding: MemoryEncoding.JSON,
+          },
+          createdAt: ltEntry.createdAt,
+          updatedAt: ltEntry.updatedAt,
+        };
+      }),
+    );
 
     // Also check working memory if agent specified
     if (query.agentId) {
@@ -231,11 +227,7 @@ export class MemoryService implements IMemoryService {
    * Delete a memory entry.
    */
   async delete(agentId: string, key: string, tier?: MemoryTier): Promise<boolean> {
-    const tiers = tier ? [tier] : [
-      MemoryTier.WORKING,
-      MemoryTier.SESSION,
-      MemoryTier.LONG_TERM,
-    ];
+    const tiers = tier ? [tier] : [MemoryTier.WORKING, MemoryTier.SESSION, MemoryTier.LONG_TERM];
 
     let deleted = false;
 
@@ -272,11 +264,7 @@ export class MemoryService implements IMemoryService {
   async clear(agentId: string, tier?: MemoryTier): Promise<number> {
     let totalCleared = 0;
 
-    const tiers = tier ? [tier] : [
-      MemoryTier.WORKING,
-      MemoryTier.SESSION,
-      MemoryTier.LONG_TERM,
-    ];
+    const tiers = tier ? [tier] : [MemoryTier.WORKING, MemoryTier.SESSION, MemoryTier.LONG_TERM];
 
     for (const clearTier of tiers) {
       switch (clearTier) {

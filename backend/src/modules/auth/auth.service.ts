@@ -20,7 +20,7 @@ export class AuthService {
     private readonly eventService: EventService,
   ) {}
 
-  async register(dto: { email: string; password: string; firstName: string; lastName: string; tenantSlug?: string }): Promise<{ user: User; token: string }> {
+  async register(dto: { email: string; password: string; firstName: string; lastName: string; tenantSlug?: string }): Promise<{ user: User; access_token: string }> {
     const existing = await this.userRepository.findOne({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
 
@@ -61,10 +61,10 @@ export class AuthService {
       tenantId: saved.tenantId,
     });
 
-    return { user: saved, token };
+    return { user: saved, access_token: token };
   }
 
-  async login(dto: { email: string; password: string }): Promise<{ user: User; token: string }> {
+  async login(dto: { email: string; password: string }): Promise<{ user: User; access_token: string }> {
     const user = await this.userRepository.findOne({ where: { email: dto.email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
@@ -86,7 +86,7 @@ export class AuthService {
       tenantId: user.tenantId,
     });
 
-    return { user, token };
+    return { user, access_token: token };
   }
 
   async validateUser(payload: any): Promise<User> {

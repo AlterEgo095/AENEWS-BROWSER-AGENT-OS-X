@@ -4,13 +4,11 @@
  * privacy controls, and audit trail integrity across the agent framework.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
-import {
-  AgentConfig,
-  AgentInput,
-  AgentOutput,
-} from '../../interfaces/agent.interface';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { CertCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -29,7 +27,11 @@ export const COMPLIANCE_AUDITOR_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           target: { type: 'string', description: 'System or process to audit compliance' },
-          frameworks: { type: 'array', items: { type: 'string' }, description: 'Compliance frameworks to check' },
+          frameworks: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Compliance frameworks to check',
+          },
         },
         required: ['target'],
       },
@@ -94,7 +96,12 @@ export const COMPLIANCE_AUDITOR_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: ['certification:audit', 'certification:compliance', 'read:compliance', 'read:audit-log'],
+  permissions: [
+    'certification:audit',
+    'certification:compliance',
+    'read:compliance',
+    'read:audit-log',
+  ],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
@@ -115,6 +122,11 @@ interface ComplianceIssue {
 
 @Injectable()
 export class ComplianceAuditorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private complianceAuditLog: ComplianceIssue[] = [];
 
   protected defineConfig(): AgentConfig {
@@ -132,30 +144,48 @@ export class ComplianceAuditorAgent extends BaseAgentService {
     this.registerTool({
       name: 'check-gdpr',
       description: 'Check GDPR compliance',
-      execute: async (target?: string) =>
-        this.checkGDPR(target),
+      execute: async (target?: string) => this.checkGDPR(target),
     });
 
     this.registerTool({
       name: 'check-soc2',
       description: 'Check SOC2 compliance',
-      execute: async (target?: string) =>
-        this.checkSOC2(target),
+      execute: async (target?: string) => this.checkSOC2(target),
     });
 
     this.registerTool({
       name: 'audit-data-handling',
       description: 'Audit data handling practices',
-      execute: async (dataType?: string) =>
-        this.auditDataHandling(dataType),
+      execute: async (dataType?: string) => this.auditDataHandling(dataType),
     });
 
     this.logger.log('ComplianceAuditor agent initialized with 4 tools');
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'audit';
     const startTime = Date.now();
+    // Bridge: delegate to real compliance connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(CertCapability.COMPLIANCE, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'audit';
 
     try {
       let result: any;
@@ -177,13 +207,7 @@ export class ComplianceAuditorAgent extends BaseAgentService {
       }
       return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
     } catch (error) {
-      return this.createAgentOutput(
-        input.taskId,
-        false,
-        null,
-        (error as Error).message,
-        startTime,
-      );
+      return this.createAgentOutput(input.taskId, false, null, (error as Error).message, startTime);
     }
   }
 
@@ -210,16 +234,30 @@ export class ComplianceAuditorAgent extends BaseAgentService {
         category,
         description: `Compliance issue in ${target}: ${this.getComplianceDescription(category)}`,
         article: category === 'gdpr' ? `Article ${Math.floor(Math.random() * 50) + 1}` : undefined,
-        control: category === 'soc2' ? `CC${Math.floor(Math.random() * 9) + 1}.${Math.floor(Math.random() * 3) + 1}` : undefined,
+        control:
+          category === 'soc2'
+            ? `CC${Math.floor(Math.random() * 9) + 1}.${Math.floor(Math.random() * 3) + 1}`
+            : undefined,
       };
       issues.push(issue);
       this.complianceAuditLog.push(issue);
     }
 
-    const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-      const weight = issue.severity === 'critical' ? 30 : issue.severity === 'high' ? 20 : issue.severity === 'medium' ? 10 : 3;
-      return penalty + weight;
-    }, 0));
+    const score = Math.max(
+      0,
+      100 -
+        issues.reduce((penalty, issue) => {
+          const weight =
+            issue.severity === 'critical'
+              ? 30
+              : issue.severity === 'high'
+                ? 20
+                : issue.severity === 'medium'
+                  ? 10
+                  : 3;
+          return penalty + weight;
+        }, 0),
+    );
 
     if (issues.some((i) => i.category === 'gdpr')) {
       recommendations.push('Implement data subject access request handling and consent management');
@@ -228,7 +266,9 @@ export class ComplianceAuditorAgent extends BaseAgentService {
       recommendations.push('Strengthen access controls and implement comprehensive audit logging');
     }
     if (issues.some((i) => i.category === 'data_handling')) {
-      recommendations.push('Implement data classification, retention policies, and encryption at rest');
+      recommendations.push(
+        'Implement data classification, retention policies, and encryption at rest',
+      );
     }
 
     this.logger.log(
@@ -238,27 +278,51 @@ export class ComplianceAuditorAgent extends BaseAgentService {
     return { score, issues, recommendations };
   }
 
-  private async checkGDPR(
-    target?: string,
-  ): Promise<{ gdprScore: number; violations: any[] }> {
+  private async checkGDPR(target?: string): Promise<{ gdprScore: number; violations: any[] }> {
     const gdprArticles = [
-      { article: 'Article 6', requirement: 'Lawfulness of processing', compliant: Math.random() > 0.3 },
-      { article: 'Article 7', requirement: 'Conditions for consent', compliant: Math.random() > 0.3 },
-      { article: 'Article 13', requirement: 'Information to be provided', compliant: Math.random() > 0.4 },
+      {
+        article: 'Article 6',
+        requirement: 'Lawfulness of processing',
+        compliant: Math.random() > 0.3,
+      },
+      {
+        article: 'Article 7',
+        requirement: 'Conditions for consent',
+        compliant: Math.random() > 0.3,
+      },
+      {
+        article: 'Article 13',
+        requirement: 'Information to be provided',
+        compliant: Math.random() > 0.4,
+      },
       { article: 'Article 17', requirement: 'Right to erasure', compliant: Math.random() > 0.3 },
-      { article: 'Article 25', requirement: 'Data protection by design', compliant: Math.random() > 0.4 },
-      { article: 'Article 32', requirement: 'Security of processing', compliant: Math.random() > 0.3 },
+      {
+        article: 'Article 25',
+        requirement: 'Data protection by design',
+        compliant: Math.random() > 0.4,
+      },
+      {
+        article: 'Article 32',
+        requirement: 'Security of processing',
+        compliant: Math.random() > 0.3,
+      },
       { article: 'Article 33', requirement: 'Breach notification', compliant: Math.random() > 0.5 },
-      { article: 'Article 35', requirement: 'Data protection impact assessment', compliant: Math.random() > 0.4 },
+      {
+        article: 'Article 35',
+        requirement: 'Data protection impact assessment',
+        compliant: Math.random() > 0.4,
+      },
     ];
 
-    const violations = gdprArticles.filter((a) => !a.compliant).map((a) => ({
-      article: a.article,
-      requirement: a.requirement,
-      status: 'non_compliant',
-      severity: 'high',
-      target: target || 'all',
-    }));
+    const violations = gdprArticles
+      .filter((a) => !a.compliant)
+      .map((a) => ({
+        article: a.article,
+        requirement: a.requirement,
+        status: 'non_compliant',
+        severity: 'high',
+        target: target || 'all',
+      }));
 
     const gdprScore = Math.round(
       ((gdprArticles.length - violations.length) / gdprArticles.length) * 100,
@@ -271,9 +335,7 @@ export class ComplianceAuditorAgent extends BaseAgentService {
     return { gdprScore, violations };
   }
 
-  private async checkSOC2(
-    target?: string,
-  ): Promise<{ soc2Score: number; controlGaps: any[] }> {
+  private async checkSOC2(target?: string): Promise<{ soc2Score: number; controlGaps: any[] }> {
     const controls = [
       { control: 'CC1.1', category: 'Control Environment', implemented: Math.random() > 0.3 },
       { control: 'CC2.1', category: 'Communication', implemented: Math.random() > 0.4 },
@@ -287,17 +349,17 @@ export class ComplianceAuditorAgent extends BaseAgentService {
       { control: 'CC9.1', category: 'Risk Mitigation', implemented: Math.random() > 0.4 },
     ];
 
-    const controlGaps = controls.filter((c) => !c.implemented).map((c) => ({
-      control: c.control,
-      category: c.category,
-      status: 'gap',
-      severity: 'high',
-      target: target || 'all',
-    }));
+    const controlGaps = controls
+      .filter((c) => !c.implemented)
+      .map((c) => ({
+        control: c.control,
+        category: c.category,
+        status: 'gap',
+        severity: 'high',
+        target: target || 'all',
+      }));
 
-    const soc2Score = Math.round(
-      ((controls.length - controlGaps.length) / controls.length) * 100,
-    );
+    const soc2Score = Math.round(((controls.length - controlGaps.length) / controls.length) * 100);
 
     this.logger.log(
       `SOC2 check for ${target || 'all'}: score ${soc2Score}, ${controlGaps.length} gaps`,

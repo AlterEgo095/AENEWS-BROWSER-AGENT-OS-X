@@ -26,7 +26,7 @@ interface CacheEntry {
 
 // ─── LLM Metrics ────────────────────────────────────────────────
 
-interface LLMMetrics {
+export interface LLMMetrics {
   totalCalls: number;
   cacheHits: number;
   cacheMisses: number;
@@ -49,7 +49,10 @@ export class LLMHelper {
   /** Metrics */
   private totalLatencyMs = 0;
   private totalCostUsd = 0;
-  private readonly byConnector = new Map<string, { calls: number; costUsd: number; totalMs: number }>();
+  private readonly byConnector = new Map<
+    string,
+    { calls: number; costUsd: number; totalMs: number }
+  >();
 
   constructor(options?: { maxCacheSize?: number; cacheTtlMs?: number }) {
     this.maxCacheSize = options?.maxCacheSize ?? 200;
@@ -65,7 +68,9 @@ export class LLMHelper {
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.cacheTtlMs) {
       cached.hitCount++;
-      this.logger.log(`LLM cache HIT (used ${cached.hitCount}x) — saved $${cached.result.costUsd.toFixed(4)}`);
+      this.logger.log(
+        `LLM cache HIT (used ${cached.hitCount}x) — saved $${cached.result.costUsd.toFixed(4)}`,
+      );
       return { ...cached.result, retries: 0 };
     }
 
@@ -119,8 +124,10 @@ export class LLMHelper {
         const isRateLimit = err.message?.includes('429') || err.message?.includes('rate');
         if (isRateLimit && attempt < maxRetries - 1) {
           const delayMs = Math.pow(2, attempt) * 3000;
-          this.logger.warn(`Rate limited, retrying in ${delayMs / 1000}s... (${attempt + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
+          this.logger.warn(
+            `Rate limited, retrying in ${delayMs / 1000}s... (${attempt + 1}/${maxRetries})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
         }
         this.logger.warn(`LLM call failed (attempt ${attempt + 1}): ${err.message}`);
@@ -162,10 +169,21 @@ export class LLMHelper {
     // Format 2: ```language ... ``` with filename inference
     const codeBlockRegex = /```(\w*?)\s*\n([\s\S]*?)```/g;
     const langMap: Record<string, string> = {
-      html: 'index.html', css: 'style.css', javascript: 'app.js', js: 'app.js',
-      typescript: 'app.ts', ts: 'app.ts', python: 'app.py', json: 'package.json',
-      yaml: 'docker-compose.yml', yml: 'docker-compose.yml', dockerfile: 'Dockerfile',
-      bash: 'start.sh', sh: 'start.sh', sql: 'schema.sql', md: 'README.md',
+      html: 'index.html',
+      css: 'style.css',
+      javascript: 'app.js',
+      js: 'app.js',
+      typescript: 'app.ts',
+      ts: 'app.ts',
+      python: 'app.py',
+      json: 'package.json',
+      yaml: 'docker-compose.yml',
+      yml: 'docker-compose.yml',
+      dockerfile: 'Dockerfile',
+      bash: 'start.sh',
+      sh: 'start.sh',
+      sql: 'schema.sql',
+      md: 'README.md',
     };
 
     while ((match = codeBlockRegex.exec(response)) !== null) {
@@ -223,7 +241,11 @@ export class LLMHelper {
   getMetrics(): LLMMetrics {
     const byConnectorObj: Record<string, { calls: number; costUsd: number; avgMs: number }> = {};
     for (const [name, m] of this.byConnector) {
-      byConnectorObj[name] = { calls: m.calls, costUsd: m.costUsd, avgMs: Math.round(m.totalMs / m.calls) };
+      byConnectorObj[name] = {
+        calls: m.calls,
+        costUsd: m.costUsd,
+        avgMs: Math.round(m.totalMs / m.calls),
+      };
     }
 
     return {
@@ -311,7 +333,9 @@ export class LLMHelper {
     // If it has artifacts, list them
     const artifacts = output.artifacts || output.results?.artifacts || [];
     const artifactList = Array.isArray(artifacts)
-      ? artifacts.map((a: any) => `- ${a.name || a.path} (${a.type || 'file'}, ${a.size || '?'} bytes)`).join('\n')
+      ? artifacts
+          .map((a: any) => `- ${a.name || a.path} (${a.type || 'file'}, ${a.size || '?'} bytes)`)
+          .join('\n')
       : '';
 
     // If it has output content, summarize
@@ -322,7 +346,9 @@ export class LLMHelper {
       } else if (output.output.content) {
         contentSummary = String(output.output.content).substring(0, 500);
       } else if (output.output.architecture || output.output.analysis) {
-        contentSummary = String(output.output.architecture || output.output.analysis || '').substring(0, 500);
+        contentSummary = String(
+          output.output.architecture || output.output.analysis || '',
+        ).substring(0, 500);
       } else {
         contentSummary = JSON.stringify(output.output).substring(0, 500);
       }

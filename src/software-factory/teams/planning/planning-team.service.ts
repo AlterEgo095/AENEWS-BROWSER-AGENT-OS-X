@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Planning Team
- * 
+ *
  * Responsible for: Research, Architecture, Business Analysis, Marketing Strategy
  * Creates the execution plan that guides the mission.
  */
@@ -92,14 +92,20 @@ export class PlanningTeamService {
     const instructionLower = instruction.toLowerCase();
 
     // Analyze mission requirements
-    const requiresBrowser = /site|web|navigate|browser|scrap|facebook|google|url|http/i.test(instruction);
-    const requiresCoding = /créer|create|develop|build|saas|app|application|code|api|backend|frontend/i.test(instruction);
+    const requiresBrowser = /site|web|navigate|browser|scrap|facebook|google|url|http/i.test(
+      instruction,
+    );
+    const requiresCoding =
+      /créer|create|develop|build|saas|app|application|code|api|backend|frontend/i.test(
+        instruction,
+      );
     const requiresDocuments = /rapport|report|pdf|document|audit|analyse/i.test(instruction);
     const requiresDeployment = /deploy|déploy|docker|cloud|host|server/i.test(instruction);
     const requiresWebScraping = /scrap|extract|collect|monitor|track/i.test(instruction);
     const requiresDevelopment = requiresCoding || /développ|implement|intégr/i.test(instruction);
     const requiresReports = requiresDocuments || /report|rapport|summary|résumé/i.test(instruction);
-    const requiresInfrastructure = requiresDeployment || /infrastructure|server|scaling|monitoring/i.test(instruction);
+    const requiresInfrastructure =
+      requiresDeployment || /infrastructure|server|scaling|monitoring/i.test(instruction);
 
     // Build phases
     const phases: PlanPhase[] = [];
@@ -225,7 +231,11 @@ export class PlanningTeamService {
       name: 'Certification',
       description: 'Test, audit, and certify all deliverables',
       teamType: TeamType.CERTIFICATION,
-      assignedRoles: [AgentRole.QA_TESTER, AgentRole.SECURITY_AUDITOR, AgentRole.DOCUMENTATION_WRITER],
+      assignedRoles: [
+        AgentRole.QA_TESTER,
+        AgentRole.SECURITY_AUDITOR,
+        AgentRole.DOCUMENTATION_WRITER,
+      ],
       tasks: [
         {
           id: `task-${uuidv4().slice(0, 8)}`,
@@ -301,14 +311,19 @@ export class PlanningTeamService {
     };
 
     this.plans.set(missionId, plan);
-    this.logger.log(`Plan created for mission ${missionId}: ${phases.length} phases, ${risks.length} risks`);
+    this.logger.log(
+      `Plan created for mission ${missionId}: ${phases.length} phases, ${risks.length} risks`,
+    );
     return plan;
   }
 
   /**
    * Execute research phase
    */
-  async executeResearch(missionId: string, plan: MissionPlan | undefined): Promise<ResearchResults> {
+  async executeResearch(
+    missionId: string,
+    plan: MissionPlan | undefined,
+  ): Promise<ResearchResults> {
     this.logger.log(`Planning team executing research for mission ${missionId}`);
 
     const results: ResearchResults = {
@@ -317,14 +332,16 @@ export class PlanningTeamService {
         {
           topic: 'Domain Analysis',
           summary: `Analyzed requirements for mission ${missionId}`,
-          details: 'Identified key components, technology choices, and implementation strategy based on mission objectives and constraints.',
+          details:
+            'Identified key components, technology choices, and implementation strategy based on mission objectives and constraints.',
           confidence: 0.85,
           source: 'internal_analysis',
         },
         {
           topic: 'Technology Selection',
           summary: 'Selected optimal technology stack',
-          details: 'Evaluated multiple frameworks and tools based on mission requirements, team capabilities, and budget constraints.',
+          details:
+            'Evaluated multiple frameworks and tools based on mission requirements, team capabilities, and budget constraints.',
           confidence: 0.9,
           source: 'technology_evaluation',
         },

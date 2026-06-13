@@ -13,7 +13,9 @@ export class DevTeamService {
 
   constructor(private readonly registry: AgentRegistryService) {}
 
-  getTeamAgents() { return this.registry.getByLevel(AgentLevel.DEVELOPMENT); }
+  getTeamAgents() {
+    return this.registry.getByLevel(AgentLevel.DEVELOPMENT);
+  }
 
   selectAgents(taskDescription: string): SpecializedAgentId[] {
     const desc = taskDescription.toLowerCase();
@@ -23,7 +25,8 @@ export class DevTeamService {
     if (/frontend|react|vue|ui|interface|css/i.test(desc)) agents.push(DevAgent.FRONTEND);
     if (/backend|serveur|server|api|nest/i.test(desc)) agents.push(DevAgent.BACKEND);
     if (/database|base.*données|sql|prisma/i.test(desc)) agents.push(DevAgent.DATABASE);
-    if (/api|endpoint|rest|graphql/i.test(desc) && !agents.includes(DevAgent.BACKEND)) agents.push(DevAgent.API);
+    if (/api|endpoint|rest|graphql/i.test(desc) && !agents.includes(DevAgent.BACKEND))
+      agents.push(DevAgent.API);
     if (/devops|ci.?cd|pipeline/i.test(desc)) agents.push(DevAgent.DEVOPS);
     if (/docker|container|image/i.test(desc)) agents.push(DevAgent.DOCKER);
     if (/kubernetes|k8s|cluster/i.test(desc)) agents.push(DevAgent.KUBERNETES);
@@ -40,7 +43,11 @@ export class DevTeamService {
     return [...new Set(agents)];
   }
 
-  async executeTask(missionId: string, task: string, input: Record<string, any>): Promise<AgentExecutionResult> {
+  async executeTask(
+    missionId: string,
+    task: string,
+    input: Record<string, any>,
+  ): Promise<AgentExecutionResult> {
     const selectedAgents = this.selectAgents(task);
     this.logger.log(`Dev team executing: "${task}" with ${selectedAgents.length} agents`);
 
@@ -48,11 +55,16 @@ export class DevTeamService {
       agentId: DevAgent.ARCHITECT,
       missionId,
       success: true,
-      output: { task, agentsUsed: selectedAgents, result: 'Development task completed', data: input },
+      output: {
+        task,
+        agentsUsed: selectedAgents,
+        result: 'Development task completed',
+        data: input,
+      },
       artifacts: [],
       cost: selectedAgents.length * 0.3,
       durationMs: selectedAgents.length * 2000,
-      logs: selectedAgents.map(a => `Agent ${a} executed`),
+      logs: selectedAgents.map((a) => `Agent ${a} executed`),
       errors: [],
     };
   }
@@ -61,8 +73,11 @@ export class DevTeamService {
     return {
       level: AgentLevel.DEVELOPMENT,
       totalAgents: 12,
-      availableAgents: this.getTeamAgents().map(a => ({
-        id: a.id, name: a.name, skills: a.skills, costPerTask: a.estimatedCostPerTask,
+      availableAgents: this.getTeamAgents().map((a) => ({
+        id: a.id,
+        name: a.name,
+        skills: a.skills,
+        costPerTask: a.estimatedCostPerTask,
       })),
     };
   }

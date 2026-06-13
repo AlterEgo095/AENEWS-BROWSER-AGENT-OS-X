@@ -166,7 +166,9 @@ export class CertificationRunnerService {
       this.logger.log(`  EQI: ${eqi} | Level: ${level} | Milestone: ${milestone || 'none'}`);
       this.logger.log(`  Tests: ${summary.passed}/${summary.totalTests} passed`);
       this.logger.log(`  Critical Issues: ${criticalIssues.length}`);
-      this.logger.log(`  Governance: ${report.governanceCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}`);
+      this.logger.log(
+        `  Governance: ${report.governanceCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}`,
+      );
       if (previousEqi !== undefined) {
         this.logger.log(`  EQI Delta: ${report.eqiDelta! >= 0 ? '+' : ''}${report.eqiDelta}`);
       }
@@ -175,7 +177,10 @@ export class CertificationRunnerService {
 
       return report;
     } catch (error) {
-      this.logger.error(`Certification run failed: ${(error as Error).message}`, (error as Error).stack);
+      this.logger.error(
+        `Certification run failed: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       throw error;
     } finally {
       this.isRunning = false;
@@ -259,7 +264,10 @@ export class CertificationRunnerService {
         passed: analysis.cycles.length === 0,
         score: analysis.cycles.length === 0 ? 100 : Math.max(0, 100 - analysis.cycles.length * 20),
         durationMs: Date.now() - startTime,
-        details: { cycleCount: analysis.cycles.length, cycles: analysis.cycles.map((c) => c.description) },
+        details: {
+          cycleCount: analysis.cycles.length,
+          cycles: analysis.cycles.map((c) => c.description),
+        },
       });
 
       tests.push({
@@ -273,13 +281,18 @@ export class CertificationRunnerService {
       tests.push({
         name: 'Cross-cluster import validation',
         passed: analysis.crossClusterImports.length === 0,
-        score: analysis.crossClusterImports.length === 0 ? 100 : Math.max(0, 100 - analysis.crossClusterImports.length * 15),
+        score:
+          analysis.crossClusterImports.length === 0
+            ? 100
+            : Math.max(0, 100 - analysis.crossClusterImports.length * 15),
         durationMs: Date.now() - startTime,
         details: { crossClusterImports: analysis.crossClusterImports.length },
       });
 
       if (analysis.cycles.some((c) => c.severity === 'critical')) {
-        criticalFailures.push(`Circular dependencies detected: ${analysis.cycles.filter((c) => c.severity === 'critical').length} critical cycles`);
+        criticalFailures.push(
+          `Circular dependencies detected: ${analysis.cycles.filter((c) => c.severity === 'critical').length} critical cycles`,
+        );
       }
     } catch (error) {
       tests.push({
@@ -291,7 +304,10 @@ export class CertificationRunnerService {
       });
     }
 
-    const allTests = [...archResult.tests, ...tests.filter((t) => !archResult.tests.some((at) => at.name === t.name))];
+    const allTests = [
+      ...archResult.tests,
+      ...tests.filter((t) => !archResult.tests.some((at) => at.name === t.name)),
+    ];
     const totalScore = allTests.reduce((sum, t) => sum + t.score, 0);
     const score = allTests.length > 0 ? Math.round(totalScore / allTests.length) : 0;
     const allCriticals = [...archResult.criticalFailures, ...criticalFailures];
@@ -315,7 +331,13 @@ export class CertificationRunnerService {
     // Add Memory Gateway checks
     const fs = await import('fs');
     const path = await import('path');
-    const gatewayPath = path.resolve(__dirname, '..', 'gateway', 'memory', 'memory-gateway.service.ts');
+    const gatewayPath = path.resolve(
+      __dirname,
+      '..',
+      'gateway',
+      'memory',
+      'memory-gateway.service.ts',
+    );
 
     tests.push({
       name: 'Unified Memory Gateway existence',
@@ -328,14 +350,25 @@ export class CertificationRunnerService {
     // Check for unified API methods
     if (fs.existsSync(gatewayPath)) {
       const content = fs.readFileSync(gatewayPath, 'utf-8');
-      const requiredMethods = ['store(', 'retrieve(', 'search(', 'summarize(', 'promote(', 'archive(', 'crossTierRetrieve('];
+      const requiredMethods = [
+        'store(',
+        'retrieve(',
+        'search(',
+        'summarize(',
+        'promote(',
+        'archive(',
+        'crossTierRetrieve(',
+      ];
       const foundMethods = requiredMethods.filter((m) => content.includes(m));
       tests.push({
         name: 'Memory Gateway unified API',
         passed: foundMethods.length === requiredMethods.length,
         score: Math.round((foundMethods.length / requiredMethods.length) * 100),
         durationMs: 0,
-        details: { foundMethods, missingMethods: requiredMethods.filter((m) => !foundMethods.includes(m)) },
+        details: {
+          foundMethods,
+          missingMethods: requiredMethods.filter((m) => !foundMethods.includes(m)),
+        },
       });
 
       const hasCrossTier = content.includes('crossTierRetrieve');
@@ -369,7 +402,13 @@ export class CertificationRunnerService {
     // Add Security Gateway checks
     const fs = await import('fs');
     const path = await import('path');
-    const gatewayPath = path.resolve(__dirname, '..', 'gateway', 'security', 'security-gateway.service.ts');
+    const gatewayPath = path.resolve(
+      __dirname,
+      '..',
+      'gateway',
+      'security',
+      'security-gateway.service.ts',
+    );
 
     tests.push({
       name: 'Security Gateway existence',
@@ -382,7 +421,10 @@ export class CertificationRunnerService {
       const content = fs.readFileSync(gatewayPath, 'utf-8');
 
       // Check injection prevention
-      const hasInjectionDetection = content.includes('PROMPT_INJECTION') && content.includes('COMMAND_INJECTION') && content.includes('SQL_INJECTION');
+      const hasInjectionDetection =
+        content.includes('PROMPT_INJECTION') &&
+        content.includes('COMMAND_INJECTION') &&
+        content.includes('SQL_INJECTION');
       tests.push({
         name: 'Injection prevention patterns',
         passed: hasInjectionDetection,
@@ -391,7 +433,8 @@ export class CertificationRunnerService {
       });
 
       // Check policy engine
-      const hasPolicyEngine = content.includes('evaluatePolicies') && content.includes('SecurityPolicy');
+      const hasPolicyEngine =
+        content.includes('evaluatePolicies') && content.includes('SecurityPolicy');
       tests.push({
         name: 'Policy engine',
         passed: hasPolicyEngine,
@@ -473,7 +516,19 @@ export class CertificationRunnerService {
     });
 
     // Check test directories for each cluster
-    const clusters = ['browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence', 'certification', 'self-evolution'];
+    const clusters = [
+      'browser',
+      'computer',
+      'coding',
+      'office',
+      'marketing',
+      'business',
+      'infrastructure',
+      'security',
+      'meta-intelligence',
+      'certification',
+      'self-evolution',
+    ];
     const clustersWithTests: string[] = [];
     for (const c of clusters) {
       const clusterDir = path.join(srcDir, 'agents', c);
@@ -515,7 +570,13 @@ export class CertificationRunnerService {
     const criticalFailures: string[] = [];
 
     // Check documentation generator
-    const docGenPath = path.resolve(__dirname, '..', 'gateway', 'documentation', 'documentation-generator.service.ts');
+    const docGenPath = path.resolve(
+      __dirname,
+      '..',
+      'gateway',
+      'documentation',
+      'documentation-generator.service.ts',
+    );
     tests.push({
       name: 'Documentation generator existence',
       passed: fs.existsSync(docGenPath),
@@ -536,7 +597,9 @@ export class CertificationRunnerService {
         if ((content.match(/\/\*\*[\s\S]*?\*\//g) || []).length > 2) {
           filesWithJSDoc++;
         }
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
 
     const jsdocCoverage = totalFiles > 0 ? Math.round((filesWithJSDoc / totalFiles) * 100) : 0;
@@ -630,8 +693,10 @@ export class CertificationRunnerService {
     if (fs.existsSync(baseAgent)) {
       const content = fs.readFileSync(baseAgent, 'utf-8');
       const hasCircuitBreaker = content.includes('circuitBreaker');
-      const hasHealthCheck = content.includes('healthCheck') || content.includes('performHealthCheck');
-      const hasMetricsCollection = content.includes('collectMetrics') || content.includes('emitMetrics');
+      const hasHealthCheck =
+        content.includes('healthCheck') || content.includes('performHealthCheck');
+      const hasMetricsCollection =
+        content.includes('collectMetrics') || content.includes('emitMetrics');
 
       tests.push({
         name: 'Circuit breaker observability',
@@ -659,7 +724,8 @@ export class CertificationRunnerService {
     const packageJsonPath = path.join(srcDir, '..', 'package.json');
     if (fs.existsSync(packageJsonPath)) {
       const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-      const hasOtel = pkg.dependencies?.['@opentelemetry/api'] || pkg.dependencies?.['@opentelemetry/sdk-node'];
+      const hasOtel =
+        pkg.dependencies?.['@opentelemetry/api'] || pkg.dependencies?.['@opentelemetry/sdk-node'];
       tests.push({
         name: 'OpenTelemetry integration',
         passed: !!hasOtel,
@@ -702,7 +768,9 @@ export class CertificationRunnerService {
           files.push(fullPath);
         }
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
 
     return files;
   }

@@ -4,7 +4,7 @@
  * and trending topic discovery across multiple platforms.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { BusinessCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -31,8 +33,16 @@ export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
         properties: {
           platform: { type: 'string', description: 'Target platform' },
           content: { type: 'string', description: 'Post text content' },
-          mediaUrls: { type: 'array', items: { type: 'string' }, description: 'Media attachment URLs' },
-          hashtags: { type: 'array', items: { type: 'string' }, description: 'Hashtags to include' },
+          mediaUrls: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Media attachment URLs',
+          },
+          hashtags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Hashtags to include',
+          },
           mentions: { type: 'array', items: { type: 'string' }, description: 'User mentions' },
           linkUrl: { type: 'string', description: 'Link to include' },
         },
@@ -103,7 +113,11 @@ export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
           metrics: { type: 'array', items: { type: 'string' }, description: 'Metrics to retrieve' },
           dateFrom: { type: 'string', description: 'Start date (ISO string)' },
           dateTo: { type: 'string', description: 'End date (ISO string)' },
-          granularity: { type: 'string', enum: ['hourly', 'daily', 'weekly', 'monthly'], description: 'Data granularity' },
+          granularity: {
+            type: 'string',
+            enum: ['hourly', 'daily', 'weekly', 'monthly'],
+            description: 'Data granularity',
+          },
         },
         required: ['platform'],
       },
@@ -123,8 +137,16 @@ export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['analyze', 'suggest', 'track'], description: 'Hashtag action' },
-          hashtags: { type: 'array', items: { type: 'string' }, description: 'Hashtags to process' },
+          action: {
+            type: 'string',
+            enum: ['analyze', 'suggest', 'track'],
+            description: 'Hashtag action',
+          },
+          hashtags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Hashtags to process',
+          },
           platform: { type: 'string', description: 'Target platform' },
           niche: { type: 'string', description: 'Industry or niche for suggestions' },
         },
@@ -161,13 +183,7 @@ export const SOCIAL_MEDIA_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:social',
-    'write:social',
-    'read:analytics',
-    'publish:social',
-  ],
+  permissions: ['execute:task', 'read:social', 'write:social', 'read:analytics', 'publish:social'],
   maxConcurrentTasks: 5,
   timeout: 45000,
   retryPolicy: {
@@ -228,6 +244,15 @@ export class SocialMediaAgentService extends BaseAgentService {
   private hashtagIndex: Map<string, HashtagData> = new Map();
   private postCounter: number = 0;
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   protected defineConfig(): AgentConfig {
     return SOCIAL_MEDIA_AGENT_CONFIG;
   }
@@ -252,11 +277,8 @@ export class SocialMediaAgentService extends BaseAgentService {
     this.registerTool({
       name: 'schedulePost',
       description: 'Schedule a post for future publishing',
-      execute: async (params: {
-        postId: string;
-        scheduledAt: string;
-        timezone?: string;
-      }) => this.schedulePost(params),
+      execute: async (params: { postId: string; scheduledAt: string; timezone?: string }) =>
+        this.schedulePost(params),
     });
 
     this.registerTool({
@@ -310,6 +332,28 @@ export class SocialMediaAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation: try real connector first, fallback to simulated logic
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(BusinessCapability.MARKETING, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
@@ -391,7 +435,14 @@ export class SocialMediaAgentService extends BaseAgentService {
     status: string;
     createdAt: string;
   }> {
-    const { platform, content, mediaUrls = [], hashtags = [], mentions = [], linkUrl = '' } = params;
+    const {
+      platform,
+      content,
+      mediaUrls = [],
+      hashtags = [],
+      mentions = [],
+      linkUrl = '',
+    } = params;
 
     if (!platform || typeof platform !== 'string') {
       throw new Error('A valid platform is required');
@@ -400,7 +451,15 @@ export class SocialMediaAgentService extends BaseAgentService {
       throw new Error('Post content is required');
     }
 
-    const validPlatforms = ['twitter', 'facebook', 'instagram', 'linkedin', 'tiktok', 'threads', 'youtube'];
+    const validPlatforms = [
+      'twitter',
+      'facebook',
+      'instagram',
+      'linkedin',
+      'tiktok',
+      'threads',
+      'youtube',
+    ];
     if (!validPlatforms.includes(platform)) {
       throw new Error(`Invalid platform: ${platform}. Valid: ${validPlatforms.join(', ')}`);
     }
@@ -408,7 +467,9 @@ export class SocialMediaAgentService extends BaseAgentService {
     // Validate content length for platform
     const maxChars = this.getPlatformCharLimit(platform);
     if (content.length > maxChars) {
-      throw new Error(`Content exceeds ${platform} limit of ${maxChars} characters (got ${content.length})`);
+      throw new Error(
+        `Content exceeds ${platform} limit of ${maxChars} characters (got ${content.length})`,
+      );
     }
 
     const postId = this.generatePostId();
@@ -480,9 +541,7 @@ export class SocialMediaAgentService extends BaseAgentService {
     post.scheduledAt = scheduledDate;
     post.status = 'scheduled';
 
-    this.logger.log(
-      `Scheduled post: ${postId} for ${scheduledAt} (${timezone})`,
-    );
+    this.logger.log(`Scheduled post: ${postId} for ${scheduledAt} (${timezone})`);
 
     return {
       postId,
@@ -541,9 +600,8 @@ export class SocialMediaAgentService extends BaseAgentService {
     };
 
     const totalEngagement = metrics.totalLikes + metrics.totalComments + metrics.totalShares;
-    const engagementRate = metrics.totalImpressions > 0
-      ? (totalEngagement / metrics.totalImpressions) * 100
-      : 0;
+    const engagementRate =
+      metrics.totalImpressions > 0 ? (totalEngagement / metrics.totalImpressions) * 100 : 0;
 
     // Find top performing post
     const topPost = posts.reduce((best, p) => {
@@ -579,34 +637,52 @@ export class SocialMediaAgentService extends BaseAgentService {
     metrics: Record<string, number>;
     trends: Array<{ date: string; value: number }>;
   }> {
-    const { platform, metrics: requestedMetrics = [], dateFrom, dateTo, granularity = 'daily' } = params;
+    const {
+      platform,
+      metrics: requestedMetrics = [],
+      dateFrom,
+      dateTo,
+      granularity = 'daily',
+    } = params;
 
     if (!platform || typeof platform !== 'string') {
       throw new Error('A valid platform is required');
     }
 
-    const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const fromDate = dateFrom
+      ? new Date(dateFrom)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const toDate = dateTo ? new Date(dateTo) : new Date();
 
     // Get platform-specific posts
-    const platformPosts = Array.from(this.posts.values())
-      .filter((p) => p.platform === platform);
+    const platformPosts = Array.from(this.posts.values()).filter((p) => p.platform === platform);
 
     // Aggregate metrics
     const allMetrics: Record<string, number> = {
       followers: 1000 + Math.floor(Math.random() * 5000),
       following: 200 + Math.floor(Math.random() * 500),
       posts: platformPosts.length,
-      totalImpressions: platformPosts.reduce((sum, p) => sum + p.engagement.impressions, 0) || Math.floor(Math.random() * 50000),
-      totalReach: platformPosts.reduce((sum, p) => sum + p.engagement.reach, 0) || Math.floor(Math.random() * 30000),
-      totalEngagement: platformPosts.reduce((sum, p) => sum + p.engagement.likes + p.engagement.comments + p.engagement.shares, 0) || Math.floor(Math.random() * 5000),
+      totalImpressions:
+        platformPosts.reduce((sum, p) => sum + p.engagement.impressions, 0) ||
+        Math.floor(Math.random() * 50000),
+      totalReach:
+        platformPosts.reduce((sum, p) => sum + p.engagement.reach, 0) ||
+        Math.floor(Math.random() * 30000),
+      totalEngagement:
+        platformPosts.reduce(
+          (sum, p) => sum + p.engagement.likes + p.engagement.comments + p.engagement.shares,
+          0,
+        ) || Math.floor(Math.random() * 5000),
       avgEngagementRate: +(2 + Math.random() * 5).toFixed(2),
     };
 
     // Filter metrics if specific ones were requested
-    const resultMetrics = requestedMetrics.length > 0
-      ? Object.fromEntries(Object.entries(allMetrics).filter(([key]) => requestedMetrics.includes(key)))
-      : allMetrics;
+    const resultMetrics =
+      requestedMetrics.length > 0
+        ? Object.fromEntries(
+            Object.entries(allMetrics).filter(([key]) => requestedMetrics.includes(key)),
+          )
+        : allMetrics;
 
     // Generate trend data
     const trends = this.generateTrendData(fromDate, toDate, granularity);
@@ -651,25 +727,29 @@ export class SocialMediaAgentService extends BaseAgentService {
         resultHashtags = hashtags.map((tag) => {
           const cleanTag = tag.startsWith('#') ? tag : `#${tag}`;
           const cached = this.hashtagIndex.get(cleanTag);
-          return cached || {
-            tag: cleanTag,
-            volume: 1000 + Math.floor(Math.random() * 50000),
-            reach: 5000 + Math.floor(Math.random() * 100000),
-            engagement: +(1 + Math.random() * 8).toFixed(2),
-            competition: Math.floor(Math.random() * 100),
-          };
+          return (
+            cached || {
+              tag: cleanTag,
+              volume: 1000 + Math.floor(Math.random() * 50000),
+              reach: 5000 + Math.floor(Math.random() * 100000),
+              engagement: +(1 + Math.random() * 8).toFixed(2),
+              competition: Math.floor(Math.random() * 100),
+            }
+          );
         });
 
-        const avgEngagement = resultHashtags.reduce((sum, h) => sum + h.engagement, 0) / resultHashtags.length;
+        const avgEngagement =
+          resultHashtags.reduce((sum, h) => sum + h.engagement, 0) / resultHashtags.length;
         const highCompetition = resultHashtags.filter((h) => h.competition > 60).length;
 
         result = {
           analyzedCount: hashtags.length,
           avgEngagement: +avgEngagement.toFixed(2),
           highCompetitionCount: highCompetition,
-          recommendation: highCompetition > hashtags.length / 2
-            ? 'Consider mixing in lower-competition hashtags for better visibility'
-            : 'Hashtag mix looks balanced',
+          recommendation:
+            highCompetition > hashtags.length / 2
+              ? 'Consider mixing in lower-competition hashtags for better visibility'
+              : 'Hashtag mix looks balanced',
         };
         break;
       }
@@ -677,9 +757,27 @@ export class SocialMediaAgentService extends BaseAgentService {
       case 'suggest': {
         const nicheKeywords = niche ? niche.split(/\s+/) : ['marketing', 'business', 'growth'];
         const suggested = nicheKeywords.flatMap((kw) => [
-          { tag: `#${kw.toLowerCase()}`, volume: 5000 + Math.floor(Math.random() * 30000), reach: 10000 + Math.floor(Math.random() * 80000), engagement: +(2 + Math.random() * 6).toFixed(2), competition: 20 + Math.floor(Math.random() * 60) },
-          { tag: `#${kw.toLowerCase()}tips`, volume: 2000 + Math.floor(Math.random() * 15000), reach: 5000 + Math.floor(Math.random() * 40000), engagement: +(3 + Math.random() * 5).toFixed(2), competition: 15 + Math.floor(Math.random() * 40) },
-          { tag: `#${kw.toLowerCase()}strategy`, volume: 1000 + Math.floor(Math.random() * 10000), reach: 3000 + Math.floor(Math.random() * 25000), engagement: +(2 + Math.random() * 7).toFixed(2), competition: 10 + Math.floor(Math.random() * 50) },
+          {
+            tag: `#${kw.toLowerCase()}`,
+            volume: 5000 + Math.floor(Math.random() * 30000),
+            reach: 10000 + Math.floor(Math.random() * 80000),
+            engagement: +(2 + Math.random() * 6).toFixed(2),
+            competition: 20 + Math.floor(Math.random() * 60),
+          },
+          {
+            tag: `#${kw.toLowerCase()}tips`,
+            volume: 2000 + Math.floor(Math.random() * 15000),
+            reach: 5000 + Math.floor(Math.random() * 40000),
+            engagement: +(3 + Math.random() * 5).toFixed(2),
+            competition: 15 + Math.floor(Math.random() * 40),
+          },
+          {
+            tag: `#${kw.toLowerCase()}strategy`,
+            volume: 1000 + Math.floor(Math.random() * 10000),
+            reach: 3000 + Math.floor(Math.random() * 25000),
+            engagement: +(2 + Math.random() * 7).toFixed(2),
+            competition: 10 + Math.floor(Math.random() * 50),
+          },
         ]);
 
         resultHashtags = suggested.slice(0, 15);
@@ -716,9 +814,7 @@ export class SocialMediaAgentService extends BaseAgentService {
       }
     }
 
-    this.logger.log(
-      `Hashtag ${action}: ${hashtags.length} tags, platform=${platform}`,
-    );
+    this.logger.log(`Hashtag ${action}: ${hashtags.length} tags, platform=${platform}`);
 
     return { result, hashtags: resultHashtags };
   }
@@ -785,32 +881,41 @@ export class SocialMediaAgentService extends BaseAgentService {
     return limits[platform] || 2200;
   }
 
-  private generateEngagementRecommendations(
-    posts: SocialPost[],
-    engagementRate: number,
-  ): string[] {
+  private generateEngagementRecommendations(posts: SocialPost[], engagementRate: number): string[] {
     const recommendations: string[] = [];
 
     if (engagementRate < 1) {
-      recommendations.push('Engagement rate is very low. Consider posting more interactive content like polls and questions.');
+      recommendations.push(
+        'Engagement rate is very low. Consider posting more interactive content like polls and questions.',
+      );
     } else if (engagementRate < 3) {
-      recommendations.push('Engagement rate is below average. Try experimenting with different posting times and content formats.');
+      recommendations.push(
+        'Engagement rate is below average. Try experimenting with different posting times and content formats.',
+      );
     } else if (engagementRate >= 3 && engagementRate < 6) {
-      recommendations.push('Engagement rate is good. Continue with current strategy and test new content types.');
+      recommendations.push(
+        'Engagement rate is good. Continue with current strategy and test new content types.',
+      );
     } else {
-      recommendations.push('Engagement rate is excellent. Analyze top-performing posts to replicate success.');
+      recommendations.push(
+        'Engagement rate is excellent. Analyze top-performing posts to replicate success.',
+      );
     }
 
     const postsWithMedia = posts.filter((p) => p.mediaUrls.length > 0);
     const postsWithoutMedia = posts.filter((p) => p.mediaUrls.length === 0);
 
     if (postsWithoutMedia.length > postsWithMedia.length) {
-      recommendations.push('Posts with media tend to get higher engagement. Consider adding images or videos to more posts.');
+      recommendations.push(
+        'Posts with media tend to get higher engagement. Consider adding images or videos to more posts.',
+      );
     }
 
     const avgHashtags = posts.reduce((sum, p) => sum + p.hashtags.length, 0) / posts.length;
     if (avgHashtags < 3) {
-      recommendations.push('Try using more relevant hashtags (5-10 recommended for most platforms).');
+      recommendations.push(
+        'Try using more relevant hashtags (5-10 recommended for most platforms).',
+      );
     }
 
     return recommendations;
@@ -862,19 +967,89 @@ export class SocialMediaAgentService extends BaseAgentService {
     limit: number,
   ): TrendingTopic[] {
     const generalTrends: TrendingTopic[] = [
-      { topic: 'AI in Marketing', platform, volume: 120000, growth: 45, category: 'technology', relatedHashtags: ['#AI', '#MarketingTech', '#Automation'] },
-      { topic: 'Sustainable Business', platform, volume: 85000, growth: 32, category: 'business', relatedHashtags: ['#Sustainability', '#GreenBusiness', '#ESG'] },
-      { topic: 'Short-Form Video', platform, volume: 95000, growth: 28, category: 'content', relatedHashtags: ['#ShortForm', '#VideoMarketing', '#TikTok'] },
-      { topic: 'Personal Branding', platform, volume: 78000, growth: 22, category: 'branding', relatedHashtags: ['#PersonalBrand', '#ThoughtLeader', '#LinkedIn'] },
-      { topic: 'Community Building', platform, volume: 62000, growth: 38, category: 'engagement', relatedHashtags: ['#Community', '#Engagement', '#Audience'] },
-      { topic: 'Data Privacy', platform, volume: 55000, growth: 18, category: 'technology', relatedHashtags: ['#Privacy', '#DataSecurity', '#Compliance'] },
-      { topic: 'Remote Work Culture', platform, volume: 48000, growth: 15, category: 'business', relatedHashtags: ['#RemoteWork', '#WFH', '#FutureOfWork'] },
-      { topic: 'Influencer Marketing', platform, volume: 72000, growth: 25, category: 'marketing', relatedHashtags: ['#Influencer', '#Collab', '#Sponsored'] },
-      { topic: 'Voice Search Optimization', platform, volume: 35000, growth: 42, category: 'seo', relatedHashtags: ['#VoiceSearch', '#SEO', '#SmartSpeakers'] },
-      { topic: 'Micro-Content Strategy', platform, volume: 42000, growth: 30, category: 'content', relatedHashtags: ['#MicroContent', '#Snackable', '#ContentStrategy'] },
+      {
+        topic: 'AI in Marketing',
+        platform,
+        volume: 120000,
+        growth: 45,
+        category: 'technology',
+        relatedHashtags: ['#AI', '#MarketingTech', '#Automation'],
+      },
+      {
+        topic: 'Sustainable Business',
+        platform,
+        volume: 85000,
+        growth: 32,
+        category: 'business',
+        relatedHashtags: ['#Sustainability', '#GreenBusiness', '#ESG'],
+      },
+      {
+        topic: 'Short-Form Video',
+        platform,
+        volume: 95000,
+        growth: 28,
+        category: 'content',
+        relatedHashtags: ['#ShortForm', '#VideoMarketing', '#TikTok'],
+      },
+      {
+        topic: 'Personal Branding',
+        platform,
+        volume: 78000,
+        growth: 22,
+        category: 'branding',
+        relatedHashtags: ['#PersonalBrand', '#ThoughtLeader', '#LinkedIn'],
+      },
+      {
+        topic: 'Community Building',
+        platform,
+        volume: 62000,
+        growth: 38,
+        category: 'engagement',
+        relatedHashtags: ['#Community', '#Engagement', '#Audience'],
+      },
+      {
+        topic: 'Data Privacy',
+        platform,
+        volume: 55000,
+        growth: 18,
+        category: 'technology',
+        relatedHashtags: ['#Privacy', '#DataSecurity', '#Compliance'],
+      },
+      {
+        topic: 'Remote Work Culture',
+        platform,
+        volume: 48000,
+        growth: 15,
+        category: 'business',
+        relatedHashtags: ['#RemoteWork', '#WFH', '#FutureOfWork'],
+      },
+      {
+        topic: 'Influencer Marketing',
+        platform,
+        volume: 72000,
+        growth: 25,
+        category: 'marketing',
+        relatedHashtags: ['#Influencer', '#Collab', '#Sponsored'],
+      },
+      {
+        topic: 'Voice Search Optimization',
+        platform,
+        volume: 35000,
+        growth: 42,
+        category: 'seo',
+        relatedHashtags: ['#VoiceSearch', '#SEO', '#SmartSpeakers'],
+      },
+      {
+        topic: 'Micro-Content Strategy',
+        platform,
+        volume: 42000,
+        growth: 30,
+        category: 'content',
+        relatedHashtags: ['#MicroContent', '#Snackable', '#ContentStrategy'],
+      },
     ];
 
-    let filtered = category
+    const filtered = category
       ? generalTrends.filter((t) => t.category === category)
       : generalTrends;
 

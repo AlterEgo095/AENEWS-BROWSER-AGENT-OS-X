@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Delivery Service
- * 
+ *
  * Packages and delivers all mission artifacts to the client.
  * Supports: PDF, ZIP, GitHub, Docker, Deployment, Notifications
  */
@@ -170,8 +170,8 @@ export class DeliveryService {
 
     // Validate deliverables against contract
     if (contract) {
-      for (const required of contract.deliverables.filter(d => d.required)) {
-        const delivered = deliverables.find(d => d.type === required.type);
+      for (const required of contract.deliverables.filter((d) => d.required)) {
+        const delivered = deliverables.find((d) => d.type === required.type);
         if (delivered) {
           delivered.validated = true;
         }
@@ -188,7 +188,10 @@ export class DeliveryService {
       executionTimeMs: allResults.execution?.durationMs || 0,
       apiCostUsd: contract?.budget.currentSpendUsd || 0,
       testCoverage: 85,
-      securityScore: allResults.certification?.checks.find((c: CertificationCheck) => c.domain === 'Security Audit')?.score || 0,
+      securityScore:
+        allResults.certification?.checks.find(
+          (c: CertificationCheck) => c.domain === 'Security Audit',
+        )?.score || 0,
     };
 
     const deliveryPackage: DeliveryPackage = {

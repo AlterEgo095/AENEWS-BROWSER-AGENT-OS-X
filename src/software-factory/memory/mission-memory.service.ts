@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Mission Memory Service
- * 
+ *
  * Simplified memory: Context + RAG + Archive
  * Stores mission state, plans, results for the duration of execution.
  */
@@ -20,7 +20,15 @@ export interface MissionContext {
 export interface MemoryEntry {
   id: string;
   missionId: string;
-  category: 'context' | 'plan' | 'research' | 'build' | 'test' | 'audit' | 'certification' | 'delivery';
+  category:
+    | 'context'
+    | 'plan'
+    | 'research'
+    | 'build'
+    | 'test'
+    | 'audit'
+    | 'certification'
+    | 'delivery';
   key: string;
   data: any;
   createdAt: Date;
@@ -177,7 +185,12 @@ export class MissionMemoryService {
 
   // --- Private helpers ---
 
-  private addEntry(missionId: string, category: MemoryEntry['category'], key: string, data: any): void {
+  private addEntry(
+    missionId: string,
+    category: MemoryEntry['category'],
+    key: string,
+    data: any,
+  ): void {
     const entry: MemoryEntry = {
       id: `mem-${uuidv4().slice(0, 8)}`,
       missionId,
@@ -195,7 +208,7 @@ export class MissionMemoryService {
 
   private getLatestEntry(missionId: string, category: string, key: string): any {
     const missionEntries = this.entries.get(missionId) || [];
-    const matching = missionEntries.filter(e => e.category === category && e.key === key);
+    const matching = missionEntries.filter((e) => e.category === category && e.key === key);
     return matching.length > 0 ? matching[matching.length - 1].data : undefined;
   }
 }

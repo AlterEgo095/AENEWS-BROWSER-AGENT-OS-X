@@ -27,12 +27,12 @@ export enum FailureType {
 }
 
 export enum RecoveryStrategy {
-  RESTART = 'restart',                             // Simple restart
+  RESTART = 'restart', // Simple restart
   RESTORE_MEMORY_RESUME = 'restore_memory_resume', // Restart + restore memory + resume task
-  FAILOVER = 'failover',                           // Switch to backup agent
-  SCALE_OUT = 'scale_out',                         // Create new agent instance
-  DEGRADE = 'degrade',                             // Continue with reduced functionality
-  QUARANTINE = 'quarantine',                       // Isolate the failing agent
+  FAILOVER = 'failover', // Switch to backup agent
+  SCALE_OUT = 'scale_out', // Create new agent instance
+  DEGRADE = 'degrade', // Continue with reduced functionality
+  QUARANTINE = 'quarantine', // Isolate the failing agent
 }
 
 export enum RecoveryStatus {
@@ -191,10 +191,12 @@ export class AutoRecoveryService implements OnModuleInit {
   private readonly agentCapabilities: Map<string, string[]> = new Map();
 
   /** agent id → running state (for restart simulation) */
-  private readonly agentRunningState: Map<string, 'running' | 'stopped' | 'initializing'> = new Map();
+  private readonly agentRunningState: Map<string, 'running' | 'stopped' | 'initializing'> =
+    new Map();
 
   /** Simple event listeners — in production this would use an EventBus */
-  private readonly eventListeners: Map<string, Array<(payload: RecoveryEventPayload) => void>> = new Map();
+  private readonly eventListeners: Map<string, Array<(payload: RecoveryEventPayload) => void>> =
+    new Map();
 
   /** Health check interval handle */
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
@@ -216,10 +218,7 @@ export class AutoRecoveryService implements OnModuleInit {
    * Register a listener for a recovery event.
    * Returns an unsubscribe function.
    */
-  on(
-    event: string,
-    listener: (payload: RecoveryEventPayload) => void,
-  ): () => void {
+  on(event: string, listener: (payload: RecoveryEventPayload) => void): () => void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);
     }
@@ -581,7 +580,7 @@ export class AutoRecoveryService implements OnModuleInit {
 
       this.logger.warn(
         `Recovery attempt ${action.attempts}/${action.maxAttempts} failed for agent "${action.agentId}". ` +
-        `Retrying after ${cooldownMs}ms cooldown...`,
+          `Retrying after ${cooldownMs}ms cooldown...`,
       );
 
       action.status = RecoveryStatus.RECOVERING;
@@ -598,7 +597,7 @@ export class AutoRecoveryService implements OnModuleInit {
 
       this.logger.error(
         `All ${action.maxAttempts} recovery attempts exhausted for agent "${action.agentId}" ` +
-        `(failure: ${action.failureType}). Escalating to human.`,
+          `(failure: ${action.failureType}). Escalating to human.`,
       );
 
       // Check if we should escalate before the escalation threshold
@@ -803,7 +802,7 @@ export class AutoRecoveryService implements OnModuleInit {
     const byStatus: Record<string, number> = {};
 
     let succeeded = 0;
-    let total = allActions.length;
+    const total = allActions.length;
 
     for (const action of allActions) {
       byFailureType[action.failureType] = (byFailureType[action.failureType] ?? 0) + 1;
@@ -852,9 +851,7 @@ export class AutoRecoveryService implements OnModuleInit {
 
       // If unhealthy and not already being recovered, preemptively start recovery
       if (!status.healthy) {
-        const hasActiveRecovery = [...this.actions.values()].some(
-          (a) => a.agentId === agentId,
-        );
+        const hasActiveRecovery = [...this.actions.values()].some((a) => a.agentId === agentId);
 
         if (!hasActiveRecovery) {
           this.logger.warn(
@@ -928,9 +925,7 @@ export class AutoRecoveryService implements OnModuleInit {
       this.logger.debug(`Pruned old snapshot "${oldestId}" for agent "${agentId}"`);
     }
 
-    this.logger.log(
-      `Memory snapshot taken: snapshot="${snapshotId}" agent="${agentId}"`,
-    );
+    this.logger.log(`Memory snapshot taken: snapshot="${snapshotId}" agent="${agentId}"`);
 
     this.emitEvent(MEMORY_SNAPSHOT_TAKEN, {
       actionId: '',
@@ -953,9 +948,7 @@ export class AutoRecoveryService implements OnModuleInit {
   restoreAgentMemory(agentId: string, snapshotId: string): boolean {
     const snapshot = this.snapshots.get(snapshotId);
     if (!snapshot) {
-      this.logger.error(
-        `Cannot restore memory — snapshot "${snapshotId}" not found`,
-      );
+      this.logger.error(`Cannot restore memory — snapshot "${snapshotId}" not found`);
       return false;
     }
 
@@ -998,7 +991,9 @@ export class AutoRecoveryService implements OnModuleInit {
     this.degradedAgents.delete(agentId);
     this.quarantinedAgents.delete(agentId);
 
-    this.logger.log(`Agent "${agentId}" registered with auto-recovery (capabilities: ${capabilities.length})`);
+    this.logger.log(
+      `Agent "${agentId}" registered with auto-recovery (capabilities: ${capabilities.length})`,
+    );
   }
 
   /**
@@ -1050,9 +1045,7 @@ export class AutoRecoveryService implements OnModuleInit {
     record.acknowledgedBy = acknowledgedBy;
     record.acknowledgedAt = new Date();
 
-    this.logger.log(
-      `Escalation "${escalationId}" acknowledged by "${acknowledgedBy}"`,
-    );
+    this.logger.log(`Escalation "${escalationId}" acknowledged by "${acknowledgedBy}"`);
 
     return { ...record };
   }
@@ -1061,9 +1054,7 @@ export class AutoRecoveryService implements OnModuleInit {
    * Get all unacknowledged escalations.
    */
   getUnacknowledgedEscalations(): EscalationRecord[] {
-    return this.escalations
-      .filter((e) => !e.acknowledged)
-      .map((e) => ({ ...e }));
+    return this.escalations.filter((e) => !e.acknowledged).map((e) => ({ ...e }));
   }
 
   /**
@@ -1129,7 +1120,9 @@ export class AutoRecoveryService implements OnModuleInit {
     this.agentRunningState.set(agentId, 'running');
 
     // Step 3: Restore memory from snapshot
-    this.logger.log(`RESTORE_MEMORY_RESUME: Restoring memory for agent "${agentId}" from snapshot "${snapshotId}"...`);
+    this.logger.log(
+      `RESTORE_MEMORY_RESUME: Restoring memory for agent "${agentId}" from snapshot "${snapshotId}"...`,
+    );
     const restored = this.restoreAgentMemory(agentId, snapshotId);
     if (!restored) {
       throw new Error(`Failed to restore memory from snapshot "${snapshotId}"`);
@@ -1144,9 +1137,7 @@ export class AutoRecoveryService implements OnModuleInit {
       action.metadata.taskResumed = true;
       action.metadata.resumedAt = new Date().toISOString();
     } else {
-      this.logger.log(
-        `RESTORE_MEMORY_RESUME: No task to resume for agent "${agentId}"`,
-      );
+      this.logger.log(`RESTORE_MEMORY_RESUME: No task to resume for agent "${agentId}"`);
     }
 
     this.logger.log(`RESTORE_MEMORY_RESUME: Agent "${agentId}" recovered successfully`);
@@ -1174,9 +1165,7 @@ export class AutoRecoveryService implements OnModuleInit {
       if (this.agentRunningState.get(candidateId) !== 'running') continue;
 
       // Check if the candidate has all required capabilities
-      const hasAllCapabilities = capabilities.every((cap) =>
-        candidateCaps.includes(cap),
-      );
+      const hasAllCapabilities = capabilities.every((cap) => candidateCaps.includes(cap));
 
       if (hasAllCapabilities) {
         failoverTarget = candidateId;
@@ -1191,9 +1180,7 @@ export class AutoRecoveryService implements OnModuleInit {
         if (this.quarantinedAgents.has(candidateId)) continue;
         if (this.agentRunningState.get(candidateId) !== 'running') continue;
 
-        const matchingCaps = capabilities.filter((cap) =>
-          candidateCaps.includes(cap),
-        );
+        const matchingCaps = capabilities.filter((cap) => candidateCaps.includes(cap));
 
         if (matchingCaps.length > 0) {
           failoverTarget = candidateId;
@@ -1208,9 +1195,7 @@ export class AutoRecoveryService implements OnModuleInit {
       );
     }
 
-    this.logger.log(
-      `FAILOVER: Transferring task from "${agentId}" to "${failoverTarget}"`,
-    );
+    this.logger.log(`FAILOVER: Transferring task from "${agentId}" to "${failoverTarget}"`);
 
     // Mark the original agent as stopped
     this.agentRunningState.set(agentId, 'stopped');
@@ -1230,9 +1215,7 @@ export class AutoRecoveryService implements OnModuleInit {
     const snapshotId = this.snapshotAgentMemory(agentId);
     action.memorySnapshotId = snapshotId;
 
-    this.logger.log(
-      `FAILOVER: Agent "${agentId}" failed over to "${failoverTarget}" successfully`,
-    );
+    this.logger.log(`FAILOVER: Agent "${agentId}" failed over to "${failoverTarget}" successfully`);
   }
 
   /**
@@ -1280,9 +1263,7 @@ export class AutoRecoveryService implements OnModuleInit {
   private async executeDegrade(action: AutoRecoveryAction): Promise<void> {
     const { agentId } = action;
 
-    this.logger.log(
-      `DEGRADE: Marking agent "${agentId}" as degraded — reducing capabilities`,
-    );
+    this.logger.log(`DEGRADE: Marking agent "${agentId}" as degraded — reducing capabilities`);
 
     this.degradedAgents.add(agentId);
 
@@ -1312,9 +1293,7 @@ export class AutoRecoveryService implements OnModuleInit {
   private async executeQuarantine(action: AutoRecoveryAction): Promise<void> {
     const { agentId } = action;
 
-    this.logger.warn(
-      `QUARANTINE: Isolating agent "${agentId}" — preventing new task assignments`,
-    );
+    this.logger.warn(`QUARANTINE: Isolating agent "${agentId}" — preventing new task assignments`);
 
     this.quarantinedAgents.add(agentId);
     this.degradedAgents.delete(agentId);
@@ -1367,10 +1346,7 @@ export class AutoRecoveryService implements OnModuleInit {
    * Perform a health check on a single agent.
    * In production this would call the agent's health endpoint.
    */
-  private checkAgentHealth(
-    agentId: string,
-    runningState: string,
-  ): AgentHealthStatus {
+  private checkAgentHealth(agentId: string, runningState: string): AgentHealthStatus {
     const issues: string[] = [];
     let healthy = true;
 
@@ -1440,9 +1416,7 @@ export class AutoRecoveryService implements OnModuleInit {
       }
     }, HEALTH_CHECK_INTERVAL_MS);
 
-    this.logger.log(
-      `Health check loop started (interval: ${HEALTH_CHECK_INTERVAL_MS}ms)`,
-    );
+    this.logger.log(`Health check loop started (interval: ${HEALTH_CHECK_INTERVAL_MS}ms)`);
   }
 
   /**

@@ -1,13 +1,13 @@
 /**
  * AENEWS Software Factory — Worker Factory
- * 
+ *
  * Creates ephemeral workers, injects capabilities, then destroys them.
  * This is NOT an agent registry. Workers are temporary execution units.
- * 
+ *
  * Sprint 2: Real Connectors
  *   WorkerFactory.executeCapability() now routes to real connectors
  *   via the ConnectorRegistry. No more simulated results.
- * 
+ *
  * Example:
  *   Mission: "Develop an ERP"
  *   Planner produces: [architecture, frontend, backend, database, docker, test, doc, deploy]
@@ -207,7 +207,10 @@ export class WorkerFactoryService {
   /**
    * Terminate all workers for a specific mission
    */
-  async terminateMissionWorkers(missionId: string, reason: WorkerTerminateRequest['reason']): Promise<WorkerTerminateResult[]> {
+  async terminateMissionWorkers(
+    missionId: string,
+    reason: WorkerTerminateRequest['reason'],
+  ): Promise<WorkerTerminateResult[]> {
     const missionWorkers = this.getWorkersByMission(missionId);
     const results: WorkerTerminateResult[] = [];
 
@@ -226,7 +229,7 @@ export class WorkerFactoryService {
 
   /**
    * Execute a task on a worker (capability execution)
-   * 
+   *
    * Sprint 2: Routes to REAL connectors via ConnectorRegistry
    */
   async execute(execRequest: WorkerExecutionRequest): Promise<WorkerExecutionResult> {
@@ -257,7 +260,9 @@ export class WorkerFactoryService {
 
       // Phase 1: Execute independent capabilities in parallel
       if (parallel.length > 0) {
-        this.logger.log(`Worker ${execRequest.workerId}: executing ${parallel.length} capabilities in PARALLEL`);
+        this.logger.log(
+          `Worker ${execRequest.workerId}: executing ${parallel.length} capabilities in PARALLEL`,
+        );
         const parallelResults = await Promise.all(
           parallel.map(async (capId) => {
             const capDef = this.capabilityRegistry.getCapability(capId);
@@ -271,12 +276,18 @@ export class WorkerFactoryService {
           worker.results.push(capResult);
           const connectorOutput: any = {
             success: capResult.success,
-            artifacts: capResult.artifacts.map(p => ({ name: p, path: p, type: 'source', size: 0 })),
+            artifacts: capResult.artifacts.map((p) => ({
+              name: p,
+              path: p,
+              type: 'source',
+              size: 0,
+            })),
             output: capResult.output,
             costUsd: capResult.costUsd,
             durationMs: capResult.durationMs,
           };
-          const prevResults = this.missionResults.get(worker.missionId) || new Map<CapabilityId, any>();
+          const prevResults =
+            this.missionResults.get(worker.missionId) || new Map<CapabilityId, any>();
           prevResults.set(capResult.capabilityId, connectorOutput);
           this.missionResults.set(worker.missionId, prevResults);
         }
@@ -307,21 +318,25 @@ export class WorkerFactoryService {
       // Check if worker has exhausted its task limit
       if (worker.tasksCompleted + worker.tasksFailed >= worker.maxTasks) {
         this.logger.log(`Worker ${execRequest.workerId} reached task limit, auto-terminating`);
-        this.terminate({ workerId: execRequest.workerId, reason: 'mission_complete', archiveResults: true });
+        this.terminate({
+          workerId: execRequest.workerId,
+          reason: 'mission_complete',
+          archiveResults: true,
+        });
       }
 
-      const allArtifacts = results.flatMap(r => r.artifacts);
-      const anyFailed = results.some(r => !r.success);
+      const allArtifacts = results.flatMap((r) => r.artifacts);
+      const anyFailed = results.some((r) => !r.success);
 
       return {
         workerId: execRequest.workerId,
         nodeId: execRequest.nodeId,
         success: !anyFailed,
-        output: results.map(r => r.output),
+        output: results.map((r) => r.output),
         artifacts: allArtifacts,
         durationMs: totalDuration,
         costUsd: totalCost,
-        error: anyFailed ? results.find(r => !r.success)?.error : undefined,
+        error: anyFailed ? results.find((r) => !r.success)?.error : undefined,
       };
     } catch (error) {
       worker.tasksFailed++;
@@ -375,7 +390,7 @@ export class WorkerFactoryService {
 
     const allWorkers = [...this.archive];
     const totalLifetime = allWorkers.reduce((sum, w) => sum + w.totalDurationMs, 0);
-    const missionIds = new Set(allWorkers.map(w => w.missionId));
+    const missionIds = new Set(allWorkers.map((w) => w.missionId));
 
     return {
       totalSpawned: this.archive.length + active.length,
@@ -384,9 +399,10 @@ export class WorkerFactoryService {
       byCapability,
       totalCostUsd: [...active, ...this.archive].reduce((sum, w) => sum + w.totalCostUsd, 0),
       averageLifetimeMs: allWorkers.length > 0 ? totalLifetime / allWorkers.length : 0,
-      averageTasksPerWorker: allWorkers.length > 0
-        ? allWorkers.reduce((sum, w) => sum + w.tasksCompleted, 0) / allWorkers.length
-        : 0,
+      averageTasksPerWorker:
+        allWorkers.length > 0
+          ? allWorkers.reduce((sum, w) => sum + w.tasksCompleted, 0) / allWorkers.length
+          : 0,
       missionsServed: missionIds.size,
     };
   }
@@ -431,7 +447,9 @@ export class WorkerFactoryService {
     }
 
     if (missingConnectors.length > 0) {
-      this.logger.warn(`Worker ${worker.id}: no connector for capabilities: ${missingConnectors.join(', ')}`);
+      this.logger.warn(
+        `Worker ${worker.id}: no connector for capabilities: ${missingConnectors.join(', ')}`,
+      );
     }
 
     this.logger.log(
@@ -444,7 +462,7 @@ export class WorkerFactoryService {
 
   /**
    * Execute a capability via its real connector
-   * 
+   *
    * Sprint 2: This is the bridge between abstract capabilities and real tools.
    * If a connector exists → real execution (LLM, Playwright, Shell, etc.)
    * If no connector → graceful fallback with warning
@@ -459,7 +477,8 @@ export class WorkerFactoryService {
     const workspaceDir = this.getMissionWorkspace(missionId);
 
     // Get previous results for this mission (connector chaining)
-    const previousResults = this.missionResults.get(missionId) || new Map<CapabilityId, ConnectorOutput>();
+    const previousResults =
+      this.missionResults.get(missionId) || new Map<CapabilityId, ConnectorOutput>();
 
     // Try real connector first
     const connector = this.connectorRegistry.getConnector(capId);
@@ -486,8 +505,8 @@ export class WorkerFactoryService {
           capabilityId: capId,
           success: connectorOutput.success,
           output: connectorOutput.output,
-          artifacts: connectorOutput.artifacts.map(a => a.path),
-          durationMs: connectorOutput.durationMs || (Date.now() - startTime),
+          artifacts: connectorOutput.artifacts.map((a) => a.path),
+          durationMs: connectorOutput.durationMs || Date.now() - startTime,
           costUsd: connectorOutput.costUsd,
           error: connectorOutput.error,
           metadata: {
@@ -572,27 +591,73 @@ export class WorkerFactoryService {
     sequential: CapabilityId[];
   } {
     const DEPENDENT_CAPABILITIES = new Set<string>([
-      'dev.frontend', 'dev.backend', 'dev.database', 'dev.api',
-      'dev.test', 'dev.documentation', 'dev.debug',
-      'cert.architecture_review', 'cert.security_audit', 'cert.test_coverage',
-      'cert.regression', 'cert.performance', 'cert.doc_review',
-      'cert.integration', 'cert.compliance', 'cert.accessibility', 'cert.data_privacy',
-      'delivery.zip', 'delivery.github', 'delivery.docker_registry',
-      'delivery.vps', 'delivery.deployment', 'delivery.pdf_report',
+      'dev.frontend',
+      'dev.backend',
+      'dev.database',
+      'dev.api',
+      'dev.test',
+      'dev.documentation',
+      'dev.debug',
+      'cert.architecture_review',
+      'cert.security_audit',
+      'cert.test_coverage',
+      'cert.regression',
+      'cert.performance',
+      'cert.doc_review',
+      'cert.integration',
+      'cert.compliance',
+      'cert.accessibility',
+      'cert.data_privacy',
+      'delivery.zip',
+      'delivery.github',
+      'delivery.docker_registry',
+      'delivery.vps',
+      'delivery.deployment',
+      'delivery.pdf_report',
     ]);
 
     const INDEPENDENT_CAPABILITIES = new Set<string>([
-      'dev.architecture', 'dev.devops', 'dev.docker', 'dev.kubernetes', 'dev.qa',
-      'browser.login', 'browser.navigation', 'browser.search', 'browser.form',
-      'browser.upload', 'browser.download', 'browser.screenshot', 'browser.vision',
-      'browser.session', 'browser.cookie', 'browser.popup', 'browser.ocr',
-      'office.pdf', 'office.docx', 'office.excel', 'office.powerpoint',
-      'office.ocr', 'office.signature', 'office.email', 'office.calendar',
-      'business.seo', 'business.marketing', 'business.copywriting', 'business.branding',
-      'business.crm', 'business.analytics', 'business.finance', 'business.sales',
-      'business.legal', 'business.partnership',
-      'delivery.cloud', 'delivery.cdn', 'delivery.backup',
-      'delivery.monitoring_setup', 'delivery.load_balancer', 'delivery.notification',
+      'dev.architecture',
+      'dev.devops',
+      'dev.docker',
+      'dev.kubernetes',
+      'dev.qa',
+      'browser.login',
+      'browser.navigation',
+      'browser.search',
+      'browser.form',
+      'browser.upload',
+      'browser.download',
+      'browser.screenshot',
+      'browser.vision',
+      'browser.session',
+      'browser.cookie',
+      'browser.popup',
+      'browser.ocr',
+      'office.pdf',
+      'office.docx',
+      'office.excel',
+      'office.powerpoint',
+      'office.ocr',
+      'office.signature',
+      'office.email',
+      'office.calendar',
+      'business.seo',
+      'business.marketing',
+      'business.copywriting',
+      'business.branding',
+      'business.crm',
+      'business.analytics',
+      'business.finance',
+      'business.sales',
+      'business.legal',
+      'business.partnership',
+      'delivery.cloud',
+      'delivery.cdn',
+      'delivery.backup',
+      'delivery.monitoring_setup',
+      'delivery.load_balancer',
+      'delivery.notification',
     ]);
 
     const parallel: CapabilityId[] = [];

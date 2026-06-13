@@ -28,12 +28,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const statusCode =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const exceptionResponse =
-      exception instanceof HttpException ? exception.getResponse() : null;
+    const exceptionResponse = exception instanceof HttpException ? exception.getResponse() : null;
 
     const message =
       typeof exceptionResponse === 'string'
@@ -42,8 +39,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
           (exception instanceof Error ? exception.message : 'Internal server error');
 
     const error =
-      typeof exceptionResponse === 'object' &&
-      (exceptionResponse as Record<string, unknown>)?.error
+      typeof exceptionResponse === 'object' && (exceptionResponse as Record<string, unknown>)?.error
         ? (exceptionResponse as Record<string, unknown>).error
         : HttpStatus[statusCode] || 'Internal Server Error';
 
@@ -56,10 +52,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       correlationId: request.headers['x-correlation-id'] as string | undefined,
     };
 
-    if (
-      exception instanceof HttpException &&
-      typeof exceptionResponse === 'object'
-    ) {
+    if (exception instanceof HttpException && typeof exceptionResponse === 'object') {
       const details = (exceptionResponse as Record<string, unknown>).details;
       if (details) {
         errorResponse.details = details;

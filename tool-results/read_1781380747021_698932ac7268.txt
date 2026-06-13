@@ -1,0 +1,877 @@
+     1→/**
+     2→ * AENEWS Agent OS X - System Monitor Agent
+     3→ * Monitor system resources: CPU, memory, disk, network.
+     4→ * Provides real-time system resource monitoring with historical tracking.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const SYSTEM_MONITOR_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'computer-system-monitor',
+    20→  name: 'SystemMonitor',
+    21→  cluster: AgentCluster.COMPUTER,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Monitor system resources: CPU usage, memory consumption, disk space, and network statistics. Provides real-time monitoring, historical data, resource alerts, and comprehensive system information.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'getCpuUsage',
+    28→      description: 'Get current CPU usage statistics',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          perCore: { type: 'boolean', default: false, description: 'Return per-core usage' },
+    33→          interval: { type: 'number', default: 1000, description: 'Sampling interval in ms' },
+    34→        },
+    35→      },
+    36→      outputSchema: {
+    37→        type: 'object',
+    38→        properties: {
+    39→          overall: { type: 'number' },
+    40→          cores: { type: 'array' },
+    41→          userPercent: { type: 'number' },
+    42→          systemPercent: { type: 'number' },
+    43→          idlePercent: { type: 'number' },
+    44→          sampledAt: { type: 'string' },
+    45→        },
+    46→      },
+    47→    },
+    48→    {
+    49→      name: 'getMemoryUsage',
+    50→      description: 'Get current memory usage statistics',
+    51→      inputSchema: {
+    52→        type: 'object',
+    53→        properties: {
+    54→          detailed: { type: 'boolean', default: false, description: 'Include detailed breakdown' },
+    55→        },
+    56→      },
+    57→      outputSchema: {
+    58→        type: 'object',
+    59→        properties: {
+    60→          total: { type: 'number' },
+    61→          used: { type: 'number' },
+    62→          free: { type: 'number' },
+    63→          usedPercent: { type: 'number' },
+    64→          swapTotal: { type: 'number' },
+    65→          swapUsed: { type: 'number' },
+    66→        },
+    67→      },
+    68→    },
+    69→    {
+    70→      name: 'getDiskUsage',
+    71→      description: 'Get disk space usage for mounted filesystems',
+    72→      inputSchema: {
+    73→        type: 'object',
+    74→        properties: {
+    75→          path: { type: 'string', default: '/', description: 'Filesystem path to check' },
+    76→        },
+    77→      },
+    78→      outputSchema: {
+    79→        type: 'object',
+    80→        properties: {
+    81→          filesystem: { type: 'string' },
+    82→          total: { type: 'number' },
+    83→          used: { type: 'number' },
+    84→          available: { type: 'number' },
+    85→          usedPercent: { type: 'number' },
+    86→          mountPoint: { type: 'string' },
+    87→        },
+    88→      },
+    89→    },
+    90→    {
+    91→      name: 'getNetworkStats',
+    92→      description: 'Get network interface statistics',
+    93→      inputSchema: {
+    94→        type: 'object',
+    95→        properties: {
+    96→          interface: { type: 'string', description: 'Specific interface name (default: all)' },
+    97→        },
+    98→      },
+    99→      outputSchema: {
+   100→        type: 'object',
+   101→        properties: {
+   102→          interfaces: { type: 'array' },
+   103→          totalBytesReceived: { type: 'number' },
+   104→          totalBytesSent: { type: 'number' },
+   105→        },
+   106→      },
+   107→    },
+   108→    {
+   109→      name: 'getSystemInfo',
+   110→      description: 'Get comprehensive system information',
+   111→      inputSchema: {
+   112→        type: 'object',
+   113→        properties: {},
+   114→      },
+   115→      outputSchema: {
+   116→        type: 'object',
+   117→        properties: {
+   118→          hostname: { type: 'string' },
+   119→          os: { type: 'string' },
+   120→          kernel: { type: 'string' },
+   121→          arch: { type: 'string' },
+   122→          cpuModel: { type: 'string' },
+   123→          cpuCores: { type: 'number' },
+   124→          totalMemory: { type: 'number' },
+   125→          uptime: { type: 'number' },
+   126→        },
+   127→      },
+   128→    },
+   129→    {
+   130→      name: 'monitorResource',
+   131→      description: 'Continuously monitor a resource over a specified duration',
+   132→      inputSchema: {
+   133→        type: 'object',
+   134→        properties: {
+   135→          resource: {
+   136→            type: 'string',
+   137→            enum: ['cpu', 'memory', 'disk', 'network', 'all'],
+   138→            default: 'all',
+   139→          },
+   140→          duration: { type: 'number', default: 30000, description: 'Monitoring duration in ms' },
+   141→          interval: { type: 'number', default: 2000, description: 'Sampling interval in ms' },
+   142→          alertThreshold: { type: 'number', description: 'Alert when usage exceeds this percent' },
+   143→        },
+   144→        required: ['resource'],
+   145→      },
+   146→      outputSchema: {
+   147→        type: 'object',
+   148→        properties: {
+   149→          resource: { type: 'string' },
+   150→          samples: { type: 'array' },
+   151→          avgUsage: { type: 'number' },
+   152→          maxUsage: { type: 'number' },
+   153→          minUsage: { type: 'number' },
+   154→          alerts: { type: 'array' },
+   155→          monitoredDuration: { type: 'number' },
+   156→        },
+   157→      },
+   158→    },
+   159→  ],
+   160→  permissions: [
+   161→    'execute:task',
+   162→    'read:system',
+   163→    'monitor:cpu',
+   164→    'monitor:memory',
+   165→    'monitor:disk',
+   166→    'monitor:network',
+   167→  ],
+   168→  maxConcurrentTasks: 5,
+   169→  timeout: 60000,
+   170→  retryPolicy: {
+   171→    maxRetries: 2,
+   172→    backoffMs: 800,
+   173→    exponentialBackoff: true,
+   174→  },
+   175→};
+   176→
+   177→// ─── Monitor Types ────────────────────────────────────────────────
+   178→
+   179→interface CpuCore {
+   180→  coreIndex: number;
+   181→  usagePercent: number;
+   182→  userPercent: number;
+   183→  systemPercent: number;
+   184→  idlePercent: number;
+   185→}
+   186→
+   187→interface CpuSample {
+   188→  overall: number;
+   189→  userPercent: number;
+   190→  systemPercent: number;
+   191→  idlePercent: number;
+   192→  cores?: CpuCore[];
+   193→  sampledAt: string;
+   194→}
+   195→
+   196→interface MemorySample {
+   197→  totalMb: number;
+   198→  usedMb: number;
+   199→  freeMb: number;
+   200→  usedPercent: number;
+   201→  swapTotalMb: number;
+   202→  swapUsedMb: number;
+   203→  sampledAt: string;
+   204→}
+   205→
+   206→interface DiskInfo {
+   207→  filesystem: string;
+   208→  totalGb: number;
+   209→  usedGb: number;
+   210→  availableGb: number;
+   211→  usedPercent: number;
+   212→  mountPoint: string;
+   213→}
+   214→
+   215→interface NetworkInterface {
+   216→  name: string;
+   217→  bytesReceived: number;
+   218→  bytesSent: number;
+   219→  packetsReceived: number;
+   220→  packetsSent: number;
+   221→  errors: number;
+   222→  isUp: boolean;
+   223→  ipAddress?: string;
+   224→}
+   225→
+   226→interface MonitorSample {
+   227→  timestamp: string;
+   228→  cpu?: number;
+   229→  memory?: number;
+   230→  disk?: number;
+   231→  networkBytesIn?: number;
+   232→  networkBytesOut?: number;
+   233→}
+   234→
+   235→interface MonitorAlert {
+   236→  timestamp: string;
+   237→  resource: string;
+   238→  value: number;
+   239→  threshold: number;
+   240→  message: string;
+   241→}
+   242→
+   243→// ─── Simulated System State ──────────────────────────────────────
+   244→
+   245→interface SystemState {
+   246→  hostname: string;
+   247→  os: string;
+   248→  kernel: string;
+   249→  arch: string;
+   250→  cpuModel: string;
+   251→  cpuCores: number;
+   252→  totalMemoryMb: number;
+   253→  bootTime: Date;
+   254→  // Mutable simulated state
+   255→  currentCpuUsage: number;
+   256→  currentMemoryUsedMb: number;
+   257→  currentSwapUsedMb: number;
+   258→  networkBytesReceived: number;
+   259→  networkBytesSent: number;
+   260→}
+   261→
+   262→// ─── Agent Service ────────────────────────────────────────────────
+   263→
+   264→@Injectable()
+   265→export class SystemMonitorAgentService extends BaseAgentService {
+   266→  private systemState!: SystemState;
+   267→  private historicalCpu: CpuSample[] = [];
+   268→  private historicalMemory: MemorySample[] = [];
+   269→  private maxHistorySize = 500;
+   270→
+   271→  protected defineConfig(): AgentConfig {
+   272→    return SYSTEM_MONITOR_AGENT_CONFIG;
+   273→  }
+   274→
+   275→  protected async onInitialize(): Promise<void> {
+   276→    // Initialize simulated system state
+   277→    this.systemState = {
+   278→      hostname: 'aenews-agent-os',
+   279→      os: 'AENEWS Agent OS 1.0',
+   280→      kernel: '5.15.0-generic',
+   281→      arch: 'x86_64',
+   282→      cpuModel: 'Intel(R) Xeon(R) CPU @ 2.40GHz',
+   283→      cpuCores: 8,
+   284→      totalMemoryMb: 8192,
+   285→      bootTime: new Date(Date.now() - Math.random() * 30 * 86400000), // Random uptime up to 30 days
+   286→      currentCpuUsage: 12 + Math.random() * 15,
+   287→      currentMemoryUsedMb: 2048 + Math.random() * 2048,
+   288→      currentSwapUsedMb: Math.random() * 512,
+   289→      networkBytesReceived: Math.random() * 1000000000,
+   290→      networkBytesSent: Math.random() * 500000000,
+   291→    };
+   292→
+   293→    // Register tools
+   294→    this.registerTool({
+   295→      name: 'getCpuUsage',
+   296→      description: 'Get CPU usage statistics',
+   297→      execute: async (params: { perCore?: boolean; interval?: number }) =>
+   298→        this.getCpuUsage(params.perCore || false, params.interval || 1000),
+   299→    });
+   300→
+   301→    this.registerTool({
+   302→      name: 'getMemoryUsage',
+   303→      description: 'Get memory usage statistics',
+   304→      execute: async (params: { detailed?: boolean }) =>
+   305→        this.getMemoryUsage(params.detailed || false),
+   306→    });
+   307→
+   308→    this.registerTool({
+   309→      name: 'getDiskUsage',
+   310→      description: 'Get disk usage statistics',
+   311→      execute: async (params: { path?: string }) => this.getDiskUsage(params.path || '/'),
+   312→    });
+   313→
+   314→    this.registerTool({
+   315→      name: 'getNetworkStats',
+   316→      description: 'Get network interface statistics',
+   317→      execute: async (params: { interface?: string }) => this.getNetworkStats(params.interface),
+   318→    });
+   319→
+   320→    this.registerTool({
+   321→      name: 'getSystemInfo',
+   322→      description: 'Get comprehensive system information',
+   323→      execute: async () => this.getSystemInfo(),
+   324→    });
+   325→
+   326→    this.registerTool({
+   327→      name: 'monitorResource',
+   328→      description: 'Monitor a resource over time',
+   329→      execute: async (params: {
+   330→        resource: string;
+   331→        duration?: number;
+   332→        interval?: number;
+   333→        alertThreshold?: number;
+   334→      }) =>
+   335→        this.monitorResource(
+   336→          params.resource,
+   337→          params.duration || 30000,
+   338→          params.interval || 2000,
+   339→          params.alertThreshold,
+   340→        ),
+   341→    });
+   342→
+   343→    await this.storeInWorkingMemory('sysmon:initializedAt', new Date().toISOString(), 600000);
+   344→    this.logger.log('SystemMonitor agent initialized with 6 tools');
+   345→  }
+   346→
+   347→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   348→    const startTime = Date.now();
+   349→    const { action, ...params } = input.payload;
+   350→
+   351→    if (!action) {
+   352→      return this.createAgentOutput(
+   353→        input.taskId,
+   354→        false,
+   355→        null,
+   356→        'Missing required parameter: action',
+   357→        startTime,
+   358→      );
+   359→    }
+   360→
+   361→    const supportedActions = [
+   362→      'getCpuUsage',
+   363→      'getMemoryUsage',
+   364→      'getDiskUsage',
+   365→      'getNetworkStats',
+   366→      'getSystemInfo',
+   367→      'monitorResource',
+   368→    ];
+   369→
+   370→    if (!supportedActions.includes(action)) {
+   371→      return this.createAgentOutput(
+   372→        input.taskId,
+   373→        false,
+   374→        null,
+   375→        `Unknown system monitor action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   376→        startTime,
+   377→      );
+   378→    }
+   379→
+   380→    try {
+   381→      const tool = this.getTool(action);
+   382→      if (!tool) {
+   383→        return this.createAgentOutput(
+   384→          input.taskId,
+   385→          false,
+   386→          null,
+   387→          `Tool not found: ${action}`,
+   388→          startTime,
+   389→        );
+   390→      }
+   391→
+   392→      const result = await tool.execute(params);
+   393→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   394→    } catch (error) {
+   395→      const msg = (error as Error).message;
+   396→      this.logger.error(`SystemMonitor execution failed for ${action}: ${msg}`);
+   397→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   398→    }
+   399→  }
+   400→
+   401→  protected async onDestroy(): Promise<void> {
+   402→    this.historicalCpu = [];
+   403→    this.historicalMemory = [];
+   404→    this.logger.log('SystemMonitor agent destroyed, history cleared');
+   405→  }
+   406→
+   407→  // ─── Tool Implementations ──────────────────────────────────────
+   408→
+   409→  private async getCpuUsage(
+   410→    perCore: boolean = false,
+   411→    interval: number = 1000,
+   412→  ): Promise<{
+   413→    overall: number;
+   414→    cores?: CpuCore[];
+   415→    userPercent: number;
+   416→    systemPercent: number;
+   417→    idlePercent: number;
+   418→    sampledAt: string;
+   419→  }> {
+   420→    // Fluctuate CPU usage
+   421→    this.fluctuateCpu();
+   422→
+   423→    const userPercent = Math.round(this.systemState.currentCpuUsage * 0.6 * 100) / 100;
+   424→    const systemPercent = Math.round(this.systemState.currentCpuUsage * 0.3 * 100) / 100;
+   425→    const idlePercent = Math.round((100 - this.systemState.currentCpuUsage) * 100) / 100;
+   426→
+   427→    const sample: CpuSample = {
+   428→      overall: Math.round(this.systemState.currentCpuUsage * 100) / 100,
+   429→      userPercent,
+   430→      systemPercent,
+   431→      idlePercent,
+   432→      sampledAt: new Date().toISOString(),
+   433→    };
+   434→
+   435→    if (perCore) {
+   436→      sample.cores = [];
+   437→      for (let i = 0; i < this.systemState.cpuCores; i++) {
+   438→        const coreUsage = Math.max(
+   439→          0,
+   440→          Math.min(100, this.systemState.currentCpuUsage + (Math.random() - 0.5) * 30),
+   441→        );
+   442→        sample.cores.push({
+   443→          coreIndex: i,
+   444→          usagePercent: Math.round(coreUsage * 100) / 100,
+   445→          userPercent: Math.round(coreUsage * 0.6 * 100) / 100,
+   446→          systemPercent: Math.round(coreUsage * 0.3 * 100) / 100,
+   447→          idlePercent: Math.round((100 - coreUsage) * 100) / 100,
+   448→        });
+   449→      }
+   450→    }
+   451→
+   452→    // Store in history
+   453→    this.historicalCpu.push(sample);
+   454→    this.trimHistory(this.historicalCpu);
+   455→
+   456→    this.logger.log(`CPU usage: ${sample.overall}%`);
+   457→    return {
+   458→      overall: sample.overall,
+   459→      cores: sample.cores,
+   460→      userPercent,
+   461→      systemPercent,
+   462→      idlePercent,
+   463→      sampledAt: sample.sampledAt,
+   464→    };
+   465→  }
+   466→
+   467→  private async getMemoryUsage(detailed: boolean = false): Promise<{
+   468→    total: number;
+   469→    used: number;
+   470→    free: number;
+   471→    usedPercent: number;
+   472→    swapTotal: number;
+   473→    swapUsed: number;
+   474→    details?: Record<string, number>;
+   475→  }> {
+   476→    // Fluctuate memory
+   477→    this.fluctuateMemory();
+   478→
+   479→    const total = this.systemState.totalMemoryMb;
+   480→    const used = Math.round(this.systemState.currentMemoryUsedMb);
+   481→    const free = total - used;
+   482→    const usedPercent = Math.round((used / total) * 10000) / 100;
+   483→    const swapTotal = 4096;
+   484→    const swapUsed = Math.round(this.systemState.currentSwapUsedMb);
+   485→
+   486→    const result: any = {
+   487→      total,
+   488→      used,
+   489→      free,
+   490→      usedPercent,
+   491→      swapTotal,
+   492→      swapUsed,
+   493→    };
+   494→
+   495→    if (detailed) {
+   496→      result.details = {
+   497→        buffers: Math.round(used * 0.08),
+   498→        cached: Math.round(used * 0.25),
+   499→        shared: Math.round(used * 0.05),
+   500→        available: Math.round(free + used * 0.25),
+   501→        slab: Math.round(used * 0.03),
+   502→        kernelStack: Math.round(used * 0.01),
+   503→        pageTables: Math.round(used * 0.02),
+   504→      };
+   505→    }
+   506→
+   507→    // Store in history
+   508→    const sample: MemorySample = {
+   509→      totalMb: total,
+   510→      usedMb: used,
+   511→      freeMb: free,
+   512→      usedPercent,
+   513→      swapTotalMb: swapTotal,
+   514→      swapUsedMb: swapUsed,
+   515→      sampledAt: new Date().toISOString(),
+   516→    };
+   517→    this.historicalMemory.push(sample);
+   518→    this.trimHistory(this.historicalMemory);
+   519→
+   520→    this.logger.log(`Memory usage: ${used}/${total} MB (${usedPercent}%)`);
+   521→    return result;
+   522→  }
+   523→
+   524→  private async getDiskUsage(path: string = '/'): Promise<{
+   525→    filesystem: string;
+   526→    total: number;
+   527→    used: number;
+   528→    available: number;
+   529→    usedPercent: number;
+   530→    mountPoint: string;
+   531→  }> {
+   532→    // Simulated disk data
+   533→    const disks: Record<string, DiskInfo> = {
+   534→      '/': {
+   535→        filesystem: '/dev/sda1',
+   536→        totalGb: 100,
+   537→        usedGb: 23,
+   538→        availableGb: 77,
+   539→        usedPercent: 23,
+   540→        mountPoint: '/',
+   541→      },
+   542→      '/home': {
+   543→        filesystem: '/dev/sda2',
+   544→        totalGb: 500,
+   545→        usedGb: 156,
+   546→        availableGb: 344,
+   547→        usedPercent: 31.2,
+   548→        mountPoint: '/home',
+   549→      },
+   550→      '/tmp': {
+   551→        filesystem: 'tmpfs',
+   552→        totalGb: 4,
+   553→        usedGb: 0.1,
+   554→        availableGb: 3.9,
+   555→        usedPercent: 2.5,
+   556→        mountPoint: '/tmp',
+   557→      },
+   558→      '/var': {
+   559→        filesystem: '/dev/sda3',
+   560→        totalGb: 50,
+   561→        usedGb: 18,
+   562→        availableGb: 32,
+   563→        usedPercent: 36,
+   564→        mountPoint: '/var',
+   565→      },
+   566→    };
+   567→
+   568→    // Add some fluctuation
+   569→    const disk = disks[path];
+   570→    if (!disk) {
+   571→      // Default to root if unknown path
+   572→      const rootDisk = disks['/'];
+   573→      const usedFluctuation = Math.random() * 2 - 1;
+   574→      const usedGb = Math.max(1, rootDisk.usedGb + usedFluctuation);
+   575→      const availableGb = rootDisk.totalGb - usedGb;
+   576→      const usedPercent = Math.round((usedGb / rootDisk.totalGb) * 10000) / 100;
+   577→
+   578→      this.logger.log(
+   579→        `Disk usage for ${path}: ${usedGb.toFixed(1)}/${rootDisk.totalGb} GB (${usedPercent}%)`,
+   580→      );
+   581→      return {
+   582→        filesystem: rootDisk.filesystem,
+   583→        total: rootDisk.totalGb,
+   584→        used: Math.round(usedGb * 100) / 100,
+   585→        available: Math.round(availableGb * 100) / 100,
+   586→        usedPercent,
+   587→        mountPoint: path,
+   588→      };
+   589→    }
+   590→
+   591→    const usedFluctuation = Math.random() * 2 - 1;
+   592→    const usedGb = Math.max(0.1, disk.usedGb + usedFluctuation);
+   593→    const availableGb = disk.totalGb - usedGb;
+   594→    const usedPercent = Math.round((usedGb / disk.totalGb) * 10000) / 100;
+   595→
+   596→    this.logger.log(
+   597→      `Disk usage for ${path}: ${usedGb.toFixed(1)}/${disk.totalGb} GB (${usedPercent}%)`,
+   598→    );
+   599→    return {
+   600→      filesystem: disk.filesystem,
+   601→      total: disk.totalGb,
+   602→      used: Math.round(usedGb * 100) / 100,
+   603→      available: Math.round(availableGb * 100) / 100,
+   604→      usedPercent,
+   605→      mountPoint: disk.mountPoint,
+   606→    };
+   607→  }
+   608→
+   609→  private async getNetworkStats(interfaceName?: string): Promise<{
+   610→    interfaces: NetworkInterface[];
+   611→    totalBytesReceived: number;
+   612→    totalBytesSent: number;
+   613→  }> {
+   614→    // Fluctuate network counters
+   615→    this.fluctuateNetwork();
+   616→
+   617→    const interfaces: NetworkInterface[] = [
+   618→      {
+   619→        name: 'eth0',
+   620→        bytesReceived: Math.round(this.systemState.networkBytesReceived),
+   621→        bytesSent: Math.round(this.systemState.networkBytesSent * 0.7),
+   622→        packetsReceived: Math.round(this.systemState.networkBytesReceived / 1500),
+   623→        packetsSent: Math.round((this.systemState.networkBytesSent * 0.7) / 1500),
+   624→        errors: Math.floor(Math.random() * 5),
+   625→        isUp: true,
+   626→        ipAddress: '192.168.1.100',
+   627→      },
+   628→      {
+   629→        name: 'eth1',
+   630→        bytesReceived: Math.round(this.systemState.networkBytesReceived * 0.3),
+   631→        bytesSent: Math.round(this.systemState.networkBytesSent * 0.3),
+   632→        packetsReceived: Math.round((this.systemState.networkBytesReceived * 0.3) / 1500),
+   633→        packetsSent: Math.round((this.systemState.networkBytesSent * 0.3) / 1500),
+   634→        errors: 0,
+   635→        isUp: true,
+   636→        ipAddress: '10.0.0.50',
+   637→      },
+   638→      {
+   639→        name: 'lo',
+   640→        bytesReceived: Math.round(Math.random() * 1000000),
+   641→        bytesSent: Math.round(Math.random() * 1000000),
+   642→        packetsReceived: Math.round(Math.random() * 5000),
+   643→        packetsSent: Math.round(Math.random() * 5000),
+   644→        errors: 0,
+   645→        isUp: true,
+   646→        ipAddress: '127.0.0.1',
+   647→      },
+   648→    ];
+   649→
+   650→    let filteredInterfaces = interfaces;
+   651→    if (interfaceName) {
+   652→      filteredInterfaces = interfaces.filter((iface) => iface.name === interfaceName);
+   653→      if (filteredInterfaces.length === 0) {
+   654→        throw new Error(
+   655→          `Network interface not found: ${interfaceName}. Available: ${interfaces.map((i) => i.name).join(', ')}`,
+   656→        );
+   657→      }
+   658→    }
+   659→
+   660→    const totalBytesReceived = filteredInterfaces.reduce(
+   661→      (sum, iface) => sum + iface.bytesReceived,
+   662→      0,
+   663→    );
+   664→    const totalBytesSent = filteredInterfaces.reduce((sum, iface) => sum + iface.bytesSent, 0);
+   665→
+   666→    this.logger.log(
+   667→      `Network stats: ${filteredInterfaces.length} interfaces, ${(totalBytesReceived / 1024 / 1024).toFixed(1)}MB in, ${(totalBytesSent / 1024 / 1024).toFixed(1)}MB out`,
+   668→    );
+   669→    return { interfaces: filteredInterfaces, totalBytesReceived, totalBytesSent };
+   670→  }
+   671→
+   672→  private async getSystemInfo(): Promise<{
+   673→    hostname: string;
+   674→    os: string;
+   675→    kernel: string;
+   676→    arch: string;
+   677→    cpuModel: string;
+   678→    cpuCores: number;
+   679→    totalMemory: number;
+   680→    uptime: number;
+   681→    loadAverage: number[];
+   682→    systemTime: string;
+   683→  }> {
+   684→    const uptimeMs = Date.now() - this.systemState.bootTime.getTime();
+   685→    const uptimeSec = Math.round(uptimeMs / 1000);
+   686→
+   687→    this.logger.log(`System info: ${this.systemState.hostname}, uptime: ${uptimeSec}s`);
+   688→    return {
+   689→      hostname: this.systemState.hostname,
+   690→      os: this.systemState.os,
+   691→      kernel: this.systemState.kernel,
+   692→      arch: this.systemState.arch,
+   693→      cpuModel: this.systemState.cpuModel,
+   694→      cpuCores: this.systemState.cpuCores,
+   695→      totalMemory: this.systemState.totalMemoryMb,
+   696→      uptime: uptimeSec,
+   697→      loadAverage: [
+   698→        Math.round((this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 100) /
+   699→          100,
+   700→        Math.round(
+   701→          (this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 0.9 * 100,
+   702→        ) / 100,
+   703→        Math.round(
+   704→          (this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 0.8 * 100,
+   705→        ) / 100,
+   706→      ],
+   707→      systemTime: new Date().toISOString(),
+   708→    };
+   709→  }
+   710→
+   711→  private async monitorResource(
+   712→    resource: string,
+   713→    duration: number = 30000,
+   714→    interval: number = 2000,
+   715→    alertThreshold?: number,
+   716→  ): Promise<{
+   717→    resource: string;
+   718→    samples: MonitorSample[];
+   719→    avgUsage: number;
+   720→    maxUsage: number;
+   721→    minUsage: number;
+   722→    alerts: MonitorAlert[];
+   723→    monitoredDuration: number;
+   724→  }> {
+   725→    const validResources = ['cpu', 'memory', 'disk', 'network', 'all'];
+   726→    if (!validResources.includes(resource)) {
+   727→      throw new Error(
+   728→        `Invalid resource: ${resource}. Must be one of: ${validResources.join(', ')}`,
+   729→      );
+   730→    }
+   731→
+   732→    if (duration < 1000 || duration > 300000) {
+   733→      throw new Error('Duration must be between 1000ms and 300000ms (5 minutes)');
+   734→    }
+   735→
+   736→    if (interval < 500 || interval > 30000) {
+   737→      throw new Error('Interval must be between 500ms and 30000ms');
+   738→    }
+   739→
+   740→    const samples: MonitorSample[] = [];
+   741→    const alerts: MonitorAlert[] = [];
+   742→    const monitorStart = Date.now();
+   743→    const sampleCount = Math.min(Math.floor(duration / interval), 150); // Cap at 150 samples
+   744→    const effectiveInterval = Math.min(interval, 200); // Compressed for simulation
+   745→
+   746→    for (let i = 0; i < sampleCount; i++) {
+   747→      const sample: MonitorSample = {
+   748→        timestamp: new Date().toISOString(),
+   749→      };
+   750→
+   751→      if (resource === 'cpu' || resource === 'all') {
+   752→        this.fluctuateCpu();
+   753→        sample.cpu = Math.round(this.systemState.currentCpuUsage * 100) / 100;
+   754→
+   755→        if (alertThreshold && sample.cpu > alertThreshold) {
+   756→          alerts.push({
+   757→            timestamp: sample.timestamp,
+   758→            resource: 'cpu',
+   759→            value: sample.cpu,
+   760→            threshold: alertThreshold,
+   761→            message: `CPU usage ${sample.cpu}% exceeds threshold ${alertThreshold}%`,
+   762→          });
+   763→        }
+   764→      }
+   765→
+   766→      if (resource === 'memory' || resource === 'all') {
+   767→        this.fluctuateMemory();
+   768→        const memPercent =
+   769→          Math.round(
+   770→            (this.systemState.currentMemoryUsedMb / this.systemState.totalMemoryMb) * 10000,
+   771→          ) / 100;
+   772→        sample.memory = memPercent;
+   773→
+   774→        if (alertThreshold && memPercent > alertThreshold) {
+   775→          alerts.push({
+   776→            timestamp: sample.timestamp,
+   777→            resource: 'memory',
+   778→            value: memPercent,
+   779→            threshold: alertThreshold,
+   780→            message: `Memory usage ${memPercent}% exceeds threshold ${alertThreshold}%`,
+   781→          });
+   782→        }
+   783→      }
+   784→
+   785→      if (resource === 'disk' || resource === 'all') {
+   786→        sample.disk = 23 + Math.random() * 2;
+   787→      }
+   788→
+   789→      if (resource === 'network' || resource === 'all') {
+   790→        this.fluctuateNetwork();
+   791→        sample.networkBytesIn = Math.round(Math.random() * 100000);
+   792→        sample.networkBytesOut = Math.round(Math.random() * 50000);
+   793→      }
+   794→
+   795→      samples.push(sample);
+   796→
+   797→      if (i < sampleCount - 1) {
+   798→        await this.sleep(effectiveInterval);
+   799→      }
+   800→    }
+   801→
+   802→    const monitoredDuration = Date.now() - monitorStart;
+   803→
+   804→    // Calculate statistics for the primary resource
+   805→    const values = samples.map((s) => s.cpu ?? s.memory ?? s.disk ?? 0).filter((v) => v > 0);
+   806→
+   807→    const avgUsage =
+   808→      values.length > 0
+   809→        ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
+   810→        : 0;
+   811→    const maxUsage = values.length > 0 ? Math.round(Math.max(...values) * 100) / 100 : 0;
+   812→    const minUsage = values.length > 0 ? Math.round(Math.min(...values) * 100) / 100 : 0;
+   813→
+   814→    // Store monitoring result
+   815→    await this.storeInWorkingMemory(
+   816→      `sysmon:last:${resource}`,
+   817→      {
+   818→        avgUsage,
+   819→        maxUsage,
+   820→        minUsage,
+   821→        alertCount: alerts.length,
+   822→        sampledAt: new Date().toISOString(),
+   823→      },
+   824→      300000,
+   825→    );
+   826→
+   827→    this.logger.log(
+   828→      `Monitored ${resource}: ${samples.length} samples over ${monitoredDuration}ms, ` +
+   829→        `avg: ${avgUsage}%, max: ${maxUsage}%, alerts: ${alerts.length}`,
+   830→    );
+   831→
+   832→    return {
+   833→      resource,
+   834→      samples,
+   835→      avgUsage,
+   836→      maxUsage,
+   837→      minUsage,
+   838→      alerts,
+   839→      monitoredDuration,
+   840→    };
+   841→  }
+   842→
+   843→  // ─── Simulation Helpers ─────────────────────────────────────────
+   844→
+   845→  private fluctuateCpu(): void {
+   846→    const delta = (Math.random() - 0.5) * 10;
+   847→    this.systemState.currentCpuUsage = Math.max(
+   848→      1,
+   849→      Math.min(95, this.systemState.currentCpuUsage + delta),
+   850→    );
+   851→  }
+   852→
+   853→  private fluctuateMemory(): void {
+   854→    const delta = (Math.random() - 0.5) * 200;
+   855→    this.systemState.currentMemoryUsedMb = Math.max(
+   856→      1024,
+   857→      Math.min(this.systemState.totalMemoryMb * 0.9, this.systemState.currentMemoryUsedMb + delta),
+   858→    );
+   859→    const swapDelta = (Math.random() - 0.5) * 50;
+   860→    this.systemState.currentSwapUsedMb = Math.max(
+   861→      0,
+   862→      Math.min(2048, this.systemState.currentSwapUsedMb + swapDelta),
+   863→    );
+   864→  }
+   865→
+   866→  private fluctuateNetwork(): void {
+   867→    this.systemState.networkBytesReceived += Math.round(Math.random() * 500000);
+   868→    this.systemState.networkBytesSent += Math.round(Math.random() * 250000);
+   869→  }
+   870→
+   871→  private trimHistory<T>(history: T[]): void {
+   872→    if (history.length > this.maxHistorySize) {
+   873→      history.splice(0, history.length - this.maxHistorySize);
+   874→    }
+   875→  }
+   876→}
+   877→

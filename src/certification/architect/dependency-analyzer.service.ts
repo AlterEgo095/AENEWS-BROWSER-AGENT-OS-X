@@ -277,7 +277,10 @@ export class DependencyAnalyzerService {
     return adjacency;
   }
 
-  private detectCycles(nodes: DependencyNode[], adjacency: Map<string, string[]>): DependencyCycle[] {
+  private detectCycles(
+    nodes: DependencyNode[],
+    adjacency: Map<string, string[]>,
+  ): DependencyCycle[] {
     const cycles: DependencyCycle[] = [];
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
@@ -292,7 +295,8 @@ export class DependencyAnalyzerService {
           cycles.push({
             nodes: [...cyclePath, nodePath],
             length: cyclePath.length + 1,
-            severity: cyclePath.length <= 2 ? 'critical' : cyclePath.length <= 4 ? 'warning' : 'info',
+            severity:
+              cyclePath.length <= 2 ? 'critical' : cyclePath.length <= 4 ? 'warning' : 'info',
             description: `Circular dependency: ${[...cyclePath, nodePath].join(' → ')}`,
           });
         }

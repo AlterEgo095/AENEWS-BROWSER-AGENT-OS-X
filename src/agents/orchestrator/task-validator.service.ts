@@ -81,11 +81,11 @@ export class TaskValidatorService {
     // ─── Overall Score ────────────────────────────────────────────
     const score = Math.round(
       completenessScore * 0.25 +
-      qualityScore * 0.20 +
-      performanceScore * 0.10 +
-      complianceScore * 0.15 +
-      integrityScore * 0.15 +
-      schemaValidationScore * 0.15,
+        qualityScore * 0.2 +
+        performanceScore * 0.1 +
+        complianceScore * 0.15 +
+        integrityScore * 0.15 +
+        schemaValidationScore * 0.15,
     );
 
     const isValid = errors.length === 0 && score >= 50;
@@ -110,7 +110,7 @@ export class TaskValidatorService {
 
     this.logger.log(
       `Validation ${isValid ? 'PASSED' : 'FAILED'} (score: ${score}): ` +
-      `${errors.length} errors, ${warnings.length} warnings in ${Date.now() - startTime}ms`,
+        `${errors.length} errors, ${warnings.length} warnings in ${Date.now() - startTime}ms`,
     );
 
     return result;
@@ -138,9 +138,7 @@ export class TaskValidatorService {
 
     // Check overall success rate
     if (successRate < 0.5) {
-      errors.push(
-        `Less than 50% of steps succeeded (${successfulSteps}/${totalSteps})`,
-      );
+      errors.push(`Less than 50% of steps succeeded (${successfulSteps}/${totalSteps})`);
       score -= 50;
     } else if (successRate < 0.8) {
       warnings.push(
@@ -154,9 +152,7 @@ export class TaskValidatorService {
       (r) => r.success && (r.output.result === null || r.output.result === undefined),
     );
     if (emptyResults.length > 0) {
-      warnings.push(
-        `${emptyResults.length} successful step(s) have empty results`,
-      );
+      warnings.push(`${emptyResults.length} successful step(s) have empty results`);
       score -= 5 * emptyResults.length;
     }
 
@@ -210,9 +206,7 @@ export class TaskValidatorService {
 
       // Check for error indicators in successful output
       if (output.error) {
-        warnings.push(
-          `Step ${result.stepId} succeeded but has error message: ${output.error}`,
-        );
+        warnings.push(`Step ${result.stepId} succeeded but has error message: ${output.error}`);
         score -= 10;
       }
 
@@ -261,9 +255,7 @@ export class TaskValidatorService {
     const avgTime = totalTime / Math.max(results.length, 1);
 
     if (totalTime > maxTotalTime) {
-      warnings.push(
-        `Total execution time ${totalTime}ms exceeds maximum ${maxTotalTime}ms`,
-      );
+      warnings.push(`Total execution time ${totalTime}ms exceeds maximum ${maxTotalTime}ms`);
       score -= 20;
     }
 
@@ -280,17 +272,13 @@ export class TaskValidatorService {
       (r) => r.output.metrics && r.output.metrics.memoryUsedMb > 256,
     );
     if (highMemorySteps.length > 0) {
-      warnings.push(
-        `${highMemorySteps.length} step(s) used more than 256MB of memory`,
-      );
+      warnings.push(`${highMemorySteps.length} step(s) used more than 256MB of memory`);
       score -= 5;
     }
 
     // Check average execution time
     if (avgTime > 30000) {
-      warnings.push(
-        `Average step execution time ${Math.round(avgTime)}ms is high`,
-      );
+      warnings.push(`Average step execution time ${Math.round(avgTime)}ms is high`);
       score -= 10;
     }
 
@@ -311,9 +299,7 @@ export class TaskValidatorService {
     // Check that all required permissions were respected
     const requiredPermissions = request.context?.requiredPermissions as string[] | undefined;
     if (requiredPermissions && Array.isArray(requiredPermissions)) {
-      const permissionErrors = results.filter(
-        (r) => r.output.error?.includes('Permission denied'),
-      );
+      const permissionErrors = results.filter((r) => r.output.error?.includes('Permission denied'));
       if (permissionErrors.length > 0) {
         errors.push(
           `${permissionErrors.length} step(s) had permission errors despite having required permissions`,
@@ -331,9 +317,7 @@ export class TaskValidatorService {
           return size > constraints.maxResultSize;
         });
         if (oversizedResults.length > 0) {
-          warnings.push(
-            `${oversizedResults.length} result(s) exceed maximum size constraint`,
-          );
+          warnings.push(`${oversizedResults.length} result(s) exceed maximum size constraint`);
           score -= 10;
         }
       }
@@ -344,9 +328,7 @@ export class TaskValidatorService {
           return contentType && !constraints.allowedContentTypes.includes(contentType);
         });
         if (invalidTypes.length > 0) {
-          errors.push(
-            `${invalidTypes.length} result(s) have disallowed content types`,
-          );
+          errors.push(`${invalidTypes.length} result(s) have disallowed content types`);
           score -= 20;
         }
       }
@@ -357,9 +339,7 @@ export class TaskValidatorService {
       if (result.success && result.output.result) {
         const resultStr = JSON.stringify(result.output.result);
         if (/password|secret|api_key|token|credential/i.test(resultStr)) {
-          warnings.push(
-            `Step ${result.stepId} may contain sensitive data in output`,
-          );
+          warnings.push(`Step ${result.stepId} may contain sensitive data in output`);
           score -= 5;
         }
       }
@@ -453,9 +433,7 @@ export class TaskValidatorService {
       }
 
       if (schemaResult.warnings.length > 0) {
-        warnings.push(
-          `Step ${result.stepId} schema warnings: ${schemaResult.warnings.join('; ')}`,
-        );
+        warnings.push(`Step ${result.stepId} schema warnings: ${schemaResult.warnings.join('; ')}`);
         score -= 5;
       }
     }
@@ -466,10 +444,7 @@ export class TaskValidatorService {
   /**
    * Validate a value against a JSON-like schema.
    */
-  private validateSchema(
-    value: any,
-    schema: Record<string, any>,
-  ): SchemaValidationResult {
+  private validateSchema(value: any, schema: Record<string, any>): SchemaValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -513,10 +488,18 @@ export class TaskValidatorService {
           if (prop.type && typeof value[key] !== prop.type) {
             errors.push(`Field ${key}: expected ${prop.type}, got ${typeof value[key]}`);
           }
-          if (prop.minLength && typeof value[key] === 'string' && value[key].length < prop.minLength) {
+          if (
+            prop.minLength &&
+            typeof value[key] === 'string' &&
+            value[key].length < prop.minLength
+          ) {
             errors.push(`Field ${key}: minimum length ${prop.minLength} not met`);
           }
-          if (prop.maxLength && typeof value[key] === 'string' && value[key].length > prop.maxLength) {
+          if (
+            prop.maxLength &&
+            typeof value[key] === 'string' &&
+            value[key].length > prop.maxLength
+          ) {
             warnings.push(`Field ${key}: exceeds maximum length ${prop.maxLength}`);
           }
           if (prop.minimum && typeof value[key] === 'number' && value[key] < prop.minimum) {
@@ -526,7 +509,9 @@ export class TaskValidatorService {
             warnings.push(`Field ${key}: value ${value[key]} exceeds maximum ${prop.maximum}`);
           }
           if (prop.enum && Array.isArray(prop.enum) && !prop.enum.includes(value[key])) {
-            errors.push(`Field ${key}: value '${value[key]}' not in enum [${prop.enum.join(', ')}]`);
+            errors.push(
+              `Field ${key}: value '${value[key]}' not in enum [${prop.enum.join(', ')}]`,
+            );
           }
         }
       }

@@ -222,7 +222,13 @@ export class ConstitutionalAiService implements OnModuleInit {
           {
             field: 'actionType',
             operator: 'in',
-            value: ['permission.bypass', 'privilege.escalation', 'role.escalation', 'sudo', 'admin.override'],
+            value: [
+              'permission.bypass',
+              'privilege.escalation',
+              'role.escalation',
+              'sudo',
+              'admin.override',
+            ],
           },
         ],
         isActive: true,
@@ -353,7 +359,14 @@ export class ConstitutionalAiService implements OnModuleInit {
           {
             field: 'actionType',
             operator: 'in',
-            value: ['delete', 'deploy', 'permission.change', 'security.change', 'config.change', 'data.export'],
+            value: [
+              'delete',
+              'deploy',
+              'permission.change',
+              'security.change',
+              'config.change',
+              'data.export',
+            ],
           },
           { field: 'payload.auditRef', operator: 'eq', value: null },
         ],
@@ -383,9 +396,7 @@ export class ConstitutionalAiService implements OnModuleInit {
   addRule(rule: ConstitutionalRule): ConstitutionalRule {
     // Validate required fields
     if (!rule.id || !rule.name || !rule.description) {
-      throw new Error(
-        'Constitutional rule must have id, name, and description',
-      );
+      throw new Error('Constitutional rule must have id, name, and description');
     }
 
     if (!Object.values(RuleType).includes(rule.ruleType)) {
@@ -402,18 +413,14 @@ export class ConstitutionalAiService implements OnModuleInit {
 
     // Check for duplicate ID
     if (this.rules.has(rule.id)) {
-      throw new Error(
-        `Constitutional rule with id "${rule.id}" already exists`,
-      );
+      throw new Error(`Constitutional rule with id "${rule.id}" already exists`);
     }
 
     // Validate no conflicts with existing rules
     const conflicts = this.findRuleConflicts(rule);
     if (conflicts.length > 0) {
       const conflictNames = conflicts.map((c) => c.name).join(', ');
-      throw new Error(
-        `Rule "${rule.name}" conflicts with existing rules: ${conflictNames}`,
-      );
+      throw new Error(`Rule "${rule.name}" conflicts with existing rules: ${conflictNames}`);
     }
 
     const stored: ConstitutionalRule = {
@@ -428,9 +435,7 @@ export class ConstitutionalAiService implements OnModuleInit {
     const auditEntry = `[${new Date().toISOString()}] RULE_ADDED: "${stored.name}" (${stored.id}) type=${stored.ruleType} severity=${stored.severity} enforcement=${stored.enforcement}`;
     this.appendAuditLog(auditEntry);
 
-    this.logger.log(
-      `Constitutional rule added: "${stored.name}" (${stored.id})`,
-    );
+    this.logger.log(`Constitutional rule added: "${stored.name}" (${stored.id})`);
 
     return { ...stored };
   }
@@ -445,16 +450,12 @@ export class ConstitutionalAiService implements OnModuleInit {
   removeRule(ruleId: string): void {
     const rule = this.rules.get(ruleId);
     if (!rule) {
-      this.logger.warn(
-        `Cannot deactivate rule — id "${ruleId}" not found`,
-      );
+      this.logger.warn(`Cannot deactivate rule — id "${ruleId}" not found`);
       return;
     }
 
     if (!rule.isActive) {
-      this.logger.debug(
-        `Rule "${rule.name}" (${ruleId}) is already inactive`,
-      );
+      this.logger.debug(`Rule "${rule.name}" (${ruleId}) is already inactive`);
       return;
     }
 
@@ -464,9 +465,7 @@ export class ConstitutionalAiService implements OnModuleInit {
     const auditEntry = `[${new Date().toISOString()}] RULE_DEACTIVATED: "${rule.name}" (${rule.id})`;
     this.appendAuditLog(auditEntry);
 
-    this.logger.warn(
-      `Constitutional rule deactivated: "${rule.name}" (${ruleId})`,
-    );
+    this.logger.warn(`Constitutional rule deactivated: "${rule.name}" (${ruleId})`);
   }
 
   // ─── 4. updateRule ────────────────────────────────────────────────
@@ -477,7 +476,12 @@ export class ConstitutionalAiService implements OnModuleInit {
    */
   updateRule(
     ruleId: string,
-    updates: Partial<Pick<ConstitutionalRule, 'conditions' | 'enforcement' | 'severity' | 'description' | 'name' | 'ruleType'>>,
+    updates: Partial<
+      Pick<
+        ConstitutionalRule,
+        'conditions' | 'enforcement' | 'severity' | 'description' | 'name' | 'ruleType'
+      >
+    >,
   ): ConstitutionalRule {
     const rule = this.rules.get(ruleId);
     if (!rule) {
@@ -571,8 +575,7 @@ export class ConstitutionalAiService implements OnModuleInit {
             violations.push(violation);
             blocked = true;
 
-            const blockEntry =
-              `[${timestamp.toISOString()}] BLOCKED: rule="${rule.name}" agent=${actionContext.agentId} action="${actionContext.action}" reason="${conditionResult.reason}"`;
+            const blockEntry = `[${timestamp.toISOString()}] BLOCKED: rule="${rule.name}" agent=${actionContext.agentId} action="${actionContext.action}" reason="${conditionResult.reason}"`;
             auditEntries.push(blockEntry);
             this.appendAuditLog(blockEntry);
 
@@ -584,12 +587,10 @@ export class ConstitutionalAiService implements OnModuleInit {
           case RuleEnforcement.WARN: {
             violations.push(violation);
 
-            const warningMsg =
-              `Rule "${rule.name}" violated by agent=${actionContext.agentId} action="${actionContext.action}" — ${conditionResult.reason}`;
+            const warningMsg = `Rule "${rule.name}" violated by agent=${actionContext.agentId} action="${actionContext.action}" — ${conditionResult.reason}`;
             warnings.push(warningMsg);
 
-            const warnEntry =
-              `[${timestamp.toISOString()}] WARNED: rule="${rule.name}" agent=${actionContext.agentId} action="${actionContext.action}" reason="${conditionResult.reason}"`;
+            const warnEntry = `[${timestamp.toISOString()}] WARNED: rule="${rule.name}" agent=${actionContext.agentId} action="${actionContext.action}" reason="${conditionResult.reason}"`;
             auditEntries.push(warnEntry);
             this.appendAuditLog(warnEntry);
 
@@ -599,8 +600,7 @@ export class ConstitutionalAiService implements OnModuleInit {
           case RuleEnforcement.LOG: {
             violations.push(violation);
 
-            const logEntry =
-              `[${timestamp.toISOString()}] LOGGED: rule="${rule.name}" agent=${actionContext.agentId} action="${actionContext.action}" reason="${conditionResult.reason}"`;
+            const logEntry = `[${timestamp.toISOString()}] LOGGED: rule="${rule.name}" agent=${actionContext.agentId} action="${actionContext.action}" reason="${conditionResult.reason}"`;
             auditEntries.push(logEntry);
             this.appendAuditLog(logEntry);
 
@@ -626,8 +626,7 @@ export class ConstitutionalAiService implements OnModuleInit {
     };
 
     // Final audit entry summarising the outcome
-    const outcomeEntry =
-      `[${timestamp.toISOString()}] OUTCOME: ${result.allowed ? 'ALLOWED' : 'BLOCKED'} agent=${actionContext.agentId} action="${actionContext.action}" violations=${violations.length} warnings=${warnings.length}`;
+    const outcomeEntry = `[${timestamp.toISOString()}] OUTCOME: ${result.allowed ? 'ALLOWED' : 'BLOCKED'} agent=${actionContext.agentId} action="${actionContext.action}" violations=${violations.length} warnings=${warnings.length}`;
     auditEntries.push(outcomeEntry);
     this.appendAuditLog(outcomeEntry);
 
@@ -760,11 +759,7 @@ export class ConstitutionalAiService implements OnModuleInit {
    * This is the primary method agents should call before executing
    * any action.
    */
-  enforceBeforeExecution(
-    agentId: string,
-    action: string,
-    payload?: any,
-  ): EvaluationResult {
+  enforceBeforeExecution(agentId: string, action: string, payload?: any): EvaluationResult {
     const actionContext: ActionContext = {
       agentId,
       action,
@@ -783,8 +778,7 @@ export class ConstitutionalAiService implements OnModuleInit {
         .map((v) => `"${v.ruleName}": ${v.reason}`)
         .join('; ');
 
-      const message =
-        `Action "${action}" by agent "${agentId}" blocked by constitutional rules: ${violationSummary}`;
+      const message = `Action "${action}" by agent "${agentId}" blocked by constitutional rules: ${violationSummary}`;
 
       this.logger.error(message);
 
@@ -831,8 +825,7 @@ export class ConstitutionalAiService implements OnModuleInit {
     }
 
     // All conditions matched
-    const reason =
-      `Rule "${rule.name}" triggered: ${matchDetails.join(' AND ')}`;
+    const reason = `Rule "${rule.name}" triggered: ${matchDetails.join(' AND ')}`;
 
     return { matched: true, reason };
   }
@@ -1022,10 +1015,7 @@ export class ConstitutionalAiService implements OnModuleInit {
    * directly contradicts a condition in set B on the same field, they
    * don't overlap. Otherwise, assume they might overlap.
    */
-  private conditionsOverlap(
-    conditionsA: RuleCondition[],
-    conditionsB: RuleCondition[],
-  ): boolean {
+  private conditionsOverlap(conditionsA: RuleCondition[], conditionsB: RuleCondition[]): boolean {
     // Build a map of field → condition for each set
     const mapA = new Map<string, RuleCondition[]>();
     for (const c of conditionsA) {

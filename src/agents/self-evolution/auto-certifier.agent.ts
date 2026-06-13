@@ -7,9 +7,10 @@
  * and ensures the self-evolution loop only produces positive improvements.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -73,7 +74,8 @@ export const SELF_EVOLUTION_AUTO_CERTIFIER_CONFIG: AgentConfig = {
     },
     {
       name: 'merge-if-improved',
-      description: 'Merge a patched branch into the target branch only if EQI increases; blocks regressions',
+      description:
+        'Merge a patched branch into the target branch only if EQI increases; blocks regressions',
       inputSchema: {
         type: 'object',
         properties: {
@@ -156,6 +158,11 @@ interface MergeDecision {
 
 @Injectable()
 export class AutoCertifierAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private certifications: Map<string, CertificationResult> = new Map();
   private eqiComparisons: Map<string, EQIComparison> = new Map();
   private mergeDecisions: Map<string, MergeDecision> = new Map();
@@ -199,7 +206,9 @@ export class AutoCertifierAgent extends BaseAgentService {
     });
 
     // Load baseline EQI from long-term memory if available
-    const storedBaseline = await this.retrieveFromLongTermMemory<number>('auto-certifier:baseline-eqi');
+    const storedBaseline = await this.retrieveFromLongTermMemory<number>(
+      'auto-certifier:baseline-eqi',
+    );
     if (storedBaseline !== null) {
       this.currentBaselineEQI = storedBaseline;
     }
@@ -215,8 +224,32 @@ export class AutoCertifierAgent extends BaseAgentService {
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'execute';
     const startTime = Date.now();
+    // Bridge: use LLM for certification analysis and EQI comparison
+    if (this.bridge) {
+      try {
+        const llmResult = await this.bridge.callLLM({
+          systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed certification analysis, EQI comparison, and merge decisions.`,
+          userPrompt: JSON.stringify(input.payload),
+          temperature: 0.3,
+          maxTokens: 2048,
+        });
+
+        const analysis = llmResult.content;
+
+        return this.createAgentOutput(
+          input.taskId,
+          true,
+          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+          undefined,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'execute';
 
     try {
       let result: any;
@@ -273,12 +306,7 @@ export class AutoCertifierAgent extends BaseAgentService {
     baselineEQI: number;
     testResults: CertificationResult['testResults'];
   }> {
-    const {
-      branchName,
-      patchIds = [],
-      certificationLevel = 'full',
-      timeoutMs = 120000,
-    } = params;
+    const { branchName, patchIds = [], certificationLevel = 'full', timeoutMs = 120000 } = params;
 
     if (!branchName || typeof branchName !== 'string') {
       throw new Error('Valid branchName string is required');
@@ -312,7 +340,11 @@ export class AutoCertifierAgent extends BaseAgentService {
         duration: Math.round(1000 + Math.random() * 5000),
         failures: passed
           ? []
-          : Array.from({ length: failureCount }, (_, i) => `${suite}: assertion ${i + 1} failed — expected >= 70, got ${Math.round(score)}`),
+          : Array.from(
+              { length: failureCount },
+              (_, i) =>
+                `${suite}: assertion ${i + 1} failed — expected >= 70, got ${Math.round(score)}`,
+            ),
       };
     });
 
@@ -340,7 +372,7 @@ export class AutoCertifierAgent extends BaseAgentService {
 
     this.logger.log(
       `Certification completed: id=${certificationId}, branch=${branchName}, passed=${overallPassed}, ` +
-      `eqi=${eqiScore}, baseline=${this.currentBaselineEQI}, suites=${testResults.length}`,
+        `eqi=${eqiScore}, baseline=${this.currentBaselineEQI}, suites=${testResults.length}`,
     );
 
     return {
@@ -372,9 +404,7 @@ export class AutoCertifierAgent extends BaseAgentService {
     const baselineEQI = this.currentBaselineEQI;
     const patchedEQI = certification.eqiScore;
     const delta = Math.round((patchedEQI - baselineEQI) * 100) / 100;
-    const deltaPercent = baselineEQI > 0
-      ? Math.round((delta / baselineEQI) * 10000) / 100
-      : 0;
+    const deltaPercent = baselineEQI > 0 ? Math.round((delta / baselineEQI) * 10000) / 100 : 0;
 
     const isImprovement = delta > (baselineEQI * tolerancePercent) / 100;
 
@@ -401,7 +431,7 @@ export class AutoCertifierAgent extends BaseAgentService {
 
     this.logger.log(
       `EQI comparison: id=${certificationId}, baseline=${baselineEQI}, patched=${patchedEQI}, ` +
-      `delta=${delta > 0 ? '+' : ''}${delta}, verdict=${verdict}`,
+        `delta=${delta > 0 ? '+' : ''}${delta}, verdict=${verdict}`,
     );
 
     return comparison;
@@ -456,7 +486,10 @@ export class AutoCertifierAgent extends BaseAgentService {
     } else if (!comparison.isImprovement) {
       merged = false;
       reason = `EQI regression detected — patched EQI (${comparison.patchedEQI}) does not exceed baseline (${comparison.baselineEQI}); merge blocked`;
-    } else if (requirePercentImprovement > 0 && comparison.deltaPercent < requirePercentImprovement) {
+    } else if (
+      requirePercentImprovement > 0 &&
+      comparison.deltaPercent < requirePercentImprovement
+    ) {
       merged = false;
       reason = `Insufficient EQI improvement — ${comparison.deltaPercent}% < required ${requirePercentImprovement}%; merge blocked`;
     } else if (comparison.verdict === 'approve') {
@@ -480,12 +513,10 @@ export class AutoCertifierAgent extends BaseAgentService {
 
       this.logger.log(
         `MERGED: branch=${certification.branchName} → ${targetBranch}, commit=${newCommitHash}, ` +
-        `new baseline EQI=${this.currentBaselineEQI}`,
+          `new baseline EQI=${this.currentBaselineEQI}`,
       );
     } else {
-      this.logger.warn(
-        `MERGE BLOCKED: branch=${certification.branchName}, reason: ${reason}`,
-      );
+      this.logger.warn(`MERGE BLOCKED: branch=${certification.branchName}, reason: ${reason}`);
     }
 
     const decision: MergeDecision = {

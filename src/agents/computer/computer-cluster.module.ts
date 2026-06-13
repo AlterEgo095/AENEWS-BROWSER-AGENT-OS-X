@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { FileSystemAgentService } from './filesystem/filesystem-agent.service';
 import { ProcessManagerAgentService } from './process-manager/process-manager-agent.service';
 import { TerminalAgentService } from './terminal/terminal-agent.service';
@@ -16,7 +17,7 @@ import { NotificationAgentService } from './notification/notification-agent.serv
 import { SystemMonitorAgentService } from './system-monitor/system-monitor-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. FileSystem — read, write, create, delete, move, copy, list, info
     FileSystemAgentService,

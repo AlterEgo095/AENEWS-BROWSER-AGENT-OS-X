@@ -4,7 +4,7 @@
  * Provides log searching, aggregation, alerting, export, pattern analysis, and retention policies.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { DeliveryCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -31,8 +33,16 @@ export const LOGGING_AGENT_CONFIG: AgentConfig = {
         properties: {
           query: { type: 'string', description: 'Search query (supports Lucene syntax)' },
           service: { type: 'string', description: 'Filter by service name' },
-          level: { type: 'string', enum: ['debug', 'info', 'warn', 'error', 'fatal'], description: 'Filter by log level' },
-          timeRange: { type: 'string', enum: ['5m', '15m', '1h', '6h', '24h', '7d'], default: '1h' },
+          level: {
+            type: 'string',
+            enum: ['debug', 'info', 'warn', 'error', 'fatal'],
+            description: 'Filter by log level',
+          },
+          timeRange: {
+            type: 'string',
+            enum: ['5m', '15m', '1h', '6h', '24h', '7d'],
+            default: '1h',
+          },
           limit: { type: 'number', default: 100, maximum: 1000 },
           offset: { type: 'number', default: 0 },
         },
@@ -54,8 +64,15 @@ export const LOGGING_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           service: { type: 'string' },
-          field: { type: 'string', description: 'Field to aggregate by (e.g., "level", "service", "host")' },
-          aggregation: { type: 'string', enum: ['count', 'sum', 'avg', 'percentile', 'terms'], default: 'terms' },
+          field: {
+            type: 'string',
+            description: 'Field to aggregate by (e.g., "level", "service", "host")',
+          },
+          aggregation: {
+            type: 'string',
+            enum: ['count', 'sum', 'avg', 'percentile', 'terms'],
+            default: 'terms',
+          },
           timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d', '30d'], default: '24h' },
           interval: { type: 'string', enum: ['1m', '5m', '15m', '1h', '1d'], default: '1h' },
         },
@@ -125,7 +142,11 @@ export const LOGGING_AGENT_CONFIG: AgentConfig = {
         properties: {
           service: { type: 'string' },
           timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d'], default: '24h' },
-          analysisType: { type: 'string', enum: ['anomaly', 'frequency', 'correlation', 'trend'], default: 'anomaly' },
+          analysisType: {
+            type: 'string',
+            enum: ['anomaly', 'frequency', 'correlation', 'trend'],
+            default: 'anomaly',
+          },
         },
         required: ['service'],
       },
@@ -162,13 +183,7 @@ export const LOGGING_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:logs',
-    'write:log-alerts',
-    'export:logs',
-    'manage:retention',
-  ],
+  permissions: ['execute:task', 'read:logs', 'write:log-alerts', 'export:logs', 'manage:retention'],
   maxConcurrentTasks: 5,
   timeout: 60000,
   retryPolicy: {
@@ -229,6 +244,15 @@ interface PatternResult {
 @Injectable()
 export class LoggingAgentService extends BaseAgentService {
   private logAlerts: Map<string, LogAlert> = new Map();
+
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
   private retentionPolicies: Map<string, RetentionPolicy> = new Map();
   private logAlertCounter = 0;
   private retentionCounter = 0;
@@ -236,10 +260,25 @@ export class LoggingAgentService extends BaseAgentService {
 
   // Simulated log pool
   private readonly simulatedServices = [
-    'api-gateway', 'auth-service', 'user-service', 'payment-service',
-    'notification-service', 'search-service', 'worker-service', 'scheduler-service',
+    'api-gateway',
+    'auth-service',
+    'user-service',
+    'payment-service',
+    'notification-service',
+    'search-service',
+    'worker-service',
+    'scheduler-service',
   ];
-  private readonly simulatedLevels = ['debug', 'info', 'info', 'info', 'warn', 'warn', 'error', 'fatal'];
+  private readonly simulatedLevels = [
+    'debug',
+    'info',
+    'info',
+    'info',
+    'warn',
+    'warn',
+    'error',
+    'fatal',
+  ];
   private readonly simulatedMessages = [
     'Request processed successfully',
     'Connection established to database',
@@ -316,11 +355,8 @@ export class LoggingAgentService extends BaseAgentService {
     this.registerTool({
       name: 'analyzePatterns',
       description: 'Analyze logs for patterns and anomalies',
-      execute: async (params: {
-        service: string;
-        timeRange?: string;
-        analysisType?: string;
-      }) => this.analyzePatterns(params),
+      execute: async (params: { service: string; timeRange?: string; analysisType?: string }) =>
+        this.analyzePatterns(params),
     });
 
     this.registerTool({
@@ -342,15 +378,47 @@ export class LoggingAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation — use real connector if available
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(DeliveryCapability.MONITORING_SETUP, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
-      'searchLogs', 'aggregateLogs', 'createLogAlert',
-      'exportLogs', 'analyzePatterns', 'setRetentionPolicy',
+      'searchLogs',
+      'aggregateLogs',
+      'createLogAlert',
+      'exportLogs',
+      'analyzePatterns',
+      'setRetentionPolicy',
     ];
 
     if (!supportedActions.includes(action)) {
@@ -366,7 +434,13 @@ export class LoggingAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -424,26 +498,40 @@ export class LoggingAgentService extends BaseAgentService {
 
     const effectiveLimit = Math.min(limit, totalCount - offset);
     for (let i = 0; i < effectiveLimit; i++) {
-      const logService = service || this.simulatedServices[Math.floor(Math.random() * this.simulatedServices.length)];
-      const logLevel = level || this.simulatedLevels[Math.floor(Math.random() * this.simulatedLevels.length)];
-      const message = this.simulatedMessages[Math.floor(Math.random() * this.simulatedMessages.length)];
+      const logService =
+        service ||
+        this.simulatedServices[Math.floor(Math.random() * this.simulatedServices.length)];
+      const logLevel =
+        level || this.simulatedLevels[Math.floor(Math.random() * this.simulatedLevels.length)];
+      const message =
+        this.simulatedMessages[Math.floor(Math.random() * this.simulatedMessages.length)];
 
       logs.push({
         id: `log-${offset + i + 1}`,
-        timestamp: new Date(Date.now() - Math.random() * this.timeRangeToMs(timeRange)).toISOString(),
+        timestamp: new Date(
+          Date.now() - Math.random() * this.timeRangeToMs(timeRange),
+        ).toISOString(),
         service: logService,
         level: logLevel,
         message: query === '*' ? message : `${message} [matched: "${query}"]`,
         host: `host-${Math.floor(Math.random() * 10) + 1}.dc1`,
         traceId: Math.random() > 0.5 ? this.generateTraceId() : undefined,
-        metadata: Math.random() > 0.7 ? { requestId: this.generateTraceId(), userId: `user-${Math.floor(Math.random() * 1000)}` } : undefined,
+        metadata:
+          Math.random() > 0.7
+            ? {
+                requestId: this.generateTraceId(),
+                userId: `user-${Math.floor(Math.random() * 1000)}`,
+              }
+            : undefined,
       });
     }
 
     const searchTimeMs = Date.now() - searchStart;
     const hasMore = offset + effectiveLimit < totalCount;
 
-    this.logger.log(`searchLogs: "${query}", ${totalCount} total, ${logs.length} returned, ${searchTimeMs}ms`);
+    this.logger.log(
+      `searchLogs: "${query}", ${totalCount} total, ${logs.length} returned, ${searchTimeMs}ms`,
+    );
 
     return { query, total: totalCount, logs, hasMore, searchTimeMs };
   }
@@ -485,26 +573,42 @@ export class LoggingAgentService extends BaseAgentService {
       }
     } else if (field === 'service') {
       for (const svc of this.simulatedServices) {
-        const docCount = Math.round((totalDocuments / this.simulatedServices.length) * (0.8 + Math.random() * 0.4));
+        const docCount = Math.round(
+          (totalDocuments / this.simulatedServices.length) * (0.8 + Math.random() * 0.4),
+        );
         buckets.push({ key: svc, docCount });
       }
     } else if (field === 'host') {
       for (let i = 1; i <= 10; i++) {
-        buckets.push({ key: `host-${i}.dc1`, docCount: Math.round(totalDocuments / 10 * (0.7 + Math.random() * 0.6)) });
+        buckets.push({
+          key: `host-${i}.dc1`,
+          docCount: Math.round((totalDocuments / 10) * (0.7 + Math.random() * 0.6)),
+        });
       }
     } else {
       // Time-based buckets
-      const intervals = interval === '1m' ? 60 : interval === '5m' ? 288 : interval === '15m' ? 96 : interval === '1h' ? 24 : 30;
+      const intervals =
+        interval === '1m'
+          ? 60
+          : interval === '5m'
+            ? 288
+            : interval === '15m'
+              ? 96
+              : interval === '1h'
+                ? 24
+                : 30;
       for (let i = 0; i < intervals; i++) {
         const bucketTime = new Date(Date.now() - (intervals - i) * this.intervalToMs(interval));
         buckets.push({
           key: bucketTime.toISOString(),
-          docCount: Math.round(totalDocuments / intervals * (0.5 + Math.random())),
+          docCount: Math.round((totalDocuments / intervals) * (0.5 + Math.random())),
         });
       }
     }
 
-    this.logger.log(`aggregateLogs: ${field} by ${aggregation}, ${buckets.length} buckets, ${totalDocuments} docs`);
+    this.logger.log(
+      `aggregateLogs: ${field} by ${aggregation}, ${buckets.length} buckets, ${totalDocuments} docs`,
+    );
 
     return { field, aggregation, buckets, totalDocuments, timeRange };
   }
@@ -557,7 +661,9 @@ export class LoggingAgentService extends BaseAgentService {
       createdAt: new Date(),
     });
 
-    this.logger.log(`Created log alert: ${name} [${alertId}], threshold: ${threshold} in ${timeWindow}`);
+    this.logger.log(
+      `Created log alert: ${name} [${alertId}], threshold: ${threshold} in ${timeWindow}`,
+    );
 
     return { alertId, name, query, threshold, created: true };
   }
@@ -592,16 +698,19 @@ export class LoggingAgentService extends BaseAgentService {
     const recordCount = Math.min(maxRecords, Math.floor(Math.random() * 50000) + 1000);
     const sizePerRecord = format === 'csv' ? 200 : 500;
     const fileSizeBytes = recordCount * sizePerRecord;
-    const fileSizeEstimate = fileSizeBytes > 1073741824
-      ? `${(fileSizeBytes / 1073741824).toFixed(1)} GB`
-      : fileSizeBytes > 1048576
-        ? `${(fileSizeBytes / 1048576).toFixed(1)} MB`
-        : `${(fileSizeBytes / 1024).toFixed(1)} KB`;
+    const fileSizeEstimate =
+      fileSizeBytes > 1073741824
+        ? `${(fileSizeBytes / 1073741824).toFixed(1)} GB`
+        : fileSizeBytes > 1048576
+          ? `${(fileSizeBytes / 1048576).toFixed(1)} MB`
+          : `${(fileSizeBytes / 1024).toFixed(1)} KB`;
 
     const servicePath = service ? `/${service}` : '/all';
     const downloadUrl = `https://logs.example.com/exports${servicePath}/${exportId}.${format}`;
 
-    this.logger.log(`Export logs: ${exportId}, ${format}, ${recordCount} records, ~${fileSizeEstimate}`);
+    this.logger.log(
+      `Export logs: ${exportId}, ${format}, ${recordCount} records, ~${fileSizeEstimate}`,
+    );
 
     return {
       exportId,
@@ -689,7 +798,9 @@ export class LoggingAgentService extends BaseAgentService {
       `Consider increasing log sampling rate for ${service} during peak hours to reduce storage costs`,
     ];
 
-    this.logger.log(`analyzePatterns: ${service}, ${analysisType}, ${patterns.length} patterns, ${anomalies.length} anomalies`);
+    this.logger.log(
+      `analyzePatterns: ${service}, ${analysisType}, ${patterns.length} patterns, ${anomalies.length} anomalies`,
+    );
 
     return {
       service,
@@ -770,14 +881,24 @@ export class LoggingAgentService extends BaseAgentService {
 
   private timeRangeToMs(timeRange: string): number {
     const map: Record<string, number> = {
-      '5m': 300000, '15m': 900000, '1h': 3600000, '6h': 21600000, '24h': 86400000, '7d': 604800000, '30d': 2592000000,
+      '5m': 300000,
+      '15m': 900000,
+      '1h': 3600000,
+      '6h': 21600000,
+      '24h': 86400000,
+      '7d': 604800000,
+      '30d': 2592000000,
     };
     return map[timeRange] || 3600000;
   }
 
   private intervalToMs(interval: string): number {
     const map: Record<string, number> = {
-      '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, '1d': 86400000,
+      '1m': 60000,
+      '5m': 300000,
+      '15m': 900000,
+      '1h': 3600000,
+      '1d': 86400000,
     };
     return map[interval] || 3600000;
   }

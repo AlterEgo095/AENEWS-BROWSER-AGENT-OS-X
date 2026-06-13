@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { CodeGenerationAgentService } from './code-generation/code-generation-agent.service';
 import { CodeReviewAgentService } from './code-review/code-review-agent.service';
 import { TestingAgentService } from './testing/testing-agent.service';
@@ -17,7 +18,7 @@ import { VersionControlAgentService } from './version-control/version-control-ag
 import { BuildAgentService } from './build/build-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Code Generation — generate code from specs, templates, descriptions; refactor and optimize
     CodeGenerationAgentService,

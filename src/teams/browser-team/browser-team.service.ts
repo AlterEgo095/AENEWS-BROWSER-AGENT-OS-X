@@ -93,7 +93,11 @@ export class BrowserTeamService {
           result = await this.navigate(task.params.url, task.params.options, task.missionId);
           break;
         case 'connect':
-          result = await this.navigate(task.params.url, { ...task.params.options, connectOnly: true }, task.missionId);
+          result = await this.navigate(
+            task.params.url,
+            { ...task.params.options, connectOnly: true },
+            task.missionId,
+          );
           break;
         case 'search':
           result = await this.search(task.params.query, task.params.engine, task.missionId);
@@ -178,7 +182,13 @@ export class BrowserTeamService {
       return {
         taskId: '',
         success: statusCode < 400,
-        data: { url, statusCode, connected: statusCode < 400, tls: url.startsWith('https'), responseTimeMs: latency },
+        data: {
+          url,
+          statusCode,
+          connected: statusCode < 400,
+          tls: url.startsWith('https'),
+          responseTimeMs: latency,
+        },
         durationMs: loadTimeMs,
       };
     }
@@ -232,7 +242,12 @@ export class BrowserTeamService {
 
     const session = this.sessions.get(sessionId);
     if (session) {
-      session.history.push({ url: engineUrls[engine], timestamp: new Date(), statusCode: 200, loadTimeMs: Date.now() - start });
+      session.history.push({
+        url: engineUrls[engine],
+        timestamp: new Date(),
+        statusCode: 200,
+        loadTimeMs: Date.now() - start,
+      });
       session.lastActivity = new Date();
     }
 
@@ -272,7 +287,15 @@ export class BrowserTeamService {
       taskId: '',
       success,
       data: success
-        ? { url, targetPath, fileName, fileSizeBytes: fileSize, mimeType: this.guessMimeType(fileName), downloadTimeMs: Date.now() - start, checksum: this.simulateChecksum() }
+        ? {
+            url,
+            targetPath,
+            fileName,
+            fileSizeBytes: fileSize,
+            mimeType: this.guessMimeType(fileName),
+            downloadTimeMs: Date.now() - start,
+            checksum: this.simulateChecksum(),
+          }
         : null,
       error: success ? undefined : `Download failed: HTTP 404 for ${url}`,
       durationMs: Date.now() - start,
@@ -299,7 +322,14 @@ export class BrowserTeamService {
       taskId: '',
       success,
       data: success
-        ? { url, filePath, fileSizeBytes: fileSize, uploadTimeMs: Date.now() - start, serverResponse: 'File uploaded successfully', fileId: this.generateId() }
+        ? {
+            url,
+            filePath,
+            fileSizeBytes: fileSize,
+            uploadTimeMs: Date.now() - start,
+            serverResponse: 'File uploaded successfully',
+            fileId: this.generateId(),
+          }
         : null,
       error: success ? undefined : `Upload failed: Server rejected upload to ${url}`,
       durationMs: Date.now() - start,
@@ -313,7 +343,9 @@ export class BrowserTeamService {
     const start = Date.now();
     const sessionId = missionId || 'default';
 
-    this.logger.log(`Extracting data from ${url} with ${selectors.length} selectors (mission: ${sessionId})`);
+    this.logger.log(
+      `Extracting data from ${url} with ${selectors.length} selectors (mission: ${sessionId})`,
+    );
 
     await this.sleep(this.simulateLatency(url));
 
@@ -332,7 +364,11 @@ export class BrowserTeamService {
     return {
       taskId: '',
       success: true,
-      data: { url, selectorsProcessed: selectors.length, totalMatches: extractedData.reduce((sum, d) => sum + d.matches, 0) },
+      data: {
+        url,
+        selectorsProcessed: selectors.length,
+        totalMatches: extractedData.reduce((sum, d) => sum + d.matches, 0),
+      },
       extractedData,
       durationMs: Date.now() - start,
     };
@@ -341,11 +377,17 @@ export class BrowserTeamService {
   /**
    * Simulate filling and submitting a form on a page.
    */
-  async fillForm(url: string, fields: Record<string, string>, missionId?: string): Promise<BrowserResult> {
+  async fillForm(
+    url: string,
+    fields: Record<string, string>,
+    missionId?: string,
+  ): Promise<BrowserResult> {
     const start = Date.now();
     const sessionId = missionId || 'default';
 
-    this.logger.log(`Filling form at ${url} with ${Object.keys(fields).length} fields (mission: ${sessionId})`);
+    this.logger.log(
+      `Filling form at ${url} with ${Object.keys(fields).length} fields (mission: ${sessionId})`,
+    );
 
     await this.sleep(this.simulateLatency(url));
 
@@ -367,7 +409,14 @@ export class BrowserTeamService {
       taskId: '',
       success,
       data: success
-        ? { url, fieldsFilled: Object.keys(fieldResults).length, totalFields: Object.keys(fields).length, submissionStatus: 'submitted', responseStatusCode: 200, fieldResults }
+        ? {
+            url,
+            fieldsFilled: Object.keys(fieldResults).length,
+            totalFields: Object.keys(fields).length,
+            submissionStatus: 'submitted',
+            responseStatusCode: 200,
+            fieldResults,
+          }
         : null,
       error: success ? undefined : 'Form submission failed: Server returned 500',
       durationMs: Date.now() - start,
@@ -390,7 +439,14 @@ export class BrowserTeamService {
     return {
       taskId: '',
       success: true,
-      data: { url, screenshotId, dimensions: { width: 1920, height: 1080 }, format: 'png', fileSizeBytes: Math.floor(Math.random() * 2_000_000) + 500_000, capturedAt: new Date().toISOString() },
+      data: {
+        url,
+        screenshotId,
+        dimensions: { width: 1920, height: 1080 },
+        format: 'png',
+        fileSizeBytes: Math.floor(Math.random() * 2_000_000) + 500_000,
+        capturedAt: new Date().toISOString(),
+      },
       screenshots: [`/screenshots/${screenshotId}.png`],
       durationMs: Date.now() - start,
     };
@@ -410,9 +466,11 @@ export class BrowserTeamService {
     avgDurationMs: number;
     sessions: Array<{ missionId: string; historyLength: number; lastActivity: Date }>;
   } {
-    const sessionSummaries = Array.from(this.sessions.entries()).map(
-      ([missionId, session]) => ({ missionId, historyLength: session.history.length, lastActivity: session.lastActivity }),
-    );
+    const sessionSummaries = Array.from(this.sessions.entries()).map(([missionId, session]) => ({
+      missionId,
+      historyLength: session.history.length,
+      lastActivity: session.lastActivity,
+    }));
 
     return {
       team: 'browser',
@@ -420,7 +478,10 @@ export class BrowserTeamService {
       tasksCompleted: this.metrics.successfulTasks,
       tasksFailed: this.metrics.failedTasks,
       totalDurationMs: this.metrics.totalDurationMs,
-      avgDurationMs: this.metrics.totalTasks > 0 ? Math.round(this.metrics.totalDurationMs / this.metrics.totalTasks) : 0,
+      avgDurationMs:
+        this.metrics.totalTasks > 0
+          ? Math.round(this.metrics.totalDurationMs / this.metrics.totalTasks)
+          : 0,
       sessions: sessionSummaries,
     };
   }
@@ -474,18 +535,35 @@ export class BrowserTeamService {
 
   private estimateFileSize(pathOrUrl: string): number {
     const ext = pathOrUrl.split('.').pop()?.toLowerCase();
-    const sizeMap: Record<string, number> = { pdf: 2_500_000, zip: 15_000_000, png: 1_200_000, jpg: 800_000, csv: 500_000, json: 200_000, xlsx: 1_500_000, docx: 1_000_000 };
+    const sizeMap: Record<string, number> = {
+      pdf: 2_500_000,
+      zip: 15_000_000,
+      png: 1_200_000,
+      jpg: 800_000,
+      csv: 500_000,
+      json: 200_000,
+      xlsx: 1_500_000,
+      docx: 1_000_000,
+    };
     return (sizeMap[ext || ''] || 1_000_000) + Math.floor(Math.random() * 500_000);
   }
 
   private guessMimeType(fileName: string): string {
     const ext = fileName.split('.').pop()?.toLowerCase();
-    const mimeMap: Record<string, string> = { pdf: 'application/pdf', zip: 'application/zip', png: 'image/png', jpg: 'image/jpeg', csv: 'text/csv', json: 'application/json' };
+    const mimeMap: Record<string, string> = {
+      pdf: 'application/pdf',
+      zip: 'application/zip',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      csv: 'text/csv',
+      json: 'application/json',
+    };
     return mimeMap[ext || ''] || 'application/octet-stream';
   }
 
   private simulateChecksum(): string {
-    const hex = () => Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    const hex = () =>
+      Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
     return `${hex()}${hex()}${hex()}${hex()}`;
   }
 

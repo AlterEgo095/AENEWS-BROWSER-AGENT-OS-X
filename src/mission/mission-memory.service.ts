@@ -44,7 +44,14 @@ export interface MissionHistoryItem {
   id: string;
   missionId: string;
   timestamp: Date;
-  type: 'PHASE_START' | 'PHASE_COMPLETE' | 'PHASE_FAIL' | 'DATA_STORE' | 'DATA_RETRIEVE' | 'ALERT' | 'NOTE';
+  type:
+    | 'PHASE_START'
+    | 'PHASE_COMPLETE'
+    | 'PHASE_FAIL'
+    | 'DATA_STORE'
+    | 'DATA_RETRIEVE'
+    | 'ALERT'
+    | 'NOTE';
   description: string;
   data: unknown;
 }
@@ -104,7 +111,10 @@ export class MissionMemoryService {
     const store = this.getOrCreateStore(missionId);
     store.data.set(key, value);
 
-    this.addHistoryItem(missionId, 'DATA_STORE', `Stored key "${key}"`, { key, valueType: typeof value });
+    this.addHistoryItem(missionId, 'DATA_STORE', `Stored key "${key}"`, {
+      key,
+      valueType: typeof value,
+    });
 
     this.logger.debug(`Mission "${missionId}": stored key "${key}"`);
   }
@@ -123,7 +133,10 @@ export class MissionMemoryService {
     }
 
     const value = store.data.get(key);
-    this.addHistoryItem(missionId, 'DATA_RETRIEVE', `Retrieved key "${key}"`, { key, found: value !== undefined });
+    this.addHistoryItem(missionId, 'DATA_RETRIEVE', `Retrieved key "${key}"`, {
+      key,
+      found: value !== undefined,
+    });
 
     return value;
   }
@@ -180,7 +193,12 @@ export class MissionMemoryService {
 
     store.context = context;
 
-    this.addHistoryItem(missionId, 'NOTE', `Mission context initialised: "${instruction.substring(0, 60)}..."`, null);
+    this.addHistoryItem(
+      missionId,
+      'NOTE',
+      `Mission context initialised: "${instruction.substring(0, 60)}..."`,
+      null,
+    );
 
     this.logger.log(`Mission "${missionId}": context initialised`);
     return context;
@@ -215,7 +233,12 @@ export class MissionMemoryService {
       store.context.currentPhase = phaseType;
     }
 
-    this.addHistoryItem(missionId, 'PHASE_COMPLETE', `Phase "${phaseType}" result recorded`, phaseResult);
+    this.addHistoryItem(
+      missionId,
+      'PHASE_COMPLETE',
+      `Phase "${phaseType}" result recorded`,
+      phaseResult,
+    );
 
     this.logger.log(`Mission "${missionId}": phase "${phaseType}" result added`);
   }
@@ -242,9 +265,7 @@ export class MissionMemoryService {
       allResults.push(...results);
     }
 
-    return allResults.sort(
-      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
-    );
+    return allResults.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   }
 
   // ─── 7. search ─────────────────────────────────────────────────────
@@ -283,7 +304,9 @@ export class MissionMemoryService {
       }
     }
 
-    this.logger.debug(`Mission "${missionId}": search for "${query}" returned ${results.length} results`);
+    this.logger.debug(
+      `Mission "${missionId}": search for "${query}" returned ${results.length} results`,
+    );
     return results;
   }
 
@@ -419,7 +442,7 @@ export class MissionMemoryService {
 
     this.logger.log(
       `Mission "${missionId}" cleaned up: ${dataKeys} data keys, ` +
-      `${phaseKeys} phase types, ${historyEntries} history entries removed`,
+        `${phaseKeys} phase types, ${historyEntries} history entries removed`,
     );
   }
 

@@ -12,7 +12,9 @@ export class CertTeamService {
   private readonly logger = new Logger(CertTeamService.name);
   constructor(private readonly registry: AgentRegistryService) {}
 
-  getTeamAgents() { return this.registry.getByLevel(AgentLevel.CERTIFICATION); }
+  getTeamAgents() {
+    return this.registry.getByLevel(AgentLevel.CERTIFICATION);
+  }
 
   selectAgents(taskDescription: string): SpecializedAgentId[] {
     const desc = taskDescription.toLowerCase();
@@ -30,20 +32,41 @@ export class CertTeamService {
     return [...new Set(agents)];
   }
 
-  async executeTask(missionId: string, task: string, input: Record<string, any>): Promise<AgentExecutionResult> {
+  async executeTask(
+    missionId: string,
+    task: string,
+    input: Record<string, any>,
+  ): Promise<AgentExecutionResult> {
     const selectedAgents = this.selectAgents(task);
     this.logger.log(`Cert team executing: "${task}" with ${selectedAgents.length} agents`);
     return {
-      agentId: CertAgent.SECURITY, missionId, success: true,
-      output: { task, agentsUsed: selectedAgents, result: 'Certification task completed', data: input },
-      artifacts: [], cost: selectedAgents.length * 0.2, durationMs: selectedAgents.length * 2000,
-      logs: selectedAgents.map(a => `Agent ${a} executed`), errors: [],
+      agentId: CertAgent.SECURITY,
+      missionId,
+      success: true,
+      output: {
+        task,
+        agentsUsed: selectedAgents,
+        result: 'Certification task completed',
+        data: input,
+      },
+      artifacts: [],
+      cost: selectedAgents.length * 0.2,
+      durationMs: selectedAgents.length * 2000,
+      logs: selectedAgents.map((a) => `Agent ${a} executed`),
+      errors: [],
     };
   }
 
   getStats() {
-    return { level: AgentLevel.CERTIFICATION, totalAgents: 8,
-      availableAgents: this.getTeamAgents().map(a => ({ id: a.id, name: a.name, skills: a.skills, costPerTask: a.estimatedCostPerTask })),
+    return {
+      level: AgentLevel.CERTIFICATION,
+      totalAgents: 8,
+      availableAgents: this.getTeamAgents().map((a) => ({
+        id: a.id,
+        name: a.name,
+        skills: a.skills,
+        costPerTask: a.estimatedCostPerTask,
+      })),
     };
   }
 }

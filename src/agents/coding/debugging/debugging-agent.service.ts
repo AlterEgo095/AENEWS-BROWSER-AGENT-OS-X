@@ -4,7 +4,7 @@
  * Provides systematic error analysis and resolution workflow.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { DevCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -140,13 +142,7 @@ export const DEBUGGING_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:code',
-    'write:code',
-    'read:logs',
-    'execute:debug',
-  ],
+  permissions: ['execute:task', 'read:code', 'write:code', 'read:logs', 'execute:debug'],
   maxConcurrentTasks: 3,
   timeout: 90000,
   retryPolicy: {
@@ -208,13 +204,25 @@ interface ValidationError {
 
 @Injectable()
 export class DebuggingAgentService extends BaseAgentService {
-  private debugSessions: Map<string, {
-    error: any;
-    analysis?: ErrorAnalysis;
-    suggestions?: FixSuggestion[];
-    appliedFixes: AppliedChange[];
-    validated: boolean;
-  }> = new Map();
+  private debugSessions: Map<
+    string,
+    {
+      error: any;
+      analysis?: ErrorAnalysis;
+      suggestions?: FixSuggestion[];
+      appliedFixes: AppliedChange[];
+      validated: boolean;
+    }
+  > = new Map();
+
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
 
   protected defineConfig(): AgentConfig {
     return DEBUGGING_AGENT_CONFIG;
@@ -283,10 +291,39 @@ export class DebuggingAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Delegate to real connector
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(DevCapability.DEBUG, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback to local: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
-      return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
+      return this.createAgentOutput(
+        input.taskId,
+        false,
+        null,
+        'Missing required parameter: action',
+        startTime,
+      );
     }
 
     const supportedActions = [
@@ -310,7 +347,13 @@ export class DebuggingAgentService extends BaseAgentService {
     try {
       const tool = this.getTool(action);
       if (!tool) {
-        return this.createAgentOutput(input.taskId, false, null, `Tool not found: ${action}`, startTime);
+        return this.createAgentOutput(
+          input.taskId,
+          false,
+          null,
+          `Tool not found: ${action}`,
+          startTime,
+        );
       }
 
       const result = await tool.execute(params);
@@ -318,7 +361,11 @@ export class DebuggingAgentService extends BaseAgentService {
       // Store debug session data
       const sessionId = input.context?.sessionId || input.taskId;
       if (!this.debugSessions.has(sessionId)) {
-        this.debugSessions.set(sessionId, { error: params.error, appliedFixes: [], validated: false });
+        this.debugSessions.set(sessionId, {
+          error: params.error,
+          appliedFixes: [],
+          validated: false,
+        });
       }
       const session = this.debugSessions.get(sessionId)!;
 
@@ -384,12 +431,21 @@ export class DebuggingAgentService extends BaseAgentService {
     const affectedPaths = this.extractAffectedPaths(errorStack, code);
 
     // Generate analysis text
-    const analysis = this.generateAnalysisText(errorType, errorMessage, rootCause, severity, affectedPaths, language);
+    const analysis = this.generateAnalysisText(
+      errorType,
+      errorMessage,
+      rootCause,
+      severity,
+      affectedPaths,
+      language,
+    );
 
     // Find related errors
     const relatedErrors = this.findRelatedErrors(errorType, errorMessage, code, language);
 
-    this.logger.log(`Error analyzed: type=${errorType}, severity=${severity}, rootCause=${rootCause.substring(0, 80)}`);
+    this.logger.log(
+      `Error analyzed: type=${errorType}, severity=${severity}, rootCause=${rootCause.substring(0, 80)}`,
+    );
 
     return {
       errorType,
@@ -538,23 +594,35 @@ export class DebuggingAgentService extends BaseAgentService {
     }
 
     // Reference error fixes
-    if (errorType.toLowerCase().includes('reference') || errorMessage.toLowerCase().includes('is not defined')) {
+    if (
+      errorType.toLowerCase().includes('reference') ||
+      errorMessage.toLowerCase().includes('is not defined')
+    ) {
       suggestions.push(...this.suggestReferenceErrorFixes(errorMessage, lines, language));
     }
 
     // Null/undefined error fixes
-    if (errorMessage.toLowerCase().includes('null') || errorMessage.toLowerCase().includes('undefined') ||
-        errorMessage.toLowerCase().includes('cannot read propert')) {
+    if (
+      errorMessage.toLowerCase().includes('null') ||
+      errorMessage.toLowerCase().includes('undefined') ||
+      errorMessage.toLowerCase().includes('cannot read propert')
+    ) {
       suggestions.push(...this.suggestNullErrorFixes(errorMessage, lines, language));
     }
 
     // Syntax error fixes
-    if (errorType.toLowerCase().includes('syntax') || errorMessage.toLowerCase().includes('unexpected')) {
+    if (
+      errorType.toLowerCase().includes('syntax') ||
+      errorMessage.toLowerCase().includes('unexpected')
+    ) {
       suggestions.push(...this.suggestSyntaxErrorFixes(errorMessage, lines, language));
     }
 
     // Range error fixes
-    if (errorType.toLowerCase().includes('range') || errorMessage.toLowerCase().includes('out of range')) {
+    if (
+      errorType.toLowerCase().includes('range') ||
+      errorMessage.toLowerCase().includes('out of range')
+    ) {
       suggestions.push(...this.suggestRangeErrorFixes(errorMessage, lines, language));
     }
 
@@ -567,9 +635,10 @@ export class DebuggingAgentService extends BaseAgentService {
     const limitedSuggestions = suggestions.slice(0, maxSuggestions);
 
     // Calculate overall confidence
-    const avgConfidence = limitedSuggestions.length > 0
-      ? limitedSuggestions.reduce((sum, s) => sum + s.confidence, 0) / limitedSuggestions.length
-      : 0;
+    const avgConfidence =
+      limitedSuggestions.length > 0
+        ? limitedSuggestions.reduce((sum, s) => sum + s.confidence, 0) / limitedSuggestions.length
+        : 0;
 
     const autoFixable = limitedSuggestions.some((s) => s.autoFixable);
 
@@ -655,7 +724,8 @@ export class DebuggingAgentService extends BaseAgentService {
             lineEnd: targetLine + deleteCount,
             before: deleted.join('\n'),
             after: '',
-            description: fix.description || `Deleted line(s) ${targetLine + 1}-${targetLine + deleteCount}`,
+            description:
+              fix.description || `Deleted line(s) ${targetLine + 1}-${targetLine + deleteCount}`,
           });
           break;
         }
@@ -665,12 +735,16 @@ export class DebuggingAgentService extends BaseAgentService {
     fixedCode = lines.join('\n');
 
     if (!dryRun) {
-      await this.storeInWorkingMemory('debugging:lastFix', {
-        fix,
-        changes,
-        timestamp: new Date(),
-        applied: true,
-      }, 300000);
+      await this.storeInWorkingMemory(
+        'debugging:lastFix',
+        {
+          fix,
+          changes,
+          timestamp: new Date(),
+          applied: true,
+        },
+        300000,
+      );
     }
 
     this.logger.log(
@@ -730,7 +804,12 @@ export class DebuggingAgentService extends BaseAgentService {
     verificationSteps.push('Verify syntax correctness of fixed code');
 
     // 3. Check that the original error pattern is no longer present
-    const errorPatternPresent = this.checkErrorPatternExists(fixedCode, errorMessage, errorType, language);
+    const errorPatternPresent = this.checkErrorPatternExists(
+      fixedCode,
+      errorMessage,
+      errorType,
+      language,
+    );
     if (errorPatternPresent) {
       residualIssues.push({
         type: 'error-pattern',
@@ -790,7 +869,8 @@ export class DebuggingAgentService extends BaseAgentService {
     const lower = message.toLowerCase();
 
     if (lower.includes('typeerror') || lower.includes('type error')) return 'TypeError';
-    if (lower.includes('referenceerror') || lower.includes('is not defined')) return 'ReferenceError';
+    if (lower.includes('referenceerror') || lower.includes('is not defined'))
+      return 'ReferenceError';
     if (lower.includes('syntaxerror') || lower.includes('unexpected')) return 'SyntaxError';
     if (lower.includes('rangeerror') || lower.includes('out of range')) return 'RangeError';
     if (lower.includes('null') || lower.includes('undefined')) return 'NullReferenceError';
@@ -851,19 +931,35 @@ export class DebuggingAgentService extends BaseAgentService {
     return `Error: ${errorMessage}. Analyze the stack trace and code context to identify the specific cause.`;
   }
 
-  private determineSeverity(errorType: string, errorMessage: string, code?: string): 'low' | 'medium' | 'high' | 'critical' {
+  private determineSeverity(
+    errorType: string,
+    errorMessage: string,
+    code?: string,
+  ): 'low' | 'medium' | 'high' | 'critical' {
     // Critical: unhandled exceptions, security errors
-    if (errorType.includes('Security') || errorType.includes('Permission') || errorMessage.toLowerCase().includes('fatal')) {
+    if (
+      errorType.includes('Security') ||
+      errorType.includes('Permission') ||
+      errorMessage.toLowerCase().includes('fatal')
+    ) {
       return 'critical';
     }
 
     // High: runtime errors that crash the application
-    if (errorType.includes('TypeError') || errorType.includes('ReferenceError') || errorType.includes('NullReference')) {
+    if (
+      errorType.includes('TypeError') ||
+      errorType.includes('ReferenceError') ||
+      errorType.includes('NullReference')
+    ) {
       return 'high';
     }
 
     // Medium: recoverable errors
-    if (errorType.includes('RangeError') || errorType.includes('ConnectionError') || errorType.includes('Timeout')) {
+    if (
+      errorType.includes('RangeError') ||
+      errorType.includes('ConnectionError') ||
+      errorType.includes('Timeout')
+    ) {
       return 'medium';
     }
 
@@ -973,8 +1069,12 @@ export class DebuggingAgentService extends BaseAgentService {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (language === 'typescript' || language === 'javascript') {
-        if (line.includes(`function ${functionName}`) || line.includes(`${functionName} =`) ||
-            line.includes(`${functionName}(`) || line.match(new RegExp(`\\b${functionName}\\s*\\(`))) {
+        if (
+          line.includes(`function ${functionName}`) ||
+          line.includes(`${functionName} =`) ||
+          line.includes(`${functionName}(`) ||
+          line.match(new RegExp(`\\b${functionName}\\s*\\(`))
+        ) {
           return i;
         }
       }
@@ -1001,17 +1101,28 @@ export class DebuggingAgentService extends BaseAgentService {
     return 'Execute statement';
   }
 
-  private trackVariableAssignment(line: string, variables: Record<string, any>, language: string): void {
+  private trackVariableAssignment(
+    line: string,
+    variables: Record<string, any>,
+    language: string,
+  ): void {
     const assignMatch = line.match(/(?:const|let|var)?\s*(\w+)\s*=\s*(.+?)[;,\)]?$/);
     if (assignMatch) {
       const name = assignMatch[1];
       const value = assignMatch[2].trim();
       // Store simplified representation
-      variables[name] = value.startsWith("'") || value.startsWith('"') ? 'string' :
-                        /^\d+$/.test(value) ? 'number' :
-                        value === 'true' || value === 'false' ? 'boolean' :
-                        value === 'null' ? null :
-                        value === 'undefined' ? undefined : 'expression';
+      variables[name] =
+        value.startsWith("'") || value.startsWith('"')
+          ? 'string'
+          : /^\d+$/.test(value)
+            ? 'number'
+            : value === 'true' || value === 'false'
+              ? 'boolean'
+              : value === 'null'
+                ? null
+                : value === 'undefined'
+                  ? undefined
+                  : 'expression';
     }
   }
 
@@ -1022,10 +1133,14 @@ export class DebuggingAgentService extends BaseAgentService {
 
   private isErrorPoint(line: string, language: string): boolean {
     if (language === 'typescript' || language === 'javascript') {
-      return line.includes('.null') || line.includes('undefined') ||
-             line.includes('throw ') || line.includes('catch (') ||
-             (line.includes('[') && !line.includes(']')) ||
-             line.includes('.length') && line.includes('undefined');
+      return (
+        line.includes('.null') ||
+        line.includes('undefined') ||
+        line.includes('throw ') ||
+        line.includes('catch (') ||
+        (line.includes('[') && !line.includes(']')) ||
+        (line.includes('.length') && line.includes('undefined'))
+      );
     }
     return line.includes('raise ') || line.includes('except ') || line.includes('None');
   }
@@ -1069,7 +1184,10 @@ export class DebuggingAgentService extends BaseAgentService {
     const suggestions: FixSuggestion[] = [];
 
     // Cannot read properties of undefined
-    if (errorMessage.includes('cannot read properties of') || errorMessage.includes('cannot read propert')) {
+    if (
+      errorMessage.includes('cannot read properties of') ||
+      errorMessage.includes('cannot read propert')
+    ) {
       suggestions.push({
         id: 'fix-null-guard',
         title: 'Add null/undefined guard',
@@ -1118,7 +1236,9 @@ export class DebuggingAgentService extends BaseAgentService {
 
     if (varName) {
       // Check if it might be a missing import
-      const hasImportSection = lines.some((l) => l.startsWith('import ') || l.startsWith('require('));
+      const hasImportSection = lines.some(
+        (l) => l.startsWith('import ') || l.startsWith('require('),
+      );
       if (hasImportSection) {
         suggestions.push({
           id: 'fix-missing-import',
@@ -1165,7 +1285,8 @@ export class DebuggingAgentService extends BaseAgentService {
     suggestions.push({
       id: 'fix-optional-chaining',
       title: 'Use optional chaining',
-      description: 'Replace property access with optional chaining operator to safely handle null/undefined',
+      description:
+        'Replace property access with optional chaining operator to safely handle null/undefined',
       codeChange: 'Replace obj.prop with obj?.prop',
       confidence: 0.9,
       autoFixable: true,
@@ -1317,20 +1438,29 @@ export class DebuggingAgentService extends BaseAgentService {
 
   // ─── Validation Helpers ────────────────────────────────────────
 
-  private performBasicSyntaxCheck(code: string, language: string): { valid: boolean; message: string } {
+  private performBasicSyntaxCheck(
+    code: string,
+    language: string,
+  ): { valid: boolean; message: string } {
     // Check for obvious syntax issues
     const openBraces = (code.match(/{/g) || []).length;
     const closeBraces = (code.match(/}/g) || []).length;
 
     if (Math.abs(openBraces - closeBraces) > 1) {
-      return { valid: false, message: `Unbalanced braces: ${openBraces} open, ${closeBraces} close` };
+      return {
+        valid: false,
+        message: `Unbalanced braces: ${openBraces} open, ${closeBraces} close`,
+      };
     }
 
     const openParens = (code.match(/\(/g) || []).length;
     const closeParens = (code.match(/\)/g) || []).length;
 
     if (Math.abs(openParens - closeParens) > 1) {
-      return { valid: false, message: `Unbalanced parentheses: ${openParens} open, ${closeParens} close` };
+      return {
+        valid: false,
+        message: `Unbalanced parentheses: ${openParens} open, ${closeParens} close`,
+      };
     }
 
     return { valid: true, message: 'No obvious syntax issues detected' };
@@ -1348,14 +1478,19 @@ export class DebuggingAgentService extends BaseAgentService {
       // Check for property access without optional chaining
       const propAccessWithoutChaining = code.match(/\w+\.\w+/g);
       const chainedAccess = code.match(/\w+\?\.\w+/g);
-      const unchainedCount = (propAccessWithoutChaining?.length || 0) - (chainedAccess?.length || 0);
+      const unchainedCount =
+        (propAccessWithoutChaining?.length || 0) - (chainedAccess?.length || 0);
       return unchainedCount > 5; // If many unchained accesses remain, pattern may still exist
     }
 
     return false;
   }
 
-  private detectNewIssues(originalCode: string, fixedCode: string, language: string): ValidationError[] {
+  private detectNewIssues(
+    originalCode: string,
+    fixedCode: string,
+    language: string,
+  ): ValidationError[] {
     const issues: ValidationError[] = [];
 
     // Check for accidentally deleted code
@@ -1399,11 +1534,17 @@ export class DebuggingAgentService extends BaseAgentService {
         stack.push(char);
       } else if (Object.values(pairs).includes(char)) {
         if (stack.length === 0) {
-          return { balanced: false, message: `Unmatched closing delimiter '${char}' at position ${i}` };
+          return {
+            balanced: false,
+            message: `Unmatched closing delimiter '${char}' at position ${i}`,
+          };
         }
         const last = stack.pop()!;
         if (pairs[last] !== char) {
-          return { balanced: false, message: `Mismatched delimiters: '${last}' and '${char}' at position ${i}` };
+          return {
+            balanced: false,
+            message: `Mismatched delimiters: '${last}' and '${char}' at position ${i}`,
+          };
         }
       }
     }

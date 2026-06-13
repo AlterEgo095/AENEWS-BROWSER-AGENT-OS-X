@@ -1,0 +1,1009 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Meta Planner Agent
+     3→ * Strategic planning and goal decomposition for the Meta Intelligence cluster.
+     4→ * Handles plan creation, goal decomposition, task prioritization, effort estimation,
+     5→ * dependency identification, and plan optimization.
+     6→ */
+     7→
+     8→import { Injectable, Optional, Inject } from '@nestjs/common';
+     9→import { BaseAgentService } from '../../base/base-agent.service';
+    10→import {
+    11→  AgentConfig,
+    12→  AgentCluster,
+    13→  AgentInput,
+    14→  AgentOutput,
+    15→} from '../../interfaces/agent.interface';
+    16→import { AgentConnectorBridge } from '../../bridge';
+    17→
+    18→// ─── Agent Configuration ──────────────────────────────────────────
+    19→
+    20→export const META_PLANNER_AGENT_CONFIG: AgentConfig = {
+    21→  id: 'meta-planner',
+    22→  name: 'MetaPlanner',
+    23→  cluster: AgentCluster.META_INTELLIGENCE,
+    24→  version: '1.0.0',
+    25→  description:
+    26→    'Strategic planning agent that creates execution plans, decomposes goals into subtasks, prioritizes tasks, estimates effort, identifies dependencies, and optimizes plans for the Meta Intelligence cluster.',
+    27→  capabilities: [
+    28→    {
+    29→      name: 'createPlan',
+    30→      description: 'Create a strategic execution plan for a given goal or task',
+    31→      inputSchema: {
+    32→        type: 'object',
+    33→        properties: {
+    34→          goal: { type: 'string', description: 'High-level goal to plan for' },
+    35→          constraints: { type: 'object', description: 'Planning constraints' },
+    36→          timeframe: { type: 'string', description: 'Target timeframe' },
+    37→        },
+    38→        required: ['goal'],
+    39→      },
+    40→      outputSchema: {
+    41→        type: 'object',
+    42→        properties: {
+    43→          planId: { type: 'string' },
+    44→          steps: { type: 'array', items: { type: 'object' } },
+    45→          estimatedDurationMs: { type: 'number' },
+    46→          resourceRequirements: { type: 'object' },
+    47→        },
+    48→      },
+    49→    },
+    50→    {
+    51→      name: 'decomposeGoal',
+    52→      description: 'Decompose a high-level goal into actionable subtasks',
+    53→      inputSchema: {
+    54→        type: 'object',
+    55→        properties: {
+    56→          goal: { type: 'string', description: 'Goal to decompose' },
+    57→          maxDepth: { type: 'number', description: 'Maximum decomposition depth' },
+    58→          strategy: {
+    59→            type: 'string',
+    60→            enum: ['sequential', 'parallel', 'hybrid'],
+    61→            description: 'Decomposition strategy',
+    62→          },
+    63→        },
+    64→        required: ['goal'],
+    65→      },
+    66→      outputSchema: {
+    67→        type: 'object',
+    68→        properties: {
+    69→          subtasks: { type: 'array', items: { type: 'object' } },
+    70→          dependencyGraph: { type: 'object' },
+    71→          executionOrder: { type: 'array', items: { type: 'array' } },
+    72→        },
+    73→      },
+    74→    },
+    75→    {
+    76→      name: 'prioritizeTasks',
+    77→      description: 'Prioritize a list of tasks based on multiple criteria',
+    78→      inputSchema: {
+    79→        type: 'object',
+    80→        properties: {
+    81→          tasks: { type: 'array', items: { type: 'object' }, description: 'Tasks to prioritize' },
+    82→          criteria: {
+    83→            type: 'array',
+    84→            items: { type: 'string' },
+    85→            description: 'Prioritization criteria',
+    86→          },
+    87→          weights: { type: 'object', description: 'Weights for each criterion' },
+    88→        },
+    89→        required: ['tasks'],
+    90→      },
+    91→      outputSchema: {
+    92→        type: 'object',
+    93→        properties: {
+    94→          prioritizedTasks: { type: 'array', items: { type: 'object' } },
+    95→          ranking: { type: 'array', items: { type: 'object' } },
+    96→          rationale: { type: 'string' },
+    97→        },
+    98→      },
+    99→    },
+   100→    {
+   101→      name: 'estimateEffort',
+   102→      description: 'Estimate effort required for a task or plan',
+   103→      inputSchema: {
+   104→        type: 'object',
+   105→        properties: {
+   106→          taskDescription: { type: 'string', description: 'Task description' },
+   107→          complexity: {
+   108→            type: 'string',
+   109→            enum: ['low', 'medium', 'high', 'critical'],
+   110→            description: 'Task complexity',
+   111→          },
+   112→          resources: { type: 'object', description: 'Available resources' },
+   113→        },
+   114→        required: ['taskDescription'],
+   115→      },
+   116→      outputSchema: {
+   117→        type: 'object',
+   118→        properties: {
+   119→          estimatedHours: { type: 'number' },
+   120→          confidence: { type: 'number' },
+   121→          breakdown: { type: 'object' },
+   122→          riskFactors: { type: 'array', items: { type: 'string' } },
+   123→        },
+   124→      },
+   125→    },
+   126→    {
+   127→      name: 'identifyDependencies',
+   128→      description: 'Identify dependencies between tasks in a plan',
+   129→      inputSchema: {
+   130→        type: 'object',
+   131→        properties: {
+   132→          tasks: {
+   133→            type: 'array',
+   134→            items: { type: 'object' },
+   135→            description: 'Tasks to analyze for dependencies',
+   136→          },
+   137→          context: { type: 'object', description: 'Planning context' },
+   138→        },
+   139→        required: ['tasks'],
+   140→      },
+   141→      outputSchema: {
+   142→        type: 'object',
+   143→        properties: {
+   144→          dependencies: { type: 'array', items: { type: 'object' } },
+   145→          criticalPath: { type: 'array', items: { type: 'string' } },
+   146→          parallelGroups: { type: 'array', items: { type: 'array' } },
+   147→        },
+   148→      },
+   149→    },
+   150→    {
+   151→      name: 'optimizePlan',
+   152→      description: 'Optimize an existing plan for better efficiency',
+   153→      inputSchema: {
+   154→        type: 'object',
+   155→        properties: {
+   156→          planId: { type: 'string', description: 'Plan ID to optimize' },
+   157→          optimizationGoal: {
+   158→            type: 'string',
+   159→            enum: ['speed', 'cost', 'quality', 'balanced'],
+   160→            description: 'Optimization goal',
+   161→          },
+   162→          constraints: { type: 'object', description: 'Optimization constraints' },
+   163→        },
+   164→        required: ['planId', 'optimizationGoal'],
+   165→      },
+   166→      outputSchema: {
+   167→        type: 'object',
+   168→        properties: {
+   169→          originalEstimate: { type: 'number' },
+   170→          optimizedEstimate: { type: 'number' },
+   171→          improvements: { type: 'array', items: { type: 'object' } },
+   172→          tradeoffs: { type: 'array', items: { type: 'string' } },
+   173→        },
+   174→      },
+   175→    },
+   176→  ],
+   177→  permissions: ['execute:task', 'read:plan', 'write:plan', 'read:task', 'write:task'],
+   178→  maxConcurrentTasks: 4,
+   179→  timeout: 90000,
+   180→  retryPolicy: {
+   181→    maxRetries: 2,
+   182→    backoffMs: 2500,
+   183→    exponentialBackoff: true,
+   184→  },
+   185→};
+   186→
+   187→// ─── Internal Types ───────────────────────────────────────────────
+   188→
+   189→interface PlanRecord {
+   190→  id: string;
+   191→  goal: string;
+   192→  steps: PlanStepRecord[];
+   193→  status: 'draft' | 'approved' | 'executing' | 'completed' | 'cancelled';
+   194→  createdAt: Date;
+   195→  estimatedDurationMs: number;
+   196→}
+   197→
+   198→interface PlanStepRecord {
+   199→  id: string;
+   200→  description: string;
+   201→  order: number;
+   202→  estimatedDurationMs: number;
+   203→  dependsOn: string[];
+   204→  assignedAgentId?: string;
+   205→  status: 'pending' | 'in-progress' | 'completed' | 'blocked';
+   206→  priority: number;
+   207→}
+   208→
+   209→// ─── Agent Service ────────────────────────────────────────────────
+   210→
+   211→\n  constructor(
+   212→    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+   213→  ) {
+   214→    super();
+   215→  }
+   216→  private plans: Map<string, PlanRecord> = new Map();
+   217→
+   218→  protected defineConfig(): AgentConfig {
+   219→    return META_PLANNER_AGENT_CONFIG;
+   220→  }
+   221→
+   222→  protected async onInitialize(): Promise<void> {
+   223→    this.registerTool({
+   224→      name: 'createPlan',
+   225→      description: 'Create a strategic execution plan for a given goal or task',
+   226→      execute: async (params: {
+   227→        goal: string;
+   228→        constraints?: Record<string, any>;
+   229→        timeframe?: string;
+   230→      }) => this.createPlan(params),
+   231→    });
+   232→
+   233→    this.registerTool({
+   234→      name: 'decomposeGoal',
+   235→      description: 'Decompose a high-level goal into actionable subtasks',
+   236→      execute: async (params: { goal: string; maxDepth?: number; strategy?: string }) =>
+   237→        this.decomposeGoal(params),
+   238→    });
+   239→
+   240→    this.registerTool({
+   241→      name: 'prioritizeTasks',
+   242→      description: 'Prioritize a list of tasks based on multiple criteria',
+   243→      execute: async (params: {
+   244→        tasks: Array<{ id: string; description: string; priority?: number }>;
+   245→        criteria?: string[];
+   246→        weights?: Record<string, number>;
+   247→      }) => this.prioritizeTasks(params),
+   248→    });
+   249→
+   250→    this.registerTool({
+   251→      name: 'estimateEffort',
+   252→      description: 'Estimate effort required for a task or plan',
+   253→      execute: async (params: {
+   254→        taskDescription: string;
+   255→        complexity?: string;
+   256→        resources?: Record<string, any>;
+   257→      }) => this.estimateEffort(params),
+   258→    });
+   259→
+   260→    this.registerTool({
+   261→      name: 'identifyDependencies',
+   262→      description: 'Identify dependencies between tasks in a plan',
+   263→      execute: async (params: {
+   264→        tasks: Array<{ id: string; description: string; requires?: string[] }>;
+   265→        context?: Record<string, any>;
+   266→      }) => this.identifyDependencies(params),
+   267→    });
+   268→
+   269→    this.registerTool({
+   270→      name: 'optimizePlan',
+   271→      description: 'Optimize an existing plan for better efficiency',
+   272→      execute: async (params: {
+   273→        planId: string;
+   274→        optimizationGoal: string;
+   275→        constraints?: Record<string, any>;
+   276→      }) => this.optimizePlan(params),
+   277→    });
+   278→
+   279→    await this.storeInWorkingMemory('planner:initializedAt', new Date().toISOString(), 600000);
+   280→    this.logger.log('MetaPlanner agent initialized with 6 tools');
+   281→  }
+   282→
+   283→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   284→    const startTime = Date.now();
+   285→    // Bridge: use LLM for strategic planning, goal decomposition, and task prioritization
+   286→    if (this.bridge) {
+   287→      try {
+   288→        const llmResult = await this.bridge.callLLM({
+   289→          systemPrompt: `You are the ${this.config.name} agent in the Meta-Intelligence cluster. Analyze the following task and provide detailed strategic planning, goal decomposition, and task prioritization.`,
+   290→          userPrompt: JSON.stringify(input.payload),
+   291→          temperature: 0.3,
+   292→          maxTokens: 2048,
+   293→        });
+   294→
+   295→        const analysis = llmResult.content;
+   296→
+   297→        return this.createAgentOutput(
+   298→          input.taskId,
+   299→          true,
+   300→          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+   301→          undefined,
+   302→          startTime,
+   303→        );
+   304→      } catch (error) {
+   305→        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+   306→      }
+   307→    }
+   308→
+   309→const { action, ...params } = input.payload;
+   310→
+   311→    if (!action) {
+   312→      return this.createAgentOutput(
+   313→        input.taskId,
+   314→        false,
+   315→        null,
+   316→        'Missing required parameter: action',
+   317→        startTime,
+   318→      );
+   319→    }
+   320→
+   321→    const supportedActions = [
+   322→      'createPlan',
+   323→      'decomposeGoal',
+   324→      'prioritizeTasks',
+   325→      'estimateEffort',
+   326→      'identifyDependencies',
+   327→      'optimizePlan',
+   328→    ];
+   329→
+   330→    if (!supportedActions.includes(action)) {
+   331→      return this.createAgentOutput(
+   332→        input.taskId,
+   333→        false,
+   334→        null,
+   335→        `Unknown planner action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   336→        startTime,
+   337→      );
+   338→    }
+   339→
+   340→    try {
+   341→      const tool = this.getTool(action);
+   342→      if (!tool) {
+   343→        return this.createAgentOutput(
+   344→          input.taskId,
+   345→          false,
+   346→          null,
+   347→          `Tool not found: ${action}`,
+   348→          startTime,
+   349→        );
+   350→      }
+   351→
+   352→      const result = await tool.execute(params);
+   353→      await this.storeInWorkingMemory(
+   354→        `planner:last:${action}`,
+   355→        { params, result, timestamp: new Date() },
+   356→        300000,
+   357→      );
+   358→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   359→    } catch (error) {
+   360→      const msg = (error as Error).message;
+   361→      this.logger.error(`MetaPlanner execution failed for ${action}: ${msg}`);
+   362→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   363→    }
+   364→  }
+   365→
+   366→  protected async onDestroy(): Promise<void> {
+   367→    this.plans.clear();
+   368→    this.logger.log('MetaPlanner agent destroyed, plans cleared');
+   369→  }
+   370→
+   371→  // ─── Tool Implementations ──────────────────────────────────────
+   372→
+   373→  private async createPlan(params: {
+   374→    goal: string;
+   375→    constraints?: Record<string, any>;
+   376→    timeframe?: string;
+   377→  }): Promise<{
+   378→    planId: string;
+   379→    steps: Array<{ id: string; description: string; order: number; estimatedDurationMs: number }>;
+   380→    estimatedDurationMs: number;
+   381→    resourceRequirements: Record<string, number>;
+   382→  }> {
+   383→    const { goal, constraints = {}, timeframe } = params;
+   384→
+   385→    if (!goal || typeof goal !== 'string') {
+   386→      throw new Error('Valid goal string is required for plan creation');
+   387→    }
+   388→
+   389→    const planId = this.generateId();
+   390→    const wordCount = goal.split(/\s+/).length;
+   391→    const complexityFactor = Math.min(wordCount / 20, 3);
+   392→
+   393→    const steps: PlanStepRecord[] = [
+   394→      {
+   395→        id: `${planId}-step-0`,
+   396→        description: `Analyze goal: ${goal.substring(0, 80)}`,
+   397→        order: 0,
+   398→        estimatedDurationMs: 3000 + complexityFactor * 1000,
+   399→        dependsOn: [],
+   400→        status: 'pending',
+   401→        priority: 3,
+   402→      },
+   403→      {
+   404→        id: `${planId}-step-1`,
+   405→        description: 'Decompose goal into subtasks',
+   406→        order: 1,
+   407→        estimatedDurationMs: 5000 + complexityFactor * 1500,
+   408→        dependsOn: [`${planId}-step-0`],
+   409→        status: 'pending',
+   410→        priority: 3,
+   411→      },
+   412→      {
+   413→        id: `${planId}-step-2`,
+   414→        description: 'Identify dependencies and execution order',
+   415→        order: 2,
+   416→        estimatedDurationMs: 4000 + complexityFactor * 1000,
+   417→        dependsOn: [`${planId}-step-1`],
+   418→        status: 'pending',
+   419→        priority: 2,
+   420→      },
+   421→      {
+   422→        id: `${planId}-step-3`,
+   423→        description: 'Estimate effort and resource requirements',
+   424→        order: 3,
+   425→        estimatedDurationMs: 3000 + complexityFactor * 800,
+   426→        dependsOn: [`${planId}-step-1`],
+   427→        status: 'pending',
+   428→        priority: 2,
+   429→      },
+   430→      {
+   431→        id: `${planId}-step-4`,
+   432→        description: 'Finalize and validate plan',
+   433→        order: 4,
+   434→        estimatedDurationMs: 2000 + complexityFactor * 500,
+   435→        dependsOn: [`${planId}-step-2`, `${planId}-step-3`],
+   436→        status: 'pending',
+   437→        priority: 3,
+   438→      },
+   439→    ];
+   440→
+   441→    const estimatedDurationMs = steps.reduce((sum, s) => sum + s.estimatedDurationMs, 0);
+   442→
+   443→    const record: PlanRecord = {
+   444→      id: planId,
+   445→      goal,
+   446→      steps,
+   447→      status: 'draft',
+   448→      createdAt: new Date(),
+   449→      estimatedDurationMs,
+   450→    };
+   451→
+   452→    this.plans.set(planId, record);
+   453→
+   454→    const resourceRequirements: Record<string, number> = {
+   455→      planner: 1,
+   456→      critic: 1,
+   457→      executor: Math.max(1, Math.ceil(complexityFactor)),
+   458→    };
+   459→
+   460→    if (constraints.maxAgents) {
+   461→      resourceRequirements.executor = Math.min(
+   462→        resourceRequirements.executor,
+   463→        constraints.maxAgents,
+   464→      );
+   465→    }
+   466→
+   467→    this.logger.log(
+   468→      `Plan created: planId=${planId}, steps=${steps.length}, duration=${estimatedDurationMs}ms`,
+   469→    );
+   470→
+   471→    return {
+   472→      planId,
+   473→      steps: steps.map((s) => ({
+   474→        id: s.id,
+   475→        description: s.description,
+   476→        order: s.order,
+   477→        estimatedDurationMs: s.estimatedDurationMs,
+   478→      })),
+   479→      estimatedDurationMs,
+   480→      resourceRequirements,
+   481→    };
+   482→  }
+   483→
+   484→  private async decomposeGoal(params: {
+   485→    goal: string;
+   486→    maxDepth?: number;
+   487→    strategy?: string;
+   488→  }): Promise<{
+   489→    subtasks: Array<{ id: string; description: string; depth: number; parentTaskId?: string }>;
+   490→    dependencyGraph: Record<string, string[]>;
+   491→    executionOrder: string[][];
+   492→  }> {
+   493→    const { goal, maxDepth = 2, strategy = 'hybrid' } = params;
+   494→
+   495→    if (!goal || typeof goal !== 'string') {
+   496→      throw new Error('Valid goal string is required for decomposition');
+   497→    }
+   498→
+   499→    const subtasks: Array<{
+   500→      id: string;
+   501→      description: string;
+   502→      depth: number;
+   503→      parentTaskId?: string;
+   504→    }> = [];
+   505→    const dependencyGraph: Record<string, string[]> = {};
+   506→
+   507→    // Level 0: Main goal decomposition
+   508→    const mainComponents = this.extractMainComponents(goal);
+   509→    for (let i = 0; i < mainComponents.length; i++) {
+   510→      const id = `subtask-0-${i}`;
+   511→      subtasks.push({
+   512→        id,
+   513→        description: mainComponents[i],
+   514→        depth: 0,
+   515→      });
+   516→      dependencyGraph[id] = [];
+   517→
+   518→      // Level 1: Further decomposition
+   519→      if (maxDepth >= 1) {
+   520→        const subComponents = this.extractSubComponents(mainComponents[i]);
+   521→        for (let j = 0; j < subComponents.length; j++) {
+   522→          const subId = `subtask-1-${i}-${j}`;
+   523→          subtasks.push({
+   524→            id: subId,
+   525→            description: subComponents[j],
+   526→            depth: 1,
+   527→            parentTaskId: id,
+   528→          });
+   529→          dependencyGraph[subId] = [id];
+   530→        }
+   531→      }
+   532→    }
+   533→
+   534→    // Build execution order based on strategy
+   535→    const executionOrder: string[][] = [];
+   536→
+   537→    if (strategy === 'sequential') {
+   538→      for (const subtask of subtasks) {
+   539→        executionOrder.push([subtask.id]);
+   540→      }
+   541→    } else if (strategy === 'parallel') {
+   542→      const byDepth = new Map<number, string[]>();
+   543→      for (const subtask of subtasks) {
+   544→        const depthTasks = byDepth.get(subtask.depth) || [];
+   545→        depthTasks.push(subtask.id);
+   546→        byDepth.set(subtask.depth, depthTasks);
+   547→      }
+   548→      for (const [, ids] of byDepth) {
+   549→        executionOrder.push(ids);
+   550→      }
+   551→    } else {
+   552→      // hybrid: group by depth but respect dependencies
+   553→      const depth0 = subtasks.filter((s) => s.depth === 0).map((s) => s.id);
+   554→      executionOrder.push(depth0.slice(0, 2));
+   555→      if (depth0.length > 2) executionOrder.push(depth0.slice(2));
+   556→      const depth1 = subtasks.filter((s) => s.depth === 1).map((s) => s.id);
+   557→      if (depth1.length > 0) {
+   558→        executionOrder.push(depth1.slice(0, 3));
+   559→        if (depth1.length > 3) executionOrder.push(depth1.slice(3));
+   560→      }
+   561→    }
+   562→
+   563→    this.logger.log(
+   564→      `Goal decomposed: goal="${goal.substring(0, 50)}", subtasks=${subtasks.length}, strategy=${strategy}`,
+   565→    );
+   566→
+   567→    return { subtasks, dependencyGraph, executionOrder };
+   568→  }
+   569→
+   570→  private async prioritizeTasks(params: {
+   571→    tasks: Array<{ id: string; description: string; priority?: number }>;
+   572→    criteria?: string[];
+   573→    weights?: Record<string, number>;
+   574→  }): Promise<{
+   575→    prioritizedTasks: Array<{ id: string; description: string; score: number; rank: number }>;
+   576→    ranking: Array<{ id: string; score: number; factors: Record<string, number> }>;
+   577→    rationale: string;
+   578→  }> {
+   579→    const {
+   580→      tasks,
+   581→      criteria = ['urgency', 'impact', 'effort', 'dependencies'],
+   582→      weights = {},
+   583→    } = params;
+   584→
+   585→    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+   586→      throw new Error('Non-empty tasks array is required for prioritization');
+   587→    }
+   588→
+   589→    const defaultWeights: Record<string, number> = {
+   590→      urgency: 0.3,
+   591→      impact: 0.3,
+   592→      effort: 0.2,
+   593→      dependencies: 0.2,
+   594→    };
+   595→
+   596→    const effectiveWeights = { ...defaultWeights, ...weights };
+   597→
+   598→    const ranked = tasks.map((task) => {
+   599→      const factors: Record<string, number> = {};
+   600→      let totalScore = 0;
+   601→
+   602→      for (const criterion of criteria) {
+   603→        const weight = effectiveWeights[criterion] || 0.1;
+   604→        let score: number;
+   605→
+   606→        switch (criterion) {
+   607→          case 'urgency':
+   608→            score = task.priority ?? 1;
+   609→            break;
+   610→          case 'impact':
+   611→            score = this.estimateImpact(task.description);
+   612→            break;
+   613→          case 'effort':
+   614→            score = 5 - this.estimateEffortScore(task.description);
+   615→            break;
+   616→          case 'dependencies':
+   617→            score = Math.random() * 5;
+   618→            break;
+   619→          default:
+   620→            score = 3;
+   621→        }
+   622→
+   623→        factors[criterion] = Math.round(score * 100) / 100;
+   624→        totalScore += score * weight;
+   625→      }
+   626→
+   627→      return {
+   628→        id: task.id,
+   629→        description: task.description,
+   630→        score: Math.round(totalScore * 100) / 100,
+   631→        factors,
+   632→      };
+   633→    });
+   634→
+   635→    ranked.sort((a, b) => b.score - a.score);
+   636→
+   637→    const prioritizedTasks = ranked.map((r, i) => ({
+   638→      id: r.id,
+   639→      description: r.description,
+   640→      score: r.score,
+   641→      rank: i + 1,
+   642→    }));
+   643→
+   644→    const ranking = ranked.map((r) => ({
+   645→      id: r.id,
+   646→      score: r.score,
+   647→      factors: r.factors,
+   648→    }));
+   649→
+   650→    const rationale = this.generatePrioritizationRationale(criteria, effectiveWeights, ranked);
+   651→
+   652→    this.logger.log(`Tasks prioritized: count=${tasks.length}, criteria=${criteria.join(',')}`);
+   653→
+   654→    return { prioritizedTasks, ranking, rationale };
+   655→  }
+   656→
+   657→  private async estimateEffort(params: {
+   658→    taskDescription: string;
+   659→    complexity?: string;
+   660→    resources?: Record<string, any>;
+   661→  }): Promise<{
+   662→    estimatedHours: number;
+   663→    confidence: number;
+   664→    breakdown: Record<string, number>;
+   665→    riskFactors: string[];
+   666→  }> {
+   667→    const { taskDescription, complexity = 'medium', resources = {} } = params;
+   668→
+   669→    if (!taskDescription || typeof taskDescription !== 'string') {
+   670→      throw new Error('Valid taskDescription string is required for effort estimation');
+   671→    }
+   672→
+   673→    const complexityMultiplier: Record<string, number> = {
+   674→      low: 0.6,
+   675→      medium: 1.0,
+   676→      high: 1.6,
+   677→      critical: 2.2,
+   678→    };
+   679→
+   680→    const baseHours = this.estimateBaseHours(taskDescription);
+   681→    const multiplier = complexityMultiplier[complexity] || 1.0;
+   682→    const estimatedHours = Math.round(baseHours * multiplier * 10) / 10;
+   683→
+   684→    const confidence = this.calculateConfidence(taskDescription, resources);
+   685→
+   686→    const breakdown: Record<string, number> = {
+   687→      analysis: Math.round(estimatedHours * 0.2 * 10) / 10,
+   688→      implementation: Math.round(estimatedHours * 0.45 * 10) / 10,
+   689→      testing: Math.round(estimatedHours * 0.2 * 10) / 10,
+   690→      review: Math.round(estimatedHours * 0.1 * 10) / 10,
+   691→      buffer: Math.round(estimatedHours * 0.05 * 10) / 10,
+   692→    };
+   693→
+   694→    const riskFactors = this.identifyEffortRiskFactors(taskDescription, complexity, resources);
+   695→
+   696→    this.logger.log(
+   697→      `Effort estimated: hours=${estimatedHours}, complexity=${complexity}, confidence=${confidence}`,
+   698→    );
+   699→
+   700→    return { estimatedHours, confidence, breakdown, riskFactors };
+   701→  }
+   702→
+   703→  private async identifyDependencies(params: {
+   704→    tasks: Array<{ id: string; description: string; requires?: string[] }>;
+   705→    context?: Record<string, any>;
+   706→  }): Promise<{
+   707→    dependencies: Array<{ taskId: string; dependsOn: string[]; type: string }>;
+   708→    criticalPath: string[];
+   709→    parallelGroups: string[][];
+   710→  }> {
+   711→    const { tasks, context = {} } = params;
+   712→
+   713→    if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
+   714→      throw new Error('Non-empty tasks array is required for dependency identification');
+   715→    }
+   716→
+   717→    const dependencies: Array<{ taskId: string; dependsOn: string[]; type: string }> = [];
+   718→
+   719→    // Process explicit dependencies
+   720→    for (const task of tasks) {
+   721→      const explicitDeps = task.requires || [];
+   722→
+   723→      // Also infer implicit dependencies from descriptions
+   724→      const implicitDeps = this.inferImplicitDependencies(task, tasks);
+   725→
+   726→      const allDeps = [...new Set([...explicitDeps, ...implicitDeps])];
+   727→      const depType =
+   728→        allDeps.length === 0 ? 'independent' : allDeps.length <= 2 ? 'sequential' : 'complex';
+   729→
+   730→      dependencies.push({
+   731→        taskId: task.id,
+   732→        dependsOn: allDeps,
+   733→        type: depType,
+   734→      });
+   735→    }
+   736→
+   737→    // Calculate critical path (simplified)
+   738→    const criticalPath = this.calculateCriticalPath(tasks, dependencies);
+   739→
+   740→    // Identify parallel groups
+   741→    const parallelGroups = this.identifyParallelGroups(tasks, dependencies);
+   742→
+   743→    this.logger.log(
+   744→      `Dependencies identified: tasks=${tasks.length}, criticalPath=${criticalPath.length}, parallelGroups=${parallelGroups.length}`,
+   745→    );
+   746→
+   747→    return { dependencies, criticalPath, parallelGroups };
+   748→  }
+   749→
+   750→  private async optimizePlan(params: {
+   751→    planId: string;
+   752→    optimizationGoal: string;
+   753→    constraints?: Record<string, any>;
+   754→  }): Promise<{
+   755→    originalEstimate: number;
+   756→    optimizedEstimate: number;
+   757→    improvements: Array<{ description: string; savingsMs: number; tradeoff: string }>;
+   758→    tradeoffs: string[];
+   759→  }> {
+   760→    const { planId, optimizationGoal, constraints = {} } = params;
+   761→
+   762→    if (!planId || typeof planId !== 'string') {
+   763→      throw new Error('Valid planId string is required');
+   764→    }
+   765→    if (!['speed', 'cost', 'quality', 'balanced'].includes(optimizationGoal)) {
+   766→      throw new Error(
+   767→        `Invalid optimization goal: ${optimizationGoal}. Must be one of: speed, cost, quality, balanced`,
+   768→      );
+   769→    }
+   770→
+   771→    const plan = this.plans.get(planId);
+   772→    if (!plan) {
+   773→      throw new Error(`Plan not found: ${planId}`);
+   774→    }
+   775→
+   776→    const originalEstimate = plan.estimatedDurationMs;
+   777→    const improvements: Array<{ description: string; savingsMs: number; tradeoff: string }> = [];
+   778→    const tradeoffs: string[] = [];
+   779→
+   780→    let optimizedEstimate = originalEstimate;
+   781→
+   782→    switch (optimizationGoal) {
+   783→      case 'speed':
+   784→        // Parallelize independent steps
+   785→        const parallelSavings = Math.round(originalEstimate * 0.25);
+   786→        optimizedEstimate -= parallelSavings;
+   787→        improvements.push({
+   788→          description: 'Parallelized independent execution steps',
+   789→          savingsMs: parallelSavings,
+   790→          tradeoff: 'Increased resource consumption due to parallel execution',
+   791→        });
+   792→        tradeoffs.push('Higher resource usage during parallel execution phases');
+   793→        break;
+   794→
+   795→      case 'cost':
+   796→        // Reduce resource usage, may increase duration
+   797→        const costSavings = Math.round(originalEstimate * 0.15);
+   798→        optimizedEstimate += Math.round(originalEstimate * 0.1);
+   799→        improvements.push({
+   800→          description: 'Consolidated tasks to reduce agent count',
+   801→          savingsMs: -Math.round(originalEstimate * 0.1),
+   802→          tradeoff: 'Reduced cost but longer execution time',
+   803→        });
+   804→        tradeoffs.push('Sequential execution increases total duration by ~10%');
+   805→        break;
+   806→
+   807→      case 'quality':
+   808→        // Add review steps
+   809→        optimizedEstimate += Math.round(originalEstimate * 0.2);
+   810→        improvements.push({
+   811→          description: 'Added quality review gates between phases',
+   812→          savingsMs: -Math.round(originalEstimate * 0.2),
+   813→          tradeoff: 'Higher quality output but 20% longer execution',
+   814→        });
+   815→        tradeoffs.push('Additional review steps increase duration by ~20%');
+   816→        break;
+   817→
+   818→      case 'balanced':
+   819→        // Moderate optimization
+   820→        const balancedSavings = Math.round(originalEstimate * 0.1);
+   821→        optimizedEstimate -= balancedSavings;
+   822→        improvements.push({
+   823→          description: 'Optimized critical path and parallelized where safe',
+   824→          savingsMs: balancedSavings,
+   825→          tradeoff: 'Minor quality review reduction for time savings',
+   826→        });
+   827→        tradeoffs.push('Slightly reduced review coverage for faster execution');
+   828→        break;
+   829→    }
+   830→
+   831→    optimizedEstimate = Math.max(1000, optimizedEstimate);
+   832→
+   833→    this.logger.log(
+   834→      `Plan optimized: planId=${planId}, goal=${optimizationGoal}, original=${originalEstimate}ms, optimized=${optimizedEstimate}ms`,
+   835→    );
+   836→
+   837→    return { originalEstimate, optimizedEstimate, improvements, tradeoffs };
+   838→  }
+   839→
+   840→  // ─── Private Helpers ───────────────────────────────────────────
+   841→
+   842→  private extractMainComponents(goal: string): string[] {
+   843→    const components: string[] = [];
+   844→    const words = goal.split(/\s+/);
+   845→
+   846→    // Split by common separators
+   847→    const parts = goal
+   848→      .split(/[;,]/)
+   849→      .map((p) => p.trim())
+   850→      .filter((p) => p.length > 0);
+   851→
+   852→    if (parts.length > 1) {
+   853→      components.push(...parts);
+   854→    } else {
+   855→      // Generate components from the goal
+   856→      components.push(`Research and analyze: ${goal}`);
+   857→      components.push(`Design approach for: ${goal}`);
+   858→      components.push(`Implement solution for: ${goal}`);
+   859→      components.push(`Validate and verify: ${goal}`);
+   860→    }
+   861→
+   862→    return components;
+   863→  }
+   864→
+   865→  private extractSubComponents(component: string): string[] {
+   866→    const subComponents: string[] = [
+   867→      `Gather requirements for ${component.substring(0, 50)}`,
+   868→      `Execute ${component.substring(0, 50)}`,
+   869→      `Verify results of ${component.substring(0, 50)}`,
+   870→    ];
+   871→    return subComponents;
+   872→  }
+   873→
+   874→  private estimateImpact(description: string): number {
+   875→    const highImpactWords = ['critical', 'essential', 'key', 'primary', 'core', 'vital'];
+   876→    const lowImpactWords = ['minor', 'optional', 'nice-to-have', 'low-priority'];
+   877→    const lower = description.toLowerCase();
+   878→
+   879→    if (highImpactWords.some((w) => lower.includes(w))) return 4 + Math.random();
+   880→    if (lowImpactWords.some((w) => lower.includes(w))) return 1 + Math.random();
+   881→    return 2.5 + Math.random() * 1.5;
+   882→  }
+   883→
+   884→  private estimateEffortScore(description: string): number {
+   885→    const words = description.split(/\s+/).length;
+   886→    if (words > 20) return 4 + Math.random();
+   887→    if (words > 10) return 3 + Math.random();
+   888→    return 1.5 + Math.random() * 1.5;
+   889→  }
+   890→
+   891→  private estimateBaseHours(description: string): number {
+   892→    const words = description.split(/\s+/).length;
+   893→    const base = 2 + words * 0.1;
+   894→    return Math.max(1, Math.min(40, base));
+   895→  }
+   896→
+   897→  private calculateConfidence(description: string, resources: Record<string, any>): number {
+   898→    let confidence = 0.7;
+   899→    const words = description.split(/\s+/);
+   900→    if (words.length > 5) confidence -= 0.05;
+   901→    if (words.length > 15) confidence -= 0.1;
+   902→    if (resources.experienced) confidence += 0.1;
+   903→    if (resources.tooling) confidence += 0.05;
+   904→    return Math.round(Math.max(0.3, Math.min(0.95, confidence)) * 100) / 100;
+   905→  }
+   906→
+   907→  private identifyEffortRiskFactors(
+   908→    description: string,
+   909→    complexity: string,
+   910→    resources: Record<string, any>,
+   911→  ): string[] {
+   912→    const risks: string[] = [];
+   913→    if (complexity === 'high' || complexity === 'critical') {
+   914→      risks.push('High complexity increases estimation uncertainty');
+   915→    }
+   916→    if (!resources.experienced) {
+   917→      risks.push('Lack of experienced resources may extend timeline');
+   918→    }
+   919→    if (description.includes('integration') || description.includes('migrate')) {
+   920→      risks.push('Integration/migration tasks carry higher risk of unexpected issues');
+   921→    }
+   922→    if (Object.keys(resources).length === 0) {
+   923→      risks.push('No resource information provided; estimation may be less accurate');
+   924→    }
+   925→    return risks;
+   926→  }
+   927→
+   928→  private inferImplicitDependencies(
+   929→    task: { id: string; description: string; requires?: string[] },
+   930→    allTasks: Array<{ id: string; description: string }>,
+   931→  ): string[] {
+   932→    const implicit: string[] = [];
+   933→    const lower = task.description.toLowerCase();
+   934→
+   935→    for (const other of allTasks) {
+   936→      if (other.id === task.id) continue;
+   937→      const otherLower = other.description.toLowerCase();
+   938→
+   939→      if (lower.includes('verify') && otherLower.includes('implement')) {
+   940→        implicit.push(other.id);
+   941→      }
+   942→      if (lower.includes('test') && otherLower.includes('implement')) {
+   943→        implicit.push(other.id);
+   944→      }
+   945→      if (lower.includes('deploy') && otherLower.includes('test')) {
+   946→        implicit.push(other.id);
+   947→      }
+   948→    }
+   949→
+   950→    return [...new Set(implicit)];
+   951→  }
+   952→
+   953→  private calculateCriticalPath(
+   954→    tasks: Array<{ id: string }>,
+   955→    dependencies: Array<{ taskId: string; dependsOn: string[] }>,
+   956→  ): string[] {
+   957→    const depMap = new Map(dependencies.map((d) => [d.taskId, d.dependsOn]));
+   958→    const visited = new Set<string>();
+   959→    const path: string[] = [];
+   960→
+   961→    const visit = (id: string) => {
+   962→      if (visited.has(id)) return;
+   963→      visited.add(id);
+   964→      const deps = depMap.get(id) || [];
+   965→      for (const dep of deps) {
+   966→        visit(dep);
+   967→      }
+   968→      path.push(id);
+   969→    };
+   970→
+   971→    for (const task of tasks) {
+   972→      visit(task.id);
+   973→    }
+   974→
+   975→    return path;
+   976→  }
+   977→
+   978→  private identifyParallelGroups(
+   979→    tasks: Array<{ id: string }>,
+   980→    dependencies: Array<{ taskId: string; dependsOn: string[]; type: string }>,
+   981→  ): string[][] {
+   982→    const groups: string[][] = [];
+   983→    const independent = dependencies.filter((d) => d.type === 'independent').map((d) => d.taskId);
+   984→    if (independent.length > 0) groups.push(independent);
+   985→
+   986→    const sequential = dependencies.filter((d) => d.type === 'sequential').map((d) => d.taskId);
+   987→    if (sequential.length > 0) groups.push(sequential);
+   988→
+   989→    const complex = dependencies.filter((d) => d.type === 'complex').map((d) => d.taskId);
+   990→    if (complex.length > 0) groups.push(complex);
+   991→
+   992→    return groups.length > 0 ? groups : [tasks.map((t) => t.id)];
+   993→  }
+   994→
+   995→  private generatePrioritizationRationale(
+   996→    criteria: string[],
+   997→    weights: Record<string, number>,
+   998→    ranked: Array<{ id: string; score: number }>,
+   999→  ): string {
+  1000→    const topTask = ranked[0];
+  1001→    const criteriaStr = criteria.map((c) => `${c} (${(weights[c] * 100).toFixed(0)}%)`).join(', ');
+  1002→    return (
+  1003→      `Tasks were ranked using weighted criteria: ${criteriaStr}. ` +
+  1004→      `Top priority goes to task "${topTask.id}" with a composite score of ${topTask.score.toFixed(2)}. ` +
+  1005→      `Higher-scoring tasks should be addressed first to maximize overall outcome quality.`
+  1006→    );
+  1007→  }
+  1008→}
+  1009→

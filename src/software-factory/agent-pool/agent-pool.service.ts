@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Dynamic Agent Pool
- * 
+ *
  * Agents are ephemeral. They are:
  * 1. Spawned on-demand when a mission needs them
  * 2. Execute their assigned tasks
@@ -53,7 +53,9 @@ export class AgentPoolService {
 
     const roleCount = this.getActiveCountByRole(request.role);
     if (roleCount >= this.constraints.maxAgentsPerRole) {
-      this.logger.warn(`Role ${request.role} at capacity: ${roleCount}/${this.constraints.maxAgentsPerRole}`);
+      this.logger.warn(
+        `Role ${request.role} at capacity: ${roleCount}/${this.constraints.maxAgentsPerRole}`,
+      );
       return {
         agentId: '',
         role: request.role,
@@ -147,7 +149,10 @@ export class AgentPoolService {
   /**
    * Terminate all agents for a specific mission
    */
-  async terminateMissionAgents(missionId: string, reason: TerminateRequest['reason']): Promise<TerminateResult[]> {
+  async terminateMissionAgents(
+    missionId: string,
+    reason: TerminateRequest['reason'],
+  ): Promise<TerminateResult[]> {
     const missionAgents = this.getAgentsByMission(missionId);
     const results: TerminateResult[] = [];
 
@@ -192,7 +197,10 @@ export class AgentPoolService {
     agent.status = AgentStatus.READY;
 
     // Check if agent has exhausted its task limit
-    if (agent.tasksCompleted + agent.tasksFailed >= (agent.config.maxTasks || this.constraints.defaultMaxTasksPerAgent)) {
+    if (
+      agent.tasksCompleted + agent.tasksFailed >=
+      (agent.config.maxTasks || this.constraints.defaultMaxTasksPerAgent)
+    ) {
       this.logger.log(`Agent ${agentId} reached task limit, auto-terminating`);
       this.terminate({ agentId, reason: 'mission_complete', archiveResults: true });
       return true;
@@ -248,9 +256,10 @@ export class AgentPoolService {
       byRole,
       totalCostUsd: [...active, ...this.archive].reduce((sum, a) => sum + a.totalCostUsd, 0),
       averageLifetimeMs: allAgents.length > 0 ? totalLifetime / allAgents.length : 0,
-      averageTasksPerAgent: allAgents.length > 0
-        ? allAgents.reduce((sum, a) => sum + a.tasksCompleted, 0) / allAgents.length
-        : 0,
+      averageTasksPerAgent:
+        allAgents.length > 0
+          ? allAgents.reduce((sum, a) => sum + a.tasksCompleted, 0) / allAgents.length
+          : 0,
     };
   }
 
@@ -289,7 +298,11 @@ export class AgentPoolService {
   private getActiveCountByRole(role: string): number {
     let count = 0;
     for (const agent of this.agents.values()) {
-      if (agent.role === role && agent.status !== AgentStatus.TERMINATED && agent.status !== AgentStatus.FAILED) {
+      if (
+        agent.role === role &&
+        agent.status !== AgentStatus.TERMINATED &&
+        agent.status !== AgentStatus.FAILED
+      ) {
         count++;
       }
     }

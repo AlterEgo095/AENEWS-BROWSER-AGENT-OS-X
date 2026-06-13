@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Mission State Machine Interface
- * 
+ *
  * Lifecycle: DRAFT → PLANNED → RESEARCH → BUILDING → TESTING →
  *            AUDITING → CERTIFYING → DELIVERING → COMPLETED → ARCHIVED
  */
@@ -90,29 +90,134 @@ export interface MissionTimeline {
 }
 
 export const VALID_TRANSITIONS: StateTransition[] = [
-  { from: MissionState.DRAFT, to: MissionState.PLANNED, trigger: TransitionTrigger.SUBMIT, description: 'Mission submitted for planning' },
-  { from: MissionState.PLANNED, to: MissionState.RESEARCH, trigger: TransitionTrigger.START_RESEARCH, description: 'Plan approved, starting research' },
-  { from: MissionState.PLANNED, to: MissionState.DRAFT, trigger: TransitionTrigger.REJECT, description: 'Plan rejected, back to draft' },
-  { from: MissionState.RESEARCH, to: MissionState.BUILDING, trigger: TransitionTrigger.START_BUILD, description: 'Research complete, starting build' },
-  { from: MissionState.RESEARCH, to: MissionState.PLANNED, trigger: TransitionTrigger.ROLLBACK, description: 'Research insufficient, re-planning' },
-  { from: MissionState.BUILDING, to: MissionState.TESTING, trigger: TransitionTrigger.START_TESTING, description: 'Build complete, starting tests' },
-  { from: MissionState.BUILDING, to: MissionState.RESEARCH, trigger: TransitionTrigger.ROLLBACK, description: 'Build blocked, need more research' },
-  { from: MissionState.TESTING, to: MissionState.AUDITING, trigger: TransitionTrigger.START_AUDIT, description: 'Tests passing, starting audit' },
-  { from: MissionState.TESTING, to: MissionState.BUILDING, trigger: TransitionTrigger.ROLLBACK, description: 'Tests failed, back to building' },
-  { from: MissionState.AUDITING, to: MissionState.CERTIFYING, trigger: TransitionTrigger.START_CERTIFICATION, description: 'Audit passed, certifying' },
-  { from: MissionState.AUDITING, to: MissionState.BUILDING, trigger: TransitionTrigger.ROLLBACK, description: 'Audit found issues, back to building' },
-  { from: MissionState.CERTIFYING, to: MissionState.DELIVERING, trigger: TransitionTrigger.START_DELIVERY, description: 'Certified, starting delivery' },
-  { from: MissionState.CERTIFYING, to: MissionState.AUDITING, trigger: TransitionTrigger.ROLLBACK, description: 'Certification failed, re-auditing' },
-  { from: MissionState.DELIVERING, to: MissionState.COMPLETED, trigger: TransitionTrigger.MARK_COMPLETE, description: 'Delivered, mission complete' },
-  { from: MissionState.DELIVERING, to: MissionState.CERTIFYING, trigger: TransitionTrigger.ROLLBACK, description: 'Delivery failed, re-certifying' },
-  { from: MissionState.COMPLETED, to: MissionState.ARCHIVED, trigger: TransitionTrigger.ARCHIVE, description: 'Mission archived' },
+  {
+    from: MissionState.DRAFT,
+    to: MissionState.PLANNED,
+    trigger: TransitionTrigger.SUBMIT,
+    description: 'Mission submitted for planning',
+  },
+  {
+    from: MissionState.PLANNED,
+    to: MissionState.RESEARCH,
+    trigger: TransitionTrigger.START_RESEARCH,
+    description: 'Plan approved, starting research',
+  },
+  {
+    from: MissionState.PLANNED,
+    to: MissionState.DRAFT,
+    trigger: TransitionTrigger.REJECT,
+    description: 'Plan rejected, back to draft',
+  },
+  {
+    from: MissionState.RESEARCH,
+    to: MissionState.BUILDING,
+    trigger: TransitionTrigger.START_BUILD,
+    description: 'Research complete, starting build',
+  },
+  {
+    from: MissionState.RESEARCH,
+    to: MissionState.PLANNED,
+    trigger: TransitionTrigger.ROLLBACK,
+    description: 'Research insufficient, re-planning',
+  },
+  {
+    from: MissionState.BUILDING,
+    to: MissionState.TESTING,
+    trigger: TransitionTrigger.START_TESTING,
+    description: 'Build complete, starting tests',
+  },
+  {
+    from: MissionState.BUILDING,
+    to: MissionState.RESEARCH,
+    trigger: TransitionTrigger.ROLLBACK,
+    description: 'Build blocked, need more research',
+  },
+  {
+    from: MissionState.TESTING,
+    to: MissionState.AUDITING,
+    trigger: TransitionTrigger.START_AUDIT,
+    description: 'Tests passing, starting audit',
+  },
+  {
+    from: MissionState.TESTING,
+    to: MissionState.BUILDING,
+    trigger: TransitionTrigger.ROLLBACK,
+    description: 'Tests failed, back to building',
+  },
+  {
+    from: MissionState.AUDITING,
+    to: MissionState.CERTIFYING,
+    trigger: TransitionTrigger.START_CERTIFICATION,
+    description: 'Audit passed, certifying',
+  },
+  {
+    from: MissionState.AUDITING,
+    to: MissionState.BUILDING,
+    trigger: TransitionTrigger.ROLLBACK,
+    description: 'Audit found issues, back to building',
+  },
+  {
+    from: MissionState.CERTIFYING,
+    to: MissionState.DELIVERING,
+    trigger: TransitionTrigger.START_DELIVERY,
+    description: 'Certified, starting delivery',
+  },
+  {
+    from: MissionState.CERTIFYING,
+    to: MissionState.AUDITING,
+    trigger: TransitionTrigger.ROLLBACK,
+    description: 'Certification failed, re-auditing',
+  },
+  {
+    from: MissionState.DELIVERING,
+    to: MissionState.COMPLETED,
+    trigger: TransitionTrigger.MARK_COMPLETE,
+    description: 'Delivered, mission complete',
+  },
+  {
+    from: MissionState.DELIVERING,
+    to: MissionState.CERTIFYING,
+    trigger: TransitionTrigger.ROLLBACK,
+    description: 'Delivery failed, re-certifying',
+  },
+  {
+    from: MissionState.COMPLETED,
+    to: MissionState.ARCHIVED,
+    trigger: TransitionTrigger.ARCHIVE,
+    description: 'Mission archived',
+  },
 ];
 
 // Any state can transition to these via special triggers
 export const GLOBAL_TRANSITIONS: StateTransition[] = [
-  { from: MissionState.DRAFT, to: MissionState.DRAFT, trigger: TransitionTrigger.PAUSE, description: 'Mission paused' },
-  { from: MissionState.PLANNED, to: MissionState.PLANNED, trigger: TransitionTrigger.PAUSE, description: 'Mission paused' },
-  { from: MissionState.RESEARCH, to: MissionState.RESEARCH, trigger: TransitionTrigger.PAUSE, description: 'Mission paused' },
-  { from: MissionState.BUILDING, to: MissionState.BUILDING, trigger: TransitionTrigger.PAUSE, description: 'Mission paused' },
-  { from: MissionState.TESTING, to: MissionState.TESTING, trigger: TransitionTrigger.PAUSE, description: 'Mission paused' },
+  {
+    from: MissionState.DRAFT,
+    to: MissionState.DRAFT,
+    trigger: TransitionTrigger.PAUSE,
+    description: 'Mission paused',
+  },
+  {
+    from: MissionState.PLANNED,
+    to: MissionState.PLANNED,
+    trigger: TransitionTrigger.PAUSE,
+    description: 'Mission paused',
+  },
+  {
+    from: MissionState.RESEARCH,
+    to: MissionState.RESEARCH,
+    trigger: TransitionTrigger.PAUSE,
+    description: 'Mission paused',
+  },
+  {
+    from: MissionState.BUILDING,
+    to: MissionState.BUILDING,
+    trigger: TransitionTrigger.PAUSE,
+    description: 'Mission paused',
+  },
+  {
+    from: MissionState.TESTING,
+    to: MissionState.TESTING,
+    trigger: TransitionTrigger.PAUSE,
+    description: 'Mission paused',
+  },
 ];

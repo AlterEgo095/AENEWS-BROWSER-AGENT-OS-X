@@ -3,7 +3,7 @@
  * Works with iframes: switch context, return to main frame, list iframes, execute in frame context.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -11,6 +11,9 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { BrowserCapability } from '../../../software-factory/interfaces';
+import { ConnectorOutput } from '../../../software-factory/connectors/connector.interface';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -132,6 +135,15 @@ export class IframeHandlingAgentService extends BaseAgentService {
   private iframes: Map<string, IframeInfo> = new Map();
   private currentFrameId: string = 'main';
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   protected defineConfig(): AgentConfig {
     return IFRAME_HANDLING_AGENT_CONFIG;
   }
@@ -178,6 +190,34 @@ export class IframeHandlingAgentService extends BaseAgentService {
     const startTime = Date.now();
     const { action, ...params } = input.payload;
 
+    // Try real connector first via bridge
+    if (this.bridge) {
+      try {
+        const result: ConnectorOutput = await this.bridge.executeCapability(
+          BrowserCapability.SESSION,
+          {
+            missionId: input.taskId,
+            instruction: action || 'handleIframe',
+            workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+            parameters: input.payload,
+          },
+        );
+
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Bridge execution failed, falling back to local: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    // Fallback to existing simulated logic
     if (!action) {
       return this.createAgentOutput(
         input.taskId,

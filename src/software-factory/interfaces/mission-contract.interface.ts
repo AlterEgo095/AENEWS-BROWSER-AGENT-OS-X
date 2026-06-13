@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Mission Contract Interface
- * 
+ *
  * Every mission is governed by a contract that defines:
  * objective, constraints, budget, deadline, acceptance criteria,
  * deliverables, and quality level.
@@ -106,7 +106,12 @@ export interface MissionContract {
 export interface ContractViolation {
   id: string;
   contractId: string;
-  type: 'budget_exceeded' | 'deadline_missed' | 'quality_below_minimum' | 'deliverable_missing' | 'constraint_broken';
+  type:
+    | 'budget_exceeded'
+    | 'deadline_missed'
+    | 'quality_below_minimum'
+    | 'deliverable_missing'
+    | 'constraint_broken';
   description: string;
   severity: 'warning' | 'critical' | 'fatal';
   detectedAt: Date;

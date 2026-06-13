@@ -161,9 +161,7 @@ export class EventStoreService implements IEventStoreService, OnModuleInit {
     if (filter.sourceAgentId) {
       const sourceIds = this.sourceIndex.get(filter.sourceAgentId);
       if (sourceIds) {
-        candidateIds = new Set(
-          Array.from(candidateIds).filter((id) => sourceIds.has(id)),
-        );
+        candidateIds = new Set(Array.from(candidateIds).filter((id) => sourceIds.has(id)));
       } else {
         return [];
       }
@@ -173,9 +171,7 @@ export class EventStoreService implements IEventStoreService, OnModuleInit {
     if (filter.targetAgentId) {
       const targetIds = this.targetIndex.get(filter.targetAgentId);
       if (targetIds) {
-        candidateIds = new Set(
-          Array.from(candidateIds).filter((id) => targetIds.has(id)),
-        );
+        candidateIds = new Set(Array.from(candidateIds).filter((id) => targetIds.has(id)));
       } else {
         return [];
       }
@@ -185,9 +181,7 @@ export class EventStoreService implements IEventStoreService, OnModuleInit {
     if (filter.correlationId) {
       const correlationIds = this.correlationIndex.get(filter.correlationId);
       if (correlationIds) {
-        candidateIds = new Set(
-          Array.from(candidateIds).filter((id) => correlationIds.has(id)),
-        );
+        candidateIds = new Set(Array.from(candidateIds).filter((id) => correlationIds.has(id)));
       } else {
         return [];
       }
@@ -214,9 +208,7 @@ export class EventStoreService implements IEventStoreService, OnModuleInit {
     }
 
     // Sort by timestamp (newest first)
-    results.sort((a, b) =>
-      b.event.timestamp.getTime() - a.event.timestamp.getTime(),
-    );
+    results.sort((a, b) => b.event.timestamp.getTime() - a.event.timestamp.getTime());
 
     // Apply pagination
     const offset = filter.offset || 0;
@@ -228,12 +220,15 @@ export class EventStoreService implements IEventStoreService, OnModuleInit {
   /**
    * Query events by agent ID (convenience method).
    */
-  async queryByAgent(agentId: string, options?: {
-    eventTypes?: AgentEventType[];
-    fromTimestamp?: Date;
-    toTimestamp?: Date;
-    limit?: number;
-  }): Promise<EventStoreEntry[]> {
+  async queryByAgent(
+    agentId: string,
+    options?: {
+      eventTypes?: AgentEventType[];
+      fromTimestamp?: Date;
+      toTimestamp?: Date;
+      limit?: number;
+    },
+  ): Promise<EventStoreEntry[]> {
     return this.query({
       sourceAgentId: agentId,
       eventTypes: options?.eventTypes,
@@ -246,12 +241,15 @@ export class EventStoreService implements IEventStoreService, OnModuleInit {
   /**
    * Query events by type (convenience method).
    */
-  async queryByType(eventType: AgentEventType, options?: {
-    sourceAgentId?: string;
-    fromTimestamp?: Date;
-    toTimestamp?: Date;
-    limit?: number;
-  }): Promise<EventStoreEntry[]> {
+  async queryByType(
+    eventType: AgentEventType,
+    options?: {
+      sourceAgentId?: string;
+      fromTimestamp?: Date;
+      toTimestamp?: Date;
+      limit?: number;
+    },
+  ): Promise<EventStoreEntry[]> {
     return this.query({
       eventTypes: [eventType],
       sourceAgentId: options?.sourceAgentId,
@@ -365,13 +363,11 @@ export class EventStoreService implements IEventStoreService, OnModuleInit {
     }
 
     const uptimeMs = Date.now() - this.initializedAt.getTime();
-    const eventsPerMinute = uptimeMs > 0
-      ? Math.round((this.records.size / uptimeMs) * 60000 * 100) / 100
-      : 0;
+    const eventsPerMinute =
+      uptimeMs > 0 ? Math.round((this.records.size / uptimeMs) * 60000 * 100) / 100 : 0;
 
-    const avgProcessingTimeMs = this.processedCount > 0
-      ? Math.round(this.totalProcessingTimeMs / this.processedCount)
-      : 0;
+    const avgProcessingTimeMs =
+      this.processedCount > 0 ? Math.round(this.totalProcessingTimeMs / this.processedCount) : 0;
 
     return {
       totalEvents: this.records.size,

@@ -1,6 +1,6 @@
 /**
  * AENEWS Software Factory — Ephemeral Agent Pool Interface
- * 
+ *
  * Agents are NOT permanent. They are:
  * 1. Instantiated on-demand based on mission requirements
  * 2. Execute their assigned tasks

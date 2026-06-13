@@ -1,9 +1,9 @@
 /**
  * AENEWS Software Factory — Kernel Services
- * 
+ *
  * 10 permanent services that form the immutable core of the platform.
  * Everything else is dynamic: capabilities, workers, execution graphs.
- * 
+ *
  * Kernel:
  *   1. Mission Orchestrator    — receives missions, drives the pipeline
  *   2. Mission Planner         — decomposes mission into required capabilities
@@ -62,7 +62,10 @@ export class MissionOrchestratorService {
   /**
    * Update mission execution state
    */
-  updateMission(missionId: string, updates: Partial<MissionExecutionState>): MissionExecutionState | undefined {
+  updateMission(
+    missionId: string,
+    updates: Partial<MissionExecutionState>,
+  ): MissionExecutionState | undefined {
     const state = this.activeMissions.get(missionId);
     if (!state) return undefined;
     Object.assign(state, updates);
@@ -81,8 +84,9 @@ export class MissionOrchestratorService {
    * Get all active missions
    */
   getActiveMissions(): MissionExecutionState[] {
-    return Array.from(this.activeMissions.values())
-      .filter(m => m.status !== MissionState.ARCHIVED && m.status !== MissionState.COMPLETED);
+    return Array.from(this.activeMissions.values()).filter(
+      (m) => m.status !== MissionState.ARCHIVED && m.status !== MissionState.COMPLETED,
+    );
   }
 
   /**
@@ -121,31 +125,103 @@ export class MissionPlannerService {
     };
 
     // Detect browser needs
-    if (this.matchesAny(lower, ['scrape', 'navigate', 'login', 'website', 'browse', 'page', 'crawl', 'extract data', 'web', 'site web'])) {
+    if (
+      this.matchesAny(lower, [
+        'scrape',
+        'navigate',
+        'login',
+        'website',
+        'browse',
+        'page',
+        'crawl',
+        'extract data',
+        'web',
+        'site web',
+      ])
+    ) {
       plan.flags.requiresBrowser = true;
       plan.requiredPacks.push(CapabilityPack.BROWSER);
     }
 
     // Detect development needs
-    if (this.matchesAny(lower, ['develop', 'build', 'code', 'create', 'app', 'api', 'backend', 'frontend', 'database', 'saas', 'erp', 'crm', 'application', 'développ', 'créer', 'construire', 'coder'])) {
+    if (
+      this.matchesAny(lower, [
+        'develop',
+        'build',
+        'code',
+        'create',
+        'app',
+        'api',
+        'backend',
+        'frontend',
+        'database',
+        'saas',
+        'erp',
+        'crm',
+        'application',
+        'développ',
+        'créer',
+        'construire',
+        'coder',
+      ])
+    ) {
       plan.flags.requiresDevelopment = true;
       plan.requiredPacks.push(CapabilityPack.DEVELOPMENT);
     }
 
     // Detect office needs
-    if (this.matchesAny(lower, ['pdf', 'docx', 'excel', 'spreadsheet', 'presentation', 'report', 'document', 'rapport', 'tableur', 'présentation'])) {
+    if (
+      this.matchesAny(lower, [
+        'pdf',
+        'docx',
+        'excel',
+        'spreadsheet',
+        'presentation',
+        'report',
+        'document',
+        'rapport',
+        'tableur',
+        'présentation',
+      ])
+    ) {
       plan.flags.requiresOffice = true;
       plan.requiredPacks.push(CapabilityPack.OFFICE);
     }
 
     // Detect business needs
-    if (this.matchesAny(lower, ['seo', 'marketing', 'brand', 'analytics', 'campaign', 'copywriting', 'sales', 'référencement', 'marque', 'campagne'])) {
+    if (
+      this.matchesAny(lower, [
+        'seo',
+        'marketing',
+        'brand',
+        'analytics',
+        'campaign',
+        'copywriting',
+        'sales',
+        'référencement',
+        'marque',
+        'campagne',
+      ])
+    ) {
       plan.flags.requiresBusiness = true;
       plan.requiredPacks.push(CapabilityPack.BUSINESS);
     }
 
     // Detect deployment needs
-    if (this.matchesAny(lower, ['deploy', 'docker', 'kubernetes', 'cloud', 'production', 'server', 'vps', 'déployer', 'serveur', 'production'])) {
+    if (
+      this.matchesAny(lower, [
+        'deploy',
+        'docker',
+        'kubernetes',
+        'cloud',
+        'production',
+        'server',
+        'vps',
+        'déployer',
+        'serveur',
+        'production',
+      ])
+    ) {
       plan.flags.requiresDeployment = true;
       plan.requiredPacks.push(CapabilityPack.DELIVERY);
     }
@@ -169,12 +245,14 @@ export class MissionPlannerService {
     // Deduplicate packs
     plan.requiredPacks = [...new Set(plan.requiredPacks)];
 
-    this.logger.log(`Plan created: ${plan.id} — complexity: ${plan.complexity}, packs: ${plan.requiredPacks.join(', ')}`);
+    this.logger.log(
+      `Plan created: ${plan.id} — complexity: ${plan.complexity}, packs: ${plan.requiredPacks.join(', ')}`,
+    );
     return plan;
   }
 
   private matchesAny(text: string, keywords: string[]): boolean {
-    return keywords.some(k => text.includes(k));
+    return keywords.some((k) => text.includes(k));
   }
 }
 
@@ -191,15 +269,19 @@ export class TaskSchedulerService {
   scheduleNextPhase(
     missionId: string,
     readyNodeIds: string[],
-    workers: { id: string; capabilities: CapabilityId[]; assignedNodeIds: string[]; status: WorkerStatus }[],
+    workers: {
+      id: string;
+      capabilities: CapabilityId[];
+      assignedNodeIds: string[];
+      status: WorkerStatus;
+    }[],
   ): SchedulingDecision[] {
     const decisions: SchedulingDecision[] = [];
 
     for (const nodeId of readyNodeIds) {
       // Find a worker whose capabilities match this node
-      const availableWorker = workers.find(w =>
-        w.status === WorkerStatus.READY &&
-        w.assignedNodeIds.includes(nodeId),
+      const availableWorker = workers.find(
+        (w) => w.status === WorkerStatus.READY && w.assignedNodeIds.includes(nodeId),
       );
 
       if (availableWorker) {
@@ -233,13 +315,25 @@ export class ResourceManagerService {
   /**
    * Check if a mission has enough budget to proceed
    */
-  checkBudget(currentSpend: number, maxBudget: number, estimatedCost: number): { allowed: boolean; remaining: number; warning?: string } {
+  checkBudget(
+    currentSpend: number,
+    maxBudget: number,
+    estimatedCost: number,
+  ): { allowed: boolean; remaining: number; warning?: string } {
     const remaining = maxBudget - currentSpend;
     if (estimatedCost > remaining) {
-      return { allowed: false, remaining, warning: `Insufficient budget: $${remaining.toFixed(2)} remaining, $${estimatedCost.toFixed(2)} needed` };
+      return {
+        allowed: false,
+        remaining,
+        warning: `Insufficient budget: $${remaining.toFixed(2)} remaining, $${estimatedCost.toFixed(2)} needed`,
+      };
     }
     if (remaining < maxBudget * 0.2) {
-      return { allowed: true, remaining, warning: `Budget low: $${remaining.toFixed(2)} remaining (${((remaining / maxBudget) * 100).toFixed(0)}%)` };
+      return {
+        allowed: true,
+        remaining,
+        warning: `Budget low: $${remaining.toFixed(2)} remaining (${((remaining / maxBudget) * 100).toFixed(0)}%)`,
+      };
     }
     return { allowed: true, remaining };
   }
@@ -266,7 +360,10 @@ export class SecurityManagerService {
   /**
    * Validate that a worker has the required permissions
    */
-  validatePermissions(workerCapabilities: CapabilityId[], requiredPermissions: string[]): SecurityValidation {
+  validatePermissions(
+    workerCapabilities: CapabilityId[],
+    requiredPermissions: string[],
+  ): SecurityValidation {
     // In a real implementation, this would check the capability definitions
     // for their permissions and validate against the mission's security context
     return {
@@ -310,7 +407,7 @@ export class CertificationManagerService {
       { domain: 'Integration', passed: true, score: 92, threshold: 80 },
     ];
 
-    const allPassed = checks.every(c => c.passed);
+    const allPassed = checks.every((c) => c.passed);
     const averageScore = checks.reduce((sum, c) => sum + c.score, 0) / checks.length;
 
     return {
@@ -319,7 +416,11 @@ export class CertificationManagerService {
       qualityScore: Math.round(averageScore),
       checks,
       certifiedAt: allPassed ? new Date() : undefined,
-      reasons: allPassed ? [] : checks.filter(c => !c.passed).map(c => `${c.domain} below threshold (${c.score}/${c.threshold})`),
+      reasons: allPassed
+        ? []
+        : checks
+            .filter((c) => !c.passed)
+            .map((c) => `${c.domain} below threshold (${c.score}/${c.threshold})`),
     };
   }
 }
@@ -419,7 +520,13 @@ export class RecoveryManagerService {
   /**
    * Handle a failed node in the execution graph
    */
-  handleNodeFailure(missionId: string, nodeId: string, error: string, retryCount: number, maxRetries: number): RecoveryDecision {
+  handleNodeFailure(
+    missionId: string,
+    nodeId: string,
+    error: string,
+    retryCount: number,
+    maxRetries: number,
+  ): RecoveryDecision {
     if (retryCount < maxRetries) {
       this.logger.log(`Recovering node ${nodeId}: retry ${retryCount + 1}/${maxRetries}`);
       return {
@@ -442,13 +549,30 @@ export class RecoveryManagerService {
    */
   getRollbackStrategy(fromState: MissionState): RollbackStrategy {
     const strategies: Partial<Record<MissionState, RollbackStrategy>> = {
-      [MissionState.TESTING]: { targetState: MissionState.BUILDING, trigger: TransitionTrigger.ROLLBACK },
-      [MissionState.AUDITING]: { targetState: MissionState.BUILDING, trigger: TransitionTrigger.ROLLBACK },
-      [MissionState.CERTIFYING]: { targetState: MissionState.AUDITING, trigger: TransitionTrigger.ROLLBACK },
-      [MissionState.DELIVERING]: { targetState: MissionState.CERTIFYING, trigger: TransitionTrigger.ROLLBACK },
+      [MissionState.TESTING]: {
+        targetState: MissionState.BUILDING,
+        trigger: TransitionTrigger.ROLLBACK,
+      },
+      [MissionState.AUDITING]: {
+        targetState: MissionState.BUILDING,
+        trigger: TransitionTrigger.ROLLBACK,
+      },
+      [MissionState.CERTIFYING]: {
+        targetState: MissionState.AUDITING,
+        trigger: TransitionTrigger.ROLLBACK,
+      },
+      [MissionState.DELIVERING]: {
+        targetState: MissionState.CERTIFYING,
+        trigger: TransitionTrigger.ROLLBACK,
+      },
     };
 
-    return strategies[fromState] || { targetState: MissionState.DRAFT, trigger: TransitionTrigger.ROLLBACK };
+    return (
+      strategies[fromState] || {
+        targetState: MissionState.DRAFT,
+        trigger: TransitionTrigger.ROLLBACK,
+      }
+    );
   }
 }
 

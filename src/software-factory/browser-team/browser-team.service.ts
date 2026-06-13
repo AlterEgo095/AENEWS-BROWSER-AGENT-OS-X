@@ -1,17 +1,12 @@
 /**
  * AENEWS Software Factory — Browser Team Coordinator
- * 
+ *
  * Level 2: 12 on-demand browser specialists
  * Agents are spawned only when browser tasks are needed.
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  BrowserAgent,
-  AgentLevel,
-  SpecializedAgentId,
-  AgentExecutionResult,
-} from '../interfaces';
+import { BrowserAgent, AgentLevel, SpecializedAgentId, AgentExecutionResult } from '../interfaces';
 import { AgentRegistryService } from '../registry/agent-registry.service';
 
 @Injectable()
@@ -58,7 +53,11 @@ export class BrowserTeamService {
   /**
    * Execute a browser task with the selected agents
    */
-  async executeTask(missionId: string, task: string, input: Record<string, any>): Promise<AgentExecutionResult> {
+  async executeTask(
+    missionId: string,
+    task: string,
+    input: Record<string, any>,
+  ): Promise<AgentExecutionResult> {
     const selectedAgents = this.selectAgents(task);
     this.logger.log(`Browser team executing: "${task}" with ${selectedAgents.length} agents`);
 
@@ -75,7 +74,7 @@ export class BrowserTeamService {
       artifacts: [],
       cost: selectedAgents.length * 0.15,
       durationMs: selectedAgents.length * 500,
-      logs: selectedAgents.map(a => `Agent ${a} executed`),
+      logs: selectedAgents.map((a) => `Agent ${a} executed`),
       errors: [],
     };
   }
@@ -87,7 +86,7 @@ export class BrowserTeamService {
     return {
       level: AgentLevel.BROWSER,
       totalAgents: 12,
-      availableAgents: this.getTeamAgents().map(a => ({
+      availableAgents: this.getTeamAgents().map((a) => ({
         id: a.id,
         name: a.name,
         skills: a.skills,

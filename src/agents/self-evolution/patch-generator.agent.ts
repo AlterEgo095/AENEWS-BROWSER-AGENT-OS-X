@@ -7,9 +7,10 @@
  * and prepares artifacts for the certification pipeline.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -161,6 +162,11 @@ interface SyntaxValidationResult {
 
 @Injectable()
 export class PatchGeneratorAgent extends BaseAgentService {
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super();
+  }
   private patches: Map<string, PatchArtifact> = new Map();
   private branches: Map<string, BranchRecord> = new Map();
 
@@ -184,21 +190,15 @@ export class PatchGeneratorAgent extends BaseAgentService {
     this.registerTool({
       name: 'create-branch',
       description: 'Create an isolated feature branch for a refactoring execution plan',
-      execute: async (params: {
-        planId: string;
-        baseBranch?: string;
-        branchName?: string;
-      }) => this.createBranch(params),
+      execute: async (params: { planId: string; baseBranch?: string; branchName?: string }) =>
+        this.createBranch(params),
     });
 
     this.registerTool({
       name: 'validate-syntax',
       description: 'Validate the syntax of generated patches before applying',
-      execute: async (params: {
-        patchId: string;
-        language?: string;
-        strictMode?: boolean;
-      }) => this.validateSyntax(params),
+      execute: async (params: { patchId: string; language?: string; strictMode?: boolean }) =>
+        this.validateSyntax(params),
     });
 
     await this.storeInWorkingMemory(
@@ -210,8 +210,32 @@ export class PatchGeneratorAgent extends BaseAgentService {
   }
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
-    const action = input.payload?.action || 'execute';
     const startTime = Date.now();
+    // Bridge: use LLM for patch generation, branch creation, and syntax validation
+    if (this.bridge) {
+      try {
+        const llmResult = await this.bridge.callLLM({
+          systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed patch generation, branch creation, and syntax validation.`,
+          userPrompt: JSON.stringify(input.payload),
+          temperature: 0.3,
+          maxTokens: 2048,
+        });
+
+        const analysis = llmResult.content;
+
+        return this.createAgentOutput(
+          input.taskId,
+          true,
+          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+          undefined,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
+    const action = input.payload?.action || 'execute';
 
     try {
       let result: any;
@@ -455,23 +479,17 @@ export class PatchGeneratorAgent extends BaseAgentService {
         'src/agents/memory/working-memory.service.ts',
         'src/agents/memory/session-memory.service.ts',
       ],
-      'critic-agent': [
-        'src/agents/meta-intelligence/critic/critic-agent.service.ts',
-      ],
+      'critic-agent': ['src/agents/meta-intelligence/critic/critic-agent.service.ts'],
       'event-bus': [
         'src/agents/events/event-bus.service.ts',
         'src/agents/communication/message-broker.service.ts',
       ],
-      'agent-registry': [
-        'src/agents/registry/agent-registry.service.ts',
-      ],
+      'agent-registry': ['src/agents/registry/agent-registry.service.ts'],
       'memory-store': [
         'src/agents/memory/memory.service.ts',
         'src/agents/memory/long-term-memory.service.ts',
       ],
-      'event-dispatcher': [
-        'src/agents/events/event-bus.service.ts',
-      ],
+      'event-dispatcher': ['src/agents/events/event-bus.service.ts'],
       'agent-coordination': [
         'src/agents/communication/inter-agent-comm.service.ts',
         'src/agents/orchestrator/orchestrator.service.ts',
@@ -486,9 +504,7 @@ export class PatchGeneratorAgent extends BaseAgentService {
       ],
     };
 
-    return componentFileMap[component] || [
-      `src/agents/${component}/${component}.service.ts`,
-    ];
+    return componentFileMap[component] || [`src/agents/${component}/${component}.service.ts`];
   }
 
   private generateDiff(
@@ -498,15 +514,19 @@ export class PatchGeneratorAgent extends BaseAgentService {
     description: string,
   ): string {
     const header = `// Self-Evolution Patch: ${description}\n`;
-    const fileDiffs = files.map((file) => {
-      const added = Array.from({ length: Math.ceil(linesAdded / files.length) }, (_, i) =>
-        `+  // Optimized line ${i + 1}`,
-      ).join('\n');
-      const removed = Array.from({ length: Math.ceil(linesRemoved / files.length) }, (_, i) =>
-        `-  // Legacy line ${i + 1}`,
-      ).join('\n');
-      return `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n${added}\n${removed}`;
-    }).join('\n\n');
+    const fileDiffs = files
+      .map((file) => {
+        const added = Array.from(
+          { length: Math.ceil(linesAdded / files.length) },
+          (_, i) => `+  // Optimized line ${i + 1}`,
+        ).join('\n');
+        const removed = Array.from(
+          { length: Math.ceil(linesRemoved / files.length) },
+          (_, i) => `-  // Legacy line ${i + 1}`,
+        ).join('\n');
+        return `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n${added}\n${removed}`;
+      })
+      .join('\n\n');
 
     return header + fileDiffs;
   }

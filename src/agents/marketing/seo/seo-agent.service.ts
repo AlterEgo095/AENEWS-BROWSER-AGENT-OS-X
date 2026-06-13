@@ -4,7 +4,7 @@
  * competitor analysis, and technical SEO auditing.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { BaseAgentService } from '../../base/base-agent.service';
 import {
   AgentConfig,
@@ -12,6 +12,8 @@ import {
   AgentInput,
   AgentOutput,
 } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
+import { BusinessCapability } from '../../../software-factory/interfaces';
 
 // ─── Agent Configuration ──────────────────────────────────────────
 
@@ -31,7 +33,11 @@ export const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig = {
         properties: {
           content: { type: 'string', description: 'Content to analyze' },
           url: { type: 'string', description: 'URL to analyze (alternative to content)' },
-          targetKeywords: { type: 'array', items: { type: 'string' }, description: 'Keywords to evaluate against' },
+          targetKeywords: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Keywords to evaluate against',
+          },
         },
         required: ['content'],
       },
@@ -52,7 +58,11 @@ export const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           topic: { type: 'string', description: 'Topic or niche for keyword research' },
-          seedKeywords: { type: 'array', items: { type: 'string' }, description: 'Starting keywords' },
+          seedKeywords: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Starting keywords',
+          },
           language: { type: 'string', description: 'Target language' },
           region: { type: 'string', description: 'Target region for search volume' },
         },
@@ -74,9 +84,17 @@ export const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           content: { type: 'string', description: 'Content to optimize' },
-          targetKeywords: { type: 'array', items: { type: 'string' }, description: 'Target keywords' },
+          targetKeywords: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Target keywords',
+          },
           title: { type: 'string', description: 'Page title' },
-          optimizeFor: { type: 'string', enum: ['keywords', 'readability', 'featured-snippet', 'all'], description: 'Optimization focus' },
+          optimizeFor: {
+            type: 'string',
+            enum: ['keywords', 'readability', 'featured-snippet', 'all'],
+            description: 'Optimization focus',
+          },
         },
         required: ['content', 'targetKeywords'],
       },
@@ -99,7 +117,11 @@ export const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig = {
           description: { type: 'string', description: 'Page description' },
           keywords: { type: 'array', items: { type: 'string' }, description: 'Target keywords' },
           url: { type: 'string', description: 'Page URL' },
-          type: { type: 'string', enum: ['website', 'article', 'product', 'profile'], description: 'Page type' },
+          type: {
+            type: 'string',
+            enum: ['website', 'article', 'product', 'profile'],
+            description: 'Page type',
+          },
           imageUrl: { type: 'string', description: 'OG image URL' },
         },
         required: ['title', 'description'],
@@ -122,8 +144,16 @@ export const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           domain: { type: 'string', description: 'Your domain' },
-          competitorDomains: { type: 'array', items: { type: 'string' }, description: 'Competitor domains to analyze' },
-          keywords: { type: 'array', items: { type: 'string' }, description: 'Keywords to compare' },
+          competitorDomains: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Competitor domains to analyze',
+          },
+          keywords: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Keywords to compare',
+          },
         },
         required: ['domain', 'competitorDomains'],
       },
@@ -143,8 +173,16 @@ export const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig = {
         type: 'object',
         properties: {
           url: { type: 'string', description: 'URL or domain to audit' },
-          checkCategories: { type: 'array', items: { type: 'string' }, description: 'Categories to check' },
-          depth: { type: 'string', enum: ['quick', 'standard', 'comprehensive'], description: 'Audit depth' },
+          checkCategories: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Categories to check',
+          },
+          depth: {
+            type: 'string',
+            enum: ['quick', 'standard', 'comprehensive'],
+            description: 'Audit depth',
+          },
         },
         required: ['url'],
       },
@@ -159,13 +197,7 @@ export const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig = {
       },
     },
   ],
-  permissions: [
-    'execute:task',
-    'read:seo',
-    'write:seo',
-    'read:content',
-    'read:analytics',
-  ],
+  permissions: ['execute:task', 'read:seo', 'write:seo', 'read:content', 'read:analytics'],
   maxConcurrentTasks: 3,
   timeout: 90000,
   retryPolicy: {
@@ -210,6 +242,15 @@ export class SEOOptimizationAgentService extends BaseAgentService {
   }> = [];
   private keywordCache: Map<string, KeywordData[]> = new Map();
 
+  constructor(
+    eventBusService?: any,
+    memoryService?: any,
+    permissionEvaluator?: any,
+    @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {
+    super(eventBusService, memoryService, permissionEvaluator);
+  }
+
   protected defineConfig(): AgentConfig {
     return SEO_OPTIMIZATION_AGENT_CONFIG;
   }
@@ -219,11 +260,8 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     this.registerTool({
       name: 'analyzeSEO',
       description: 'Analyze SEO quality of a given content or URL',
-      execute: async (params: {
-        content: string;
-        url?: string;
-        targetKeywords?: string[];
-      }) => this.analyzeSEO(params),
+      execute: async (params: { content: string; url?: string; targetKeywords?: string[] }) =>
+        this.analyzeSEO(params),
     });
 
     this.registerTool({
@@ -274,11 +312,8 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     this.registerTool({
       name: 'auditTechnicalSEO',
       description: 'Perform a technical SEO audit for a domain or URL',
-      execute: async (params: {
-        url: string;
-        checkCategories?: string[];
-        depth?: string;
-      }) => this.auditTechnicalSEO(params),
+      execute: async (params: { url: string; checkCategories?: string[]; depth?: string }) =>
+        this.auditTechnicalSEO(params),
     });
 
     await this.storeInWorkingMemory('seo:initializedAt', new Date().toISOString(), 600000);
@@ -287,6 +322,28 @@ export class SEOOptimizationAgentService extends BaseAgentService {
 
   protected async onExecute(input: AgentInput): Promise<AgentOutput> {
     const startTime = Date.now();
+
+    // Bridge delegation: try real connector first, fallback to simulated logic
+    if (this.bridge) {
+      try {
+        const result = await this.bridge.executeCapability(BusinessCapability.SEO, {
+          missionId: input.taskId,
+          instruction: JSON.stringify(input.payload),
+          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+          parameters: input.payload,
+        });
+        return this.createAgentOutput(
+          input.taskId,
+          result.success,
+          result.output,
+          result.error,
+          startTime,
+        );
+      } catch (error) {
+        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+      }
+    }
+
     const { action, ...params } = input.payload;
 
     if (!action) {
@@ -463,7 +520,9 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     // Readability check (simplified Flesch-Kincaid approximation)
     const avgSentenceLength = this.calculateAvgSentenceLength(content);
     if (avgSentenceLength > 25) {
-      suggestions.push('Average sentence length is high. Consider shortening sentences for better readability.');
+      suggestions.push(
+        'Average sentence length is high. Consider shortening sentences for better readability.',
+      );
     }
 
     // Internal/external links check
@@ -515,7 +574,7 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     }
 
     // Sort by relevance and search volume
-    allKeywords.sort((a, b) => (b.relevance * b.searchVolume) - (a.relevance * a.searchVolume));
+    allKeywords.sort((a, b) => b.relevance * b.searchVolume - a.relevance * a.searchVolume);
 
     const keywords = allKeywords.slice(0, 30);
     const relatedTopics = this.generateRelatedTopics(topic, seedKeywords);
@@ -621,14 +680,7 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     twitterTags: Record<string, string>;
     structuredData: Record<string, any>;
   }> {
-    const {
-      title,
-      description,
-      keywords = [],
-      url = '',
-      type = 'website',
-      imageUrl = '',
-    } = params;
+    const { title, description, keywords = [], url = '', type = 'website', imageUrl = '' } = params;
 
     if (!title || typeof title !== 'string') {
       throw new Error('A valid title is required');
@@ -682,9 +734,7 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     if (url) structuredData.url = url;
     if (keywords.length > 0) structuredData.keywords = keywords.join(', ');
 
-    this.logger.log(
-      `Generated meta tags: title="${metaTitle.substring(0, 40)}", type=${type}`,
-    );
+    this.logger.log(`Generated meta tags: title="${metaTitle.substring(0, 40)}", type=${type}`);
 
     return { metaTitle, metaDescription, ogTags, twitterTags, structuredData };
   }
@@ -731,13 +781,14 @@ export class SEOOptimizationAgentService extends BaseAgentService {
 
     const opportunities = this.identifyOpportunities(domain, competitors, keywords);
 
-    const keywordGaps = keywords.length > 0
-      ? keywords.map((keyword) => ({
-          keyword,
-          competitorRanking: `Top ${Math.floor(Math.random() * 10) + 1}`,
-          yourRanking: `Position ${Math.floor(Math.random() * 30) + 11}`,
-        }))
-      : [];
+    const keywordGaps =
+      keywords.length > 0
+        ? keywords.map((keyword) => ({
+            keyword,
+            competitorRanking: `Top ${Math.floor(Math.random() * 10) + 1}`,
+            yourRanking: `Position ${Math.floor(Math.random() * 30) + 11}`,
+          }))
+        : [];
 
     this.logger.log(
       `Competitor analysis complete: domain=${domain}, competitors=${competitorDomains.length}`,
@@ -766,7 +817,14 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     const recommendations: string[] = [];
     const categories: Record<string, number> = {};
 
-    const allCategories = ['crawlability', 'indexability', 'performance', 'mobile', 'security', 'structured-data'];
+    const allCategories = [
+      'crawlability',
+      'indexability',
+      'performance',
+      'mobile',
+      'security',
+      'structured-data',
+    ];
     const activeCategories = checkCategories.includes('all') ? allCategories : checkCategories;
 
     // Crawlability checks
@@ -778,7 +836,8 @@ export class SEOOptimizationAgentService extends BaseAgentService {
           severity: 'info',
           category: 'crawlability',
           message: 'Robots.txt should be reviewed for optimal crawl directives.',
-          recommendation: 'Ensure robots.txt allows crawling of important pages and blocks non-essential paths.',
+          recommendation:
+            'Ensure robots.txt allows crawling of important pages and blocks non-essential paths.',
         });
       }
       recommendations.push('Submit an updated XML sitemap to search engines.');
@@ -793,7 +852,8 @@ export class SEOOptimizationAgentService extends BaseAgentService {
           severity: 'warning',
           category: 'indexability',
           message: 'Some pages may have noindex directives or canonical issues.',
-          recommendation: 'Review canonical tags and noindex directives across all important pages.',
+          recommendation:
+            'Review canonical tags and noindex directives across all important pages.',
         });
       }
       recommendations.push('Implement hreflang tags for multi-language content.');
@@ -808,7 +868,8 @@ export class SEOOptimizationAgentService extends BaseAgentService {
           severity: 'warning',
           category: 'performance',
           message: 'Page load speed may be below recommended thresholds.',
-          recommendation: 'Optimize images, leverage browser caching, and minimize render-blocking resources.',
+          recommendation:
+            'Optimize images, leverage browser caching, and minimize render-blocking resources.',
         });
       }
       recommendations.push('Implement lazy loading for images and below-the-fold content.');
@@ -824,7 +885,8 @@ export class SEOOptimizationAgentService extends BaseAgentService {
           severity: 'warning',
           category: 'mobile',
           message: 'Mobile usability issues detected.',
-          recommendation: 'Ensure responsive design, adequate tap targets, and no horizontal scrolling.',
+          recommendation:
+            'Ensure responsive design, adequate tap targets, and no horizontal scrolling.',
         });
       }
       recommendations.push('Test with Google Mobile-Friendly Test tool.');
@@ -854,7 +916,8 @@ export class SEOOptimizationAgentService extends BaseAgentService {
           severity: 'info',
           category: 'structured-data',
           message: 'Structured data may be missing or incomplete.',
-          recommendation: 'Add JSON-LD structured data for rich snippets (Article, FAQ, HowTo, etc.).',
+          recommendation:
+            'Add JSON-LD structured data for rich snippets (Article, FAQ, HowTo, etc.).',
         });
       }
       recommendations.push('Add Schema.org markup for all content types.');
@@ -862,9 +925,10 @@ export class SEOOptimizationAgentService extends BaseAgentService {
 
     // Calculate overall score
     const categoryScores = Object.values(categories);
-    const overallScore = categoryScores.length > 0
-      ? Math.round(categoryScores.reduce((sum, s) => sum + s, 0) / categoryScores.length)
-      : 0;
+    const overallScore =
+      categoryScores.length > 0
+        ? Math.round(categoryScores.reduce((sum, s) => sum + s, 0) / categoryScores.length)
+        : 0;
 
     this.auditHistory.push({ url, score: overallScore, timestamp: new Date() });
 
@@ -880,7 +944,10 @@ export class SEOOptimizationAgentService extends BaseAgentService {
   private calculateAvgSentenceLength(content: string): number {
     const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 0);
     if (sentences.length === 0) return 0;
-    const totalWords = sentences.reduce((sum, s) => sum + s.split(/\s+/).filter((w) => w.length > 0).length, 0);
+    const totalWords = sentences.reduce(
+      (sum, s) => sum + s.split(/\s+/).filter((w) => w.length > 0).length,
+      0,
+    );
     return totalWords / sentences.length;
   }
 
@@ -999,9 +1066,7 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     return { content: optimizedContent, changes };
   }
 
-  private optimizeForReadability(
-    content: string,
-  ): { content: string; changes: ContentChange[] } {
+  private optimizeForReadability(content: string): { content: string; changes: ContentChange[] } {
     const changes: ContentChange[] = [];
     let optimizedContent = content;
 
@@ -1100,7 +1165,9 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     // Based on keywords
     if (keywords.length > 0) {
       opportunities.push(`Target long-tail keywords that competitors are missing`);
-      opportunities.push(`Create comprehensive content around "${keywords[0]}" to outrank competitors`);
+      opportunities.push(
+        `Create comprehensive content around "${keywords[0]}" to outrank competitors`,
+      );
     }
 
     opportunities.push('Build high-quality backlinks through content marketing and outreach');

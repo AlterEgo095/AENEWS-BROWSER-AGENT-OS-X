@@ -44,7 +44,7 @@ export interface ExecutionConfig {
 }
 
 const DEFAULT_EXECUTION_CONFIG: ExecutionConfig = {
-  defaultStepTimeoutMs: 60000,    // 1 minute
+  defaultStepTimeoutMs: 60000, // 1 minute
   maxStepRetries: 3,
   retryBackoffBaseMs: 1000,
   maxParallelSteps: 10,
@@ -70,9 +70,7 @@ export class TaskExecutorService {
     correlationId: string,
   ): Promise<StepExecutionResult[]> {
     const startTime = Date.now();
-    this.logger.log(
-      `Executing plan ${plan.id} with ${plan.steps.length} steps`,
-    );
+    this.logger.log(`Executing plan ${plan.id} with ${plan.steps.length} steps`);
 
     const results: StepExecutionResult[] = [];
     const completedSteps = new Set<string>();
@@ -189,7 +187,7 @@ export class TaskExecutorService {
 
     this.logger.log(
       `Plan ${plan.id} execution completed in ${Date.now() - startTime}ms: ` +
-      `${completedSteps.size} succeeded, ${failedSteps.size} failed`,
+        `${completedSteps.size} succeeded, ${failedSteps.size} failed`,
     );
 
     return results;
@@ -206,29 +204,31 @@ export class TaskExecutorService {
     step.status = TaskStatus.EXECUTING;
 
     // Determine timeout for this step
-    const stepTimeoutMs = step.input.context?.timeout as number | undefined
-      || this.config.defaultStepTimeoutMs;
+    const stepTimeoutMs =
+      (step.input.context?.timeout as number | undefined) || this.config.defaultStepTimeoutMs;
 
     this.logger.log(
       `Executing step ${step.id} (order: ${step.order}) on agent ${step.agentId || 'auto'} ` +
-      `(timeout: ${stepTimeoutMs}ms)`,
+        `(timeout: ${stepTimeoutMs}ms)`,
     );
 
     // Emit progress event
-    this.eventBusService.publish({
-      type: AgentEventType.TASK_PROGRESS,
-      sourceAgentId: 'task-executor',
-      payload: {
-        taskId: step.input.taskId,
-        agentId: step.agentId || 'pending',
-        progress: 0,
-        message: `Starting step ${step.order}`,
-        currentStep: step.id,
-      } as TaskProgressPayload,
-      priority: 1,
-      correlationId,
-      metadata: { stepId: step.id },
-    }).catch(() => {});
+    this.eventBusService
+      .publish({
+        type: AgentEventType.TASK_PROGRESS,
+        sourceAgentId: 'task-executor',
+        payload: {
+          taskId: step.input.taskId,
+          agentId: step.agentId || 'pending',
+          progress: 0,
+          message: `Starting step ${step.order}`,
+          currentStep: step.id,
+        } as TaskProgressPayload,
+        priority: 1,
+        correlationId,
+        metadata: { stepId: step.id },
+      })
+      .catch(() => {});
 
     try {
       // Find the agent to execute on
@@ -300,21 +300,23 @@ export class TaskExecutorService {
       const executionTimeMs = Date.now() - startTime;
 
       // Emit completion event
-      this.eventBusService.publish({
-        type: output?.success
-          ? AgentEventType.ORCHESTRATION_STEP_COMPLETED
-          : AgentEventType.TASK_FAILED,
-        sourceAgentId: step.agentId || 'task-executor',
-        payload: {
-          taskId: step.input.taskId,
-          agentId: step.agentId || 'unknown',
-          success: output?.success ?? false,
-          executionTimeMs,
-        } as TaskCompletedPayload,
-        priority: 1,
-        correlationId,
-        metadata: { stepId: step.id },
-      }).catch(() => {});
+      this.eventBusService
+        .publish({
+          type: output?.success
+            ? AgentEventType.ORCHESTRATION_STEP_COMPLETED
+            : AgentEventType.TASK_FAILED,
+          sourceAgentId: step.agentId || 'task-executor',
+          payload: {
+            taskId: step.input.taskId,
+            agentId: step.agentId || 'unknown',
+            success: output?.success ?? false,
+            executionTimeMs,
+          } as TaskCompletedPayload,
+          priority: 1,
+          correlationId,
+          metadata: { stepId: step.id },
+        })
+        .catch(() => {});
 
       return {
         stepId: step.id,
@@ -331,9 +333,7 @@ export class TaskExecutorService {
       const executionTimeMs = Date.now() - startTime;
       const isTimeout = (error as AgentError).code === AgentErrorCode.TIMEOUT;
 
-      this.logger.error(
-        `Step ${step.id} execution failed: ${(error as Error).message}`,
-      );
+      this.logger.error(`Step ${step.id} execution failed: ${(error as Error).message}`);
 
       return {
         stepId: step.id,
@@ -358,11 +358,7 @@ export class TaskExecutorService {
   /**
    * Execute an agent task with a per-step timeout.
    */
-  private executeWithTimeout(
-    agent: any,
-    input: any,
-    timeoutMs: number,
-  ): Promise<AgentOutput> {
+  private executeWithTimeout(agent: any, input: any, timeoutMs: number): Promise<AgentOutput> {
     return new Promise<AgentOutput>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         reject(
@@ -375,7 +371,8 @@ export class TaskExecutorService {
         );
       }, timeoutMs);
 
-      agent.execute(input)
+      agent
+        .execute(input)
         .then((output: AgentOutput) => {
           clearTimeout(timeoutId);
           resolve(output);
@@ -438,9 +435,7 @@ export class TaskExecutorService {
 
   // ─── Helpers ─────────────────────────────────────────────────────
 
-  private buildDependencyMap(
-    dependencies: StepDependency[],
-  ): Map<string, string[]> {
+  private buildDependencyMap(dependencies: StepDependency[]): Map<string, string[]> {
     const map = new Map<string, string[]>();
     for (const dep of dependencies) {
       map.set(dep.stepId, dep.dependsOnStepIds);

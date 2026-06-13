@@ -1,9 +1,9 @@
 /**
  * AENEWS Software Factory — Mission Control Center
- * 
+ *
  * The central orchestrator that transforms a natural language instruction
  * into a fully executed, certified, and delivered mission.
- * 
+ *
  * Flow: Natural Language → Contract → Plan → Execute → Certify → Deliver
  */
 
@@ -93,7 +93,9 @@ export class MissionControlService {
     // Step 2: Negotiate contract feasibility
     const negotiation = this.contractService.negotiate(contract);
     if (!negotiation.accepted) {
-      this.logger.error(`Mission ${missionId} rejected: feasibility score ${negotiation.feasibilityScore}`);
+      this.logger.error(
+        `Mission ${missionId} rejected: feasibility score ${negotiation.feasibilityScore}`,
+      );
       return this.createExecution(missionId, contract.id, MissionState.DRAFT, negotiation.warnings);
     }
 
@@ -114,10 +116,15 @@ export class MissionControlService {
     });
 
     // Step 5: Create execution tracking
-    const execution = this.createExecution(missionId, contract.id, MissionState.DRAFT, negotiation.warnings);
+    const execution = this.createExecution(
+      missionId,
+      contract.id,
+      MissionState.DRAFT,
+      negotiation.warnings,
+    );
 
     // Step 6: Auto-start the pipeline
-    this.executePipeline(missionId).catch(err => {
+    this.executePipeline(missionId).catch((err) => {
       this.logger.error(`Pipeline failed for mission ${missionId}: ${err.message}`);
       execution.errors.push(err.message);
     });
@@ -159,7 +166,11 @@ export class MissionControlService {
       await this.runAuditingPhase(missionId);
 
       // Phase 6: CERTIFYING
-      await this.transitionTo(missionId, TransitionTrigger.START_CERTIFICATION, MissionState.CERTIFYING);
+      await this.transitionTo(
+        missionId,
+        TransitionTrigger.START_CERTIFICATION,
+        MissionState.CERTIFYING,
+      );
       execution.currentPhase = 'Certifying';
       await this.runCertificationPhase(missionId);
 
@@ -425,7 +436,7 @@ export class MissionControlService {
    */
   getActiveMissions(): MissionExecution[] {
     return Array.from(this.executions.values()).filter(
-      e => e.status !== MissionState.ARCHIVED && e.status !== MissionState.COMPLETED,
+      (e) => e.status !== MissionState.ARCHIVED && e.status !== MissionState.COMPLETED,
     );
   }
 
@@ -525,7 +536,12 @@ export class MissionControlService {
       [AgentRole.ARCHITECT]: ['system_design', 'technology_selection'],
       [AgentRole.BUSINESS_ANALYST]: ['requirements_analysis', 'cost_estimation'],
       [AgentRole.MARKETING_STRATEGIST]: ['seo', 'content_strategy', 'campaign_planning'],
-      [AgentRole.BROWSER_OPERATOR]: ['navigation', 'form_filling', 'data_extraction', 'screenshots'],
+      [AgentRole.BROWSER_OPERATOR]: [
+        'navigation',
+        'form_filling',
+        'data_extraction',
+        'screenshots',
+      ],
       [AgentRole.CODER]: ['code_generation', 'debugging', 'testing', 'refactoring'],
       [AgentRole.OFFICE_OPERATOR]: ['document_generation', 'pdf_creation', 'spreadsheet'],
       [AgentRole.DEPLOYER]: ['docker', 'cicd', 'cloud_deployment', 'monitoring'],

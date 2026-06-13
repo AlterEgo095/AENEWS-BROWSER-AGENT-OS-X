@@ -14,14 +14,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 export interface DeliveryTask {
   id: string;
-  capability:
-    | 'pdf'
-    | 'zip'
-    | 'github'
-    | 'docker'
-    | 'deploy'
-    | 'notify'
-    | 'package_all';
+  capability: 'pdf' | 'zip' | 'github' | 'docker' | 'deploy' | 'notify' | 'package_all';
   params: Record<string, any>;
   missionId: string;
 }
@@ -87,9 +80,7 @@ export class DeliveryTeamService {
    */
   async execute(task: DeliveryTask): Promise<DeliveryResult> {
     const start = Date.now();
-    this.logger.log(
-      `Executing delivery task [${task.capability}] for mission ${task.missionId}`,
-    );
+    this.logger.log(`Executing delivery task [${task.capability}] for mission ${task.missionId}`);
 
     this.ensureContext(task.missionId);
 
@@ -107,11 +98,7 @@ export class DeliveryTeamService {
           result = await this.pushToGitHub(task.params.repo, task.params.files, task.missionId);
           break;
         case 'docker':
-          result = await this.buildDocker(
-            task.params.dockerfile,
-            task.params.tag,
-            task.missionId,
-          );
+          result = await this.buildDocker(task.params.dockerfile, task.params.tag, task.missionId);
           break;
         case 'deploy':
           result = await this.deploy(task.params.config, task.params.target, task.missionId);
@@ -162,9 +149,7 @@ export class DeliveryTeamService {
       this.metrics.totalDurationMs += durationMs;
 
       this.taskLog.set(task.id, { task, result });
-      this.logger.error(
-        `Delivery task [${task.capability}] failed: ${(error as Error).message}`,
-      );
+      this.logger.error(`Delivery task [${task.capability}] failed: ${(error as Error).message}`);
       return result;
     }
   }
@@ -195,7 +180,8 @@ export class DeliveryTeamService {
     this.logger.log(`Generating PDF: "${title}" (${format}, ${orientation})`);
 
     // Simulate PDF rendering time (depends on content size)
-    const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length;
+    const contentLength =
+      typeof content === 'string' ? content.length : JSON.stringify(content).length;
     await this.sleep(300 + Math.min(contentLength / 20, 2000));
 
     const pdfId = this.generateId();
@@ -293,11 +279,7 @@ export class DeliveryTeamService {
   /**
    * Push files to a GitHub repository.
    */
-  async pushToGitHub(
-    repo: string,
-    files: string[],
-    missionId?: string,
-  ): Promise<DeliveryResult> {
+  async pushToGitHub(repo: string, files: string[], missionId?: string): Promise<DeliveryResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
 
@@ -340,11 +322,7 @@ export class DeliveryTeamService {
   /**
    * Build a Docker image from a Dockerfile.
    */
-  async buildDocker(
-    dockerfile: string,
-    tag?: string,
-    missionId?: string,
-  ): Promise<DeliveryResult> {
+  async buildDocker(dockerfile: string, tag?: string, missionId?: string): Promise<DeliveryResult> {
     const start = Date.now();
     const projectId = missionId || 'default';
     const imageTag = tag || `aenews/${projectId}:latest`;
@@ -414,9 +392,7 @@ export class DeliveryTeamService {
     const region = config.region || 'us-east-1';
     const strategy = config.strategy || 'rolling';
 
-    this.logger.log(
-      `Deploying to ${env} on ${provider}/${region} (${strategy} update)`,
-    );
+    this.logger.log(`Deploying to ${env} on ${provider}/${region} (${strategy} update)`);
 
     // Simulate deployment phases
     await this.sleep(200); // Pre-deploy checks
@@ -477,9 +453,7 @@ export class DeliveryTeamService {
     const projectId = missionId || 'default';
     const recipientList = Array.isArray(recipients) ? recipients : [recipients];
 
-    this.logger.log(
-      `Sending notification to ${recipientList.length} recipient(s)`,
-    );
+    this.logger.log(`Sending notification to ${recipientList.length} recipient(s)`);
 
     // Simulate notification delivery
     await this.sleep(100 + recipientList.length * 50);
@@ -634,15 +608,13 @@ export class DeliveryTeamService {
       lastActivity: Date;
     }>;
   } {
-    const contextSummaries = Array.from(this.contexts.entries()).map(
-      ([missionId, ctx]) => ({
-        missionId,
-        deliverableCount: ctx.deliverables.length,
-        deploymentCount: ctx.deployments.length,
-        notificationCount: ctx.notifications.length,
-        lastActivity: ctx.lastActivity,
-      }),
-    );
+    const contextSummaries = Array.from(this.contexts.entries()).map(([missionId, ctx]) => ({
+      missionId,
+      deliverableCount: ctx.deliverables.length,
+      deploymentCount: ctx.deployments.length,
+      notificationCount: ctx.notifications.length,
+      lastActivity: ctx.lastActivity,
+    }));
 
     return {
       team: 'delivery',

@@ -7,6 +7,7 @@
 
 import { Module } from '@nestjs/common';
 import { BaseAgentModule } from '../base/base-agent.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 import { OrchestratorAgentService } from './orchestrator/orchestrator-agent.service';
 import { PlannerAgentService } from './planner/planner-agent.service';
 import { CriticAgentService } from './critic/critic-agent.service';
@@ -22,7 +23,7 @@ import { AdaptationAgentService } from './adaptation/adaptation-agent.service';
 import { GovernanceAgentService } from './governance/governance-agent.service';
 
 @Module({
-  imports: [BaseAgentModule],
+  imports: [BaseAgentModule, AgentConnectorBridgeModule],
   providers: [
     // 1. Orchestrator — master orchestration, agent assignment, progress monitoring, workload rebalancing
     OrchestratorAgentService,

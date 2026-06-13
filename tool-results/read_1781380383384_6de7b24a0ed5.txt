@@ -1,0 +1,1371 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Code Generation Agent
+     3→ * Generates code from specifications, templates, and natural language descriptions.
+     4→ * Supports refactoring and optimization of existing code.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const CODE_GENERATION_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'coding-code-generation',
+    20→  name: 'CodeGeneration',
+    21→  cluster: AgentCluster.CODING,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Generate code from specifications, templates, and natural language descriptions. Supports refactoring and optimization of existing code with multi-language support.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'generateFromSpec',
+    28→      description: 'Generate code from a structured specification document',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          spec: { type: 'string', description: 'Structured specification document' },
+    33→          language: { type: 'string', description: 'Target programming language' },
+    34→          framework: { type: 'string', description: 'Target framework (e.g., NestJS, React)' },
+    35→          style: { type: 'string', description: 'Code style guide to follow' },
+    36→        },
+    37→        required: ['spec', 'language'],
+    38→      },
+    39→      outputSchema: {
+    40→        type: 'object',
+    41→        properties: {
+    42→          code: { type: 'string' },
+    43→          language: { type: 'string' },
+    44→          files: { type: 'array', items: { type: 'object' } },
+    45→          warnings: { type: 'array', items: { type: 'string' } },
+    46→        },
+    47→      },
+    48→    },
+    49→    {
+    50→      name: 'generateFromTemplate',
+    51→      description: 'Generate code from a pre-defined template with variable substitution',
+    52→      inputSchema: {
+    53→        type: 'object',
+    54→        properties: {
+    55→          templateId: { type: 'string', description: 'Template identifier' },
+    56→          variables: { type: 'object', description: 'Key-value pairs for template substitution' },
+    57→          outputFileName: { type: 'string', description: 'Desired output file name' },
+    58→        },
+    59→        required: ['templateId', 'variables'],
+    60→      },
+    61→      outputSchema: {
+    62→        type: 'object',
+    63→        properties: {
+    64→          code: { type: 'string' },
+    65→          fileName: { type: 'string' },
+    66→          templateId: { type: 'string' },
+    67→          substitutedVars: { type: 'array', items: { type: 'string' } },
+    68→        },
+    69→      },
+    70→    },
+    71→    {
+    72→      name: 'generateFromDescription',
+    73→      description: 'Generate code from a natural language description',
+    74→      inputSchema: {
+    75→        type: 'object',
+    76→        properties: {
+    77→          description: { type: 'string', description: 'Natural language description of desired code' },
+    78→          language: { type: 'string', description: 'Target programming language' },
+    79→          context: { type: 'string', description: 'Additional context or existing code' },
+    80→          constraints: { type: 'array', items: { type: 'string' }, description: 'Constraints to follow' },
+    81→        },
+    82→        required: ['description', 'language'],
+    83→      },
+    84→      outputSchema: {
+    85→        type: 'object',
+    86→        properties: {
+    87→          code: { type: 'string' },
+    88→          language: { type: 'string' },
+    89→          explanation: { type: 'string' },
+    90→          imports: { type: 'array', items: { type: 'string' } },
+    91→        },
+    92→      },
+    93→    },
+    94→    {
+    95→      name: 'refactorCode',
+    96→      description: 'Refactor existing code to improve structure and readability',
+    97→      inputSchema: {
+    98→        type: 'object',
+    99→        properties: {
+   100→          code: { type: 'string', description: 'Source code to refactor' },
+   101→          language: { type: 'string', description: 'Programming language' },
+   102→          goals: { type: 'array', items: { type: 'string' }, description: 'Refactoring goals' },
+   103→          preserveBehavior: { type: 'boolean', default: true },
+   104→        },
+   105→        required: ['code', 'language'],
+   106→      },
+   107→      outputSchema: {
+   108→        type: 'object',
+   109→        properties: {
+   110→          refactoredCode: { type: 'string' },
+   111→          changes: { type: 'array', items: { type: 'object' } },
+   112→          improvedMetrics: { type: 'object' },
+   113→        },
+   114→      },
+   115→    },
+   116→    {
+   117→      name: 'optimizeCode',
+   118→      description: 'Optimize code for performance, memory, or other metrics',
+   119→      inputSchema: {
+   120→        type: 'object',
+   121→        properties: {
+   122→          code: { type: 'string', description: 'Source code to optimize' },
+   123→          language: { type: 'string', description: 'Programming language' },
+   124→          target: { type: 'string', enum: ['performance', 'memory', 'readability', 'bundle-size'] },
+   125→          level: { type: 'string', enum: ['safe', 'moderate', 'aggressive'], default: 'safe' },
+   126→        },
+   127→        required: ['code', 'language', 'target'],
+   128→      },
+   129→      outputSchema: {
+   130→        type: 'object',
+   131→        properties: {
+   132→          optimizedCode: { type: 'string' },
+   133→          improvements: { type: 'array', items: { type: 'object' } },
+   134→          estimatedGain: { type: 'string' },
+   135→          tradeoffs: { type: 'array', items: { type: 'string' } },
+   136→        },
+   137→      },
+   138→    },
+   139→  ],
+   140→  permissions: [
+   141→    'execute:task',
+   142→    'read:code',
+   143→    'write:code',
+   144→    'read:templates',
+   145→    'write:generated',
+   146→  ],
+   147→  maxConcurrentTasks: 4,
+   148→  timeout: 60000,
+   149→  retryPolicy: {
+   150→    maxRetries: 2,
+   151→    backoffMs: 1500,
+   152→    exponentialBackoff: true,
+   153→  },
+   154→};
+   155→
+   156→// ─── Internal Types ───────────────────────────────────────────────
+   157→
+   158→interface CodeTemplate {
+   159→  id: string;
+   160→  language: string;
+   161→  framework: string;
+   162→  content: string;
+   163→  variables: string[];
+   164→  description: string;
+   165→}
+   166→
+   167→interface GeneratedFile {
+   168→  name: string;
+   169→  path: string;
+   170→  content: string;
+   171→  language: string;
+   172→}
+   173→
+   174→interface RefactoringChange {
+   175→  type: string;
+   176→  description: string;
+   177→  lineStart: number;
+   178→  lineEnd: number;
+   179→  before: string;
+   180→  after: string;
+   181→}
+   182→
+   183→// ─── Agent Service ────────────────────────────────────────────────
+   184→
+   185→@Injectable()
+   186→export class CodeGenerationAgentService extends BaseAgentService {
+   187→  private templates: Map<string, CodeTemplate> = new Map();
+   188→  private generationHistory: Array<{
+   189→    action: string;
+   190→    language: string;
+   191→    timestamp: Date;
+   192→    success: boolean;
+   193→  }> = [];
+   194→
+   195→  protected defineConfig(): AgentConfig {
+   196→    return CODE_GENERATION_AGENT_CONFIG;
+   197→  }
+   198→
+   199→  protected async onInitialize(): Promise<void> {
+   200→    // Seed built-in templates
+   201→    this.seedTemplates();
+   202→
+   203→    // Register tools
+   204→    this.registerTool({
+   205→      name: 'generateFromSpec',
+   206→      description: 'Generate code from a structured specification',
+   207→      execute: async (params: {
+   208→        spec: string;
+   209→        language: string;
+   210→        framework?: string;
+   211→        style?: string;
+   212→      }) => this.generateFromSpec(params),
+   213→    });
+   214→
+   215→    this.registerTool({
+   216→      name: 'generateFromTemplate',
+   217→      description: 'Generate code from a pre-defined template',
+   218→      execute: async (params: {
+   219→        templateId: string;
+   220→        variables: Record<string, string>;
+   221→        outputFileName?: string;
+   222→      }) => this.generateFromTemplate(params),
+   223→    });
+   224→
+   225→    this.registerTool({
+   226→      name: 'generateFromDescription',
+   227→      description: 'Generate code from a natural language description',
+   228→      execute: async (params: {
+   229→        description: string;
+   230→        language: string;
+   231→        context?: string;
+   232→        constraints?: string[];
+   233→      }) => this.generateFromDescription(params),
+   234→    });
+   235→
+   236→    this.registerTool({
+   237→      name: 'refactorCode',
+   238→      description: 'Refactor existing code to improve structure and readability',
+   239→      execute: async (params: {
+   240→        code: string;
+   241→        language: string;
+   242→        goals?: string[];
+   243→        preserveBehavior?: boolean;
+   244→      }) => this.refactorCode(params),
+   245→    });
+   246→
+   247→    this.registerTool({
+   248→      name: 'optimizeCode',
+   249→      description: 'Optimize code for performance, memory, or other metrics',
+   250→      execute: async (params: {
+   251→        code: string;
+   252→        language: string;
+   253→        target: string;
+   254→        level?: string;
+   255→      }) => this.optimizeCode(params),
+   256→    });
+   257→
+   258→    await this.storeInWorkingMemory('codegen:initializedAt', new Date().toISOString(), 600000);
+   259→    this.logger.log('CodeGeneration agent initialized with 5 tools');
+   260→  }
+   261→
+   262→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   263→    const startTime = Date.now();
+   264→    const { action, ...params } = input.payload;
+   265→
+   266→    if (!action) {
+   267→      return this.createAgentOutput(
+   268→        input.taskId,
+   269→        false,
+   270→        null,
+   271→        'Missing required parameter: action',
+   272→        startTime,
+   273→      );
+   274→    }
+   275→
+   276→    const supportedActions = [
+   277→      'generateFromSpec',
+   278→      'generateFromTemplate',
+   279→      'generateFromDescription',
+   280→      'refactorCode',
+   281→      'optimizeCode',
+   282→    ];
+   283→
+   284→    if (!supportedActions.includes(action)) {
+   285→      return this.createAgentOutput(
+   286→        input.taskId,
+   287→        false,
+   288→        null,
+   289→        `Unknown code generation action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   290→        startTime,
+   291→      );
+   292→    }
+   293→
+   294→    try {
+   295→      const tool = this.getTool(action);
+   296→      if (!tool) {
+   297→        return this.createAgentOutput(
+   298→          input.taskId,
+   299→          false,
+   300→          null,
+   301→          `Tool not found: ${action}`,
+   302→          startTime,
+   303→        );
+   304→      }
+   305→
+   306→      const result = await tool.execute(params);
+   307→
+   308→      this.generationHistory.push({
+   309→        action,
+   310→        language: params.language || 'unknown',
+   311→        timestamp: new Date(),
+   312→        success: true,
+   313→      });
+   314→
+   315→      // Store generation result in session memory for context continuity
+   316→      await this.storeInWorkingMemory(
+   317→        `codegen:last:${action}`,
+   318→        { params, result, timestamp: new Date() },
+   319→        300000,
+   320→      );
+   321→
+   322→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   323→    } catch (error) {
+   324→      const msg = (error as Error).message;
+   325→      this.logger.error(`CodeGeneration execution failed for ${action}: ${msg}`);
+   326→
+   327→      this.generationHistory.push({
+   328→        action,
+   329→        language: params.language || 'unknown',
+   330→        timestamp: new Date(),
+   331→        success: false,
+   332→      });
+   333→
+   334→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   335→    }
+   336→  }
+   337→
+   338→  protected async onDestroy(): Promise<void> {
+   339→    this.templates.clear();
+   340→    this.generationHistory = [];
+   341→    this.logger.log('CodeGeneration agent destroyed, templates and history cleared');
+   342→  }
+   343→
+   344→  // ─── Tool Implementations ──────────────────────────────────────
+   345→
+   346→  private async generateFromSpec(params: {
+   347→    spec: string;
+   348→    language: string;
+   349→    framework?: string;
+   350→    style?: string;
+   351→  }): Promise<{
+   352→    code: string;
+   353→    language: string;
+   354→    files: GeneratedFile[];
+   355→    warnings: string[];
+   356→  }> {
+   357→    const { spec, language, framework, style } = params;
+   358→
+   359→    if (!spec || typeof spec !== 'string') {
+   360→      throw new Error('A valid specification string is required');
+   361→    }
+   362→    if (!language || typeof language !== 'string') {
+   363→      throw new Error('A valid programming language is required');
+   364→    }
+   365→
+   366→    const warnings: string[] = [];
+   367→
+   368→    // Parse specification into structured sections
+   369→    const specSections = this.parseSpec(spec);
+   370→    const normalizedLang = this.normalizeLanguage(language);
+   371→
+   372→    // Validate framework compatibility
+   373→    if (framework) {
+   374→      const isCompatible = this.validateFrameworkCompatibility(normalizedLang, framework);
+   375→      if (!isCompatible) {
+   376→        warnings.push(`Framework "${framework}" may not be fully compatible with ${normalizedLang}`);
+   377→      }
+   378→    }
+   379→
+   380→    // Generate code from each spec section
+   381→    const files: GeneratedFile[] = [];
+   382→    for (const section of specSections) {
+   383→      const generatedCode = this.synthesizeCode(section, normalizedLang, framework, style);
+   384→      const fileName = this.inferFileName(section.name, normalizedLang, framework);
+   385→
+   386→      files.push({
+   387→        name: fileName,
+   388→        path: `./src/${section.name}/${fileName}`,
+   389→        content: generatedCode,
+   390→        language: normalizedLang,
+   391→      });
+   392→    }
+   393→
+   394→    // Produce a main combined code output
+   395→    const code = files.map((f) => f.content).join('\n\n');
+   396→
+   397→    this.logger.log(
+   398→      `Generated code from spec: ${files.length} file(s), language=${normalizedLang}, framework=${framework || 'none'}`,
+   399→    );
+   400→
+   401→    return { code, language: normalizedLang, files, warnings };
+   402→  }
+   403→
+   404→  private async generateFromTemplate(params: {
+   405→    templateId: string;
+   406→    variables: Record<string, string>;
+   407→    outputFileName?: string;
+   408→  }): Promise<{
+   409→    code: string;
+   410→    fileName: string;
+   411→    templateId: string;
+   412→    substitutedVars: string[];
+   413→  }> {
+   414→    const { templateId, variables, outputFileName } = params;
+   415→
+   416→    if (!templateId || typeof templateId !== 'string') {
+   417→      throw new Error('A valid templateId is required');
+   418→    }
+   419→    if (!variables || typeof variables !== 'object') {
+   420→      throw new Error('Variables must be a key-value object');
+   421→    }
+   422→
+   423→    const template = this.templates.get(templateId);
+   424→    if (!template) {
+   425→      const available = Array.from(this.templates.keys()).join(', ');
+   426→      throw new Error(`Template not found: ${templateId}. Available: ${available}`);
+   427→    }
+   428→
+   429→    // Perform variable substitution
+   430→    let code = template.content;
+   431→    const substitutedVars: string[] = [];
+   432→
+   433→    for (const [key, value] of Object.entries(variables)) {
+   434→      const placeholder = `{{${key}}}`;
+   435→      if (code.includes(placeholder)) {
+   436→        code = code.replaceAll(placeholder, value);
+   437→        substitutedVars.push(key);
+   438→      }
+   439→    }
+   440→
+   441→    // Check for unsubstituted variables
+   442→    const remainingPlaceholders = code.match(/\{\{(\w+)\}\}/g);
+   443→    if (remainingPlaceholders) {
+   444→      const missingVars = remainingPlaceholders.map((p) => p.replace(/[{}]/g, ''));
+   445→      throw new Error(
+   446→        `Unsubstituted template variables: ${missingVars.join(', ')}. Provide values for all placeholders.`,
+   447→      );
+   448→    }
+   449→
+   450→    const fileName = outputFileName || `${templateId}.generated.${this.getExtension(template.language)}`;
+   451→
+   452→    this.logger.log(
+   453→      `Generated code from template: ${templateId}, substituted ${substitutedVars.length} variable(s)`,
+   454→    );
+   455→
+   456→    return { code, fileName, templateId, substitutedVars };
+   457→  }
+   458→
+   459→  private async generateFromDescription(params: {
+   460→    description: string;
+   461→    language: string;
+   462→    context?: string;
+   463→    constraints?: string[];
+   464→  }): Promise<{
+   465→    code: string;
+   466→    language: string;
+   467→    explanation: string;
+   468→    imports: string[];
+   469→  }> {
+   470→    const { description, language, context, constraints } = params;
+   471→
+   472→    if (!description || typeof description !== 'string') {
+   473→      throw new Error('A valid description string is required');
+   474→    }
+   475→    if (!language || typeof language !== 'string') {
+   476→      throw new Error('A valid programming language is required');
+   477→    }
+   478→
+   479→    const normalizedLang = this.normalizeLanguage(language);
+   480→
+   481→    // Analyze description for intent and structure
+   482→    const intent = this.analyzeDescriptionIntent(description);
+   483→
+   484→    // Generate code structure based on intent analysis
+   485→    const code = this.synthesizeFromDescription(description, normalizedLang, context, constraints);
+   486→
+   487→    // Extract imports from generated code
+   488→    const imports = this.extractImports(code, normalizedLang);
+   489→
+   490→    // Generate explanation
+   491→    const explanation = this.generateExplanation(intent, normalizedLang, constraints);
+   492→
+   493→    this.logger.log(
+   494→      `Generated code from description: language=${normalizedLang}, intent=${intent.type}`,
+   495→    );
+   496→
+   497→    return { code, language: normalizedLang, explanation, imports };
+   498→  }
+   499→
+   500→  private async refactorCode(params: {
+   501→    code: string;
+   502→    language: string;
+   503→    goals?: string[];
+   504→    preserveBehavior?: boolean;
+   505→  }): Promise<{
+   506→    refactoredCode: string;
+   507→    changes: RefactoringChange[];
+   508→    improvedMetrics: Record<string, number>;
+   509→  }> {
+   510→    const { code, language, goals = [], preserveBehavior = true } = params;
+   511→
+   512→    if (!code || typeof code !== 'string') {
+   513→      throw new Error('Source code is required for refactoring');
+   514→    }
+   515→    if (!language || typeof language !== 'string') {
+   516→      throw new Error('Programming language is required');
+   517→    }
+   518→
+   519→    const normalizedLang = this.normalizeLanguage(language);
+   520→    const changes: RefactoringChange[] = [];
+   521→
+   522→    let refactoredCode = code;
+   523→    const originalLines = code.split('\n');
+   524→
+   525→    // Apply refactoring patterns
+   526→    const patterns = this.getRefactoringPatterns(goals, normalizedLang);
+   527→
+   528→    for (const pattern of patterns) {
+   529→      const result = this.applyRefactoringPattern(refactoredCode, pattern, preserveBehavior);
+   530→      if (result.modified) {
+   531→        changes.push(result.change);
+   532→        refactoredCode = result.code;
+   533→      }
+   534→    }
+   535→
+   536→    // Calculate improved metrics
+   537→    const refactoredLines = refactoredCode.split('\n');
+   538→    const improvedMetrics: Record<string, number> = {
+   539→      linesReduced: originalLines.length - refactoredLines.length,
+   540→      complexityReduction: this.estimateComplexityReduction(originalLines, refactoredLines),
+   541→      duplicateCodeReduction: this.estimateDuplicateReduction(code, refactoredCode),
+   542→    };
+   543→
+   544→    this.logger.log(
+   545→      `Refactored code: ${changes.length} change(s), language=${normalizedLang}`,
+   546→    );
+   547→
+   548→    return { refactoredCode, changes, improvedMetrics };
+   549→  }
+   550→
+   551→  private async optimizeCode(params: {
+   552→    code: string;
+   553→    language: string;
+   554→    target: string;
+   555→    level?: string;
+   556→  }): Promise<{
+   557→    optimizedCode: string;
+   558→    improvements: Array<{ type: string; description: string; impact: string }>;
+   559→    estimatedGain: string;
+   560→    tradeoffs: string[];
+   561→  }> {
+   562→    const { code, language, target, level = 'safe' } = params;
+   563→
+   564→    if (!code || typeof code !== 'string') {
+   565→      throw new Error('Source code is required for optimization');
+   566→    }
+   567→    if (!language || typeof language !== 'string') {
+   568→      throw new Error('Programming language is required');
+   569→    }
+   570→    const validTargets = ['performance', 'memory', 'readability', 'bundle-size'];
+   571→    if (!validTargets.includes(target)) {
+   572→      throw new Error(`Invalid optimization target: ${target}. Valid: ${validTargets.join(', ')}`);
+   573→    }
+   574→    const validLevels = ['safe', 'moderate', 'aggressive'];
+   575→    if (!validLevels.includes(level)) {
+   576→      throw new Error(`Invalid optimization level: ${level}. Valid: ${validLevels.join(', ')}`);
+   577→    }
+   578→
+   579→    const normalizedLang = this.normalizeLanguage(language);
+   580→    const improvements: Array<{ type: string; description: string; impact: string }> = [];
+   581→    const tradeoffs: string[] = [];
+   582→
+   583→    let optimizedCode = code;
+   584→
+   585→    // Apply optimization strategies based on target and level
+   586→    const strategies = this.getOptimizationStrategies(target, level, normalizedLang);
+   587→
+   588→    for (const strategy of strategies) {
+   589→      const result = this.applyOptimizationStrategy(optimizedCode, strategy, normalizedLang);
+   590→      if (result.modified) {
+   591→        optimizedCode = result.code;
+   592→        improvements.push({
+   593→          type: strategy.type,
+   594→          description: strategy.description,
+   595→          impact: result.impact,
+   596→        });
+   597→
+   598→        if (result.tradeoff) {
+   599→          tradeoffs.push(result.tradeoff);
+   600→        }
+   601→      }
+   602→    }
+   603→
+   604→    // Estimate overall gain
+   605→    const estimatedGain = this.estimateOptimizationGain(improvements, target, level);
+   606→
+   607→    this.logger.log(
+   608→      `Optimized code: target=${target}, level=${level}, ${improvements.length} improvement(s)`,
+   609→    );
+   610→
+   611→    return { optimizedCode, improvements, estimatedGain, tradeoffs };
+   612→  }
+   613→
+   614→  // ─── Private Helpers ───────────────────────────────────────────
+   615→
+   616→  private seedTemplates(): void {
+   617→    const builtInTemplates: CodeTemplate[] = [
+   618→      {
+   619→        id: 'nestjs-controller',
+   620→        language: 'typescript',
+   621→        framework: 'nestjs',
+   622→        content: `import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+   623→import { {{ServiceName}} } from './{{serviceName}}.service';
+   624→
+   625→@Controller('{{routePath}}')
+   626→export class {{ControllerName}}Controller {
+   627→  constructor(private readonly {{serviceName}}Service: {{ServiceName}}) {}
+   628→
+   629→  @Get()
+   630→  findAll() {
+   631→    return this.{{serviceName}}Service.findAll();
+   632→  }
+   633→
+   634→  @Get(':id')
+   635→  findOne(@Param('id') id: string) {
+   636→    return this.{{serviceName}}Service.findOne(id);
+   637→  }
+   638→
+   639→  @Post()
+   640→  create(@Body() createDto: any) {
+   641→    return this.{{serviceName}}Service.create(createDto);
+   642→  }
+   643→}`,
+   644→        variables: ['ServiceName', 'serviceName', 'ControllerName', 'routePath'],
+   645→        description: 'NestJS REST controller with CRUD endpoints',
+   646→      },
+   647→      {
+   648→        id: 'nestjs-service',
+   649→        language: 'typescript',
+   650→        framework: 'nestjs',
+   651→        content: `import { Injectable } from '@nestjs/common';
+   652→
+   653→@Injectable()
+   654→export class {{ServiceName}} {
+   655→  private items: Map<string, any> = new Map();
+   656→
+   657→  async findAll(): Promise<any[]> {
+   658→    return Array.from(this.items.values());
+   659→  }
+   660→
+   661→  async findOne(id: string): Promise<any> {
+   662→    return this.items.get(id) || null;
+   663→  }
+   664→
+   665→  async create(data: any): Promise<any> {
+   666→    const id = crypto.randomUUID();
+   667→    this.items.set(id, { id, ...data });
+   668→    return this.items.get(id);
+   669→  }
+   670→
+   671→  async update(id: string, data: any): Promise<any> {
+   672→    const existing = this.items.get(id);
+   673→    if (!existing) return null;
+   674→    this.items.set(id, { ...existing, ...data });
+   675→    return this.items.get(id);
+   676→  }
+   677→
+   678→  async remove(id: string): Promise<boolean> {
+   679→    return this.items.delete(id);
+   680→  }
+   681→}`,
+   682→        variables: ['ServiceName'],
+   683→        description: 'NestJS injectable service with in-memory CRUD',
+   684→      },
+   685→      {
+   686→        id: 'react-component',
+   687→        language: 'typescript',
+   688→        framework: 'react',
+   689→        content: `import React from 'react';
+   690→
+   691→interface {{ComponentName}}Props {
+   692→  title?: string;
+   693→  children?: React.ReactNode;
+   694→}
+   695→
+   696→export const {{ComponentName}}: React.FC<{{ComponentName}}Props> = ({ title, children }) => {
+   697→  return (
+   698→    <div className="{{componentName}}-container">
+   699→      {title && <h2>{title}</h2>}
+   700→      <div className="{{componentName}}-content">
+   701→        {children}
+   702→      </div>
+   703→    </div>
+   704→  );
+   705→};
+   706→
+   707→export default {{ComponentName}};`,
+   708→        variables: ['ComponentName', 'componentName'],
+   709→        description: 'React functional component with TypeScript',
+   710→      },
+   711→      {
+   712→        id: 'express-route',
+   713→        language: 'typescript',
+   714→        framework: 'express',
+   715→        content: `import { Router, Request, Response, NextFunction } from 'express';
+   716→
+   717→const router = Router();
+   718→
+   719→router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+   720→  try {
+   721→    res.json({ message: '{{routeName}} list retrieved' });
+   722→  } catch (error) {
+   723→    next(error);
+   724→  }
+   725→});
+   726→
+   727→router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+   728→  try {
+   729→    const data = req.body;
+   730→    res.status(201).json({ message: '{{routeName}} created', data });
+   731→  } catch (error) {
+   732→    next(error);
+   733→  }
+   734→});
+   735→
+   736→export default router;`,
+   737→        variables: ['routeName'],
+   738→        description: 'Express.js route with CRUD endpoints',
+   739→      },
+   740→    ];
+   741→
+   742→    for (const template of builtInTemplates) {
+   743→      this.templates.set(template.id, template);
+   744→    }
+   745→  }
+   746→
+   747→  private parseSpec(spec: string): Array<{ name: string; type: string; description: string; methods?: string[] }> {
+   748→    const sections: Array<{ name: string; type: string; description: string; methods?: string[] }> = [];
+   749→    const lines = spec.split('\n');
+   750→    let currentSection: typeof sections[0] | null = null;
+   751→
+   752→    for (const line of lines) {
+   753→      const trimmed = line.trim();
+   754→      if (trimmed.startsWith('# ') || trimmed.startsWith('## ')) {
+   755→        if (currentSection) {
+   756→          sections.push(currentSection);
+   757→        }
+   758→        const name = trimmed.replace(/^#+\s*/, '');
+   759→        currentSection = {
+   760→          name: this.toPascalCase(name),
+   761→          type: name.toLowerCase().includes('service') ? 'service' : name.toLowerCase().includes('controller') ? 'controller' : 'module',
+   762→          description: name,
+   763→        };
+   764→      } else if (currentSection && trimmed.length > 0) {
+   765→        if (!currentSection.methods) currentSection.methods = [];
+   766→        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+   767→          currentSection.methods.push(trimmed.replace(/^[-*]\s*/, ''));
+   768→        }
+   769→      }
+   770→    }
+   771→
+   772→    if (currentSection) sections.push(currentSection);
+   773→
+   774→    // Default section if spec has no headers
+   775→    if (sections.length === 0) {
+   776→      sections.push({
+   777→        name: 'GeneratedModule',
+   778→        type: 'module',
+   779→        description: spec.substring(0, 100),
+   780→      });
+   781→    }
+   782→
+   783→    return sections;
+   784→  }
+   785→
+   786→  private synthesizeCode(
+   787→    section: { name: string; type: string; description: string; methods?: string[] },
+   788→    language: string,
+   789→    framework?: string,
+   790→    style?: string,
+   791→  ): string {
+   792→    const methods = section.methods || ['findAll', 'findOne', 'create', 'update', 'remove'];
+   793→
+   794→    if (language === 'typescript' && framework === 'nestjs') {
+   795→      if (section.type === 'controller') {
+   796→        return this.generateNestJSController(section.name, methods);
+   797→      } else if (section.type === 'service') {
+   798→        return this.generateNestJSService(section.name, methods);
+   799→      }
+   800→    }
+   801→
+   802→    // Generic code generation fallback
+   803→    return this.generateGenericModule(section.name, language, methods);
+   804→  }
+   805→
+   806→  private generateNestJSController(name: string, methods: string[]): string {
+   807→    const routePath = this.toKebabCase(name);
+   808→    const serviceVar = this.toCamelCase(name);
+   809→
+   810→    const methodImplementations = methods.map((method) => {
+   811→      const httpMethod = this.inferHttpMethod(method);
+   812→      const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) =>
+   813→        method.toLowerCase().includes(m.toLowerCase()),
+   814→      );
+   815→
+   816→      if (hasParam) {
+   817→        return `  @${httpMethod}(':id')
+   818→  ${method}(@Param('id') id: string) {
+   819→    return this.${serviceVar}Service.${method}(id);
+   820→  }`;
+   821→      }
+   822→      return `  @${httpMethod}()
+   823→  ${method}() {
+   824→    return this.${serviceVar}Service.${method}();
+   825→  }`;
+   826→    }).join('\n\n');
+   827→
+   828→    return `import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+   829→import { ${name}Service } from './${routePath}.service';
+   830→
+   831→@Controller('${routePath}')
+   832→export class ${name}Controller {
+   833→  constructor(private readonly ${serviceVar}Service: ${name}Service) {}
+   834→
+   835→${methodImplementations}
+   836→}`;
+   837→  }
+   838→
+   839→  private generateNestJSService(name: string, methods: string[]): string {
+   840→    const methodImplementations = methods.map((method) => {
+   841→      const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) =>
+   842→        method.toLowerCase().includes(m.toLowerCase()),
+   843→      );
+   844→
+   845→      if (hasParam) {
+   846→        return `  async ${method}(id: string): Promise<any> {
+   847→    // TODO: Implement ${method} logic
+   848→    return { id, message: '${method} executed' };
+   849→  }`;
+   850→      }
+   851→      return `  async ${method}(): Promise<any> {
+   852→    // TODO: Implement ${method} logic
+   853→    return { message: '${method} executed' };
+   854→  }`;
+   855→    }).join('\n\n');
+   856→
+   857→    return `import { Injectable } from '@nestjs/common';
+   858→
+   859→@Injectable()
+   860→export class ${name}Service {
+   861→
+   862→${methodImplementations}
+   863→}`;
+   864→  }
+   865→
+   866→  private generateGenericModule(name: string, language: string, methods: string[]): string {
+   867→    const methodImplementations = methods.map((method) => {
+   868→      return `  function ${method}() {\n    // TODO: Implement ${method}\n    return null;\n  }`;
+   869→    }).join('\n\n');
+   870→
+   871→    if (language === 'python') {
+   872→      return `"""${name} module generated from specification"""\n\nclass ${name}:\n${methods.map((m) => `    def ${m}(self):\n        """TODO: Implement ${m}"""\n        pass`).join('\n\n')}`;
+   873→    }
+   874→
+   875→    return `// ${name} module generated from specification
+   876→
+   877→${methodImplementations}`;
+   878→  }
+   879→
+   880→  private inferFileName(name: string, language: string, framework?: string): string {
+   881→    const kebab = this.toKebabCase(name);
+   882→    const ext = this.getExtension(language);
+   883→
+   884→    if (framework === 'nestjs' && language === 'typescript') {
+   885→      if (name.toLowerCase().includes('controller')) return `${kebab}.controller.${ext}`;
+   886→      if (name.toLowerCase().includes('service')) return `${kebab}.service.${ext}`;
+   887→      if (name.toLowerCase().includes('module')) return `${kebab}.module.${ext}`;
+   888→    }
+   889→
+   890→    return `${kebab}.${ext}`;
+   891→  }
+   892→
+   893→  private analyzeDescriptionIntent(description: string): { type: string; features: string[] } {
+   894→    const lower = description.toLowerCase();
+   895→    const features: string[] = [];
+   896→    let type = 'function';
+   897→
+   898→    if (lower.includes('class') || lower.includes('service') || lower.includes('module')) {
+   899→      type = 'class';
+   900→    }
+   901→    if (lower.includes('api') || lower.includes('endpoint') || lower.includes('route')) {
+   902→      type = 'api';
+   903→      features.push('routing');
+   904→    }
+   905→    if (lower.includes('component') || lower.includes('ui') || lower.includes('render')) {
+   906→      type = 'component';
+   907→      features.push('rendering');
+   908→    }
+   909→    if (lower.includes('database') || lower.includes('model') || lower.includes('schema')) {
+   910→      features.push('data-model');
+   911→    }
+   912→    if (lower.includes('test') || lower.includes('spec')) {
+   913→      features.push('testing');
+   914→    }
+   915→    if (lower.includes('auth') || lower.includes('login') || lower.includes('permission')) {
+   916→      features.push('authentication');
+   917→    }
+   918→
+   919→    return { type, features };
+   920→  }
+   921→
+   922→  private synthesizeFromDescription(
+   923→    description: string,
+   924→    language: string,
+   925→    context?: string,
+   926→    constraints?: string[],
+   927→  ): string {
+   928→    const intent = this.analyzeDescriptionIntent(description);
+   929→    const constraintComment = constraints?.length
+   930→      ? `\n// Constraints: ${constraints.join(', ')}`
+   931→      : '';
+   932→
+   933→    const contextComment = context
+   934→      ? `\n// Context: ${context.substring(0, 200)}`
+   935→      : '';
+   936→
+   937→    if (language === 'typescript') {
+   938→      if (intent.type === 'class') {
+   939→        const className = this.extractClassName(description) || 'GeneratedClass';
+   940→        return `/**${constraintComment}${contextComment}
+   941→ * Generated from description: ${description.substring(0, 100)}
+   942→ */
+   943→export class ${className} {
+   944→  constructor() {
+   945→    // Initialize instance
+   946→  }
+   947→
+   948→  // Implement class methods based on: ${description.substring(0, 80)}
+   949→  async execute(): Promise<void> {
+   950→    // TODO: Implement core logic
+   951→  }
+   952→}`;
+   953→      }
+   954→
+   955→      if (intent.type === 'api') {
+   956→        return `/**${constraintComment}${contextComment}
+   957→ * API module generated from description
+   958→ */
+   959→import { Router } from 'express';
+   960→
+   961→const router = Router();
+   962→
+   963→router.get('/', async (req, res) => {
+   964→  // TODO: Implement GET handler for: ${description.substring(0, 60)}
+   965→  res.json({ status: 'ok' });
+   966→});
+   967→
+   968→router.post('/', async (req, res) => {
+   969→  // TODO: Implement POST handler
+   970→  const data = req.body;
+   971→  res.status(201).json({ created: true, data });
+   972→});
+   973→
+   974→export default router;`;
+   975→      }
+   976→
+   977→      return `/**${constraintComment}${contextComment}
+   978→ * Generated from description: ${description.substring(0, 100)}
+   979→ */
+   980→export async function generatedFunction(): Promise<void> {
+   981→  // TODO: Implement logic for: ${description.substring(0, 80)}
+   982→}`;
+   983→    }
+   984→
+   985→    if (language === 'python') {
+   986→      return `"""${constraintComment}${contextComment}
+   987→Generated from description: ${description.substring(0, 100)}
+   988→"""
+   989→
+   990→def generated_function():
+   991→    """TODO: Implement logic for: ${description.substring(0, 80)}"""
+   992→    pass`;
+   993→    }
+   994→
+   995→    return `// Generated from description: ${description.substring(0, 100)}${constraintComment}${contextComment}`;
+   996→  }
+   997→
+   998→  private extractImports(code: string, language: string): string[] {
+   999→    const imports: string[] = [];
+  1000→
+  1001→    if (language === 'typescript' || language === 'javascript') {
+  1002→      const importRegex = /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g;
+  1003→      let match: RegExpExecArray | null;
+  1004→      while ((match = importRegex.exec(code)) !== null) {
+  1005→        imports.push(match[1]);
+  1006→      }
+  1007→    } else if (language === 'python') {
+  1008→      const importRegex = /^(?:from\s+(\S+)\s+)?import\s+/gm;
+  1009→      let match: RegExpExecArray | null;
+  1010→      while ((match = importRegex.exec(code)) !== null) {
+  1011→        imports.push(match[1] || match[0].trim());
+  1012→      }
+  1013→    }
+  1014→
+  1015→    return imports;
+  1016→  }
+  1017→
+  1018→  private generateExplanation(
+  1019→    intent: { type: string; features: string[] },
+  1020→    language: string,
+  1021→    constraints?: string[],
+  1022→  ): string {
+  1023→    let explanation = `Generated ${intent.type} in ${language}`;
+  1024→
+  1025→    if (intent.features.length > 0) {
+  1026→      explanation += ` with features: ${intent.features.join(', ')}`;
+  1027→    }
+  1028→
+  1029→    if (constraints?.length) {
+  1030→      explanation += `. Applied constraints: ${constraints.join(', ')}`;
+  1031→    }
+  1032→
+  1033→    return explanation + '. Review and implement the TODO placeholders.';
+  1034→  }
+  1035→
+  1036→  private getRefactoringPatterns(
+  1037→    goals: string[],
+  1038→    language: string,
+  1039→  ): Array<{ type: string; description: string; pattern: RegExp; replacement: string }> {
+  1040→    const patterns: Array<{ type: string; description: string; pattern: RegExp; replacement: string }> = [];
+  1041→
+  1042→    const allGoals = goals.length > 0 ? goals : ['readability', 'dry', 'simplification'];
+  1043→
+  1044→    if (allGoals.includes('readability') || allGoals.includes('simplification')) {
+  1045→      // Remove consecutive blank lines
+  1046→      patterns.push({
+  1047→        type: 'cleanup',
+  1048→        description: 'Remove consecutive blank lines',
+  1049→        pattern: /\n{3,}/g,
+  1050→        replacement: '\n\n',
+  1051→      });
+  1052→
+  1053→      // Remove trailing whitespace
+  1054→      patterns.push({
+  1055→        type: 'cleanup',
+  1056→        description: 'Remove trailing whitespace',
+  1057→        pattern: /[ \t]+$/gm,
+  1058→        replacement: '',
+  1059→      });
+  1060→    }
+  1061→
+  1062→    if (allGoals.includes('dry') && (language === 'typescript' || language === 'javascript')) {
+  1063→      // Extract repeated string literals into constants (simplified pattern)
+  1064→      patterns.push({
+  1065→        type: 'dry',
+  1066→        description: 'Identify repeated string literals for extraction',
+  1067→        pattern: /(['"`])([^'"`]{3,})\1/g,
+  1068→        replacement: '$1$2$1', // No-op, just identifies
+  1069→      });
+  1070→    }
+  1071→
+  1072→    if (allGoals.includes('modernization') && (language === 'typescript' || language === 'javascript')) {
+  1073→      // Convert var to const/let
+  1074→      patterns.push({
+  1075→        type: 'modernization',
+  1076→        description: 'Convert var declarations to const/let',
+  1077→        pattern: /\bvar\s+/g,
+  1078→        replacement: 'const ',
+  1079→      });
+  1080→    }
+  1081→
+  1082→    return patterns;
+  1083→  }
+  1084→
+  1085→  private applyRefactoringPattern(
+  1086→    code: string,
+  1087→    pattern: { type: string; description: string; pattern: RegExp; replacement: string },
+  1088→    preserveBehavior: boolean,
+  1089→  ): { modified: boolean; code: string; change: RefactoringChange } {
+  1090→    const newCode = code.replace(pattern.pattern, pattern.replacement);
+  1091→    const modified = newCode !== code;
+  1092→
+  1093→    // Count lines affected
+  1094→    const originalLines = code.split('\n');
+  1095→    let lineStart = -1;
+  1096→    let lineEnd = -1;
+  1097→
+  1098→    for (let i = 0; i < originalLines.length; i++) {
+  1099→      if (originalLines[i] !== newCode.split('\n')[i]) {
+  1100→        if (lineStart === -1) lineStart = i + 1;
+  1101→        lineEnd = i + 1;
+  1102→      }
+  1103→    }
+  1104→
+  1105→    return {
+  1106→      modified,
+  1107→      code: modified ? newCode : code,
+  1108→      change: {
+  1109→        type: pattern.type,
+  1110→        description: pattern.description,
+  1111→        lineStart: lineStart || 0,
+  1112→        lineEnd: lineEnd || 0,
+  1113→        before: pattern.pattern.source,
+  1114→        after: pattern.replacement,
+  1115→      },
+  1116→    };
+  1117→  }
+  1118→
+  1119→  private getOptimizationStrategies(
+  1120→    target: string,
+  1121→    level: string,
+  1122→    language: string,
+  1123→  ): Array<{ type: string; description: string; target: string }> {
+  1124→    const strategies: Array<{ type: string; description: string; target: string }> = [];
+  1125→
+  1126→    if (target === 'performance') {
+  1127→      strategies.push(
+  1128→        { type: 'loop-optimization', description: 'Optimize loop patterns for performance', target: 'performance' },
+  1129→        { type: 'caching', description: 'Add memoization/caching for expensive computations', target: 'performance' },
+  1130→        { type: 'async-optimization', description: 'Convert synchronous operations to async where beneficial', target: 'performance' },
+  1131→      );
+  1132→
+  1133→      if (level === 'aggressive') {
+  1134→        strategies.push(
+  1135→          { type: 'inline-functions', description: 'Inline small functions to reduce call overhead', target: 'performance' },
+  1136→          { type: 'early-return', description: 'Add early returns to avoid unnecessary computation', target: 'performance' },
+  1137→        );
+  1138→      }
+  1139→    }
+  1140→
+  1141→    if (target === 'memory') {
+  1142→      strategies.push(
+  1143→        { type: 'object-pooling', description: 'Suggest object pooling for frequently created objects', target: 'memory' },
+  1144→        { type: 'stream-processing', description: 'Convert bulk data processing to streaming', target: 'memory' },
+  1145→      );
+  1146→    }
+  1147→
+  1148→    if (target === 'readability') {
+  1149→      strategies.push(
+  1150→        { type: 'extract-method', description: 'Extract complex logic into named methods', target: 'readability' },
+  1151→        { type: 'meaningful-names', description: 'Suggest more descriptive variable names', target: 'readability' },
+  1152→        { type: 'add-comments', description: 'Add inline comments for complex logic', target: 'readability' },
+  1153→      );
+  1154→    }
+  1155→
+  1156→    if (target === 'bundle-size') {
+  1157→      strategies.push(
+  1158→        { type: 'tree-shaking', description: 'Mark unused exports for tree-shaking', target: 'bundle-size' },
+  1159→        { type: 'lazy-loading', description: 'Suggest dynamic imports for lazy loading', target: 'bundle-size' },
+  1160→      );
+  1161→
+  1162→      if (level !== 'safe') {
+  1163→        strategies.push(
+  1164→          { type: 'minification-safe', description: 'Ensure code is minification-safe', target: 'bundle-size' },
+  1165→        );
+  1166→      }
+  1167→    }
+  1168→
+  1169→    return strategies;
+  1170→  }
+  1171→
+  1172→  private applyOptimizationStrategy(
+  1173→    code: string,
+  1174→    strategy: { type: string; description: string; target: string },
+  1175→    language: string,
+  1176→  ): { modified: boolean; code: string; impact: string; tradeoff?: string } {
+  1177→    let optimizedCode = code;
+  1178→    let modified = false;
+  1179→    let impact = 'low';
+  1180→    let tradeoff: string | undefined;
+  1181→
+  1182→    switch (strategy.type) {
+  1183→      case 'early-return': {
+  1184→        // Add early return patterns in if-else chains
+  1185→        const pattern = /if\s*\(([^)]+)\)\s*\{\s*return\s+([^;]+);\s*\}\s*else\s*\{/g;
+  1186→        const newCode = code.replace(pattern, 'if ($1) {\n    return $2;\n  }\n  {');
+  1187→        if (newCode !== code) {
+  1188→          optimizedCode = newCode;
+  1189→          modified = true;
+  1190→          impact = 'medium';
+  1191→        }
+  1192→        break;
+  1193→      }
+  1194→      case 'caching': {
+  1195→        // Add memoization comment
+  1196→        if ((language === 'typescript' || language === 'javascript') && code.includes('function')) {
+  1197→          const cacheComment = '// OPTIMIZE: Consider adding memoization to expensive functions\n';
+  1198→          if (!code.includes('OPTIMIZE:')) {
+  1199→            optimizedCode = cacheComment + code;
+  1200→            modified = true;
+  1201→            impact = 'medium';
+  1202→            tradeoff = 'Memoization increases memory usage proportional to unique inputs';
+  1203→          }
+  1204→        }
+  1205→        break;
+  1206→      }
+  1207→      case 'lazy-loading': {
+  1208→        if ((language === 'typescript' || language === 'javascript') && code.includes('import ')) {
+  1209→          optimizedCode = code.replace(
+  1210→            /import\s+(\w+)\s+from\s+(['"]([^'"]+)['"])/g,
+  1211→            '// OPTIMIZE: Consider dynamic import: const $1 = await import($2)\nimport $1 from $2',
+  1212→          );
+  1213→          modified = optimizedCode !== code;
+  1214→          impact = 'high';
+  1215→          tradeoff = 'Dynamic imports add async overhead on first load';
+  1216→        }
+  1217→        break;
+  1218→      }
+  1219→      default: {
+  1220→        // Generic strategy: add optimization suggestions as comments
+  1221→        const comment = `// OPTIMIZE [${strategy.type}]: ${strategy.description}\n`;
+  1222→        if (!code.includes(`OPTIMIZE [${strategy.type}]`)) {
+  1223→          optimizedCode = comment + code;
+  1224→          modified = true;
+  1225→          impact = 'low';
+  1226→        }
+  1227→        break;
+  1228→      }
+  1229→    }
+  1230→
+  1231→    return { modified, code: optimizedCode, impact, tradeoff };
+  1232→  }
+  1233→
+  1234→  private estimateComplexityReduction(originalLines: string[], refactoredLines: string[]): number {
+  1235→    // Simplified cyclomatic complexity estimation based on branch keywords
+  1236→    const countBranches = (lines: string[]) =>
+  1237→      lines.reduce((count, line) => {
+  1238→        const branchKeywords = ['if ', 'else ', 'switch ', 'case ', 'for ', 'while ', 'catch '];
+  1239→        return count + branchKeywords.filter((kw) => line.includes(kw)).length;
+  1240→      }, 0);
+  1241→
+  1242→    const originalBranches = countBranches(originalLines);
+  1243→    const refactoredBranches = countBranches(refactoredLines);
+  1244→
+  1245→    if (originalBranches === 0) return 0;
+  1246→    return Math.round(((originalBranches - refactoredBranches) / originalBranches) * 100);
+  1247→  }
+  1248→
+  1249→  private estimateDuplicateReduction(originalCode: string, refactoredCode: string): number {
+  1250→    // Simplified duplicate estimation by comparing line frequencies
+  1251→    const countLineFrequencies = (code: string): number => {
+  1252→      const lines = code.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  1253→      const freq = new Map<string, number>();
+  1254→      for (const line of lines) {
+  1255→        freq.set(line, (freq.get(line) || 0) + 1);
+  1256→      }
+  1257→      let duplicates = 0;
+  1258→      for (const count of freq.values()) {
+  1259→        if (count > 1) duplicates += count - 1;
+  1260→      }
+  1261→      return duplicates;
+  1262→    };
+  1263→
+  1264→    const originalDuplicates = countLineFrequencies(originalCode);
+  1265→    const refactoredDuplicates = countLineFrequencies(refactoredCode);
+  1266→
+  1267→    if (originalDuplicates === 0) return 0;
+  1268→    return Math.round(((originalDuplicates - refactoredDuplicates) / originalDuplicates) * 100);
+  1269→  }
+  1270→
+  1271→  private estimateOptimizationGain(
+  1272→    improvements: Array<{ type: string; description: string; impact: string }>,
+  1273→    target: string,
+  1274→    level: string,
+  1275→  ): string {
+  1276→    if (improvements.length === 0) return 'No measurable improvement';
+  1277→
+  1278→    const highImpact = improvements.filter((i) => i.impact === 'high').length;
+  1279→    const mediumImpact = improvements.filter((i) => i.impact === 'medium').length;
+  1280→
+  1281→    const baseGain = highImpact * 20 + mediumImpact * 10 + (improvements.length - highImpact - mediumImpact) * 5;
+  1282→    const levelMultiplier = level === 'aggressive' ? 1.5 : level === 'moderate' ? 1.2 : 1.0;
+  1283→
+  1284→    const estimatedPercent = Math.min(90, Math.round(baseGain * levelMultiplier));
+  1285→
+  1286→    return `~${estimatedPercent}% estimated improvement in ${target}`;
+  1287→  }
+  1288→
+  1289→  private normalizeLanguage(language: string): string {
+  1290→    const lower = language.toLowerCase().trim();
+  1291→    const aliases: Record<string, string> = {
+  1292→      ts: 'typescript',
+  1293→      js: 'javascript',
+  1294→      py: 'python',
+  1295→      rb: 'ruby',
+  1296→      go: 'go',
+  1297→      rs: 'rust',
+  1298→      java: 'java',
+  1299→      kt: 'kotlin',
+  1300→      cs: 'csharp',
+  1301→      cpp: 'cpp',
+  1302→      c: 'c',
+  1303→    };
+  1304→    return aliases[lower] || lower;
+  1305→  }
+  1306→
+  1307→  private getExtension(language: string): string {
+  1308→    const extensions: Record<string, string> = {
+  1309→      typescript: 'ts',
+  1310→      javascript: 'js',
+  1311→      python: 'py',
+  1312→      ruby: 'rb',
+  1313→      go: 'go',
+  1314→      rust: 'rs',
+  1315→      java: 'java',
+  1316→      kotlin: 'kt',
+  1317→      csharp: 'cs',
+  1318→      cpp: 'cpp',
+  1319→      c: 'c',
+  1320→    };
+  1321→    return extensions[language] || 'txt';
+  1322→  }
+  1323→
+  1324→  private validateFrameworkCompatibility(language: string, framework: string): boolean {
+  1325→    const compatibility: Record<string, string[]> = {
+  1326→      typescript: ['nestjs', 'express', 'react', 'nextjs', 'angular', 'vue'],
+  1327→      javascript: ['express', 'react', 'nextjs', 'vue', 'svelte'],
+  1328→      python: ['django', 'flask', 'fastapi'],
+  1329→      ruby: ['rails', 'sinatra'],
+  1330→      go: ['gin', 'echo', 'fiber'],
+  1331→      java: ['spring', 'quarkus', 'micronaut'],
+  1332→    };
+  1333→
+  1334→    const supported = compatibility[language];
+  1335→    if (!supported) return true; // Unknown language, assume compatible
+  1336→    return supported.includes(framework.toLowerCase());
+  1337→  }
+  1338→
+  1339→  private inferHttpMethod(methodName: string): string {
+  1340→    const lower = methodName.toLowerCase();
+  1341→    if (lower.includes('create') || lower.includes('add') || lower.includes('insert') || lower.includes('post')) return 'Post';
+  1342→    if (lower.includes('update') || lower.includes('edit') || lower.includes('modify') || lower.includes('put') || lower.includes('patch')) return 'Put';
+  1343→    if (lower.includes('delete') || lower.includes('remove')) return 'Delete';
+  1344→    return 'Get';
+  1345→  }
+  1346→
+  1347→  private extractClassName(description: string): string | null {
+  1348→    const match = description.match(/(?:class|called|named)\s+(\w+)/i);
+  1349→    return match ? this.toPascalCase(match[1]) : null;
+  1350→  }
+  1351→
+  1352→  private toPascalCase(str: string): string {
+  1353→    return str
+  1354→      .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
+  1355→      .replace(/^(.)/, (_, c) => c.toUpperCase());
+  1356→  }
+  1357→
+  1358→  private toCamelCase(str: string): string {
+  1359→    const pascal = this.toPascalCase(str);
+  1360→    return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+  1361→  }
+  1362→
+  1363→  private toKebabCase(str: string): string {
+  1364→    return str
+  1365→      .replace(/([A-Z])/g, '-$1')
+  1366→      .replace(/[-_\s]+/g, '-')
+  1367→      .replace(/^-/, '')
+  1368→      .toLowerCase();
+  1369→  }
+  1370→}
+  1371→

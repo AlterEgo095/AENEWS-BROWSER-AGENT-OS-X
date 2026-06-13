@@ -26,7 +26,13 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ReferenceMissions, ReferenceMission } from './reference-missions';
-import { MissionMetricsService, MissionCategory, MissionMetric, AggregateMetrics, MSR_TARGETS } from './mission-metrics.service';
+import {
+  MissionMetricsService,
+  MissionCategory,
+  MissionMetric,
+  AggregateMetrics,
+  MSR_TARGETS,
+} from './mission-metrics.service';
 
 import { DevelopmentConnector } from '../connectors/development-connector';
 import { BrowserConnector } from '../connectors/browser-connector';
@@ -34,7 +40,11 @@ import { CertificationConnector } from '../connectors/certification-connector';
 import { DeliveryConnector } from '../connectors/delivery-connector';
 import { OfficeConnector } from '../connectors/office-connector';
 import { BusinessConnector } from '../connectors/business-connector';
-import { ICapabilityConnector, ConnectorInput, ConnectorOutput } from '../connectors/connector.interface';
+import {
+  ICapabilityConnector,
+  ConnectorInput,
+  ConnectorOutput,
+} from '../connectors/connector.interface';
 import { DevCapability, CertCapability, DeliveryCapability, CapabilityId } from '../interfaces';
 
 // ─── Types (simplified, no NestJS) ────────────────────────────
@@ -116,9 +126,18 @@ class BatchRunner {
         return Object.values(DevCapability);
       case 'BROWSER':
         return [
-          'browser.login', 'browser.navigation', 'browser.search', 'browser.form',
-          'browser.upload', 'browser.download', 'browser.screenshot', 'browser.vision',
-          'browser.session', 'browser.cookie', 'browser.popup', 'browser.ocr',
+          'browser.login',
+          'browser.navigation',
+          'browser.search',
+          'browser.form',
+          'browser.upload',
+          'browser.download',
+          'browser.screenshot',
+          'browser.vision',
+          'browser.session',
+          'browser.cookie',
+          'browser.popup',
+          'browser.ocr',
         ];
       case 'CERTIFICATION':
         return Object.values(CertCapability);
@@ -126,14 +145,27 @@ class BatchRunner {
         return Object.values(DeliveryCapability);
       case 'OFFICE':
         return [
-          'office.pdf', 'office.docx', 'office.excel', 'office.powerpoint',
-          'office.ocr', 'office.signature', 'office.email', 'office.calendar',
+          'office.pdf',
+          'office.docx',
+          'office.excel',
+          'office.powerpoint',
+          'office.ocr',
+          'office.signature',
+          'office.email',
+          'office.calendar',
         ];
       case 'BUSINESS':
         return [
-          'business.seo', 'business.marketing', 'business.copywriting', 'business.branding',
-          'business.crm', 'business.analytics', 'business.finance', 'business.sales',
-          'business.legal', 'business.partnership',
+          'business.seo',
+          'business.marketing',
+          'business.copywriting',
+          'business.branding',
+          'business.crm',
+          'business.analytics',
+          'business.finance',
+          'business.sales',
+          'business.legal',
+          'business.partnership',
         ];
       default:
         return [];
@@ -141,7 +173,7 @@ class BatchRunner {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private async rateLimitDelay(): Promise<void> {
@@ -195,7 +227,7 @@ class BatchRunner {
    * Convert ConnectorOutput artifacts to RuntimeArtifact format
    */
   private convertArtifacts(connectorArtifacts: any[]): RuntimeArtifact[] {
-    return connectorArtifacts.map(a => ({
+    return connectorArtifacts.map((a) => ({
       name: a.name,
       type: a.type as RuntimeArtifact['type'],
       path: a.path,
@@ -224,7 +256,7 @@ class BatchRunner {
     // Select missions
     let missions: ReferenceMission[];
     if (options.missionIds && options.missionIds.length > 0) {
-      missions = ReferenceMissions.ALL.filter(m => options.missionIds!.includes(m.id));
+      missions = ReferenceMissions.ALL.filter((m) => options.missionIds!.includes(m.id));
     } else if (options.difficulty) {
       missions = ReferenceMissions.getByDifficulty(options.difficulty);
     } else if (options.pack) {
@@ -246,8 +278,12 @@ class BatchRunner {
 
     for (let i = 0; i < missions.length; i++) {
       const mission = missions[i];
-      console.log(`\n[${i + 1}/${missions.length}] Mission #${mission.id}: "${mission.instruction.slice(0, 60)}..."`);
-      console.log(`  Category: ${mission.category} | Pack: ${mission.capabilityPack} | Difficulty: ${mission.difficulty}`);
+      console.log(
+        `\n[${i + 1}/${missions.length}] Mission #${mission.id}: "${mission.instruction.slice(0, 60)}..."`,
+      );
+      console.log(
+        `  Category: ${mission.category} | Pack: ${mission.capabilityPack} | Difficulty: ${mission.difficulty}`,
+      );
 
       const result = await this.executeMission(mission.instruction);
 
@@ -270,13 +306,21 @@ class BatchRunner {
       };
       this.metrics.push(metric);
 
-      const status = result.certified ? '✅ CERTIFIED' : result.success ? '⚠️ SUCCESS (uncertified)' : '❌ FAILED';
-      console.log(`  → ${status} | Score: ${result.qualityScore}/100 | ${(result.totalDurationMs / 1000).toFixed(1)}s | $${result.totalCostUsd.toFixed(3)}`);
+      const status = result.certified
+        ? '✅ CERTIFIED'
+        : result.success
+          ? '⚠️ SUCCESS (uncertified)'
+          : '❌ FAILED';
+      console.log(
+        `  → ${status} | Score: ${result.qualityScore}/100 | ${(result.totalDurationMs / 1000).toFixed(1)}s | $${result.totalCostUsd.toFixed(3)}`,
+      );
       console.log(`  → ${result.artifacts.length} artifacts | ${result.errors.length} errors`);
 
       // Print running MSR
-      const runningMsr = this.metrics.filter(m => m.success).length / this.metrics.length;
-      console.log(`  → Running MSR: ${(runningMsr * 100).toFixed(1)}% (${this.metrics.filter(m => m.success).length}/${this.metrics.length})`);
+      const runningMsr = this.metrics.filter((m) => m.success).length / this.metrics.length;
+      console.log(
+        `  → Running MSR: ${(runningMsr * 100).toFixed(1)}% (${this.metrics.filter((m) => m.success).length}/${this.metrics.length})`,
+      );
 
       // Delay between missions to avoid rate limiting
       if (i < missions.length - 1) {
@@ -330,7 +374,12 @@ class BatchRunner {
     let analysisPlan: any;
     try {
       await this.rateLimitDelay();
-      const archInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const archInput = this.buildConnectorInput(
+        missionId,
+        instruction,
+        workspaceDir,
+        previousResults,
+      );
       const archResult = await this.executeViaConnector(DevCapability.ARCHITECTURE, archInput);
       totalCost += archResult.costUsd;
       previousResults.set(DevCapability.ARCHITECTURE, archResult);
@@ -340,7 +389,9 @@ class BatchRunner {
         try {
           const jsonMatch = archResult.output.architecture.match(/\{[\s\S]*\}/);
           analysisPlan = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-        } catch { /* not JSON, that's fine */ }
+        } catch {
+          /* not JSON, that's fine */
+        }
       }
 
       // Add architecture artifacts
@@ -389,7 +440,13 @@ class BatchRunner {
     // Docker → dev.docker connector
     try {
       await this.rateLimitDelay();
-      const dockerInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults, { plan: analysisPlan });
+      const dockerInput = this.buildConnectorInput(
+        missionId,
+        instruction,
+        workspaceDir,
+        previousResults,
+        { plan: analysisPlan },
+      );
       const dockerResult = await this.executeViaConnector(DevCapability.DOCKER, dockerInput);
       totalCost += dockerResult.costUsd;
       previousResults.set(DevCapability.DOCKER, dockerResult);
@@ -407,7 +464,12 @@ class BatchRunner {
     // dev.test — generates test code
     try {
       await this.rateLimitDelay();
-      const testInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const testInput = this.buildConnectorInput(
+        missionId,
+        instruction,
+        workspaceDir,
+        previousResults,
+      );
       const testResult = await this.executeViaConnector(DevCapability.TEST, testInput);
       totalCost += testResult.costUsd;
       previousResults.set(DevCapability.TEST, testResult);
@@ -421,7 +483,12 @@ class BatchRunner {
     // dev.qa — runs tests + LLM analysis
     try {
       await this.rateLimitDelay();
-      const qaInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const qaInput = this.buildConnectorInput(
+        missionId,
+        instruction,
+        workspaceDir,
+        previousResults,
+      );
       const qaResult = await this.executeViaConnector(DevCapability.QA, qaInput);
       totalCost += qaResult.costUsd;
       previousResults.set(DevCapability.QA, qaResult);
@@ -442,7 +509,7 @@ class BatchRunner {
     // ─── Phase 4: Audit → Quick checks (no LLM for speed) ────
     let auditPassed = true;
     const auditFindings: string[] = [];
-    if (artifacts.filter(a => a.type === 'source').length === 0) {
+    if (artifacts.filter((a) => a.type === 'source').length === 0) {
       auditFindings.push('No source files');
       auditPassed = false;
     }
@@ -458,13 +525,18 @@ class BatchRunner {
     // ─── Phase 6: Document → dev.documentation connector ─────
     try {
       await this.rateLimitDelay();
-      const docInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+      const docInput = this.buildConnectorInput(
+        missionId,
+        instruction,
+        workspaceDir,
+        previousResults,
+      );
       const docResult = await this.executeViaConnector(DevCapability.DOCUMENTATION, docInput);
       totalCost += docResult.costUsd;
       previousResults.set(DevCapability.DOCUMENTATION, docResult);
       if (docResult.success) {
         // Only add doc artifacts that aren't already present (avoid duplicates)
-        const existingNames = new Set(artifacts.map(a => a.name));
+        const existingNames = new Set(artifacts.map((a) => a.name));
         for (const art of this.convertArtifacts(docResult.artifacts)) {
           if (!existingNames.has(art.name)) {
             artifacts.push(art);
@@ -528,7 +600,12 @@ class BatchRunner {
       // Re-test after debug
       try {
         await this.rateLimitDelay();
-        const reTestInput = this.buildConnectorInput(missionId, instruction, workspaceDir, previousResults);
+        const reTestInput = this.buildConnectorInput(
+          missionId,
+          instruction,
+          workspaceDir,
+          previousResults,
+        );
         const reTestResult = await this.executeViaConnector(DevCapability.QA, reTestInput);
         totalCost += reTestResult.costUsd;
 
@@ -549,7 +626,7 @@ class BatchRunner {
     }
 
     const totalDuration = Date.now() - startTime;
-    const success = errors.length === 0 || artifacts.filter(a => a.type === 'source').length > 0;
+    const success = errors.length === 0 || artifacts.filter((a) => a.type === 'source').length > 0;
 
     return {
       missionId,
@@ -580,23 +657,23 @@ class BatchRunner {
       score -= 30;
       reasons.push('Tests failed');
     }
-    if (auditFindings.some(f => f.includes('No source'))) {
+    if (auditFindings.some((f) => f.includes('No source'))) {
       score -= 40;
       reasons.push('No source code');
     }
-    if (auditFindings.some(f => f.includes('too small'))) {
+    if (auditFindings.some((f) => f.includes('too small'))) {
       score -= 10;
       reasons.push('Small files');
     }
-    if (!artifacts.some(a => a.type === 'test')) {
+    if (!artifacts.some((a) => a.type === 'test')) {
       score -= 10;
       reasons.push('No tests');
     }
-    if (!artifacts.some(a => a.type === 'document')) {
+    if (!artifacts.some((a) => a.type === 'document')) {
       score -= 5;
       reasons.push('No documentation');
     }
-    if (!artifacts.some(a => a.type === 'config')) {
+    if (!artifacts.some((a) => a.type === 'config')) {
       score -= 5;
       reasons.push('No config files');
     }
@@ -616,10 +693,34 @@ class BatchRunner {
       objective: instruction,
       techStack: isWebApp ? ['HTML', 'CSS', 'JavaScript', 'Node.js'] : ['JavaScript'],
       phases: [
-        { name: 'Architecture', tasks: ['Define structure'], capabilities: ['dev.architecture'], estimatedMinutes: 10 },
-        { name: 'Frontend', tasks: ['Build UI'], capabilities: ['dev.frontend'], estimatedMinutes: 30 },
-        ...(hasBackend ? [{ name: 'Backend', tasks: ['Build API'], capabilities: ['dev.backend'], estimatedMinutes: 45 }] : []),
-        { name: 'Testing', tasks: ['Write tests'], capabilities: ['dev.test'], estimatedMinutes: 15 },
+        {
+          name: 'Architecture',
+          tasks: ['Define structure'],
+          capabilities: ['dev.architecture'],
+          estimatedMinutes: 10,
+        },
+        {
+          name: 'Frontend',
+          tasks: ['Build UI'],
+          capabilities: ['dev.frontend'],
+          estimatedMinutes: 30,
+        },
+        ...(hasBackend
+          ? [
+              {
+                name: 'Backend',
+                tasks: ['Build API'],
+                capabilities: ['dev.backend'],
+                estimatedMinutes: 45,
+              },
+            ]
+          : []),
+        {
+          name: 'Testing',
+          tasks: ['Write tests'],
+          capabilities: ['dev.test'],
+          estimatedMinutes: 15,
+        },
       ],
       requiredCapabilities: hasBackend
         ? ['dev.architecture', 'dev.frontend', 'dev.backend', 'dev.test']
@@ -635,16 +736,18 @@ class BatchRunner {
 
   private printReport(totalBatchDurationMs: number): void {
     const total = this.metrics.length;
-    const successes = this.metrics.filter(m => m.success).length;
-    const certified = this.metrics.filter(m => m.certified).length;
+    const successes = this.metrics.filter((m) => m.success).length;
+    const certified = this.metrics.filter((m) => m.certified).length;
     const msr = total > 0 ? successes / total : 0;
     const certRate = total > 0 ? certified / total : 0;
 
-    const avgDuration = total > 0 ? Math.round(this.metrics.reduce((s, m) => s + m.durationMs, 0) / total) : 0;
+    const avgDuration =
+      total > 0 ? Math.round(this.metrics.reduce((s, m) => s + m.durationMs, 0) / total) : 0;
     const avgCost = total > 0 ? this.metrics.reduce((s, m) => s + m.costUsd, 0) / total : 0;
     const avgQuality = total > 0 ? this.metrics.reduce((s, m) => s + m.qualityScore, 0) / total : 0;
 
-    const currentTarget = MSR_TARGETS.find(t => msr < t.target) || MSR_TARGETS[MSR_TARGETS.length - 1];
+    const currentTarget =
+      MSR_TARGETS.find((t) => msr < t.target) || MSR_TARGETS[MSR_TARGETS.length - 1];
 
     console.log(`\n${'═'.repeat(80)}`);
     console.log(`  AENEWS SOFTWARE FACTORY — BATCH RUN RESULTS`);
@@ -655,7 +758,9 @@ class BatchRunner {
     console.log(`${'─'.repeat(80)}`);
     console.log(`  MSR (Mission Success):   ${(msr * 100).toFixed(1)}%  ← KPI #1`);
     console.log(`  Certification Rate:      ${(certRate * 100).toFixed(1)}%`);
-    console.log(`  Current Target:          ${(currentTarget.target * 100).toFixed(0)}% (${currentTarget.label})`);
+    console.log(
+      `  Current Target:          ${(currentTarget.target * 100).toFixed(0)}% (${currentTarget.label})`,
+    );
     console.log(`  Gap to Target:           ${((currentTarget.target - msr) * 100).toFixed(1)}%`);
     console.log(`${'─'.repeat(80)}`);
     console.log(`  Avg Duration:            ${(avgDuration / 1000).toFixed(1)}s`);
@@ -668,7 +773,9 @@ class BatchRunner {
     console.log(`  Mission Details:`);
     for (const m of this.metrics) {
       const status = m.certified ? '✅' : m.success ? '⚠️' : '❌';
-      console.log(`    ${status} #${m.missionId} — "${m.instruction.slice(0, 45)}..." — Score: ${m.qualityScore} — ${(m.durationMs / 1000).toFixed(1)}s — ${m.artifactCount} files`);
+      console.log(
+        `    ${status} #${m.missionId} — "${m.instruction.slice(0, 45)}..." — Score: ${m.qualityScore} — ${(m.durationMs / 1000).toFixed(1)}s — ${m.artifactCount} files`,
+      );
     }
 
     // Category breakdown
@@ -682,7 +789,9 @@ class BatchRunner {
     console.log(`${'─'.repeat(80)}`);
     console.log(`  Category Breakdown:`);
     for (const [cat, data] of Object.entries(categories)) {
-      console.log(`    ${cat}: ${data.success}/${data.total} (${((data.success / data.total) * 100).toFixed(0)}%)`);
+      console.log(
+        `    ${cat}: ${data.success}/${data.total} (${((data.success / data.total) * 100).toFixed(0)}%)`,
+      );
     }
 
     console.log(`${'═'.repeat(80)}\n`);
@@ -694,7 +803,7 @@ class BatchRunner {
       console.log(`  🥇 ENTERPRISE LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 95%`);
     } else if (msr >= 0.85) {
       console.log(`  🥈 BETA LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 85%`);
-    } else if (msr >= 0.70) {
+    } else if (msr >= 0.7) {
       console.log(`  🥉 MVP LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 70%`);
     } else {
       console.log(`  ⚠️  BELOW MVP — MSR ${(msr * 100).toFixed(1)}% < 70% — Need to improve!`);
@@ -712,8 +821,8 @@ class BatchRunner {
 
   private computeAggregate(): AggregateMetrics {
     const total = this.metrics.length;
-    const successes = this.metrics.filter(m => m.success).length;
-    const certified = this.metrics.filter(m => m.certified).length;
+    const successes = this.metrics.filter((m) => m.success).length;
+    const certified = this.metrics.filter((m) => m.certified).length;
 
     return {
       totalMissions: total,
@@ -721,15 +830,18 @@ class BatchRunner {
       certified,
       msr: total > 0 ? successes / total : 0,
       certificationRate: total > 0 ? certified / total : 0,
-      avgDurationMs: total > 0 ? Math.round(this.metrics.reduce((s, m) => s + m.durationMs, 0) / total) : 0,
+      avgDurationMs:
+        total > 0 ? Math.round(this.metrics.reduce((s, m) => s + m.durationMs, 0) / total) : 0,
       avgCostUsd: total > 0 ? this.metrics.reduce((s, m) => s + m.costUsd, 0) / total : 0,
       avgQualityScore: total > 0 ? this.metrics.reduce((s, m) => s + m.qualityScore, 0) / total : 0,
       totalRetries: this.metrics.reduce((s, m) => s + m.retries, 0),
-      p50DurationMs: 0, p95DurationMs: 0, p99DurationMs: 0,
+      p50DurationMs: 0,
+      p95DurationMs: 0,
+      p99DurationMs: 0,
       byCategory: {},
       recentTrend: { last10Msr: 0, last25Msr: 0, last50Msr: 0, improving: false },
-      targetMsr: 0.70,
-      msrGap: 0.70 - (total > 0 ? successes / total : 0),
+      targetMsr: 0.7,
+      msrGap: 0.7 - (total > 0 ? successes / total : 0),
     };
   }
 }
@@ -742,19 +854,31 @@ async function main() {
   const args = process.argv.slice(2);
 
   let count = 5;
-  let missionIds: number[] = [];
+  const missionIds: number[] = [];
   let difficulty: 'easy' | 'medium' | 'hard' | undefined;
   let pack: string | undefined;
   let delayMs = 3000;
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--count' && args[i + 1]) { count = parseInt(args[i + 1]); i++; }
-    else if (args[i] === '--mission-id' && args[i + 1]) { missionIds.push(parseInt(args[i + 1])); i++; }
-    else if (args[i] === '--easy') { difficulty = 'easy'; }
-    else if (args[i] === '--medium') { difficulty = 'medium'; }
-    else if (args[i] === '--hard') { difficulty = 'hard'; }
-    else if (args[i] === '--pack' && args[i + 1]) { pack = args[i + 1]; i++; }
-    else if (args[i] === '--delay' && args[i + 1]) { delayMs = parseInt(args[i + 1]); i++; }
+    if (args[i] === '--count' && args[i + 1]) {
+      count = parseInt(args[i + 1]);
+      i++;
+    } else if (args[i] === '--mission-id' && args[i + 1]) {
+      missionIds.push(parseInt(args[i + 1]));
+      i++;
+    } else if (args[i] === '--easy') {
+      difficulty = 'easy';
+    } else if (args[i] === '--medium') {
+      difficulty = 'medium';
+    } else if (args[i] === '--hard') {
+      difficulty = 'hard';
+    } else if (args[i] === '--pack' && args[i + 1]) {
+      pack = args[i + 1];
+      i++;
+    } else if (args[i] === '--delay' && args[i + 1]) {
+      delayMs = parseInt(args[i + 1]);
+      i++;
+    }
   }
 
   const runner = new BatchRunner();
@@ -775,7 +899,7 @@ async function main() {
 
 // Run if called directly
 if (require.main === module) {
-  main().catch(err => {
+  main().catch((err) => {
     console.error(err);
     process.exit(1);
   });

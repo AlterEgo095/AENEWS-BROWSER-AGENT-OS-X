@@ -1,0 +1,1076 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Build Agent
+     3→ * Builds, compiles, and bundles code. Manages build configurations,
+     4→ * clean builds, and build information reporting.
+     5→ */
+     6→
+     7→import { Injectable } from '@nestjs/common';
+     8→import { BaseAgentService } from '../../base/base-agent.service';
+     9→import {
+    10→  AgentConfig,
+    11→  AgentCluster,
+    12→  AgentInput,
+    13→  AgentOutput,
+    14→} from '../../interfaces/agent.interface';
+    15→
+    16→// ─── Agent Configuration ──────────────────────────────────────────
+    17→
+    18→export const BUILD_AGENT_CONFIG: AgentConfig = {
+    19→  id: 'coding-build',
+    20→  name: 'Build',
+    21→  cluster: AgentCluster.CODING,
+    22→  version: '1.0.0',
+    23→  description:
+    24→    'Build, compile, and bundle code. Manage build configurations, perform clean builds, and report build information. Supports TypeScript, Webpack, esbuild, Rollup, and NestJS build tools.',
+    25→  capabilities: [
+    26→    {
+    27→      name: 'build',
+    28→      description: 'Execute a full build of the project',
+    29→      inputSchema: {
+    30→        type: 'object',
+    31→        properties: {
+    32→          projectPath: { type: 'string', description: 'Path to the project root' },
+    33→          environment: {
+    34→            type: 'string',
+    35→            enum: ['development', 'staging', 'production'],
+    36→            default: 'production',
+    37→          },
+    38→          target: { type: 'string', description: 'Build target (e.g., "node", "browser")' },
+    39→          watch: { type: 'boolean', default: false },
+    40→          verbose: { type: 'boolean', default: false },
+    41→        },
+    42→        required: ['projectPath'],
+    43→      },
+    44→      outputSchema: {
+    45→        type: 'object',
+    46→        properties: {
+    47→          success: { type: 'boolean' },
+    48→          duration: { type: 'number' },
+    49→          outputFiles: { type: 'array', items: { type: 'object' } },
+    50→          errors: { type: 'array', items: { type: 'string' } },
+    51→          warnings: { type: 'array', items: { type: 'string' } },
+    52→        },
+    53→      },
+    54→    },
+    55→    {
+    56→      name: 'compile',
+    57→      description: 'Compile TypeScript or other source files',
+    58→      inputSchema: {
+    59→        type: 'object',
+    60→        properties: {
+    61→          sourcePath: { type: 'string', description: 'Path to source files' },
+    62→          outputPath: { type: 'string', description: 'Output directory for compiled files' },
+    63→          compiler: { type: 'string', enum: ['tsc', 'swc', 'esbuild'], default: 'tsc' },
+    64→          strict: { type: 'boolean', default: true },
+    65→          sourceMap: { type: 'boolean', default: true },
+    66→        },
+    67→        required: ['sourcePath', 'outputPath'],
+    68→      },
+    69→      outputSchema: {
+    70→        type: 'object',
+    71→        properties: {
+    72→          success: { type: 'boolean' },
+    73→          filesCompiled: { type: 'number' },
+    74→          duration: { type: 'number' },
+    75→          errors: { type: 'array', items: { type: 'object' } },
+    76→        },
+    77→      },
+    78→    },
+    79→    {
+    80→      name: 'bundle',
+    81→      description: 'Bundle code for distribution using Webpack, esbuild, or Rollup',
+    82→      inputSchema: {
+    83→        type: 'object',
+    84→        properties: {
+    85→          entryPoint: { type: 'string', description: 'Entry point file path' },
+    86→          outputPath: { type: 'string', description: 'Output bundle path' },
+    87→          bundler: { type: 'string', enum: ['webpack', 'esbuild', 'rollup'], default: 'esbuild' },
+    88→          minify: { type: 'boolean', default: true },
+    89→          treeShaking: { type: 'boolean', default: true },
+    90→          format: { type: 'string', enum: ['esm', 'cjs', 'iife'], default: 'esm' },
+    91→        },
+    92→        required: ['entryPoint', 'outputPath'],
+    93→      },
+    94→      outputSchema: {
+    95→        type: 'object',
+    96→        properties: {
+    97→          success: { type: 'boolean' },
+    98→          bundleSize: { type: 'number' },
+    99→          duration: { type: 'number' },
+   100→          modules: { type: 'number' },
+   101→          chunks: { type: 'array', items: { type: 'object' } },
+   102→        },
+   103→      },
+   104→    },
+   105→    {
+   106→      name: 'cleanBuild',
+   107→      description: 'Clean build artifacts and perform a fresh build',
+   108→      inputSchema: {
+   109→        type: 'object',
+   110→        properties: {
+   111→          projectPath: { type: 'string', description: 'Path to project root' },
+   112→          cleanTargets: {
+   113→            type: 'array',
+   114→            items: { type: 'string' },
+   115→            description: 'Directories to clean',
+   116→          },
+   117→          environment: {
+   118→            type: 'string',
+   119→            enum: ['development', 'staging', 'production'],
+   120→            default: 'production',
+   121→          },
+   122→        },
+   123→        required: ['projectPath'],
+   124→      },
+   125→      outputSchema: {
+   126→        type: 'object',
+   127→        properties: {
+   128→          cleaned: { type: 'array', items: { type: 'string' } },
+   129→          buildResult: { type: 'object' },
+   130→          totalDuration: { type: 'number' },
+   131→        },
+   132→      },
+   133→    },
+   134→    {
+   135→      name: 'configureBuild',
+   136→      description: 'Configure build settings and generate configuration files',
+   137→      inputSchema: {
+   138→        type: 'object',
+   139→        properties: {
+   140→          projectPath: { type: 'string', description: 'Path to project root' },
+   141→          buildTool: { type: 'string', enum: ['tsc', 'webpack', 'esbuild', 'rollup', 'nest-cli'] },
+   142→          options: { type: 'object', description: 'Build configuration options' },
+   143→          overwrite: { type: 'boolean', default: false },
+   144→        },
+   145→        required: ['projectPath', 'buildTool'],
+   146→      },
+   147→      outputSchema: {
+   148→        type: 'object',
+   149→        properties: {
+   150→          configPath: { type: 'string' },
+   151→          configContent: { type: 'string' },
+   152→          created: { type: 'boolean' },
+   153→          warnings: { type: 'array', items: { type: 'string' } },
+   154→        },
+   155→      },
+   156→    },
+   157→    {
+   158→      name: 'getBuildInfo',
+   159→      description: 'Get information about the build environment and last build',
+   160→      inputSchema: {
+   161→        type: 'object',
+   162→        properties: {
+   163→          projectPath: { type: 'string', description: 'Path to project root' },
+   164→          includeDependencies: { type: 'boolean', default: true },
+   165→          includeSystemInfo: { type: 'boolean', default: true },
+   166→        },
+   167→        required: ['projectPath'],
+   168→      },
+   169→      outputSchema: {
+   170→        type: 'object',
+   171→        properties: {
+   172→          buildTool: { type: 'string' },
+   173→          nodeVersion: { type: 'string' },
+   174→          lastBuildTime: { type: 'string' },
+   175→          buildStatus: { type: 'string' },
+   176→          buildArtifacts: { type: 'array', items: { type: 'object' } },
+   177→        },
+   178→      },
+   179→    },
+   180→  ],
+   181→  permissions: [
+   182→    'execute:task',
+   183→    'read:filesystem',
+   184→    'write:filesystem',
+   185→    'execute:build',
+   186→    'read:config',
+   187→    'write:config',
+   188→  ],
+   189→  maxConcurrentTasks: 2,
+   190→  timeout: 300000,
+   191→  retryPolicy: {
+   192→    maxRetries: 1,
+   193→    backoffMs: 3000,
+   194→    exponentialBackoff: true,
+   195→  },
+   196→};
+   197→
+   198→// ─── Internal Types ───────────────────────────────────────────────
+   199→
+   200→interface BuildOutputFile {
+   201→  path: string;
+   202→  size: number;
+   203→  type: 'js' | 'map' | 'css' | 'html' | 'asset';
+   204→  hash?: string;
+   205→}
+   206→
+   207→interface CompileError {
+   208→  file: string;
+   209→  line: number;
+   210→  column: number;
+   211→  message: string;
+   212→  code: string;
+   213→  severity: 'error' | 'warning';
+   214→}
+   215→
+   216→interface BuildChunk {
+   217→  name: string;
+   218→  size: number;
+   219→  files: string[];
+   220→  isEntry: boolean;
+   221→}
+   222→
+   223→interface BuildArtifact {
+   224→  name: string;
+   225→  path: string;
+   226→  size: number;
+   227→  lastModified: Date;
+   228→  type: string;
+   229→}
+   230→
+   231→// ─── Agent Service ────────────────────────────────────────────────
+   232→
+   233→@Injectable()
+   234→export class BuildAgentService extends BaseAgentService {
+   235→  private buildHistory: Array<{
+   236→    timestamp: Date;
+   237→    success: boolean;
+   238→    duration: number;
+   239→    environment: string;
+   240→  }> = [];
+   241→  private lastBuildInfo: Record<string, any> = {};
+   242→
+   243→  protected defineConfig(): AgentConfig {
+   244→    return BUILD_AGENT_CONFIG;
+   245→  }
+   246→
+   247→  protected async onInitialize(): Promise<void> {
+   248→    this.registerTool({
+   249→      name: 'build',
+   250→      description: 'Execute a full build of the project',
+   251→      execute: async (params: {
+   252→        projectPath: string;
+   253→        environment?: string;
+   254→        target?: string;
+   255→        watch?: boolean;
+   256→        verbose?: boolean;
+   257→      }) => this.build(params),
+   258→    });
+   259→
+   260→    this.registerTool({
+   261→      name: 'compile',
+   262→      description: 'Compile source files',
+   263→      execute: async (params: {
+   264→        sourcePath: string;
+   265→        outputPath: string;
+   266→        compiler?: string;
+   267→        strict?: boolean;
+   268→        sourceMap?: boolean;
+   269→      }) => this.compile(params),
+   270→    });
+   271→
+   272→    this.registerTool({
+   273→      name: 'bundle',
+   274→      description: 'Bundle code for distribution',
+   275→      execute: async (params: {
+   276→        entryPoint: string;
+   277→        outputPath: string;
+   278→        bundler?: string;
+   279→        minify?: boolean;
+   280→        treeShaking?: boolean;
+   281→        format?: string;
+   282→      }) => this.bundle(params),
+   283→    });
+   284→
+   285→    this.registerTool({
+   286→      name: 'cleanBuild',
+   287→      description: 'Clean and rebuild',
+   288→      execute: async (params: {
+   289→        projectPath: string;
+   290→        cleanTargets?: string[];
+   291→        environment?: string;
+   292→      }) => this.cleanBuild(params),
+   293→    });
+   294→
+   295→    this.registerTool({
+   296→      name: 'configureBuild',
+   297→      description: 'Configure build settings',
+   298→      execute: async (params: {
+   299→        projectPath: string;
+   300→        buildTool: string;
+   301→        options?: Record<string, any>;
+   302→        overwrite?: boolean;
+   303→      }) => this.configureBuild(params),
+   304→    });
+   305→
+   306→    this.registerTool({
+   307→      name: 'getBuildInfo',
+   308→      description: 'Get build environment information',
+   309→      execute: async (params: {
+   310→        projectPath: string;
+   311→        includeDependencies?: boolean;
+   312→        includeSystemInfo?: boolean;
+   313→      }) => this.getBuildInfo(params),
+   314→    });
+   315→
+   316→    await this.storeInWorkingMemory('build:initializedAt', new Date().toISOString(), 600000);
+   317→    this.logger.log('Build agent initialized with 6 tools');
+   318→  }
+   319→
+   320→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   321→    const startTime = Date.now();
+   322→    const { action, ...params } = input.payload;
+   323→
+   324→    if (!action) {
+   325→      return this.createAgentOutput(
+   326→        input.taskId,
+   327→        false,
+   328→        null,
+   329→        'Missing required parameter: action',
+   330→        startTime,
+   331→      );
+   332→    }
+   333→
+   334→    const supportedActions = [
+   335→      'build',
+   336→      'compile',
+   337→      'bundle',
+   338→      'cleanBuild',
+   339→      'configureBuild',
+   340→      'getBuildInfo',
+   341→    ];
+   342→
+   343→    if (!supportedActions.includes(action)) {
+   344→      return this.createAgentOutput(
+   345→        input.taskId,
+   346→        false,
+   347→        null,
+   348→        `Unknown build action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   349→        startTime,
+   350→      );
+   351→    }
+   352→
+   353→    try {
+   354→      const tool = this.getTool(action);
+   355→      if (!tool) {
+   356→        return this.createAgentOutput(
+   357→          input.taskId,
+   358→          false,
+   359→          null,
+   360→          `Tool not found: ${action}`,
+   361→          startTime,
+   362→        );
+   363→      }
+   364→
+   365→      const result = await tool.execute(params);
+   366→
+   367→      await this.storeInWorkingMemory(
+   368→        `build:last:${action}`,
+   369→        { params, result, timestamp: new Date() },
+   370→        300000,
+   371→      );
+   372→
+   373→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   374→    } catch (error) {
+   375→      const msg = (error as Error).message;
+   376→      this.logger.error(`Build execution failed for ${action}: ${msg}`);
+   377→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   378→    }
+   379→  }
+   380→
+   381→  protected async onDestroy(): Promise<void> {
+   382→    this.buildHistory = [];
+   383→    this.lastBuildInfo = {};
+   384→    this.logger.log('Build agent destroyed, history cleared');
+   385→  }
+   386→
+   387→  // ─── Tool Implementations ──────────────────────────────────────
+   388→
+   389→  private async build(params: {
+   390→    projectPath: string;
+   391→    environment?: string;
+   392→    target?: string;
+   393→    watch?: boolean;
+   394→    verbose?: boolean;
+   395→  }): Promise<{
+   396→    success: boolean;
+   397→    duration: number;
+   398→    outputFiles: BuildOutputFile[];
+   399→    errors: string[];
+   400→    warnings: string[];
+   401→    environment: string;
+   402→  }> {
+   403→    const {
+   404→      projectPath,
+   405→      environment = 'production',
+   406→      target = 'node',
+   407→      watch = false,
+   408→      verbose = false,
+   409→    } = params;
+   410→
+   411→    if (!projectPath || typeof projectPath !== 'string') {
+   412→      throw new Error('Project path is required');
+   413→    }
+   414→
+   415→    const buildStart = Date.now();
+   416→    const errors: string[] = [];
+   417→    const warnings: string[] = [];
+   418→
+   419→    // Simulate build process
+   420→    const outputFiles: BuildOutputFile[] = [];
+   421→
+   422→    // Step 1: Validation
+   423→    if (verbose) this.logger.log('Validating project structure...');
+   424→
+   425→    // Step 2: Compilation
+   426→    if (verbose) this.logger.log('Compiling TypeScript...');
+   427→    const compileResult = this.simulateCompilation(projectPath);
+   428→    if (compileResult.errors.length > 0) {
+   429→      errors.push(...compileResult.errors.map((e) => `${e.file}:${e.line} - ${e.message}`));
+   430→    }
+   431→    if (compileResult.warnings.length > 0) {
+   432→      warnings.push(...compileResult.warnings.map((w) => `${w.file}:${w.line} - ${w.message}`));
+   433→    }
+   434→
+   435→    // Step 3: Bundling
+   436→    if (verbose) this.logger.log('Bundling output...');
+   437→    outputFiles.push(...this.simulateBuildOutput(projectPath, environment));
+   438→
+   439→    // Step 4: Asset optimization (production only)
+   440→    if (environment === 'production') {
+   441→      if (verbose) this.logger.log('Optimizing assets...');
+   442→      warnings.push('Consider enabling gzip compression for production assets');
+   443→    }
+   444→
+   445→    const duration = Date.now() - buildStart;
+   446→    const success = errors.length === 0;
+   447→
+   448→    // Record build history
+   449→    this.buildHistory.push({ timestamp: new Date(), success, duration, environment });
+   450→
+   451→    this.lastBuildInfo = {
+   452→      projectPath,
+   453→      environment,
+   454→      target,
+   455→      success,
+   456→      duration,
+   457→      outputCount: outputFiles.length,
+   458→      timestamp: new Date(),
+   459→    };
+   460→
+   461→    // Store build info in memory
+   462→    await this.storeInWorkingMemory('build:lastResult', this.lastBuildInfo, 300000);
+   463→
+   464→    this.logger.log(
+   465→      `Build ${success ? 'succeeded' : 'failed'}: ${duration}ms, ${outputFiles.length} output file(s), ${errors.length} error(s), ${warnings.length} warning(s)`,
+   466→    );
+   467→
+   468→    return { success, duration, outputFiles, errors, warnings, environment };
+   469→  }
+   470→
+   471→  private async compile(params: {
+   472→    sourcePath: string;
+   473→    outputPath: string;
+   474→    compiler?: string;
+   475→    strict?: boolean;
+   476→    sourceMap?: boolean;
+   477→  }): Promise<{
+   478→    success: boolean;
+   479→    filesCompiled: number;
+   480→    duration: number;
+   481→    errors: CompileError[];
+   482→    warnings: CompileError[];
+   483→  }> {
+   484→    const { sourcePath, outputPath, compiler = 'tsc', strict = true, sourceMap = true } = params;
+   485→
+   486→    if (!sourcePath || typeof sourcePath !== 'string') {
+   487→      throw new Error('Source path is required');
+   488→    }
+   489→    if (!outputPath || typeof sourcePath !== 'string') {
+   490→      throw new Error('Output path is required');
+   491→    }
+   492→
+   493→    const validCompilers = ['tsc', 'swc', 'esbuild'];
+   494→    if (!validCompilers.includes(compiler)) {
+   495→      throw new Error(`Invalid compiler: ${compiler}. Valid: ${validCompilers.join(', ')}`);
+   496→    }
+   497→
+   498→    const compileStart = Date.now();
+   499→
+   500→    // Simulate compilation
+   501→    const result = this.simulateCompilation(sourcePath);
+   502→
+   503→    // Apply strict mode
+   504→    if (strict) {
+   505→      const strictWarnings = this.simulateStrictModeCheck(sourcePath);
+   506→      result.warnings.push(...strictWarnings);
+   507→    }
+   508→
+   509→    // Estimate files compiled
+   510→    const filesCompiled = 10 + Math.floor(Math.random() * 40);
+   511→
+   512→    const duration = Date.now() - compileStart;
+   513→    const success = result.errors.length === 0;
+   514→
+   515→    this.logger.log(
+   516→      `Compile ${success ? 'succeeded' : 'failed'}: ${compiler}, ${filesCompiled} file(s), ${duration}ms`,
+   517→    );
+   518→
+   519→    return {
+   520→      success,
+   521→      filesCompiled,
+   522→      duration,
+   523→      errors: result.errors,
+   524→      warnings: result.warnings,
+   525→    };
+   526→  }
+   527→
+   528→  private async bundle(params: {
+   529→    entryPoint: string;
+   530→    outputPath: string;
+   531→    bundler?: string;
+   532→    minify?: boolean;
+   533→    treeShaking?: boolean;
+   534→    format?: string;
+   535→  }): Promise<{
+   536→    success: boolean;
+   537→    bundleSize: number;
+   538→    duration: number;
+   539→    modules: number;
+   540→    chunks: BuildChunk[];
+   541→  }> {
+   542→    const {
+   543→      entryPoint,
+   544→      outputPath,
+   545→      bundler = 'esbuild',
+   546→      minify = true,
+   547→      treeShaking = true,
+   548→      format = 'esm',
+   549→    } = params;
+   550→
+   551→    if (!entryPoint || typeof entryPoint !== 'string') {
+   552→      throw new Error('Entry point is required');
+   553→    }
+   554→    if (!outputPath || typeof outputPath !== 'string') {
+   555→      throw new Error('Output path is required');
+   556→    }
+   557→
+   558→    const validBundlers = ['webpack', 'esbuild', 'rollup'];
+   559→    if (!validBundlers.includes(bundler)) {
+   560→      throw new Error(`Invalid bundler: ${bundler}. Valid: ${validBundlers.join(', ')}`);
+   561→    }
+   562→
+   563→    const validFormats = ['esm', 'cjs', 'iife'];
+   564→    if (!validFormats.includes(format)) {
+   565→      throw new Error(`Invalid format: ${format}. Valid: ${validFormats.join(', ')}`);
+   566→    }
+   567→
+   568→    const bundleStart = Date.now();
+   569→
+   570→    // Simulate bundling
+   571→    const modules = 20 + Math.floor(Math.random() * 100);
+   572→
+   573→    // Calculate simulated bundle size
+   574→    let baseSize = modules * 2048; // ~2KB per module
+   575→    if (minify) baseSize = Math.round(baseSize * 0.6);
+   576→    if (treeShaking) baseSize = Math.round(baseSize * 0.75);
+   577→
+   578→    const bundleSize = baseSize;
+   579→
+   580→    // Generate chunks
+   581→    const chunks: BuildChunk[] = [
+   582→      {
+   583→        name: 'main',
+   584→        size: Math.round(bundleSize * 0.7),
+   585→        files: [outputPath],
+   586→        isEntry: true,
+   587→      },
+   588→    ];
+   589→
+   590→    // Add vendor chunk if using webpack
+   591→    if (bundler === 'webpack') {
+   592→      chunks.push({
+   593→        name: 'vendor',
+   594→        size: Math.round(bundleSize * 0.3),
+   595→        files: [outputPath.replace(/\.\w+$/, '.vendor$&')],
+   596→        isEntry: false,
+   597→      });
+   598→    }
+   599→
+   600→    // Add CSS chunk for browser targets
+   601→    if (format === 'iife') {
+   602→      chunks.push({
+   603→        name: 'styles',
+   604→        size: Math.round(bundleSize * 0.05),
+   605→        files: [outputPath.replace(/\.\w+$/, '.css')],
+   606→        isEntry: false,
+   607→      });
+   608→    }
+   609→
+   610→    const duration = Date.now() - bundleStart;
+   611→
+   612→    this.logger.log(
+   613→      `Bundle ${bundler}: ${bundleSize} bytes, ${modules} modules, ${chunks.length} chunk(s), ${duration}ms`,
+   614→    );
+   615→
+   616→    return {
+   617→      success: true,
+   618→      bundleSize,
+   619→      duration,
+   620→      modules,
+   621→      chunks,
+   622→    };
+   623→  }
+   624→
+   625→  private async cleanBuild(params: {
+   626→    projectPath: string;
+   627→    cleanTargets?: string[];
+   628→    environment?: string;
+   629→  }): Promise<{
+   630→    cleaned: string[];
+   631→    buildResult: Record<string, any>;
+   632→    totalDuration: number;
+   633→  }> {
+   634→    const {
+   635→      projectPath,
+   636→      cleanTargets = ['dist', 'build', '.cache', '.tmp'],
+   637→      environment = 'production',
+   638→    } = params;
+   639→
+   640→    if (!projectPath || typeof projectPath !== 'string') {
+   641→      throw new Error('Project path is required');
+   642→    }
+   643→
+   644→    const totalStart = Date.now();
+   645→
+   646→    // Step 1: Clean targets
+   647→    const cleaned: string[] = [];
+   648→    for (const target of cleanTargets) {
+   649→      cleaned.push(`${projectPath}/${target}`);
+   650→      this.logger.log(`Cleaned: ${projectPath}/${target}`);
+   651→    }
+   652→
+   653→    // Step 2: Perform fresh build
+   654→    const buildResult = await this.build({
+   655→      projectPath,
+   656→      environment,
+   657→      verbose: true,
+   658→    });
+   659→
+   660→    const totalDuration = Date.now() - totalStart;
+   661→
+   662→    this.logger.log(
+   663→      `Clean build: ${cleaned.length} dir(s) cleaned, build ${buildResult.success ? 'succeeded' : 'failed'}, ${totalDuration}ms total`,
+   664→    );
+   665→
+   666→    return {
+   667→      cleaned,
+   668→      buildResult,
+   669→      totalDuration,
+   670→    };
+   671→  }
+   672→
+   673→  private async configureBuild(params: {
+   674→    projectPath: string;
+   675→    buildTool: string;
+   676→    options?: Record<string, any>;
+   677→    overwrite?: boolean;
+   678→  }): Promise<{
+   679→    configPath: string;
+   680→    configContent: string;
+   681→    created: boolean;
+   682→    warnings: string[];
+   683→  }> {
+   684→    const { projectPath, buildTool, options = {}, overwrite = false } = params;
+   685→
+   686→    if (!projectPath || typeof projectPath !== 'string') {
+   687→      throw new Error('Project path is required');
+   688→    }
+   689→
+   690→    const validBuildTools = ['tsc', 'webpack', 'esbuild', 'rollup', 'nest-cli'];
+   691→    if (!validBuildTools.includes(buildTool)) {
+   692→      throw new Error(`Invalid build tool: ${buildTool}. Valid: ${validBuildTools.join(', ')}`);
+   693→    }
+   694→
+   695→    const warnings: string[] = [];
+   696→    let configPath: string;
+   697→    let configContent: string;
+   698→
+   699→    switch (buildTool) {
+   700→      case 'tsc':
+   701→        configPath = `${projectPath}/tsconfig.json`;
+   702→        configContent = this.generateTsConfig(options);
+   703→        break;
+   704→      case 'webpack':
+   705→        configPath = `${projectPath}/webpack.config.js`;
+   706→        configContent = this.generateWebpackConfig(options);
+   707→        break;
+   708→      case 'esbuild':
+   709→        configPath = `${projectPath}/esbuild.config.js`;
+   710→        configContent = this.generateEsbuildConfig(options);
+   711→        break;
+   712→      case 'rollup':
+   713→        configPath = `${projectPath}/rollup.config.js`;
+   714→        configContent = this.generateRollupConfig(options);
+   715→        break;
+   716→      case 'nest-cli':
+   717→        configPath = `${projectPath}/nest-cli.json`;
+   718→        configContent = this.generateNestCliConfig(options);
+   719→        break;
+   720→      default:
+   721→        throw new Error(`Unsupported build tool: ${buildTool}`);
+   722→    }
+   723→
+   724→    if (!overwrite) {
+   725→      warnings.push(
+   726→        'If the config file already exists, it will not be overwritten. Set overwrite: true to replace.',
+   727→      );
+   728→    }
+   729→
+   730→    this.logger.log(`Configured build: ${buildTool}, config at ${configPath}`);
+   731→
+   732→    return { configPath, configContent, created: true, warnings };
+   733→  }
+   734→
+   735→  private async getBuildInfo(params: {
+   736→    projectPath: string;
+   737→    includeDependencies?: boolean;
+   738→    includeSystemInfo?: boolean;
+   739→  }): Promise<{
+   740→    buildTool: string;
+   741→    nodeVersion: string;
+   742→    lastBuildTime: string | null;
+   743→    buildStatus: string;
+   744→    buildArtifacts: BuildArtifact[];
+   745→    systemInfo?: Record<string, any>;
+   746→    dependencies?: Record<string, string>;
+   747→  }> {
+   748→    const { projectPath, includeDependencies = true, includeSystemInfo = true } = params;
+   749→
+   750→    if (!projectPath || typeof projectPath !== 'string') {
+   751→      throw new Error('Project path is required');
+   752→    }
+   753→
+   754→    // Build information
+   755→    const buildTool = this.detectBuildTool();
+   756→    const nodeVersion = process.version;
+   757→    const lastBuildTime = this.lastBuildInfo.timestamp?.toISOString() || null;
+   758→    const buildStatus = this.lastBuildInfo.success
+   759→      ? 'success'
+   760→      : this.lastBuildInfo.success === false
+   761→        ? 'failed'
+   762→        : 'never_built';
+   763→
+   764→    // Simulated build artifacts
+   765→    const buildArtifacts: BuildArtifact[] = [
+   766→      {
+   767→        name: 'main.js',
+   768→        path: `${projectPath}/dist/main.js`,
+   769→        size: 245760,
+   770→        lastModified: new Date(),
+   771→        type: 'js',
+   772→      },
+   773→      {
+   774→        name: 'main.js.map',
+   775→        path: `${projectPath}/dist/main.js.map`,
+   776→        size: 512000,
+   777→        lastModified: new Date(),
+   778→        type: 'map',
+   779→      },
+   780→      {
+   781→        name: 'chunk-vendor.js',
+   782→        path: `${projectPath}/dist/chunk-vendor.js`,
+   783→        size: 1048576,
+   784→        lastModified: new Date(),
+   785→        type: 'js',
+   786→      },
+   787→    ];
+   788→
+   789→    const result: any = {
+   790→      buildTool,
+   791→      nodeVersion,
+   792→      lastBuildTime,
+   793→      buildStatus,
+   794→      buildArtifacts,
+   795→    };
+   796→
+   797→    if (includeSystemInfo) {
+   798→      result.systemInfo = {
+   799→        platform: process.platform,
+   800→        arch: process.arch,
+   801→        cpuCount: require('os').cpus().length,
+   802→        totalMemory: `${Math.round(require('os').totalmem() / 1024 / 1024 / 1024)}GB`,
+   803→        freeMemory: `${Math.round(require('os').freemem() / 1024 / 1024 / 1024)}GB`,
+   804→        uptime: `${Math.round(process.uptime())}s`,
+   805→      };
+   806→    }
+   807→
+   808→    if (includeDependencies) {
+   809→      result.dependencies = {
+   810→        typescript: '5.3.3',
+   811→        '@nestjs/common': '10.3.0',
+   812→        '@nestjs/core': '10.3.0',
+   813→        'reflect-metadata': '0.2.1',
+   814→        rxjs: '7.8.1',
+   815→      };
+   816→    }
+   817→
+   818→    this.logger.log(`Build info: tool=${buildTool}, node=${nodeVersion}, status=${buildStatus}`);
+   819→
+   820→    return result;
+   821→  }
+   822→
+   823→  // ─── Simulation Helpers ────────────────────────────────────────
+   824→
+   825→  private simulateCompilation(sourcePath: string): {
+   826→    errors: CompileError[];
+   827→    warnings: CompileError[];
+   828→  } {
+   829→    const errors: CompileError[] = [];
+   830→    const warnings: CompileError[] = [];
+   831→
+   832→    // Simulate some warnings (common)
+   833→    warnings.push({
+   834→      file: `${sourcePath}/src/module.ts`,
+   835→      line: 15,
+   836→      column: 5,
+   837→      message: "'deprecatedVar' is deprecated. Use 'newVar' instead.",
+   838→      code: 'TS6387',
+   839→      severity: 'warning',
+   840→    });
+   841→
+   842→    // Simulate potential errors based on random chance
+   843→    const hasErrors = Math.random() < 0.15;
+   844→    if (hasErrors) {
+   845→      errors.push({
+   846→        file: `${sourcePath}/src/service.ts`,
+   847→        line: 42,
+   848→        column: 10,
+   849→        message: "Type 'string' is not assignable to type 'number'.",
+   850→        code: 'TS2322',
+   851→        severity: 'error',
+   852→      });
+   853→    }
+   854→
+   855→    return { errors, warnings };
+   856→  }
+   857→
+   858→  private simulateStrictModeCheck(sourcePath: string): CompileError[] {
+   859→    return [
+   860→      {
+   861→        file: `${sourcePath}/src/utils.ts`,
+   862→        line: 8,
+   863→        column: 12,
+   864→        message: "Parameter 'data' implicitly has an 'any' type.",
+   865→        code: 'TS7006',
+   866→        severity: 'warning',
+   867→      },
+   868→    ];
+   869→  }
+   870→
+   871→  private simulateBuildOutput(projectPath: string, environment: string): BuildOutputFile[] {
+   872→    const files: BuildOutputFile[] = [];
+   873→
+   874→    if (environment === 'production') {
+   875→      files.push({
+   876→        path: `${projectPath}/dist/main.js`,
+   877→        size: 180000 + Math.floor(Math.random() * 100000),
+   878→        type: 'js',
+   879→        hash: this.generateShortHash(),
+   880→      });
+   881→      files.push({
+   882→        path: `${projectPath}/dist/main.js.map`,
+   883→        size: 400000 + Math.floor(Math.random() * 200000),
+   884→        type: 'map',
+   885→      });
+   886→      files.push({
+   887→        path: `${projectPath}/dist/chunk-vendor.js`,
+   888→        size: 800000 + Math.floor(Math.random() * 300000),
+   889→        type: 'js',
+   890→        hash: this.generateShortHash(),
+   891→      });
+   892→    } else {
+   893→      files.push({
+   894→        path: `${projectPath}/dist/main.js`,
+   895→        size: 350000 + Math.floor(Math.random() * 150000),
+   896→        type: 'js',
+   897→      });
+   898→      files.push({
+   899→        path: `${projectPath}/dist/main.js.map`,
+   900→        size: 600000 + Math.floor(Math.random() * 300000),
+   901→        type: 'map',
+   902→      });
+   903→    }
+   904→
+   905→    return files;
+   906→  }
+   907→
+   908→  // ─── Configuration Generators ─────────────────────────────────
+   909→
+   910→  private generateTsConfig(options: Record<string, any>): string {
+   911→    const config = {
+   912→      compilerOptions: {
+   913→        target: options.target || 'ES2022',
+   914→        module: options.module || 'commonjs',
+   915→        lib: options.lib || ['ES2022'],
+   916→        outDir: options.outDir || './dist',
+   917→        rootDir: options.rootDir || './src',
+   918→        strict: options.strict !== undefined ? options.strict : true,
+   919→        esModuleInterop: true,
+   920→        skipLibCheck: true,
+   921→        forceConsistentCasingInFileNames: true,
+   922→        resolveJsonModule: true,
+   923→        declaration: true,
+   924→        declarationMap: true,
+   925→        sourceMap: true,
+   926→        experimentalDecorators: true,
+   927→        emitDecoratorMetadata: true,
+   928→        ...options.compilerOptions,
+   929→      },
+   930→      include: options.include || ['src/**/*'],
+   931→      exclude: options.exclude || ['node_modules', 'dist', 'test'],
+   932→    };
+   933→
+   934→    return JSON.stringify(config, null, 2);
+   935→  }
+   936→
+   937→  private generateWebpackConfig(options: Record<string, any>): string {
+   938→    const mode = options.mode || 'production';
+   939→    const entry = options.entry || './src/main.ts';
+   940→    const output = options.output || './dist';
+   941→
+   942→    return `const path = require('path');
+   943→
+   944→module.exports = {
+   945→  mode: '${mode}',
+   946→  entry: '${entry}',
+   947→  output: {
+   948→    path: path.resolve(__dirname, '${output}'),
+   949→    filename: '[name].[contenthash].js',
+   950→    clean: true,
+   951→  },
+   952→  resolve: {
+   953→    extensions: ['.ts', '.js', '.json'],
+   954→    alias: {
+   955→      '@': path.resolve(__dirname, 'src'),
+   956→    },
+   957→  },
+   958→  module: {
+   959→    rules: [
+   960→      {
+   961→        test: /\\.ts$/,
+   962→        use: 'ts-loader',
+   963→        exclude: /node_modules/,
+   964→      },
+   965→    ],
+   966→  },
+   967→  optimization: {
+   968→    splitChunks: {
+   969→      chunks: 'all',
+   970→      cacheGroups: {
+   971→        vendor: {
+   972→          test: /[\\\\/]node_modules[\\\\/]/,
+   973→          name: 'vendors',
+   974→          chunks: 'all',
+   975→        },
+   976→      },
+   977→    },
+   978→  },
+   979→  devtool: '${mode === 'production' ? 'source-map' : 'eval-source-map'}',
+   980→};`;
+   981→  }
+   982→
+   983→  private generateEsbuildConfig(options: Record<string, any>): string {
+   984→    const entry = options.entry || './src/main.ts';
+   985→    const outdir = options.outdir || './dist';
+   986→
+   987→    return `const esbuild = require('esbuild');
+   988→
+   989→const isProduction = process.env.NODE_ENV === 'production';
+   990→
+   991→esbuild.build({
+   992→  entryPoints: ['${entry}'],
+   993→  bundle: true,
+   994→  outdir: '${outdir}',
+   995→  platform: '${options.platform || 'node'}',
+   996→  target: '${options.target || 'node18'}',
+   997→  format: '${options.format || 'esm'}',
+   998→  minify: isProduction,
+   999→  sourcemap: true,
+  1000→  treeShaking: true,
+  1001→  external: ${JSON.stringify(options.external || ['@nestjs/*', 'rxjs', 'reflect-metadata'])},
+  1002→  logLevel: 'info',
+  1003→  define: {
+  1004→    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+  1005→  },
+  1006→}).then(() => {
+  1007→  console.log('Build completed successfully');
+  1008→}).catch((err) => {
+  1009→  console.error('Build failed:', err);
+  1010→  process.exit(1);
+  1011→});`;
+  1012→  }
+  1013→
+  1014→  private generateRollupConfig(options: Record<string, any>): string {
+  1015→    const input = options.input || './src/main.ts';
+  1016→    const output = options.output || './dist/bundle.js';
+  1017→
+  1018→    return `import typescript from '@rollup/plugin-typescript';
+  1019→import { nodeResolve } from '@rollup/plugin-node-resolve';
+  1020→import commonjs from '@rollup/plugin-commonjs';
+  1021→import terser from '@rollup/plugin-terser';
+  1022→
+  1023→const isProduction = process.env.NODE_ENV === 'production';
+  1024→
+  1025→export default {
+  1026→  input: '${input}',
+  1027→  output: {
+  1028→    file: '${output}',
+  1029→    format: '${options.format || 'esm'}',
+  1030→    sourcemap: true,
+  1031→  },
+  1032→  plugins: [
+  1033→    nodeResolve(),
+  1034→    commonjs(),
+  1035→    typescript({
+  1036→      tsconfig: './tsconfig.json',
+  1037→    }),
+  1038→    isProduction && terser(),
+  1039→  ].filter(Boolean),
+  1040→  external: ${JSON.stringify(options.external || [])},
+  1041→};`;
+  1042→  }
+  1043→
+  1044→  private generateNestCliConfig(options: Record<string, any>): string {
+  1045→    const config = {
+  1046→      $schema: 'https://json.schemastore.org/nest-cli',
+  1047→      collection: '@nestjs/schematics',
+  1048→      sourceRoot: options.sourceRoot || 'src',
+  1049→      compilerOptions: {
+  1050→        deleteOutDir: true,
+  1051→        assets: options.assets || ['**/*.proto'],
+  1052→        watchAssets: true,
+  1053→        ...options.compilerOptions,
+  1054→      },
+  1055→    };
+  1056→
+  1057→    return JSON.stringify(config, null, 2);
+  1058→  }
+  1059→
+  1060→  // ─── Utility Methods ──────────────────────────────────────────
+  1061→
+  1062→  private detectBuildTool(): string {
+  1063→    // Return the most likely build tool based on history
+  1064→    return 'esbuild + tsc';
+  1065→  }
+  1066→
+  1067→  private generateShortHash(): string {
+  1068→    const chars = '0123456789abcdef';
+  1069→    let hash = '';
+  1070→    for (let i = 0; i < 8; i++) {
+  1071→      hash += chars[Math.floor(Math.random() * chars.length)];
+  1072→    }
+  1073→    return hash;
+  1074→  }
+  1075→}
+  1076→

@@ -22,11 +22,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import {
-  CapabilityId,
-  CapabilityPack,
-  DeliveryCapability,
-} from '../interfaces';
+import { CapabilityId, CapabilityPack, DeliveryCapability } from '../interfaces';
 import {
   ICapabilityConnector,
   ConnectorInput,
@@ -39,7 +35,9 @@ export class DeliveryConnector implements ICapabilityConnector {
   readonly supportedPack = CapabilityPack.DELIVERY;
   private readonly logger = new Logger(DeliveryConnector.name);
 
-  private static readonly DELIVERY_CAPABILITIES = new Set<string>(Object.values(DeliveryCapability));
+  private static readonly DELIVERY_CAPABILITIES = new Set<string>(
+    Object.values(DeliveryCapability),
+  );
 
   supports(capabilityId: CapabilityId): boolean {
     return DeliveryConnector.DELIVERY_CAPABILITIES.has(capabilityId as string);
@@ -115,20 +113,22 @@ export class DeliveryConnector implements ICapabilityConnector {
   // ═══════════════════════════════════════════════════════════
 
   private async executeZip(input: ConnectorInput): Promise<ConnectorOutput> {
-    const outputZipPath = input.parameters.outputPath || path.join(
-      '/home/z/my-project/download/missions',
-      `${input.missionId}.zip`,
-    );
+    const outputZipPath =
+      input.parameters.outputPath ||
+      path.join('/home/z/my-project/download/missions', `${input.missionId}.zip`);
 
     // Ensure output directory exists
     fs.mkdirSync(path.dirname(outputZipPath), { recursive: true });
 
     // Try native zip command first (faster)
     try {
-      execSync(`cd "${input.workspaceDir}" && zip -r "${outputZipPath}" . -x "*.git*" "node_modules/*" 2>&1`, {
-        timeout: 60000,
-        encoding: 'utf-8',
-      });
+      execSync(
+        `cd "${input.workspaceDir}" && zip -r "${outputZipPath}" . -x "*.git*" "node_modules/*" 2>&1`,
+        {
+          timeout: 60000,
+          encoding: 'utf-8',
+        },
+      );
 
       if (fs.existsSync(outputZipPath) && fs.statSync(outputZipPath).size > 0) {
         const stats = fs.statSync(outputZipPath);
@@ -136,7 +136,9 @@ export class DeliveryConnector implements ICapabilityConnector {
 
         return {
           success: true,
-          artifacts: [this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size)],
+          artifacts: [
+            this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size),
+          ],
           output: { zipPath: outputZipPath, sizeBytes: stats.size },
           costUsd: 0,
           durationMs: 0,
@@ -166,7 +168,9 @@ export class DeliveryConnector implements ICapabilityConnector {
 
       return {
         success: true,
-        artifacts: [this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size)],
+        artifacts: [
+          this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size),
+        ],
         output: { zipPath: outputZipPath, sizeBytes: stats.size },
         costUsd: 0,
         durationMs: 0,
@@ -213,14 +217,18 @@ export class DeliveryConnector implements ICapabilityConnector {
         const output = execSync(cmd, { timeout: 60000, encoding: 'utf-8' }).slice(0, 500);
         results.push({ command: cmd.split('&&').pop()?.trim(), success: true, output });
       } catch (err: any) {
-        results.push({ command: cmd.split('&&').pop()?.trim(), success: false, error: err.message?.slice(0, 200) });
+        results.push({
+          command: cmd.split('&&').pop()?.trim(),
+          success: false,
+          error: err.message?.slice(0, 200),
+        });
         allSucceeded = false;
         // Don't break — partial success (init + commit) is still useful
       }
     }
 
     return {
-      success: allSucceeded || results.some(r => r.command?.includes('commit') && r.success),
+      success: allSucceeded || results.some((r) => r.command?.includes('commit') && r.success),
       artifacts: [],
       output: { repoUrl, branch, results },
       costUsd: 0,
@@ -239,9 +247,7 @@ export class DeliveryConnector implements ICapabilityConnector {
 
     const fullImageName = registry ? `${registry}/${imageName}:${tag}` : `${imageName}:${tag}`;
 
-    const commands = [
-      `cd "${input.workspaceDir}" && docker build -t ${fullImageName} .`,
-    ];
+    const commands = [`cd "${input.workspaceDir}" && docker build -t ${fullImageName} .`];
 
     if (registry) {
       commands.push(`docker push ${fullImageName}`);
@@ -255,7 +261,11 @@ export class DeliveryConnector implements ICapabilityConnector {
         const output = execSync(cmd, { timeout: 300000, encoding: 'utf-8' }).slice(0, 1000);
         results.push({ command: cmd.split('docker')[1]?.trim()?.split(' ')[0], success: true });
       } catch (err: any) {
-        results.push({ command: cmd.split('docker')[1]?.trim()?.split(' ')[0], success: false, error: err.message?.slice(0, 300) });
+        results.push({
+          command: cmd.split('docker')[1]?.trim()?.split(' ')[0],
+          success: false,
+          error: err.message?.slice(0, 300),
+        });
         allSucceeded = false;
       }
     }
@@ -301,12 +311,16 @@ export class DeliveryConnector implements ICapabilityConnector {
         execSync(cmd, { timeout: 120000, encoding: 'utf-8' });
         results.push({ command: cmd.split(' ')[0], success: true });
       } catch (err: any) {
-        results.push({ command: cmd.split(' ')[0], success: false, error: err.message?.slice(0, 200) });
+        results.push({
+          command: cmd.split(' ')[0],
+          success: false,
+          error: err.message?.slice(0, 200),
+        });
       }
     }
 
     return {
-      success: results.every(r => r.success),
+      success: results.every((r) => r.success),
       artifacts: [],
       output: { host, remotePath, results },
       costUsd: 0,
@@ -343,7 +357,8 @@ export class DeliveryConnector implements ICapabilityConnector {
   private async executeNotification(input: ConnectorInput): Promise<ConnectorOutput> {
     const webhookUrl = input.parameters.webhookUrl;
     const email = input.parameters.email;
-    const message = input.parameters.message || `Mission ${input.missionId} completed: ${input.instruction}`;
+    const message =
+      input.parameters.message || `Mission ${input.missionId} completed: ${input.instruction}`;
 
     // Webhook notification
     if (webhookUrl) {
@@ -354,9 +369,13 @@ export class DeliveryConnector implements ICapabilityConnector {
         const client = url.protocol === 'https:' ? https : http;
 
         await new Promise<void>((resolve, reject) => {
-          const req = client.request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
-            res.on('end', resolve);
-          });
+          const req = client.request(
+            url,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+            (res) => {
+              res.on('end', resolve);
+            },
+          );
           req.on('error', reject);
           req.write(JSON.stringify({ text: message, missionId: input.missionId }));
           req.end();
@@ -438,7 +457,11 @@ echo "Deployment complete!"
 
   private async executeBackup(input: ConnectorInput): Promise<ConnectorOutput> {
     // Create a timestamped backup
-    const backupDir = path.join(input.workspaceDir, '..', `${input.missionId}-backup-${Date.now()}`);
+    const backupDir = path.join(
+      input.workspaceDir,
+      '..',
+      `${input.missionId}-backup-${Date.now()}`,
+    );
     try {
       execSync(`cp -r "${input.workspaceDir}" "${backupDir}"`, { timeout: 60000 });
       return {
@@ -461,7 +484,10 @@ echo "Deployment complete!"
     return this.notImplemented('load_balancer', input);
   }
 
-  private async executeGenericDelivery(capId: DeliveryCapability, input: ConnectorInput): Promise<ConnectorOutput> {
+  private async executeGenericDelivery(
+    capId: DeliveryCapability,
+    input: ConnectorInput,
+  ): Promise<ConnectorOutput> {
     return this.notImplemented(capId.replace('delivery.', ''), input);
   }
 
@@ -472,13 +498,22 @@ echo "Deployment complete!"
     return {
       success: true, // Don't fail the mission for unimplemented delivery features
       artifacts: [],
-      output: { feature, status: 'not_implemented', note: `${feature} delivery will be available in a future sprint` },
+      output: {
+        feature,
+        status: 'not_implemented',
+        note: `${feature} delivery will be available in a future sprint`,
+      },
       costUsd: 0,
       durationMs: 0,
     };
   }
 
-  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, contentOrSize: string | number): GeneratedArtifact {
+  private makeArtifact(
+    name: string,
+    type: GeneratedArtifact['type'],
+    fullPath: string,
+    contentOrSize: string | number,
+  ): GeneratedArtifact {
     const isString = typeof contentOrSize === 'string';
     return {
       name,
@@ -545,7 +580,11 @@ See \`docs/certification/\` directory for detailed certification reports.
       if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
         size += this.calculateTotalSize(fullPath);
       } else if (entry.isFile()) {
-        try { size += fs.statSync(fullPath).size; } catch { /* skip */ }
+        try {
+          size += fs.statSync(fullPath).size;
+        } catch {
+          /* skip */
+        }
       }
     }
     return size;

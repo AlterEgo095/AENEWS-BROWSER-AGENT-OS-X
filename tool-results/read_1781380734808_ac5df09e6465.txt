@@ -1,0 +1,1193 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Base Agent Service
+     3→ * Abstract base class that all 80+ agents extend.
+     4→ * Implements full lifecycle, event emission, memory integration,
+     5→ * health monitoring, retry logic, permission checking, timeout handling,
+     6→ * metrics collection, correlation ID tracking, tool management, and contextual logging.
+     7→ */
+     8→
+     9→import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+    10→import { v4 as uuidv4 } from 'uuid';
+    11→import {
+    12→  AgentConfig,
+    13→  AgentStatus,
+    14→  AgentInput,
+    15→  AgentOutput,
+    16→  AgentMetrics,
+    17→  AgentState,
+    18→  AgentHealthState,
+    19→  AgentTool,
+    20→  AgentError,
+    21→  AgentErrorCode,
+    22→  TaskPriority,
+    23→} from '../interfaces/agent.interface';
+    24→import {
+    25→  LifecyclePhase,
+    26→  LifecycleContext,
+    27→  LifecycleHook,
+    28→  VALID_TRANSITIONS,
+    29→} from '../interfaces/agent-lifecycle.interface';
+    30→import {
+    31→  AgentEventType,
+    32→  AgentEvent,
+    33→  EventPriority,
+    34→  AgentStatusChangedPayload,
+    35→  AgentErrorPayload,
+    36→} from '../interfaces/agent-event.interface';
+    37→import { PermissionAction, PermissionResource } from '../interfaces/agent-permission.interface';
+    38→import { MemoryTier } from '../interfaces/agent-memory.interface';
+    39→
+    40→@Injectable()
+    41→export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy {
+    42→  // ─── Logger ──────────────────────────────────────────────────────
+    43→  protected readonly logger: Logger;
+    44→
+    45→  // ─── Agent State ─────────────────────────────────────────────────
+    46→  protected config: AgentConfig;
+    47→  protected status: AgentStatus = AgentStatus.IDLE;
+    48→  protected currentTasks: Set<string> = new Set();
+    49→  protected completedTaskCount: number = 0;
+    50→  protected failedTaskCount: number = 0;
+    51→  protected lastActivity: Date = new Date();
+    52→  protected startedAt: Date | null = null;
+    53→  protected correlationId: string = '';
+    54→  protected lifecyclePhase: LifecyclePhase | null = null;
+    55→
+    56→  // ─── Tool Registry ───────────────────────────────────────────────
+    57→  protected readonly tools: Map<string, AgentTool> = new Map();
+    58→
+    59→  // ─── Health State ────────────────────────────────────────────────
+    60→  protected healthState: AgentHealthState = {
+    61→    isHealthy: true,
+    62→    lastHealthCheck: new Date(),
+    63→    consecutiveFailures: 0,
+    64→    uptimeMs: 0,
+    65→  };
+    66→
+    67→  // ─── Lifecycle Hooks ─────────────────────────────────────────────
+    68→  protected lifecycleHooks: Map<LifecyclePhase, LifecycleHook[]> = new Map();
+    69→
+    70→  // ─── Timers ──────────────────────────────────────────────────────
+    71→  protected healthCheckInterval: NodeJS.Timer | null = null;
+    72→  protected metricsInterval: NodeJS.Timer | null = null;
+    73→  protected activeTimeouts: Map<string, NodeJS.Timeout> = new Map();
+    74→
+    75→  // ─── Circuit Breaker ─────────────────────────────────────────────
+    76→  protected circuitBreaker = {
+    77→    state: 'closed' as 'open' | 'closed' | 'half_open',
+    78→    failureCount: 0,
+    79→    lastFailureTime: null as Date | null,
+    80→    successThreshold: 3,
+    81→    failureThreshold: 5,
+    82→    resetTimeoutMs: 60000,
+    83→    halfOpenSuccesses: 0,
+    84→  };
+    85→
+    86→  // ─── Constructor ─────────────────────────────────────────────────
+    87→  constructor(
+    88→    protected readonly eventBusService?: any,
+    89→    protected readonly memoryService?: any,
+    90→    protected readonly permissionEvaluator?: any,
+    91→  ) {
+    92→    this.config = this.defineConfig();
+    93→    this.logger = new Logger(`${this.config.name}Agent`);
+    94→    this.initializeLifecycleHooks();
+    95→  }
+    96→
+    97→  // ─── Abstract Methods (Must Implement) ───────────────────────────
+    98→
+    99→  /**
+   100→   * Define the agent's configuration.
+   101→   * Called during construction before any other initialization.
+   102→   */
+   103→  protected abstract defineConfig(): AgentConfig;
+   104→
+   105→  /**
+   106→   * Called when the agent is initializing.
+   107→   * Set up connections, load data, etc.
+   108→   */
+   109→  protected abstract onInitialize(): Promise<void>;
+   110→
+   111→  /**
+   112→   * Called when the agent needs to execute a task.
+   113→   * This is the main execution logic for the agent.
+   114→   */
+   115→  protected abstract onExecute(input: AgentInput): Promise<AgentOutput>;
+   116→
+   117→  /**
+   118→   * Called when the agent is being destroyed.
+   119→   * Clean up resources, connections, etc.
+   120→   */
+   121→  protected abstract onDestroy(): Promise<void>;
+   122→
+   123→  // ─── Optional Overrides ──────────────────────────────────────────
+   124→
+   125→  /**
+   126→   * Called during health checks. Override to add custom health logic.
+   127→   */
+   128→  protected async onHealthCheck(): Promise<boolean> {
+   129→    return true;
+   130→  }
+   131→
+   132→  /**
+   133→   * Called when the agent is paused. Override for custom pause behavior.
+   134→   */
+   135→  protected async onPause(): Promise<void> {}
+   136→
+   137→  /**
+   138→   * Called when the agent is resumed. Override for custom resume behavior.
+   139→   */
+   140→  protected async onResume(): Promise<void> {}
+   141→
+   142→  /**
+   143→   * Called before execution for custom validation.
+   144→   */
+   145→  protected async onValidateInput(input: AgentInput): Promise<boolean> {
+   146→    return !!input.taskId && !!input.payload;
+   147→  }
+   148→
+   149→  /**
+   150→   * Called after a successful execution.
+   151→   */
+   152→  protected async onSuccess(input: AgentInput, output: AgentOutput): Promise<void> {}
+   153→
+   154→  /**
+   155→   * Called after a failed execution.
+   156→   */
+   157→  protected async onFailure(input: AgentInput, error: Error): Promise<void> {}
+   158→
+   159→  // ─── Lifecycle: Initialize ───────────────────────────────────────
+   160→
+   161→  async onModuleInit(): Promise<void> {
+   162→    try {
+   163→      await this.transitionTo(AgentStatus.INITIALIZING);
+   164→      this.executeLifecyclePhase(LifecyclePhase.PRE_INITIALIZE);
+   165→
+   166→      await this.onInitialize();
+   167→
+   168→      this.executeLifecyclePhase(LifecyclePhase.POST_INITIALIZE);
+   169→      await this.transitionTo(AgentStatus.IDLE);
+   170→
+   171→      this.startHealthMonitoring();
+   172→      this.startMetricsCollection();
+   173→
+   174→      this.logger.log(`Agent initialized: ${this.config.id} (${this.config.cluster})`);
+   175→      this.emitEvent(AgentEventType.AGENT_INITIALIZED, {
+   176→        agentId: this.config.id,
+   177→        cluster: this.config.cluster,
+   178→        version: this.config.version,
+   179→      });
+   180→    } catch (error) {
+   181→      this.logger.error(
+   182→        `Agent initialization failed: ${(error as Error).message}`,
+   183→        (error as Error).stack,
+   184→      );
+   185→      await this.transitionTo(AgentStatus.ERROR);
+   186→      this.emitEvent(AgentEventType.AGENT_ERROR, {
+   187→        errorCode: AgentErrorCode.INITIALIZATION_FAILED,
+   188→        errorMessage: (error as Error).message,
+   189→        recoverable: false,
+   190→      } as AgentErrorPayload);
+   191→      throw error;
+   192→    }
+   193→  }
+   194→
+   195→  // ─── Lifecycle: Start ────────────────────────────────────────────
+   196→
+   197→  async start(): Promise<void> {
+   198→    if (this.status === AgentStatus.RUNNING) {
+   199→      throw new AgentError(
+   200→        'Agent is already running',
+   201→        AgentErrorCode.ALREADY_RUNNING,
+   202→        this.config.id,
+   203→      );
+   204→    }
+   205→
+   206→    this.executeLifecyclePhase(LifecyclePhase.PRE_START);
+   207→    this.startedAt = new Date();
+   208→    await this.transitionTo(AgentStatus.RUNNING);
+   209→    this.executeLifecyclePhase(LifecyclePhase.POST_START);
+   210→
+   211→    this.logger.log(`Agent started: ${this.config.id}`);
+   212→    this.emitEvent(AgentEventType.AGENT_STARTED, {
+   213→      agentId: this.config.id,
+   214→      cluster: this.config.cluster,
+   215→    });
+   216→  }
+   217→
+   218→  // ─── Lifecycle: Execute ──────────────────────────────────────────
+   219→
+   220→  async execute(input: AgentInput): Promise<AgentOutput> {
+   221→    // 1. Check status
+   222→    if (this.status !== AgentStatus.RUNNING && this.status !== AgentStatus.IDLE) {
+   223→      throw new AgentError(
+   224→        `Agent cannot execute in ${this.status} state`,
+   225→        AgentErrorCode.NOT_RUNNING,
+   226→        this.config.id,
+   227→        input.taskId,
+   228→      );
+   229→    }
+   230→
+   231→    // 2. Check circuit breaker
+   232→    if (this.circuitBreaker.state === 'open') {
+   233→      throw new AgentError(
+   234→        'Circuit breaker is open; agent is not accepting tasks',
+   235→        AgentErrorCode.CIRCUIT_BREAKER_OPEN,
+   236→        this.config.id,
+   237→        input.taskId,
+   238→      );
+   239→    }
+   240→
+   241→    // 3. Check max concurrent tasks
+   242→    if (this.currentTasks.size >= this.config.maxConcurrentTasks) {
+   243→      throw new AgentError(
+   244→        `Max concurrent tasks (${this.config.maxConcurrentTasks}) reached`,
+   245→        AgentErrorCode.MAX_CONCURRENT_TASKS,
+   246→        this.config.id,
+   247→        input.taskId,
+   248→      );
+   249→    }
+   250→
+   251→    // 4. Check permissions
+   252→    await this.checkPermission(PermissionAction.EXECUTE, PermissionResource.TASK);
+   253→
+   254→    // 5. Validate input
+   255→    const isValid = await this.onValidateInput(input);
+   256→    if (!isValid) {
+   257→      throw new AgentError(
+   258→        'Invalid input provided',
+   259→        AgentErrorCode.INVALID_INPUT,
+   260→        this.config.id,
+   261→        input.taskId,
+   262→      );
+   263→    }
+   264→
+   265→    // 6. Set up execution context
+   266→    this.correlationId = input.context?.correlationId || uuidv4();
+   267→    this.currentTasks.add(input.taskId);
+   268→    this.lastActivity = new Date();
+   269→
+   270→    // 7. Record start time
+   271→    const startTime = Date.now();
+   272→    const startMemory = process.memoryUsage().heapUsed;
+   273→
+   274→    this.executeLifecyclePhase(LifecyclePhase.PRE_EXECUTE, { taskId: input.taskId });
+   275→    this.emitEvent(AgentEventType.TASK_STARTED, {
+   276→      taskId: input.taskId,
+   277→      agentId: this.config.id,
+   278→      priority: input.priority || TaskPriority.NORMAL,
+   279→    });
+   280→
+   281→    try {
+   282→      // Auto-start if idle
+   283→      if (this.status === AgentStatus.IDLE) {
+   284→        await this.start();
+   285→      }
+   286→
+   287→      // 8. Execute with retry logic (exponential backoff)
+   288→      let retryCount = 0;
+   289→      let lastError: Error | null = null;
+   290→
+   291→      const output = await this.executeWithRetry<AgentOutput>(async () => {
+   292→        try {
+   293→          // Execute with timeout
+   294→          const result = await this.executeWithTimeout(input);
+   295→          return result;
+   296→        } catch (execError) {
+   297→          retryCount++;
+   298→          lastError = execError as Error;
+   299→
+   300→          if (retryCount > this.config.retryPolicy.maxRetries) {
+   301→            throw execError;
+   302→          }
+   303→
+   304→          const backoffMs = this.calculateBackoff(retryCount);
+   305→          this.logger.warn(
+   306→            `Task ${input.taskId} failed (attempt ${retryCount}/${this.config.retryPolicy.maxRetries}), ` +
+   307→              `retrying in ${backoffMs}ms: ${lastError.message}`,
+   308→          );
+   309→          await this.sleep(backoffMs);
+   310→
+   311→          // Re-throw so executeWithRetry can handle it
+   312→          throw execError;
+   313→        }
+   314→      });
+   315→
+   316→      // 9. Collect metrics and emit events on success
+   317→      this.currentTasks.delete(input.taskId);
+   318→      this.completedTaskCount++;
+   319→      this.lastActivity = new Date();
+   320→
+   321→      this.recordCircuitBreakerSuccess();
+   322→
+   323→      // Store result in memory
+   324→      await this.storeExecutionResult(input, output);
+   325→
+   326→      // Lifecycle and event hooks
+   327→      this.executeLifecyclePhase(LifecyclePhase.POST_EXECUTE, { taskId: input.taskId });
+   328→      this.emitEvent(AgentEventType.TASK_COMPLETED, {
+   329→        taskId: input.taskId,
+   330→        agentId: this.config.id,
+   331→        success: true,
+   332→        executionTimeMs: Date.now() - startTime,
+   333→        result: output.result,
+   334→      });
+   335→
+   336→      await this.onSuccess(input, output);
+   337→
+   338→      // 10. Return output
+   339→      return output;
+   340→    } catch (error) {
+   341→      this.currentTasks.delete(input.taskId);
+   342→      this.failedTaskCount++;
+   343→      this.recordCircuitBreakerFailure();
+   344→      this.lastActivity = new Date();
+   345→
+   346→      const agentError = error as AgentError;
+   347→      this.logger.error(
+   348→        `Task ${input.taskId} execution error: ${agentError.message}`,
+   349→        agentError.stack,
+   350→      );
+   351→
+   352→      this.emitEvent(AgentEventType.AGENT_ERROR, {
+   353→        errorCode: agentError.code || AgentErrorCode.EXECUTION_FAILED,
+   354→        errorMessage: agentError.message,
+   355→        taskId: input.taskId,
+   356→        recoverable: true,
+   357→      } as AgentErrorPayload);
+   358→
+   359→      this.emitEvent(AgentEventType.TASK_FAILED, {
+   360→        taskId: input.taskId,
+   361→        agentId: this.config.id,
+   362→        success: false,
+   363→        executionTimeMs: Date.now() - startTime,
+   364→        error: agentError.message,
+   365→      });
+   366→
+   367→      await this.onFailure(input, agentError);
+   368→
+   369→      // 10. Return output (with error info)
+   370→      return {
+   371→        taskId: input.taskId,
+   372→        success: false,
+   373→        result: null,
+   374→        error: agentError.message,
+   375→        metrics: this.collectMetrics(startTime, startMemory),
+   376→        timestamp: new Date(),
+   377→      };
+   378→    }
+   379→  }
+   380→
+   381→  // ─── Lifecycle: Pause ────────────────────────────────────────────
+   382→
+   383→  async pause(): Promise<void> {
+   384→    this.executeLifecyclePhase(LifecyclePhase.PRE_PAUSE);
+   385→    await this.onPause();
+   386→    await this.transitionTo(AgentStatus.PAUSED);
+   387→    this.executeLifecyclePhase(LifecyclePhase.POST_PAUSE);
+   388→
+   389→    this.logger.log(`Agent paused: ${this.config.id}`);
+   390→    this.emitEvent(AgentEventType.AGENT_PAUSED, {
+   391→      previousStatus: AgentStatus.RUNNING,
+   392→      newStatus: AgentStatus.PAUSED,
+   393→      reason: 'Manual pause',
+   394→    } as AgentStatusChangedPayload);
+   395→  }
+   396→
+   397→  // ─── Lifecycle: Resume ───────────────────────────────────────────
+   398→
+   399→  async resume(): Promise<void> {
+   400→    this.executeLifecyclePhase(LifecyclePhase.PRE_RESUME);
+   401→    await this.onResume();
+   402→    await this.transitionTo(AgentStatus.RUNNING);
+   403→    this.executeLifecyclePhase(LifecyclePhase.POST_RESUME);
+   404→
+   405→    this.logger.log(`Agent resumed: ${this.config.id}`);
+   406→    this.emitEvent(AgentEventType.AGENT_RESUMED, {
+   407→      previousStatus: AgentStatus.PAUSED,
+   408→      newStatus: AgentStatus.RUNNING,
+   409→      reason: 'Manual resume',
+   410→    } as AgentStatusChangedPayload);
+   411→  }
+   412→
+   413→  // ─── Lifecycle: Stop ─────────────────────────────────────────────
+   414→
+   415→  async stop(): Promise<void> {
+   416→    this.executeLifecyclePhase(LifecyclePhase.PRE_STOP);
+   417→
+   418→    // Clear all active timeouts
+   419→    for (const [taskId, timeout] of this.activeTimeouts) {
+   420→      clearTimeout(timeout);
+   421→      this.activeTimeouts.delete(taskId);
+   422→    }
+   423→
+   424→    // Wait for current tasks to finish (with a grace period)
+   425→    const gracePeriodMs = 5000;
+   426→    const startTime = Date.now();
+   427→    while (this.currentTasks.size > 0 && Date.now() - startTime < gracePeriodMs) {
+   428→      await this.sleep(100);
+   429→    }
+   430→
+   431→    // Force-clear remaining tasks
+   432→    if (this.currentTasks.size > 0) {
+   433→      this.logger.warn(`Force-stopping with ${this.currentTasks.size} active tasks`);
+   434→      this.currentTasks.clear();
+   435→    }
+   436→
+   437→    this.stopHealthMonitoring();
+   438→    this.stopMetricsCollection();
+   439→
+   440→    await this.transitionTo(AgentStatus.STOPPED);
+   441→    this.executeLifecyclePhase(LifecyclePhase.POST_STOP);
+   442→
+   443→    this.logger.log(`Agent stopped: ${this.config.id}`);
+   444→    this.emitEvent(AgentEventType.AGENT_STOPPED, {
+   445→      agentId: this.config.id,
+   446→      completedTasks: this.completedTaskCount,
+   447→      failedTasks: this.failedTaskCount,
+   448→    });
+   449→  }
+   450→
+   451→  // ─── Lifecycle: Destroy ──────────────────────────────────────────
+   452→
+   453→  async onModuleDestroy(): Promise<void> {
+   454→    this.executeLifecyclePhase(LifecyclePhase.PRE_DESTROY);
+   455→
+   456→    if (this.status === AgentStatus.RUNNING || this.status === AgentStatus.PAUSED) {
+   457→      await this.stop();
+   458→    }
+   459→
+   460→    await this.onDestroy();
+   461→
+   462→    // Unregister all tools
+   463→    for (const [toolName] of this.tools) {
+   464→      this.tools.delete(toolName);
+   465→    }
+   466→
+   467→    this.executeLifecyclePhase(LifecyclePhase.POST_DESTROY);
+   468→
+   469→    this.logger.log(`Agent destroyed: ${this.config.id}`);
+   470→    this.emitEvent(AgentEventType.AGENT_DESTROYED, {
+   471→      agentId: this.config.id,
+   472→      cluster: this.config.cluster,
+   473→    });
+   474→  }
+   475→
+   476→  // ─── Health Check ────────────────────────────────────────────────
+   477→
+   478→  async healthCheck(): Promise<boolean> {
+   479→    return this.performHealthCheck();
+   480→  }
+   481→
+   482→  // ─── State Management ────────────────────────────────────────────
+   483→
+   484→  getState(): AgentState {
+   485→    return {
+   486→      config: { ...this.config },
+   487→      status: this.status,
+   488→      currentTasks: Array.from(this.currentTasks),
+   489→      completedTasks: this.completedTaskCount,
+   490→      failedTasks: this.failedTaskCount,
+   491→      lastActivity: this.lastActivity,
+   492→      health: { ...this.healthState },
+   493→    };
+   494→  }
+   495→
+   496→  getStatus(): AgentStatus {
+   497→    return this.status;
+   498→  }
+   499→
+   500→  getConfig(): AgentConfig {
+   501→    return { ...this.config };
+   502→  }
+   503→
+   504→  getHealthState(): AgentHealthState {
+   505→    return { ...this.healthState };
+   506→  }
+   507→
+   508→  /**
+   509→   * Initialize the agent state object.
+   510→   * Called during construction to set up the initial state.
+   511→   */
+   512→  private initializeState(): AgentState {
+   513→    return {
+   514→      config: { ...this.config },
+   515→      status: AgentStatus.IDLE,
+   516→      currentTasks: [],
+   517→      completedTasks: 0,
+   518→      failedTasks: 0,
+   519→      lastActivity: new Date(),
+   520→      health: {
+   521→        isHealthy: true,
+   522→        lastHealthCheck: new Date(),
+   523→        consecutiveFailures: 0,
+   524→        uptimeMs: 0,
+   525→      },
+   526→    };
+   527→  }
+   528→
+   529→  // ─── Tool Management ─────────────────────────────────────────────
+   530→
+   531→  /**
+   532→   * Register a tool that this agent can use.
+   533→   */
+   534→  registerTool(tool: AgentTool): void {
+   535→    if (this.tools.has(tool.name)) {
+   536→      this.logger.warn(`Tool "${tool.name}" is already registered, overwriting`);
+   537→    }
+   538→    this.tools.set(tool.name, tool);
+   539→    this.logger.log(`Registered tool: ${tool.name}`);
+   540→  }
+   541→
+   542→  /**
+   543→   * Unregister a tool by name.
+   544→   */
+   545→  unregisterTool(name: string): boolean {
+   546→    const deleted = this.tools.delete(name);
+   547→    if (deleted) {
+   548→      this.logger.log(`Unregistered tool: ${name}`);
+   549→    } else {
+   550→      this.logger.warn(`Tool "${name}" not found for unregistration`);
+   551→    }
+   552→    return deleted;
+   553→  }
+   554→
+   555→  /**
+   556→   * Get a registered tool by name.
+   557→   */
+   558→  getTool(name: string): AgentTool | undefined {
+   559→    return this.tools.get(name);
+   560→  }
+   561→
+   562→  /**
+   563→   * Get all registered tools.
+   564→   */
+   565→  getAllTools(): AgentTool[] {
+   566→    return Array.from(this.tools.values());
+   567→  }
+   568→
+   569→  /**
+   570→   * Execute a tool by name with the given arguments.
+   571→   */
+   572→  async executeTool(name: string, ...args: any[]): Promise<any> {
+   573→    const tool = this.tools.get(name);
+   574→    if (!tool) {
+   575→      throw new AgentError(
+   576→        `Tool "${name}" not found`,
+   577→        AgentErrorCode.EXECUTION_FAILED,
+   578→        this.config.id,
+   579→      );
+   580→    }
+   581→    return tool.execute(...args);
+   582→  }
+   583→
+   584→  // ─── Permission Checking ─────────────────────────────────────────
+   585→
+   586→  /**
+   587→   * Check if the agent has a specific permission.
+   588→   * Overloaded: supports both enum-based and string-based checks.
+   589→   */
+   590→  protected async checkPermission(
+   591→    action: PermissionAction | string,
+   592→    resource: PermissionResource | string,
+   593→  ): Promise<boolean> {
+   594→    const permissionString = `${action}:${resource}`;
+   595→
+   596→    const hasPermission =
+   597→      this.config.permissions.includes(permissionString) || this.config.permissions.includes('*');
+   598→
+   599→    if (!hasPermission) {
+   600→      // Also check via the permission evaluator if available
+   601→      if (
+   602→        this.permissionEvaluator &&
+   603→        typeof this.permissionEvaluator.hasPermission === 'function'
+   604→      ) {
+   605→        const evaluated = await this.permissionEvaluator.hasPermission(
+   606→          this.config.id,
+   607→          action as PermissionAction,
+   608→          resource as PermissionResource,
+   609→        );
+   610→        if (evaluated) return true;
+   611→      }
+   612→
+   613→      throw new AgentError(
+   614→        `Permission denied: ${permissionString}`,
+   615→        AgentErrorCode.PERMISSION_DENIED,
+   616→        this.config.id,
+   617→      );
+   618→    }
+   619→
+   620→    return true;
+   621→  }
+   622→
+   623→  /**
+   624→   * Check permission by resource and action strings.
+   625→   * Returns boolean without throwing.
+   626→   */
+   627→  hasPermissionForResource(resource: string, action: string): boolean {
+   628→    return (
+   629→      this.config.permissions.includes(`${action}:${resource}`) ||
+   630→      this.config.permissions.includes('*')
+   631→    );
+   632→  }
+   633→
+   634→  // ─── Timeout Handling ────────────────────────────────────────────
+   635→
+   636→  /**
+   637→   * Execute agent task with a timeout.
+   638→   */
+   639→  protected async executeWithTimeout(input: AgentInput): Promise<AgentOutput> {
+   640→    const timeoutMs = input.context?.timeout || this.config.timeout;
+   641→
+   642→    return new Promise<AgentOutput>((resolve, reject) => {
+   643→      const timeoutId = setTimeout(() => {
+   644→        this.activeTimeouts.delete(input.taskId);
+   645→        reject(
+   646→          new AgentError(
+   647→            `Task timed out after ${timeoutMs}ms`,
+   648→            AgentErrorCode.TIMEOUT,
+   649→            this.config.id,
+   650→            input.taskId,
+   651→          ),
+   652→        );
+   653→      }, timeoutMs);
+   654→
+   655→      this.activeTimeouts.set(input.taskId, timeoutId);
+   656→
+   657→      this.onExecute(input)
+   658→        .then((output) => {
+   659→          clearTimeout(timeoutId);
+   660→          this.activeTimeouts.delete(input.taskId);
+   661→          resolve(output);
+   662→        })
+   663→        .catch((error) => {
+   664→          clearTimeout(timeoutId);
+   665→          this.activeTimeouts.delete(input.taskId);
+   666→          reject(error);
+   667→        });
+   668→    });
+   669→  }
+   670→
+   671→  /**
+   672→   * Generic timeout wrapper for any promise.
+   673→   * Rejects with AgentError if the promise does not resolve within the specified time.
+   674→   */
+   675→  protected withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+   676→    return new Promise<T>((resolve, reject) => {
+   677→      const timeoutId = setTimeout(() => {
+   678→        reject(
+   679→          new AgentError(
+   680→            `Operation timed out after ${ms}ms`,
+   681→            AgentErrorCode.TIMEOUT,
+   682→            this.config.id,
+   683→          ),
+   684→        );
+   685→      }, ms);
+   686→
+   687→      promise
+   688→        .then((result) => {
+   689→          clearTimeout(timeoutId);
+   690→          resolve(result);
+   691→        })
+   692→        .catch((error) => {
+   693→          clearTimeout(timeoutId);
+   694→          reject(error);
+   695→        });
+   696→    });
+   697→  }
+   698→
+   699→  // ─── Retry Logic ─────────────────────────────────────────────────
+   700→
+   701→  /**
+   702→   * Calculate exponential backoff delay for a given retry attempt.
+   703→   */
+   704→  protected calculateBackoff(retryCount: number): number {
+   705→    const { backoffMs, exponentialBackoff } = this.config.retryPolicy;
+   706→    if (exponentialBackoff) {
+   707→      return backoffMs * Math.pow(2, retryCount - 1) + Math.random() * 100;
+   708→    }
+   709→    return backoffMs;
+   710→  }
+   711→
+   712→  /**
+   713→   * Execute a function with retry logic and exponential backoff.
+   714→   * Retries up to maxRetries times on failure.
+   715→   */
+   716→  protected async executeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+   717→    const { maxRetries, backoffMs, exponentialBackoff } = this.config.retryPolicy;
+   718→    let lastError: Error | null = null;
+   719→
+   720→    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+   721→      try {
+   722→        return await fn();
+   723→      } catch (error) {
+   724→        lastError = error as Error;
+   725→
+   726→        if (attempt >= maxRetries) {
+   727→          this.logger.error(`All ${maxRetries} retries exhausted: ${lastError.message}`);
+   728→          throw new AgentError(
+   729→            `Retry exhausted after ${maxRetries} attempts: ${lastError.message}`,
+   730→            AgentErrorCode.RETRY_EXHAUSTED,
+   731→            this.config.id,
+   732→            undefined,
+   733→            lastError,
+   734→          );
+   735→        }
+   736→
+   737→        const delay = exponentialBackoff
+   738→          ? backoffMs * Math.pow(2, attempt) + Math.random() * 100
+   739→          : backoffMs;
+   740→
+   741→        this.logger.warn(
+   742→          `Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${Math.round(delay)}ms: ${lastError.message}`,
+   743→        );
+   744→
+   745→        await this.sleep(delay);
+   746→      }
+   747→    }
+   748→
+   749→    // This should never be reached, but TypeScript needs it
+   750→    throw lastError!;
+   751→  }
+   752→
+   753→  // ─── Metrics Collection ──────────────────────────────────────────
+   754→
+   755→  protected collectMetrics(startTime: number, startMemory: number): AgentMetrics {
+   756→    const memoryUsed = process.memoryUsage();
+   757→    return {
+   758→      executionTimeMs: Date.now() - startTime,
+   759→      memoryUsedMb: Math.round(((memoryUsed.heapUsed - startMemory) / 1024 / 1024) * 100) / 100,
+   760→      cpuUsagePercent: Math.round((process.cpuUsage().user ?? 0) / 1000) / 100,
+   761→    };
+   762→  }
+   763→
+   764→  // ─── Health Monitoring ───────────────────────────────────────────
+   765→
+   766→  protected startHealthMonitoring(): void {
+   767→    const intervalMs = 30000; // Check every 30 seconds
+   768→    this.healthCheckInterval = setInterval(async () => {
+   769→      await this.performHealthCheck();
+   770→    }, intervalMs);
+   771→  }
+   772→
+   773→  protected stopHealthMonitoring(): void {
+   774→    if (this.healthCheckInterval) {
+   775→      clearInterval(this.healthCheckInterval as any);
+   776→      this.healthCheckInterval = null;
+   777→    }
+   778→  }
+   779→
+   780→  protected async performHealthCheck(): Promise<boolean> {
+   781→    try {
+   782→      const customHealthy = await this.onHealthCheck();
+   783→      const isHealthy = customHealthy && this.status !== AgentStatus.ERROR;
+   784→
+   785→      const previousHealth = this.healthState.isHealthy;
+   786→      this.healthState = {
+   787→        isHealthy,
+   788→        lastHealthCheck: new Date(),
+   789→        consecutiveFailures: isHealthy ? 0 : this.healthState.consecutiveFailures + 1,
+   790→        uptimeMs: this.startedAt ? Date.now() - this.startedAt.getTime() : 0,
+   791→      };
+   792→
+   793→      if (!isHealthy && this.healthState.consecutiveFailures >= 3) {
+   794→        this.logger.warn(
+   795→          `Agent unhealthy: ${this.healthState.consecutiveFailures} consecutive failures`,
+   796→        );
+   797→        this.emitEvent(AgentEventType.AGENT_HEALTH_CHANGED, {
+   798→          isHealthy: false,
+   799→          previousHealth,
+   800→          consecutiveFailures: this.healthState.consecutiveFailures,
+   801→        });
+   802→      }
+   803→
+   804→      return isHealthy;
+   805→    } catch (error) {
+   806→      this.healthState.consecutiveFailures++;
+   807→      this.healthState.isHealthy = false;
+   808→      this.healthState.lastHealthCheck = new Date();
+   809→      this.logger.error(`Health check failed: ${(error as Error).message}`);
+   810→      return false;
+   811→    }
+   812→  }
+   813→
+   814→  // ─── Metrics Collection Timer ────────────────────────────────────
+   815→
+   816→  protected startMetricsCollection(): void {
+   817→    this.metricsInterval = setInterval(() => {
+   818→      this.emitMetrics();
+   819→    }, 60000); // Every minute
+   820→  }
+   821→
+   822→  protected stopMetricsCollection(): void {
+   823→    if (this.metricsInterval) {
+   824→      clearInterval(this.metricsInterval as any);
+   825→      this.metricsInterval = null;
+   826→    }
+   827→  }
+   828→
+   829→  protected emitMetrics(): void {
+   830→    const state = this.getState();
+   831→    this.emitEvent(AgentEventType.AGENT_STATUS_CHANGED, {
+   832→      agentId: this.config.id,
+   833→      status: this.status,
+   834→      activeTasks: this.currentTasks.size,
+   835→      completedTasks: this.completedTaskCount,
+   836→      failedTasks: this.failedTaskCount,
+   837→      healthState: this.healthState,
+   838→    });
+   839→  }
+   840→
+   841→  // ─── State Transitions ───────────────────────────────────────────
+   842→
+   843→  protected async transitionTo(newStatus: AgentStatus): Promise<void> {
+   844→    const previousStatus = this.status;
+   845→
+   846→    if (!this.isValidTransition(previousStatus, newStatus)) {
+   847→      this.logger.warn(`Invalid state transition: ${previousStatus} → ${newStatus}`);
+   848→      // Allow some transitions for recovery scenarios
+   849→      if (newStatus !== AgentStatus.ERROR && newStatus !== AgentStatus.STOPPED) {
+   850→        throw new AgentError(
+   851→          `Invalid state transition: ${previousStatus} → ${newStatus}`,
+   852→          AgentErrorCode.EXECUTION_FAILED,
+   853→          this.config.id,
+   854→        );
+   855→      }
+   856→    }
+   857→
+   858→    this.status = newStatus;
+   859→    this.lastActivity = new Date();
+   860→
+   861→    this.emitEvent(AgentEventType.AGENT_STATUS_CHANGED, {
+   862→      previousStatus,
+   863→      newStatus,
+   864→      reason: `Transition from ${previousStatus} to ${newStatus}`,
+   865→    } as AgentStatusChangedPayload);
+   866→
+   867→    this.logger.log(`State transition: ${previousStatus} → ${newStatus}`);
+   868→  }
+   869→
+   870→  protected isValidTransition(from: AgentStatus, to: AgentStatus): boolean {
+   871→    const validTargets = VALID_TRANSITIONS[from];
+   872→    return validTargets ? validTargets.includes(to) : false;
+   873→  }
+   874→
+   875→  // ─── Event Emission ──────────────────────────────────────────────
+   876→
+   877→  /**
+   878→   * Emit an event through the event bus.
+   879→   * Supports both typed AgentEventType and arbitrary string event types.
+   880→   */
+   881→  protected emitEvent<T>(type: AgentEventType | string, payload: T): void {
+   882→    if (this.eventBusService && typeof this.eventBusService.publish === 'function') {
+   883→      const event: Omit<AgentEvent<T>, 'id' | 'timestamp' | 'version'> = {
+   884→        type: type as AgentEventType,
+   885→        sourceAgentId: this.config.id,
+   886→        cluster: this.config.cluster,
+   887→        payload,
+   888→        priority: EventPriority.NORMAL,
+   889→        correlationId: this.correlationId,
+   890→        metadata: {
+   891→          agentVersion: this.config.version,
+   892→          agentCluster: this.config.cluster,
+   893→        },
+   894→      };
+   895→
+   896→      this.eventBusService.publish(event).catch((error: Error) => {
+   897→        this.logger.error(`Failed to emit event ${type}: ${error.message}`);
+   898→      });
+   899→    }
+   900→  }
+   901→
+   902→  // ─── Memory Integration ──────────────────────────────────────────
+   903→
+   904→  protected async storeInWorkingMemory<T>(key: string, value: T, ttlMs?: number): Promise<void> {
+   905→    if (this.memoryService) {
+   906→      await (this.memoryService as any).store(this.config.id, key, value, MemoryTier.WORKING, {
+   907→        ttlMs,
+   908→      });
+   909→    }
+   910→  }
+   911→
+   912→  protected async retrieveFromWorkingMemory<T>(key: string): Promise<T | null> {
+   913→    if (this.memoryService) {
+   914→      const entry = await (this.memoryService as any).retrieve(
+   915→        this.config.id,
+   916→        key,
+   917→        MemoryTier.WORKING,
+   918→      );
+   919→      return entry?.value ?? null;
+   920→    }
+   921→    return null;
+   922→  }
+   923→
+   924→  protected async storeInSessionMemory<T>(
+   925→    key: string,
+   926→    value: T,
+   927→    sessionId?: string,
+   928→    ttlMs?: number,
+   929→  ): Promise<void> {
+   930→    if (this.memoryService) {
+   931→      await (this.memoryService as any).store(this.config.id, key, value, MemoryTier.SESSION, {
+   932→        sessionId,
+   933→        ttlMs,
+   934→      });
+   935→    }
+   936→  }
+   937→
+   938→  protected async retrieveFromSessionMemory<T>(key: string): Promise<T | null> {
+   939→    if (this.memoryService) {
+   940→      const entry = await (this.memoryService as any).retrieve(
+   941→        this.config.id,
+   942→        key,
+   943→        MemoryTier.SESSION,
+   944→      );
+   945→      return entry?.value ?? null;
+   946→    }
+   947→    return null;
+   948→  }
+   949→
+   950→  protected async storeInLongTermMemory<T>(key: string, value: T): Promise<void> {
+   951→    if (this.memoryService) {
+   952→      await (this.memoryService as any).store(this.config.id, key, value, MemoryTier.LONG_TERM);
+   953→    }
+   954→  }
+   955→
+   956→  protected async retrieveFromLongTermMemory<T>(key: string): Promise<T | null> {
+   957→    if (this.memoryService) {
+   958→      const entry = await (this.memoryService as any).retrieve(
+   959→        this.config.id,
+   960→        key,
+   961→        MemoryTier.LONG_TERM,
+   962→      );
+   963→      return entry?.value ?? null;
+   964→    }
+   965→    return null;
+   966→  }
+   967→
+   968→  protected async queryMemory(query: any): Promise<any> {
+   969→    if (this.memoryService && typeof this.memoryService.query === 'function') {
+   970→      return this.memoryService.query(query);
+   971→    }
+   972→    return { entries: [], total: 0, hasMore: false };
+   973→  }
+   974→
+   975→  // ─── Execution Result Storage ────────────────────────────────────
+   976→
+   977→  protected async storeExecutionResult(input: AgentInput, output: AgentOutput): Promise<void> {
+   978→    try {
+   979→      // Store in working memory for quick access
+   980→      await this.storeInWorkingMemory(
+   981→        `task:${input.taskId}:result`,
+   982→        output,
+   983→        300000, // 5 minutes TTL
+   984→      );
+   985→
+   986→      // Store successful results in long-term memory
+   987→      if (output.success) {
+   988→        await this.storeInLongTermMemory(`task:${input.taskId}:completed`, {
+   989→          input: input.payload,
+   990→          result: output.result,
+   991→          metrics: output.metrics,
+   992→          timestamp: output.timestamp,
+   993→        });
+   994→      }
+   995→
+   996→      // Store in session memory if session context exists
+   997→      if (input.context?.sessionId) {
+   998→        await this.storeInSessionMemory(
+   999→          `task:${input.taskId}:result`,
+  1000→          output,
+  1001→          input.context.sessionId,
+  1002→        );
+  1003→      }
+  1004→    } catch (error) {
+  1005→      this.logger.warn(
+  1006→        `Failed to store execution result for task ${input.taskId}: ${(error as Error).message}`,
+  1007→      );
+  1008→    }
+  1009→  }
+  1010→
+  1011→  // ─── Circuit Breaker ─────────────────────────────────────────────
+  1012→
+  1013→  protected recordCircuitBreakerSuccess(): void {
+  1014→    if (this.circuitBreaker.state === 'half_open') {
+  1015→      this.circuitBreaker.halfOpenSuccesses++;
+  1016→      if (this.circuitBreaker.halfOpenSuccesses >= this.circuitBreaker.successThreshold) {
+  1017→        this.circuitBreaker.state = 'closed';
+  1018→        this.circuitBreaker.failureCount = 0;
+  1019→        this.circuitBreaker.halfOpenSuccesses = 0;
+  1020→        this.logger.log('Circuit breaker closed');
+  1021→        this.emitEvent(AgentEventType.CIRCUIT_BREAKER_CLOSED, {
+  1022→          agentId: this.config.id,
+  1023→          state: 'closed',
+  1024→          failureCount: 0,
+  1025→          lastFailureTime: this.circuitBreaker.lastFailureTime || new Date(),
+  1026→        });
+  1027→      }
+  1028→    } else if (this.circuitBreaker.state === 'closed') {
+  1029→      this.circuitBreaker.failureCount = 0;
+  1030→    }
+  1031→  }
+  1032→
+  1033→  protected recordCircuitBreakerFailure(): void {
+  1034→    this.circuitBreaker.failureCount++;
+  1035→    this.circuitBreaker.lastFailureTime = new Date();
+  1036→
+  1037→    if (this.circuitBreaker.state === 'half_open') {
+  1038→      this.circuitBreaker.state = 'open';
+  1039→      this.logger.warn('Circuit breaker opened (failure during half-open)');
+  1040→    } else if (this.circuitBreaker.failureCount >= this.circuitBreaker.failureThreshold) {
+  1041→      this.circuitBreaker.state = 'open';
+  1042→      this.logger.error(
+  1043→        `Circuit breaker opened after ${this.circuitBreaker.failureCount} failures`,
+  1044→      );
+  1045→      this.emitEvent(AgentEventType.CIRCUIT_BREAKER_OPENED, {
+  1046→        agentId: this.config.id,
+  1047→        state: 'open',
+  1048→        failureCount: this.circuitBreaker.failureCount,
+  1049→        lastFailureTime: this.circuitBreaker.lastFailureTime,
+  1050→      });
+  1051→
+  1052→      // Schedule transition to half-open
+  1053→      setTimeout(() => {
+  1054→        if (this.circuitBreaker.state === 'open') {
+  1055→          this.circuitBreaker.state = 'half_open';
+  1056→          this.circuitBreaker.halfOpenSuccesses = 0;
+  1057→          this.logger.log('Circuit breaker transitioned to half-open');
+  1058→        }
+  1059→      }, this.circuitBreaker.resetTimeoutMs);
+  1060→    }
+  1061→  }
+  1062→
+  1063→  // ─── Lifecycle Hook Management ───────────────────────────────────
+  1064→
+  1065→  protected initializeLifecycleHooks(): void {
+  1066→    const phases = Object.values(LifecyclePhase);
+  1067→    for (const phase of phases) {
+  1068→      this.lifecycleHooks.set(phase, []);
+  1069→    }
+  1070→  }
+  1071→
+  1072→  registerLifecycleHook(phase: LifecyclePhase, hook: LifecycleHook): void {
+  1073→    const hooks = this.lifecycleHooks.get(phase) || [];
+  1074→    hooks.push(hook);
+  1075→    this.lifecycleHooks.set(phase, hooks);
+  1076→  }
+  1077→
+  1078→  removeLifecycleHook(phase: LifecyclePhase, hook: LifecycleHook): void {
+  1079→    const hooks = this.lifecycleHooks.get(phase) || [];
+  1080→    const index = hooks.indexOf(hook);
+  1081→    if (index >= 0) {
+  1082→      hooks.splice(index, 1);
+  1083→    }
+  1084→  }
+  1085→
+  1086→  protected async executeLifecyclePhase(
+  1087→    phase: LifecyclePhase,
+  1088→    extraContext?: Record<string, any>,
+  1089→  ): Promise<void> {
+  1090→    this.lifecyclePhase = phase;
+  1091→    const hooks = this.lifecycleHooks.get(phase) || [];
+  1092→
+  1093→    const context: LifecycleContext = {
+  1094→      agentId: this.config.id,
+  1095→      phase,
+  1096→      previousStatus: this.status,
+  1097→      newStatus: this.status,
+  1098→      timestamp: new Date(),
+  1099→      correlationId: this.correlationId,
+  1100→      ...extraContext,
+  1101→    };
+  1102→
+  1103→    for (const hook of hooks) {
+  1104→      try {
+  1105→        const result = await hook(context);
+  1106→        if (!result.shouldProceed) {
+  1107→          this.logger.warn(
+  1108→            `Lifecycle hook for ${phase} blocked execution: ${result.error?.message || 'No reason provided'}`,
+  1109→          );
+  1110→          break;
+  1111→        }
+  1112→      } catch (error) {
+  1113→        this.logger.error(`Lifecycle hook error for ${phase}: ${(error as Error).message}`);
+  1114→      }
+  1115→    }
+  1116→  }
+  1117→
+  1118→  // ─── Correlation ID ──────────────────────────────────────────────
+  1119→
+  1120→  setCorrelationId(correlationId: string): void {
+  1121→    this.correlationId = correlationId;
+  1122→  }
+  1123→
+  1124→  getCorrelationId(): string {
+  1125→    return this.correlationId;
+  1126→  }
+  1127→
+  1128→  // ─── Utility ─────────────────────────────────────────────────────
+  1129→
+  1130→  protected sleep(ms: number): Promise<void> {
+  1131→    return new Promise((resolve) => setTimeout(resolve, ms));
+  1132→  }
+  1133→
+  1134→  protected generateId(): string {
+  1135→    return uuidv4();
+  1136→  }
+  1137→
+  1138→  protected createAgentOutput(
+  1139→    taskId: string,
+  1140→    success: boolean,
+  1141→    result: any,
+  1142→    error?: string,
+  1143→    startTime?: number,
+  1144→  ): AgentOutput {
+  1145→    return {
+  1146→      taskId,
+  1147→      success,
+  1148→      result,
+  1149→      error,
+  1150→      metrics: startTime
+  1151→        ? this.collectMetrics(startTime, process.memoryUsage().heapUsed)
+  1152→        : { executionTimeMs: 0, memoryUsedMb: 0, cpuUsagePercent: 0 },
+  1153→      timestamp: new Date(),
+  1154→    };
+  1155→  }
+  1156→
+  1157→  // ─── Capability Check ────────────────────────────────────────────
+  1158→
+  1159→  hasCapability(capabilityName: string): boolean {
+  1160→    return this.config.capabilities.some((cap) => cap.name === capabilityName);
+  1161→  }
+  1162→
+  1163→  getCapabilities(): string[] {
+  1164→    return this.config.capabilities.map((cap) => cap.name);
+  1165→  }
+  1166→
+  1167→  // ─── Task Management ─────────────────────────────────────────────
+  1168→
+  1169→  getCurrentTaskCount(): number {
+  1170→    return this.currentTasks.size;
+  1171→  }
+  1172→
+  1173→  canAcceptTask(): boolean {
+  1174→    return (
+  1175→      (this.status === AgentStatus.RUNNING || this.status === AgentStatus.IDLE) &&
+  1176→      this.currentTasks.size < this.config.maxConcurrentTasks &&
+  1177→      this.circuitBreaker.state !== 'open'
+  1178→    );
+  1179→  }
+  1180→
+  1181→  // ─── Maintenance Mode ────────────────────────────────────────────
+  1182→
+  1183→  async enterMaintenance(): Promise<void> {
+  1184→    await this.transitionTo(AgentStatus.MAINTENANCE);
+  1185→    this.logger.log(`Agent entered maintenance mode: ${this.config.id}`);
+  1186→  }
+  1187→
+  1188→  async exitMaintenance(): Promise<void> {
+  1189→    await this.transitionTo(AgentStatus.IDLE);
+  1190→    this.logger.log(`Agent exited maintenance mode: ${this.config.id}`);
+  1191→  }
+  1192→}
+  1193→
