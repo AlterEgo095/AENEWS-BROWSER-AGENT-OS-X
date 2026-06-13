@@ -1,7 +1,10 @@
 /**
  * AENEWS Software Factory — API Controller
  * 
- * REST API for submitting missions, tracking progress, and retrieving results.
+ * REST API for the Capability-driven Software Factory.
+ * 
+ * 3 concepts: Mission, Capabilities, Workers
+ * 64 capabilities in 6 packs, 10 kernel services, ephemeral workers
  */
 
 import {
@@ -14,25 +17,29 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { MissionControlService, MissionRequest } from './mission-control/mission-control.service';
+import { MissionOrchestratorPipeline, MissionRequest } from './mission-orchestrator/mission-orchestrator.service';
 import { MissionContractService } from './mission-contract/mission-contract.service';
 import { MissionStateMachineService, MissionState } from './mission-state-machine/mission-state-machine.service';
-import { AgentPoolService } from './agent-pool/agent-pool.service';
-import { DeliveryService } from './delivery/delivery.service';
+import { CapabilityRegistryService } from './capability-registry/capability-registry.service';
+import { CapabilityResolverService } from './capability-resolver/capability-resolver.service';
+import { WorkerFactoryService } from './worker-factory/worker-factory.service';
+import { DeliveryManagerService } from './kernel/kernel-services';
 import { MissionArchiveService } from './archive/mission-archive.service';
-import { AgentRegistryService } from './registry/agent-registry.service';
-import { MissionQuality, AgentLevel } from './interfaces';
+import { MonitoringManagerService } from './kernel/kernel-services';
+import { CapabilityPack, MissionQuality } from './interfaces';
 
 @Controller('api/factory')
 export class SoftwareFactoryController {
   constructor(
-    private readonly missionControl: MissionControlService,
+    private readonly pipeline: MissionOrchestratorPipeline,
     private readonly contractService: MissionContractService,
     private readonly stateMachine: MissionStateMachineService,
-    private readonly agentPool: AgentPoolService,
-    private readonly deliveryService: DeliveryService,
+    private readonly capabilityRegistry: CapabilityRegistryService,
+    private readonly capabilityResolver: CapabilityResolverService,
+    private readonly workerFactory: WorkerFactoryService,
+    private readonly deliveryManager: DeliveryManagerService,
     private readonly archiveService: MissionArchiveService,
-    private readonly agentRegistry: AgentRegistryService,
+    private readonly monitoring: MonitoringManagerService,
   ) {}
 
   /**
@@ -60,11 +67,8 @@ export class SoftwareFactoryController {
       tags: body.tags,
     };
 
-    const execution = await this.missionControl.submitMission(request);
-    return {
-      success: true,
-      data: execution,
-    };
+    const execution = await this.pipeline.submitMission(request);
+    return { success: true, data: execution };
   }
 
   /**
@@ -73,10 +77,7 @@ export class SoftwareFactoryController {
    */
   @Get('missions')
   getActiveMissions() {
-    return {
-      success: true,
-      data: this.missionControl.getActiveMissions(),
-    };
+    return { success: true, data: this.pipeline.getActiveMissions() };
   }
 
   /**
@@ -85,10 +86,8 @@ export class SoftwareFactoryController {
    */
   @Get('missions/:id')
   getMissionStatus(@Param('id') id: string) {
-    const execution = this.missionControl.getExecution(id);
-    if (!execution) {
-      return { success: false, error: 'Mission not found' };
-    }
+    const execution = this.pipeline.getExecution(id);
+    if (!execution) return { success: false, error: 'Mission not found' };
     return { success: true, data: execution };
   }
 
@@ -98,7 +97,7 @@ export class SoftwareFactoryController {
    */
   @Post('missions/:id/cancel')
   async cancelMission(@Param('id') id: string) {
-    const cancelled = await this.missionControl.cancelMission(id);
+    const cancelled = await this.pipeline.cancelMission(id);
     return { success: cancelled };
   }
 
@@ -109,9 +108,7 @@ export class SoftwareFactoryController {
   @Get('contracts/:id')
   getContract(@Param('id') id: string) {
     const contract = this.contractService.getContract(id);
-    if (!contract) {
-      return { success: false, error: 'Contract not found' };
-    }
+    if (!contract) return { success: false, error: 'Contract not found' };
     return { success: true, data: contract };
   }
 
@@ -122,9 +119,7 @@ export class SoftwareFactoryController {
   @Get('missions/:id/timeline')
   getTimeline(@Param('id') id: string) {
     const timeline = this.stateMachine.getTimeline(id);
-    if (!timeline) {
-      return { success: false, error: 'Timeline not found' };
-    }
+    if (!timeline) return { success: false, error: 'Timeline not found' };
     return { success: true, data: timeline };
   }
 
@@ -134,22 +129,7 @@ export class SoftwareFactoryController {
    */
   @Get('missions/:id/transitions')
   getAvailableTransitions(@Param('id') id: string) {
-    return {
-      success: true,
-      data: this.stateMachine.getAvailableTransitions(id),
-    };
-  }
-
-  /**
-   * Get agent pool statistics
-   * GET /api/factory/agents/stats
-   */
-  @Get('agents/stats')
-  getAgentStats() {
-    return {
-      success: true,
-      data: this.agentPool.getStatistics(),
-    };
+    return { success: true, data: this.stateMachine.getAvailableTransitions(id) };
   }
 
   /**
@@ -158,10 +138,8 @@ export class SoftwareFactoryController {
    */
   @Get('missions/:id/delivery')
   getDelivery(@Param('id') id: string) {
-    const delivery = this.deliveryService.getDelivery(id);
-    if (!delivery) {
-      return { success: false, error: 'Delivery not found' };
-    }
+    const delivery = this.deliveryManager.getDelivery(id);
+    if (!delivery) return { success: false, error: 'Delivery not found' };
     return { success: true, data: delivery };
   }
 
@@ -172,9 +150,7 @@ export class SoftwareFactoryController {
   @Get('archives/:id')
   getArchive(@Param('id') id: string) {
     const archive = this.archiveService.getArchive(id);
-    if (!archive) {
-      return { success: false, error: 'Archive not found' };
-    }
+    if (!archive) return { success: false, error: 'Archive not found' };
     return { success: true, data: archive };
   }
 
@@ -198,8 +174,78 @@ export class SoftwareFactoryController {
     };
   }
 
+  // ─── Capability Registry Endpoints ─────────────────────────
+
   /**
-   * Get factory statistics
+   * Get all capabilities in the catalog
+   * GET /api/factory/capabilities
+   */
+  @Get('capabilities')
+  getAllCapabilities() {
+    return {
+      success: true,
+      data: {
+        total: this.capabilityRegistry.getTotalCount(),
+        overview: this.capabilityRegistry.getPackOverview(),
+        capabilities: this.capabilityRegistry.getAllCapabilities(),
+      },
+    };
+  }
+
+  /**
+   * Get capabilities by pack
+   * GET /api/factory/capabilities/pack/:pack
+   */
+  @Get('capabilities/pack/:pack')
+  getCapabilitiesByPack(@Param('pack') pack: string) {
+    const packEnum = Object.values(CapabilityPack).find(p => p.toLowerCase() === pack.toLowerCase());
+    if (!packEnum) return { success: false, error: `Invalid pack: ${pack}` };
+    return {
+      success: true,
+      data: this.capabilityRegistry.getPack(packEnum as CapabilityPack),
+    };
+  }
+
+  /**
+   * Search capabilities by keyword
+   * GET /api/factory/capabilities/search?q=...
+   */
+  @Get('capabilities/search')
+  searchCapabilities(@Query('q') query: string) {
+    return {
+      success: true,
+      data: this.capabilityRegistry.searchByKeyword(query),
+    };
+  }
+
+  /**
+   * Resolve capabilities needed for a mission
+   * POST /api/factory/capabilities/resolve
+   */
+  @Post('capabilities/resolve')
+  resolveCapabilities(@Body() body: { mission: string }) {
+    const resolution = this.capabilityResolver.resolve({
+      missionId: `preview-${Date.now()}`,
+      instruction: body.mission,
+    });
+    return { success: true, data: resolution };
+  }
+
+  // ─── Worker Factory Endpoints ──────────────────────────────
+
+  /**
+   * Get worker pool statistics
+   * GET /api/factory/workers/stats
+   */
+  @Get('workers/stats')
+  getWorkerStats() {
+    return { success: true, data: this.workerFactory.getStatistics() };
+  }
+
+  // ─── System Health ─────────────────────────────────────────
+
+  /**
+   * Get factory-wide statistics
    * GET /api/factory/stats
    */
   @Get('stats')
@@ -212,83 +258,19 @@ export class SoftwareFactoryController {
     return {
       success: true,
       data: {
-        activeMissions: this.missionControl.getActiveMissions().length,
-        agentPool: this.agentPool.getStatistics(),
+        architecture: {
+          concepts: 3,
+          concepts_list: ['Mission', 'Capability', 'Worker'],
+          kernel_services: 10,
+          capability_packs: 6,
+          total_capabilities: this.capabilityRegistry.getTotalCount(),
+        },
+        activeMissions: this.pipeline.getActiveMissions().length,
+        workerPool: this.workerFactory.getStatistics(),
         archiveStats: this.archiveService.getStatistics(),
+        systemHealth: this.monitoring.getSystemHealth(),
         missionsByState,
       },
     };
-  }
-
-  /**
-   * Get all 64 agent definitions
-   * GET /api/factory/agents
-   */
-  @Get('agents')
-  getAllAgents() {
-    return {
-      success: true,
-      data: {
-        total: this.agentRegistry.getTotalCount(),
-        agents: this.agentRegistry.getAllDefinitions(),
-      },
-    };
-  }
-
-  /**
-   * Get agents by level
-   * GET /api/factory/agents/level/:level
-   */
-  @Get('agents/level/:level')
-  getAgentsByLevel(@Param('level') level: string) {
-    const agentLevel = Object.values(AgentLevel).find(l => l.toLowerCase() === level.toLowerCase());
-    if (!agentLevel) {
-      return { success: false, error: `Invalid level: ${level}` };
-    }
-    return {
-      success: true,
-      data: this.agentRegistry.getByLevel(agentLevel as AgentLevel),
-    };
-  }
-
-  /**
-   * Get team compositions
-   * GET /api/factory/agents/teams
-   */
-  @Get('agents/teams')
-  getTeamCompositions() {
-    return {
-      success: true,
-      data: this.agentRegistry.getTeamCompositions(),
-    };
-  }
-
-  /**
-   * Find agents needed for a mission
-   * POST /api/factory/agents/recommend
-   */
-  @Post('agents/recommend')
-  recommendAgents(@Body() body: { mission: string }) {
-    return {
-      success: true,
-      data: {
-        mission: body.mission,
-        recommendedAgents: this.agentRegistry.findAgentsForMission(body.mission),
-        totalRecommended: this.agentRegistry.findAgentsForMission(body.mission).length,
-      },
-    };
-  }
-
-  /**
-   * Get single agent definition
-   * GET /api/factory/agents/:id
-   */
-  @Get('agents/:id')
-  getAgentDefinition(@Param('id') id: string) {
-    const definition = this.agentRegistry.getDefinition(id as any);
-    if (!definition) {
-      return { success: false, error: `Agent not found: ${id}` };
-    }
-    return { success: true, data: definition };
   }
 }

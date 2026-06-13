@@ -1,127 +1,89 @@
 /**
  * AENEWS Software Factory — Root Module
  * 
- * 7 Levels, 64 Agents:
- *   Level 1: Core Orchestration (10 permanent)
- *   Level 2: Browser Team (12 on-demand)
- *   Level 3: Development Team (12 on-demand)
- *   Level 4: Office Team (6 on-demand)
- *   Level 5: Business Team (8 on-demand)
- *   Level 6: Certification Team (8 on-demand)
- *   Level 7: Delivery Team (8 on-demand)
+ * Architecture: 3 concepts only
+ *   1. Mission     → what the client requests
+ *   2. Capabilities → what the platform knows how to do (64 in 6 packs)
+ *   3. Workers     → who temporarily executes these capabilities (ephemeral)
  * 
- * Philosophy: 10 permanent + 54 on-demand = 64 agents.
- * Typical mission: 15-25 agents active simultaneously.
+ * 10 permanent kernel services.
+ * Everything else is dynamic.
  */
 
 import { Module } from '@nestjs/common';
 
-// Registry
-import { AgentRegistryService } from './registry/agent-registry.service';
+// Capability Registry (the catalog)
+import { CapabilityRegistryService } from './capability-registry/capability-registry.service';
 
-// Mission infrastructure
+// Execution Graph & Resolution
+import { ExecutionGraphBuilderService } from './execution-graph/execution-graph-builder.service';
+import { CapabilityResolverService } from './capability-resolver/capability-resolver.service';
+
+// Worker Factory (creates/destroys ephemeral workers)
+import { WorkerFactoryService } from './worker-factory/worker-factory.service';
+
+// 10 Kernel Services (permanent)
+import {
+  MissionOrchestratorService,
+  MissionPlannerService,
+  TaskSchedulerService,
+  ResourceManagerService,
+  SecurityManagerService,
+  CertificationManagerService,
+  DeliveryManagerService,
+  MonitoringManagerService,
+  RecoveryManagerService,
+} from './kernel/kernel-services';
+
+// Mission Infrastructure
 import { MissionContractService } from './mission-contract/mission-contract.service';
 import { MissionStateMachineService } from './mission-state-machine/mission-state-machine.service';
-import { AgentPoolService } from './agent-pool/agent-pool.service';
-import { MissionControlService } from './mission-control/mission-control.service';
-import { DeliveryService } from './delivery/delivery.service';
 import { MissionMemoryService } from './memory/mission-memory.service';
 import { MissionArchiveService } from './archive/mission-archive.service';
 
-// Core permanent agents (Level 1)
-import {
-  MissionOrchestratorAgent,
-  MissionPlannerAgent,
-  TaskSchedulerAgent,
-  MemoryManagerAgent,
-  ResourceManagerAgent,
-  SecurityManagerAgent,
-  CertificationManagerAgent,
-  DeliveryManagerAgent,
-  MonitoringManagerAgent,
-  RecoveryManagerAgent,
-} from './core/core-agents.service';
-
-// Team coordinators (Levels 2-7)
-import { BrowserTeamService } from './browser-team/browser-team.service';
-import { DevTeamService } from './dev-team/dev-team.service';
-import { OfficeTeamService } from './office-team/office-team.service';
-import { BusinessTeamService } from './business-team/business-team.service';
-import { CertTeamService } from './cert-team/cert-team.service';
-import { DeliveryTeamService } from './delivery-team/delivery-team.service';
-
-// Legacy team services (kept for backward compat)
-import { PlanningTeamService } from './teams/planning/planning-team.service';
-import { ExecutionTeamService } from './teams/execution/execution-team.service';
-import { CertificationTeamService } from './teams/certification/certification-team.service';
+// Pipeline Orchestrator
+import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orchestrator.service';
 
 @Module({
   providers: [
-    // ─── Registry (must be first) ─────────────────────────────
-    AgentRegistryService,
+    // ─── Capability Catalog (must be first) ───────────────────
+    CapabilityRegistryService,
+
+    // ─── Execution Graph & Resolution ─────────────────────────
+    ExecutionGraphBuilderService,
+    CapabilityResolverService,
+
+    // ─── Worker Factory ───────────────────────────────────────
+    WorkerFactoryService,
+
+    // ─── 10 Kernel Services (permanent) ───────────────────────
+    MissionOrchestratorService,
+    MissionPlannerService,
+    TaskSchedulerService,
+    ResourceManagerService,
+    SecurityManagerService,
+    CertificationManagerService,
+    DeliveryManagerService,
+    MonitoringManagerService,
+    RecoveryManagerService,
 
     // ─── Mission Infrastructure ───────────────────────────────
     MissionContractService,
     MissionStateMachineService,
-    AgentPoolService,
-    DeliveryService,
     MissionMemoryService,
     MissionArchiveService,
 
-    // ─── Level 1: Core Permanent Agents (10) ──────────────────
-    MissionOrchestratorAgent,
-    MissionPlannerAgent,
-    TaskSchedulerAgent,
-    MemoryManagerAgent,
-    ResourceManagerAgent,
-    SecurityManagerAgent,
-    CertificationManagerAgent,
-    DeliveryManagerAgent,
-    MonitoringManagerAgent,
-    RecoveryManagerAgent,
-
-    // ─── Level 2-7: Team Coordinators ─────────────────────────
-    BrowserTeamService,
-    DevTeamService,
-    OfficeTeamService,
-    BusinessTeamService,
-    CertTeamService,
-    DeliveryTeamService,
-
-    // ─── Legacy Team Services ─────────────────────────────────
-    PlanningTeamService,
-    ExecutionTeamService,
-    CertificationTeamService,
-
-    // ─── Orchestrator (depends on all above) ──────────────────
-    MissionControlService,
+    // ─── Pipeline Orchestrator (depends on all above) ─────────
+    MissionOrchestratorPipeline,
   ],
   exports: [
-    AgentRegistryService,
-    MissionControlService,
+    CapabilityRegistryService,
+    ExecutionGraphBuilderService,
+    CapabilityResolverService,
+    WorkerFactoryService,
+    MissionOrchestratorPipeline,
     MissionContractService,
     MissionStateMachineService,
-    AgentPoolService,
-    MissionOrchestratorAgent,
-    MissionPlannerAgent,
-    TaskSchedulerAgent,
-    MemoryManagerAgent,
-    ResourceManagerAgent,
-    SecurityManagerAgent,
-    CertificationManagerAgent,
-    DeliveryManagerAgent,
-    MonitoringManagerAgent,
-    RecoveryManagerAgent,
-    BrowserTeamService,
-    DevTeamService,
-    OfficeTeamService,
-    BusinessTeamService,
-    CertTeamService,
-    DeliveryTeamService,
-    PlanningTeamService,
-    ExecutionTeamService,
-    CertificationTeamService,
-    DeliveryService,
     MissionMemoryService,
     MissionArchiveService,
   ],

@@ -1,0 +1,95 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DeliveryCapability = exports.CertCapability = exports.BusinessCapability = exports.OfficeCapability = exports.DevCapability = exports.BrowserCapability = exports.CapabilityPack = void 0;
+var CapabilityPack;
+(function (CapabilityPack) {
+    CapabilityPack["BROWSER"] = "BROWSER";
+    CapabilityPack["DEVELOPMENT"] = "DEVELOPMENT";
+    CapabilityPack["OFFICE"] = "OFFICE";
+    CapabilityPack["BUSINESS"] = "BUSINESS";
+    CapabilityPack["CERTIFICATION"] = "CERTIFICATION";
+    CapabilityPack["DELIVERY"] = "DELIVERY";
+})(CapabilityPack || (exports.CapabilityPack = CapabilityPack = {}));
+var BrowserCapability;
+(function (BrowserCapability) {
+    BrowserCapability["LOGIN"] = "browser.login";
+    BrowserCapability["NAVIGATION"] = "browser.navigation";
+    BrowserCapability["SEARCH"] = "browser.search";
+    BrowserCapability["FORM"] = "browser.form";
+    BrowserCapability["UPLOAD"] = "browser.upload";
+    BrowserCapability["DOWNLOAD"] = "browser.download";
+    BrowserCapability["SCREENSHOT"] = "browser.screenshot";
+    BrowserCapability["VISION"] = "browser.vision";
+    BrowserCapability["SESSION"] = "browser.session";
+    BrowserCapability["COOKIE"] = "browser.cookie";
+    BrowserCapability["POPUP"] = "browser.popup";
+    BrowserCapability["OCR"] = "browser.ocr";
+})(BrowserCapability || (exports.BrowserCapability = BrowserCapability = {}));
+var DevCapability;
+(function (DevCapability) {
+    DevCapability["ARCHITECTURE"] = "dev.architecture";
+    DevCapability["FRONTEND"] = "dev.frontend";
+    DevCapability["BACKEND"] = "dev.backend";
+    DevCapability["DATABASE"] = "dev.database";
+    DevCapability["API"] = "dev.api";
+    DevCapability["DEVOPS"] = "dev.devops";
+    DevCapability["DOCKER"] = "dev.docker";
+    DevCapability["KUBERNETES"] = "dev.kubernetes";
+    DevCapability["QA"] = "dev.qa";
+    DevCapability["TEST"] = "dev.test";
+    DevCapability["DEBUG"] = "dev.debug";
+    DevCapability["DOCUMENTATION"] = "dev.documentation";
+})(DevCapability || (exports.DevCapability = DevCapability = {}));
+var OfficeCapability;
+(function (OfficeCapability) {
+    OfficeCapability["PDF"] = "office.pdf";
+    OfficeCapability["DOCX"] = "office.docx";
+    OfficeCapability["EXCEL"] = "office.excel";
+    OfficeCapability["POWERPOINT"] = "office.powerpoint";
+    OfficeCapability["OCR"] = "office.ocr";
+    OfficeCapability["SIGNATURE"] = "office.signature";
+    OfficeCapability["EMAIL"] = "office.email";
+    OfficeCapability["CALENDAR"] = "office.calendar";
+})(OfficeCapability || (exports.OfficeCapability = OfficeCapability = {}));
+var BusinessCapability;
+(function (BusinessCapability) {
+    BusinessCapability["SEO"] = "business.seo";
+    BusinessCapability["MARKETING"] = "business.marketing";
+    BusinessCapability["COPYWRITING"] = "business.copywriting";
+    BusinessCapability["BRANDING"] = "business.branding";
+    BusinessCapability["CRM"] = "business.crm";
+    BusinessCapability["ANALYTICS"] = "business.analytics";
+    BusinessCapability["FINANCE"] = "business.finance";
+    BusinessCapability["SALES"] = "business.sales";
+    BusinessCapability["LEGAL"] = "business.legal";
+    BusinessCapability["PARTNERSHIP"] = "business.partnership";
+})(BusinessCapability || (exports.BusinessCapability = BusinessCapability = {}));
+var CertCapability;
+(function (CertCapability) {
+    CertCapability["ARCHITECTURE_REVIEW"] = "cert.architecture_review";
+    CertCapability["SECURITY_AUDIT"] = "cert.security_audit";
+    CertCapability["TEST_COVERAGE"] = "cert.test_coverage";
+    CertCapability["REGRESSION"] = "cert.regression";
+    CertCapability["PERFORMANCE"] = "cert.performance";
+    CertCapability["DOC_REVIEW"] = "cert.doc_review";
+    CertCapability["INTEGRATION"] = "cert.integration";
+    CertCapability["COMPLIANCE"] = "cert.compliance";
+    CertCapability["ACCESSIBILITY"] = "cert.accessibility";
+    CertCapability["DATA_PRIVACY"] = "cert.data_privacy";
+})(CertCapability || (exports.CertCapability = CertCapability = {}));
+var DeliveryCapability;
+(function (DeliveryCapability) {
+    DeliveryCapability["GITHUB"] = "delivery.github";
+    DeliveryCapability["DOCKER_REGISTRY"] = "delivery.docker_registry";
+    DeliveryCapability["VPS"] = "delivery.vps";
+    DeliveryCapability["CLOUD"] = "delivery.cloud";
+    DeliveryCapability["ZIP"] = "delivery.zip";
+    DeliveryCapability["PDF_REPORT"] = "delivery.pdf_report";
+    DeliveryCapability["NOTIFICATION"] = "delivery.notification";
+    DeliveryCapability["DEPLOYMENT"] = "delivery.deployment";
+    DeliveryCapability["CDN"] = "delivery.cdn";
+    DeliveryCapability["BACKUP"] = "delivery.backup";
+    DeliveryCapability["MONITORING_SETUP"] = "delivery.monitoring_setup";
+    DeliveryCapability["LOAD_BALANCER"] = "delivery.load_balancer";
+})(DeliveryCapability || (exports.DeliveryCapability = DeliveryCapability = {}));
+//# sourceMappingURL=capability.interface.js.map

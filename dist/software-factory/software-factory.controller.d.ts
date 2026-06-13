@@ -1,19 +1,24 @@
-import { MissionControlService } from './mission-control/mission-control.service';
+import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orchestrator.service';
 import { MissionContractService } from './mission-contract/mission-contract.service';
 import { MissionStateMachineService } from './mission-state-machine/mission-state-machine.service';
-import { AgentPoolService } from './agent-pool/agent-pool.service';
-import { DeliveryService } from './delivery/delivery.service';
+import { CapabilityRegistryService } from './capability-registry/capability-registry.service';
+import { CapabilityResolverService } from './capability-resolver/capability-resolver.service';
+import { WorkerFactoryService } from './worker-factory/worker-factory.service';
+import { DeliveryManagerService } from './kernel/kernel-services';
 import { MissionArchiveService } from './archive/mission-archive.service';
-import { AgentRegistryService } from './registry/agent-registry.service';
+import { MonitoringManagerService } from './kernel/kernel-services';
+import { CapabilityPack } from './interfaces';
 export declare class SoftwareFactoryController {
-    private readonly missionControl;
+    private readonly pipeline;
     private readonly contractService;
     private readonly stateMachine;
-    private readonly agentPool;
-    private readonly deliveryService;
+    private readonly capabilityRegistry;
+    private readonly capabilityResolver;
+    private readonly workerFactory;
+    private readonly deliveryManager;
     private readonly archiveService;
-    private readonly agentRegistry;
-    constructor(missionControl: MissionControlService, contractService: MissionContractService, stateMachine: MissionStateMachineService, agentPool: AgentPoolService, deliveryService: DeliveryService, archiveService: MissionArchiveService, agentRegistry: AgentRegistryService);
+    private readonly monitoring;
+    constructor(pipeline: MissionOrchestratorPipeline, contractService: MissionContractService, stateMachine: MissionStateMachineService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, workerFactory: WorkerFactoryService, deliveryManager: DeliveryManagerService, archiveService: MissionArchiveService, monitoring: MonitoringManagerService);
     submitMission(body: {
         instruction: string;
         description?: string;
@@ -24,11 +29,11 @@ export declare class SoftwareFactoryController {
         tags?: string[];
     }): Promise<{
         success: boolean;
-        data: import("./mission-control/mission-control.service").MissionExecution;
+        data: import("./mission-orchestrator/mission-orchestrator.service").MissionExecution;
     }>;
     getActiveMissions(): {
         success: boolean;
-        data: import("./mission-control/mission-control.service").MissionExecution[];
+        data: import("./mission-orchestrator/mission-orchestrator.service").MissionExecution[];
     };
     getMissionStatus(id: string): {
         success: boolean;
@@ -36,7 +41,7 @@ export declare class SoftwareFactoryController {
         data?: undefined;
     } | {
         success: boolean;
-        data: import("./mission-control/mission-control.service").MissionExecution;
+        data: import("./mission-orchestrator/mission-orchestrator.service").MissionExecution;
         error?: undefined;
     };
     cancelMission(id: string): Promise<{
@@ -64,17 +69,13 @@ export declare class SoftwareFactoryController {
         success: boolean;
         data: import("./interfaces").StateTransition[];
     };
-    getAgentStats(): {
-        success: boolean;
-        data: import("./interfaces").PoolStatistics;
-    };
     getDelivery(id: string): {
         success: boolean;
         error: string;
         data?: undefined;
     } | {
         success: boolean;
-        data: import("./delivery/delivery.service").DeliveryPackage;
+        data: import("./kernel/kernel-services").DeliveryPackage;
         error?: undefined;
     };
     getArchive(id: string): {
@@ -90,11 +91,53 @@ export declare class SoftwareFactoryController {
         success: boolean;
         data: import("./archive/mission-archive.service").ArchivedMission[];
     };
+    getAllCapabilities(): {
+        success: boolean;
+        data: {
+            total: number;
+            overview: Record<CapabilityPack, {
+                name: string;
+                count: number;
+                capabilities: string[];
+            }>;
+            capabilities: import("./interfaces").CapabilityDefinition[];
+        };
+    };
+    getCapabilitiesByPack(pack: string): {
+        success: boolean;
+        error: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: import("./interfaces").CapabilityDefinition[];
+        error?: undefined;
+    };
+    searchCapabilities(query: string): {
+        success: boolean;
+        data: import("./interfaces").CapabilityDefinition[];
+    };
+    resolveCapabilities(body: {
+        mission: string;
+    }): {
+        success: boolean;
+        data: import("./interfaces").CapabilityResolution;
+    };
+    getWorkerStats(): {
+        success: boolean;
+        data: import("./interfaces").WorkerPoolStatistics;
+    };
     getFactoryStats(): {
         success: boolean;
         data: {
+            architecture: {
+                concepts: number;
+                concepts_list: string[];
+                kernel_services: number;
+                capability_packs: number;
+                total_capabilities: number;
+            };
             activeMissions: number;
-            agentPool: import("./interfaces").PoolStatistics;
+            workerPool: import("./interfaces").WorkerPoolStatistics;
             archiveStats: {
                 totalMissions: number;
                 successRate: number;
@@ -102,50 +145,8 @@ export declare class SoftwareFactoryController {
                 averageCost: number;
                 averageDurationMs: number;
             };
+            systemHealth: import("./kernel/kernel-services").SystemHealth;
             missionsByState: Record<string, number>;
         };
-    };
-    getAllAgents(): {
-        success: boolean;
-        data: {
-            total: {
-                permanent: number;
-                onDemand: number;
-                total: number;
-            };
-            agents: import("./interfaces").AgentDefinition[];
-        };
-    };
-    getAgentsByLevel(level: string): {
-        success: boolean;
-        error: string;
-        data?: undefined;
-    } | {
-        success: boolean;
-        data: import("./interfaces").AgentDefinition[];
-        error?: undefined;
-    };
-    getTeamCompositions(): {
-        success: boolean;
-        data: import("./interfaces").TeamComposition[];
-    };
-    recommendAgents(body: {
-        mission: string;
-    }): {
-        success: boolean;
-        data: {
-            mission: string;
-            recommendedAgents: import("./interfaces").AgentDefinition[];
-            totalRecommended: number;
-        };
-    };
-    getAgentDefinition(id: string): {
-        success: boolean;
-        error: string;
-        data?: undefined;
-    } | {
-        success: boolean;
-        data: import("./interfaces").AgentDefinition;
-        error?: undefined;
     };
 }
