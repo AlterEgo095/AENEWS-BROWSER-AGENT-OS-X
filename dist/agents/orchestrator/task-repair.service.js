@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var TaskRepairService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskRepairService = exports.RepairStrategy = void 0;
@@ -16,6 +19,7 @@ const uuid_1 = require("uuid");
 const agent_interface_1 = require("../interfaces/agent.interface");
 const task_critic_service_1 = require("./task-critic.service");
 const task_planner_service_1 = require("./task-planner.service");
+const bridge_1 = require("../bridge");
 var RepairStrategy;
 (function (RepairStrategy) {
     RepairStrategy["RETRY"] = "retry";
@@ -35,8 +39,9 @@ const DEFAULT_REPAIR_CONFIG = {
     trackHistory: true,
 };
 let TaskRepairService = TaskRepairService_1 = class TaskRepairService {
-    constructor(plannerService) {
+    constructor(plannerService, bridge) {
         this.plannerService = plannerService;
+        this.bridge = bridge;
         this.logger = new common_1.Logger(TaskRepairService_1.name);
         this.config = { ...DEFAULT_REPAIR_CONFIG };
         this.repairHistory = new Map();
@@ -44,6 +49,19 @@ let TaskRepairService = TaskRepairService_1 = class TaskRepairService {
     async repair(results, critique, request) {
         const startTime = Date.now();
         this.logger.log(`Repairing ${critique.issues.length} issues from ${results.length} results`);
+        if (this.bridge) {
+            try {
+                const llmResult = await this.llmRepair(results, critique, request);
+                if (llmResult) {
+                    this.logger.log(`LLM repair completed: ${llmResult.repairedSteps.length} repaired, ` +
+                        `${llmResult.failedRepairs.length} failed in ${Date.now() - startTime}ms`);
+                    return llmResult;
+                }
+            }
+            catch (error) {
+                this.logger.warn(`LLM repair failed, falling back to rule-based: ${error.message}`);
+            }
+        }
         const repairedSteps = [];
         const failedRepairs = [];
         const repairedPlanSteps = [];
@@ -146,6 +164,79 @@ let TaskRepairService = TaskRepairService_1 = class TaskRepairService {
             history: historyEntries,
         };
     }
+    async llmRepair(results, critique, request) {
+        if (!this.bridge) {
+            return null;
+        }
+        const userPrompt = JSON.stringify({
+            failedResults: results
+                .filter((r) => !r.success)
+                .map((r) => ({
+                stepId: r.stepId,
+                error: r.output.error,
+                retryCount: r.retryCount,
+                executionTimeMs: r.executionTimeMs,
+            })),
+            critique: {
+                passed: critique.passed,
+                score: critique.score,
+                issues: critique.issues.map((i) => ({
+                    stepId: i.stepId,
+                    severity: i.severity,
+                    category: i.category,
+                    message: i.message,
+                    autoRepairable: i.autoRepairable,
+                })),
+            },
+            requestPayload: request.payload,
+            requestContext: request.context,
+        });
+        const result = await this.bridge.callLLM({
+            systemPrompt: 'You are an expert repair strategist. Given failed execution results and critique, determine the best repair approach. ' +
+                'Output JSON: {repairedSteps: [{stepId, strategy, modifiedParameters}], failedRepairs: [], overallStrategy: string}',
+            userPrompt,
+            temperature: 0.3,
+            maxTokens: 4096,
+        });
+        const parsed = JSON.parse(result.content);
+        const repairedSteps = (parsed.repairedSteps || []).map((s) => s.stepId);
+        const failedRepairs = parsed.failedRepairs || [];
+        const repairedPlanSteps = (parsed.repairedSteps || []).map((step, index) => ({
+            id: (0, uuid_1.v4)(),
+            order: index,
+            status: agent_interface_1.TaskStatus.PENDING,
+            retryCount: 0,
+            input: {
+                taskId: step.stepId || (0, uuid_1.v4)(),
+                payload: step.modifiedParameters || request.payload,
+                context: {
+                    isRetry: true,
+                    repairStrategy: step.strategy,
+                    llmRepair: true,
+                },
+            },
+        }));
+        let repairedPlan = null;
+        if (repairedPlanSteps.length > 0) {
+            repairedPlan = {
+                id: (0, uuid_1.v4)(),
+                taskId: request.taskId || 'unknown',
+                steps: repairedPlanSteps,
+                dependencies: [],
+                createdAt: new Date(),
+                estimatedDurationMs: repairedPlanSteps.length * 5000,
+            };
+        }
+        return {
+            repairedPlan,
+            repairedSteps,
+            failedRepairs,
+            error: failedRepairs.length > 0
+                ? `${failedRepairs.length} step(s) could not be repaired`
+                : undefined,
+            history: [],
+        };
+    }
     getRepairHistory(taskId) {
         return this.repairHistory.get(taskId) || [];
     }
@@ -181,7 +272,9 @@ let TaskRepairService = TaskRepairService_1 = class TaskRepairService {
             case task_critic_service_1.CritiqueCategory.PERFORMANCE:
                 return this.config.enableSimplification ? RepairStrategy.SIMPLIFY : RepairStrategy.RETRY;
             case task_critic_service_1.CritiqueCategory.COMPLETENESS:
-                return this.config.enableDecomposition ? RepairStrategy.DECOMPOSE_FURTHER : RepairStrategy.RETRY;
+                return this.config.enableDecomposition
+                    ? RepairStrategy.DECOMPOSE_FURTHER
+                    : RepairStrategy.RETRY;
             case task_critic_service_1.CritiqueCategory.CONSISTENCY:
                 return RepairStrategy.RETRY;
             case task_critic_service_1.CritiqueCategory.ACCURACY:
@@ -428,6 +521,9 @@ let TaskRepairService = TaskRepairService_1 = class TaskRepairService {
 exports.TaskRepairService = TaskRepairService;
 exports.TaskRepairService = TaskRepairService = TaskRepairService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [task_planner_service_1.TaskPlannerService])
+    __param(1, (0, common_1.Optional)()),
+    __param(1, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [task_planner_service_1.TaskPlannerService,
+        bridge_1.AgentConnectorBridge])
 ], TaskRepairService);
 //# sourceMappingURL=task-repair.service.js.map

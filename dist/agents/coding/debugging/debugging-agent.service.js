@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DebuggingAgentService = exports.DEBUGGING_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.DEBUGGING_AGENT_CONFIG = {
     id: 'coding-debugging',
     name: 'Debugging',
@@ -134,13 +142,7 @@ exports.DEBUGGING_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:code',
-        'write:code',
-        'read:logs',
-        'execute:debug',
-    ],
+    permissions: ['execute:task', 'read:code', 'write:code', 'read:logs', 'execute:debug'],
     maxConcurrentTasks: 3,
     timeout: 90000,
     retryPolicy: {
@@ -150,8 +152,9 @@ exports.DEBUGGING_AGENT_CONFIG = {
     },
 };
 let DebuggingAgentService = class DebuggingAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.debugSessions = new Map();
     }
     defineConfig() {
@@ -188,6 +191,20 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DEBUG, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback to local: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -210,7 +227,11 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
             const result = await tool.execute(params);
             const sessionId = input.context?.sessionId || input.taskId;
             if (!this.debugSessions.has(sessionId)) {
-                this.debugSessions.set(sessionId, { error: params.error, appliedFixes: [], validated: false });
+                this.debugSessions.set(sessionId, {
+                    error: params.error,
+                    appliedFixes: [],
+                    validated: false,
+                });
             }
             const session = this.debugSessions.get(sessionId);
             switch (action) {
@@ -347,17 +368,21 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
         if (errorType.toLowerCase().includes('type') || errorMessage.toLowerCase().includes('type')) {
             suggestions.push(...this.suggestTypeErrorFixes(errorMessage, lines, language));
         }
-        if (errorType.toLowerCase().includes('reference') || errorMessage.toLowerCase().includes('is not defined')) {
+        if (errorType.toLowerCase().includes('reference') ||
+            errorMessage.toLowerCase().includes('is not defined')) {
             suggestions.push(...this.suggestReferenceErrorFixes(errorMessage, lines, language));
         }
-        if (errorMessage.toLowerCase().includes('null') || errorMessage.toLowerCase().includes('undefined') ||
+        if (errorMessage.toLowerCase().includes('null') ||
+            errorMessage.toLowerCase().includes('undefined') ||
             errorMessage.toLowerCase().includes('cannot read propert')) {
             suggestions.push(...this.suggestNullErrorFixes(errorMessage, lines, language));
         }
-        if (errorType.toLowerCase().includes('syntax') || errorMessage.toLowerCase().includes('unexpected')) {
+        if (errorType.toLowerCase().includes('syntax') ||
+            errorMessage.toLowerCase().includes('unexpected')) {
             suggestions.push(...this.suggestSyntaxErrorFixes(errorMessage, lines, language));
         }
-        if (errorType.toLowerCase().includes('range') || errorMessage.toLowerCase().includes('out of range')) {
+        if (errorType.toLowerCase().includes('range') ||
+            errorMessage.toLowerCase().includes('out of range')) {
             suggestions.push(...this.suggestRangeErrorFixes(errorMessage, lines, language));
         }
         if (suggestions.length === 0) {
@@ -575,13 +600,19 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
         return `Error: ${errorMessage}. Analyze the stack trace and code context to identify the specific cause.`;
     }
     determineSeverity(errorType, errorMessage, code) {
-        if (errorType.includes('Security') || errorType.includes('Permission') || errorMessage.toLowerCase().includes('fatal')) {
+        if (errorType.includes('Security') ||
+            errorType.includes('Permission') ||
+            errorMessage.toLowerCase().includes('fatal')) {
             return 'critical';
         }
-        if (errorType.includes('TypeError') || errorType.includes('ReferenceError') || errorType.includes('NullReference')) {
+        if (errorType.includes('TypeError') ||
+            errorType.includes('ReferenceError') ||
+            errorType.includes('NullReference')) {
             return 'high';
         }
-        if (errorType.includes('RangeError') || errorType.includes('ConnectionError') || errorType.includes('Timeout')) {
+        if (errorType.includes('RangeError') ||
+            errorType.includes('ConnectionError') ||
+            errorType.includes('Timeout')) {
             return 'medium';
         }
         if (errorType.includes('SyntaxError')) {
@@ -657,8 +688,10 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             if (language === 'typescript' || language === 'javascript') {
-                if (line.includes(`function ${functionName}`) || line.includes(`${functionName} =`) ||
-                    line.includes(`${functionName}(`) || line.match(new RegExp(`\\b${functionName}\\s*\\(`))) {
+                if (line.includes(`function ${functionName}`) ||
+                    line.includes(`${functionName} =`) ||
+                    line.includes(`${functionName}(`) ||
+                    line.match(new RegExp(`\\b${functionName}\\s*\\(`))) {
                     return i;
                 }
             }
@@ -698,11 +731,18 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
         if (assignMatch) {
             const name = assignMatch[1];
             const value = assignMatch[2].trim();
-            variables[name] = value.startsWith("'") || value.startsWith('"') ? 'string' :
-                /^\d+$/.test(value) ? 'number' :
-                    value === 'true' || value === 'false' ? 'boolean' :
-                        value === 'null' ? null :
-                            value === 'undefined' ? undefined : 'expression';
+            variables[name] =
+                value.startsWith("'") || value.startsWith('"')
+                    ? 'string'
+                    : /^\d+$/.test(value)
+                        ? 'number'
+                        : value === 'true' || value === 'false'
+                            ? 'boolean'
+                            : value === 'null'
+                                ? null
+                                : value === 'undefined'
+                                    ? undefined
+                                    : 'expression';
         }
     }
     extractFunctionCall(line, language) {
@@ -711,10 +751,12 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
     }
     isErrorPoint(line, language) {
         if (language === 'typescript' || language === 'javascript') {
-            return line.includes('.null') || line.includes('undefined') ||
-                line.includes('throw ') || line.includes('catch (') ||
+            return (line.includes('.null') ||
+                line.includes('undefined') ||
+                line.includes('throw ') ||
+                line.includes('catch (') ||
                 (line.includes('[') && !line.includes(']')) ||
-                line.includes('.length') && line.includes('undefined');
+                (line.includes('.length') && line.includes('undefined')));
         }
         return line.includes('raise ') || line.includes('except ') || line.includes('None');
     }
@@ -746,7 +788,8 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
     }
     suggestTypeErrorFixes(errorMessage, lines, language) {
         const suggestions = [];
-        if (errorMessage.includes('cannot read properties of') || errorMessage.includes('cannot read propert')) {
+        if (errorMessage.includes('cannot read properties of') ||
+            errorMessage.includes('cannot read propert')) {
             suggestions.push({
                 id: 'fix-null-guard',
                 title: 'Add null/undefined guard',
@@ -943,12 +986,18 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
         const openBraces = (code.match(/{/g) || []).length;
         const closeBraces = (code.match(/}/g) || []).length;
         if (Math.abs(openBraces - closeBraces) > 1) {
-            return { valid: false, message: `Unbalanced braces: ${openBraces} open, ${closeBraces} close` };
+            return {
+                valid: false,
+                message: `Unbalanced braces: ${openBraces} open, ${closeBraces} close`,
+            };
         }
         const openParens = (code.match(/\(/g) || []).length;
         const closeParens = (code.match(/\)/g) || []).length;
         if (Math.abs(openParens - closeParens) > 1) {
-            return { valid: false, message: `Unbalanced parentheses: ${openParens} open, ${closeParens} close` };
+            return {
+                valid: false,
+                message: `Unbalanced parentheses: ${openParens} open, ${closeParens} close`,
+            };
         }
         return { valid: true, message: 'No obvious syntax issues detected' };
     }
@@ -999,11 +1048,17 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
             }
             else if (Object.values(pairs).includes(char)) {
                 if (stack.length === 0) {
-                    return { balanced: false, message: `Unmatched closing delimiter '${char}' at position ${i}` };
+                    return {
+                        balanced: false,
+                        message: `Unmatched closing delimiter '${char}' at position ${i}`,
+                    };
                 }
                 const last = stack.pop();
                 if (pairs[last] !== char) {
-                    return { balanced: false, message: `Mismatched delimiters: '${last}' and '${char}' at position ${i}` };
+                    return {
+                        balanced: false,
+                        message: `Mismatched delimiters: '${last}' and '${char}' at position ${i}`,
+                    };
                 }
             }
         }
@@ -1036,6 +1091,8 @@ let DebuggingAgentService = class DebuggingAgentService extends base_agent_servi
 };
 exports.DebuggingAgentService = DebuggingAgentService;
 exports.DebuggingAgentService = DebuggingAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], DebuggingAgentService);
 //# sourceMappingURL=debugging-agent.service.js.map

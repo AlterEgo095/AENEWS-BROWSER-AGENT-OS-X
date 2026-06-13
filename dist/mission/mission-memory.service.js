@@ -20,7 +20,10 @@ let MissionMemoryService = MissionMemoryService_1 = class MissionMemoryService {
     store(missionId, key, value) {
         const store = this.getOrCreateStore(missionId);
         store.data.set(key, value);
-        this.addHistoryItem(missionId, 'DATA_STORE', `Stored key "${key}"`, { key, valueType: typeof value });
+        this.addHistoryItem(missionId, 'DATA_STORE', `Stored key "${key}"`, {
+            key,
+            valueType: typeof value,
+        });
         this.logger.debug(`Mission "${missionId}": stored key "${key}"`);
     }
     retrieve(missionId, key) {
@@ -30,7 +33,10 @@ let MissionMemoryService = MissionMemoryService_1 = class MissionMemoryService {
             return undefined;
         }
         const value = store.data.get(key);
-        this.addHistoryItem(missionId, 'DATA_RETRIEVE', `Retrieved key "${key}"`, { key, found: value !== undefined });
+        this.addHistoryItem(missionId, 'DATA_RETRIEVE', `Retrieved key "${key}"`, {
+            key,
+            found: value !== undefined,
+        });
         return value;
     }
     getMissionContext(missionId) {

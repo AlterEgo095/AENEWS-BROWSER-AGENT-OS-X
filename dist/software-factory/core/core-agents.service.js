@@ -67,7 +67,7 @@ let MissionPlannerAgent = class MissionPlannerAgent extends CoreAgentBase {
             success: true,
             output: {
                 phases: ['research', 'build', 'test', 'certify', 'deliver'],
-                requiredAgents: neededAgents.map(a => a.id),
+                requiredAgents: neededAgents.map((a) => a.id),
                 agentCount: neededAgents.length,
             },
             artifacts: [],
@@ -75,7 +75,7 @@ let MissionPlannerAgent = class MissionPlannerAgent extends CoreAgentBase {
             durationMs: 500,
             logs: [`Plan created: ${neededAgents.length} agents needed`],
             errors: [],
-            nextAgents: [interfaces_1.CoreAgent.TASK_SCHEDULER, ...neededAgents.map(a => a.id)],
+            nextAgents: [interfaces_1.CoreAgent.TASK_SCHEDULER, ...neededAgents.map((a) => a.id)],
         };
     }
 };

@@ -50,7 +50,9 @@ let MissionStateMachineService = MissionStateMachineService_1 = class MissionSta
                 warnings: [],
             };
         }
-        const validTransition = interfaces_1.VALID_TRANSITIONS.find(t => t.from === timeline.currentState && t.to !== timeline.currentState && t.trigger === context.trigger);
+        const validTransition = interfaces_1.VALID_TRANSITIONS.find((t) => t.from === timeline.currentState &&
+            t.to !== timeline.currentState &&
+            t.trigger === context.trigger);
         if (!validTransition) {
             const errorMsg = `Invalid transition: ${timeline.currentState} + ${context.trigger}`;
             this.logger.warn(errorMsg);
@@ -60,7 +62,9 @@ let MissionStateMachineService = MissionStateMachineService_1 = class MissionSta
                 newState: timeline.currentState,
                 timestamp: new Date(),
                 error: errorMsg,
-                warnings: [`Transition ${context.trigger} is not valid from state ${timeline.currentState}`],
+                warnings: [
+                    `Transition ${context.trigger} is not valid from state ${timeline.currentState}`,
+                ],
             };
         }
         if (validTransition.guard) {
@@ -169,7 +173,7 @@ let MissionStateMachineService = MissionStateMachineService_1 = class MissionSta
         const timeline = this.timelines.get(missionId);
         if (!timeline)
             return [];
-        return interfaces_1.VALID_TRANSITIONS.filter(t => t.from === timeline.currentState && t.to !== timeline.currentState);
+        return interfaces_1.VALID_TRANSITIONS.filter((t) => t.from === timeline.currentState && t.to !== timeline.currentState);
     }
     archiveMission(missionId) {
         const timeline = this.timelines.get(missionId);
@@ -178,7 +182,8 @@ let MissionStateMachineService = MissionStateMachineService_1 = class MissionSta
         const firstEntry = timeline.entries[0];
         const lastEntry = timeline.entries[timeline.entries.length - 1];
         if (firstEntry && lastEntry) {
-            timeline.totalDuration = (lastEntry.exitedAt || new Date()).getTime() - firstEntry.enteredAt.getTime();
+            timeline.totalDuration =
+                (lastEntry.exitedAt || new Date()).getTime() - firstEntry.enteredAt.getTime();
         }
         this.timelines.delete(missionId);
         this.logger.log(`Mission ${missionId} archived. Total duration: ${timeline.totalDuration || 0}ms`);

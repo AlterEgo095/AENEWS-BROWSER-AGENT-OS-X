@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskManagementAgentService = exports.TASK_MANAGEMENT_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.TASK_MANAGEMENT_AGENT_CONFIG = {
     id: 'office-task-management',
     name: 'TaskManagement',
@@ -27,10 +35,18 @@ exports.TASK_MANAGEMENT_AGENT_CONFIG = {
                     description: { type: 'string', description: 'Task description' },
                     projectId: { type: 'string', description: 'Parent project ID' },
                     assignee: { type: 'string', description: 'Assignee user ID or email' },
-                    priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Task priority' },
+                    priority: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high', 'critical'],
+                        description: 'Task priority',
+                    },
                     deadline: { type: 'string', description: 'Task deadline (ISO string)' },
                     tags: { type: 'array', items: { type: 'string' }, description: 'Task tags' },
-                    subtasks: { type: 'array', items: { type: 'object' }, description: 'Initial subtask definitions' },
+                    subtasks: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Initial subtask definitions',
+                    },
                     estimatedHours: { type: 'number', description: 'Estimated hours to complete' },
                 },
                 required: ['title'],
@@ -53,9 +69,17 @@ exports.TASK_MANAGEMENT_AGENT_CONFIG = {
                     taskId: { type: 'string', description: 'ID of the task to update' },
                     title: { type: 'string', description: 'New title' },
                     description: { type: 'string', description: 'New description' },
-                    status: { type: 'string', enum: ['todo', 'in_progress', 'review', 'done', 'blocked', 'cancelled'], description: 'New status' },
+                    status: {
+                        type: 'string',
+                        enum: ['todo', 'in_progress', 'review', 'done', 'blocked', 'cancelled'],
+                        description: 'New status',
+                    },
                     assignee: { type: 'string', description: 'New assignee' },
-                    priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'New priority' },
+                    priority: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high', 'critical'],
+                        description: 'New priority',
+                    },
                     progress: { type: 'number', description: 'Progress percentage (0-100)' },
                     tags: { type: 'array', items: { type: 'string' }, description: 'New tags' },
                     actualHours: { type: 'number', description: 'Actual hours spent' },
@@ -126,7 +150,11 @@ exports.TASK_MANAGEMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     projectId: { type: 'string', description: 'Project ID for report' },
-                    reportType: { type: 'string', enum: ['summary', 'detailed', 'burndown', 'velocity'], description: 'Type of report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['summary', 'detailed', 'burndown', 'velocity'],
+                        description: 'Type of report',
+                    },
                     assignee: { type: 'string', description: 'Filter by assignee' },
                     dateFrom: { type: 'string', description: 'Report start date (ISO string)' },
                     dateTo: { type: 'string', description: 'Report end date (ISO string)' },
@@ -150,7 +178,11 @@ exports.TASK_MANAGEMENT_AGENT_CONFIG = {
                 properties: {
                     taskId: { type: 'string', description: 'ID of the task' },
                     deadline: { type: 'string', description: 'New deadline (ISO string)' },
-                    notifyAssignee: { type: 'boolean', default: true, description: 'Whether to notify the assignee' },
+                    notifyAssignee: {
+                        type: 'boolean',
+                        default: true,
+                        description: 'Whether to notify the assignee',
+                    },
                     reason: { type: 'string', description: 'Reason for deadline change' },
                 },
                 required: ['taskId', 'deadline'],
@@ -172,7 +204,11 @@ exports.TASK_MANAGEMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     taskId: { type: 'string', description: 'ID of the task' },
-                    priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'New priority level' },
+                    priority: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high', 'critical'],
+                        description: 'New priority level',
+                    },
                     reason: { type: 'string', description: 'Reason for priority change' },
                 },
                 required: ['taskId', 'priority'],
@@ -188,13 +224,7 @@ exports.TASK_MANAGEMENT_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:task',
-        'write:task',
-        'assign:task',
-        'report:task',
-    ],
+    permissions: ['execute:task', 'read:task', 'write:task', 'assign:task', 'report:task'],
     maxConcurrentTasks: 5,
     timeout: 30000,
     retryPolicy: {
@@ -204,8 +234,9 @@ exports.TASK_MANAGEMENT_AGENT_CONFIG = {
     },
 };
 let TaskManagementAgentService = class TaskManagementAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.tasks = new Map();
         this.projects = new Map();
         this.taskCounter = 0;
@@ -254,6 +285,20 @@ let TaskManagementAgentService = class TaskManagementAgentService extends base_a
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.OfficeCapability.DOCX, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -374,7 +419,14 @@ let TaskManagementAgentService = class TaskManagementAgentService extends base_a
             updatedFields.push('description');
         }
         if (status !== undefined) {
-            const validStatuses = ['todo', 'in_progress', 'review', 'done', 'blocked', 'cancelled'];
+            const validStatuses = [
+                'todo',
+                'in_progress',
+                'review',
+                'done',
+                'blocked',
+                'cancelled',
+            ];
             if (!validStatuses.includes(status)) {
                 throw new Error(`Invalid status: ${status}. Supported: ${validStatuses.join(', ')}`);
             }
@@ -573,7 +625,7 @@ let TaskManagementAgentService = class TaskManagementAgentService extends base_a
                     varianceHours: totalActual - totalEstimated,
                     overdueTasks: overdue,
                     completionRate: filteredTasks.length > 0
-                        ? Math.round((byStatus['done'] || 0) / filteredTasks.length * 100)
+                        ? Math.round(((byStatus['done'] || 0) / filteredTasks.length) * 100)
                         : 0,
                 };
                 break;
@@ -588,7 +640,9 @@ let TaskManagementAgentService = class TaskManagementAgentService extends base_a
                         assignee: t.assignee,
                         progress: t.progress,
                         deadline: t.deadline?.toISOString() || null,
-                        isOverdue: t.deadline ? t.deadline < now && t.status !== 'done' && t.status !== 'cancelled' : false,
+                        isOverdue: t.deadline
+                            ? t.deadline < now && t.status !== 'done' && t.status !== 'cancelled'
+                            : false,
                         estimatedHours: t.estimatedHours,
                         actualHours: t.actualHours,
                         subtaskCompletion: t.subtasks.length > 0
@@ -618,7 +672,9 @@ let TaskManagementAgentService = class TaskManagementAgentService extends base_a
                     createdTasksByDay,
                     completedTasksByDay,
                     idealBurndownRate: filteredTasks.length > 0
-                        ? (filteredTasks.length / Math.max(1, Math.ceil((now.getTime() - Math.min(...filteredTasks.map((t) => t.createdAt.getTime()))) / 86400000)))
+                        ? filteredTasks.length /
+                            Math.max(1, Math.ceil((now.getTime() - Math.min(...filteredTasks.map((t) => t.createdAt.getTime()))) /
+                                86400000))
                         : 0,
                 };
                 break;
@@ -641,9 +697,7 @@ let TaskManagementAgentService = class TaskManagementAgentService extends base_a
                     weeklyCompleted,
                     averageWeeklyVelocity: Math.round(avgVelocity * 10) / 10,
                     totalRemaining,
-                    estimatedWeeksToComplete: avgVelocity > 0
-                        ? Math.ceil(totalRemaining / avgVelocity)
-                        : Infinity,
+                    estimatedWeeksToComplete: avgVelocity > 0 ? Math.ceil(totalRemaining / avgVelocity) : Infinity,
                 };
                 break;
             }
@@ -737,6 +791,8 @@ let TaskManagementAgentService = class TaskManagementAgentService extends base_a
 };
 exports.TaskManagementAgentService = TaskManagementAgentService;
 exports.TaskManagementAgentService = TaskManagementAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], TaskManagementAgentService);
 //# sourceMappingURL=task-management-agent.service.js.map

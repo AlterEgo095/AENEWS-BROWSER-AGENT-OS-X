@@ -5,11 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LearningAgentService = exports.META_LEARNING_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
 exports.META_LEARNING_AGENT_CONFIG = {
     id: 'meta-learning',
     name: 'MetaLearning',
@@ -183,8 +190,9 @@ exports.META_LEARNING_AGENT_CONFIG = {
     },
 };
 let LearningAgentService = class LearningAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.knowledgeBase = new Map();
         this.identifiedPatterns = [];
     }
@@ -227,6 +235,21 @@ let LearningAgentService = class LearningAgentService extends base_agent_service
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const llmResult = await this.bridge.callLLM({
+                    systemPrompt: `You are the ${this.config.name} agent in the Meta-Intelligence cluster. Analyze the following task and provide a detailed learning analysis with insights, knowledge updates, and pattern identification.`,
+                    userPrompt: JSON.stringify(input.payload),
+                    temperature: 0.3,
+                    maxTokens: 2048,
+                });
+                const analysis = llmResult.content;
+                return this.createAgentOutput(input.taskId, true, { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount }, undefined, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge LLM failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -614,6 +637,9 @@ let LearningAgentService = class LearningAgentService extends base_agent_service
 };
 exports.LearningAgentService = LearningAgentService;
 exports.LearningAgentService = LearningAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], LearningAgentService);
 //# sourceMappingURL=learning-agent.service.js.map

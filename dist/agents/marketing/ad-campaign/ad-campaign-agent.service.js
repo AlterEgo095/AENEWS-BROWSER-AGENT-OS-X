@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdCampaignAgentService = exports.AD_CAMPAIGN_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.AD_CAMPAIGN_AGENT_CONFIG = {
     id: 'marketing-ad-campaign',
     name: 'AdCampaign',
@@ -25,10 +33,18 @@ exports.AD_CAMPAIGN_AGENT_CONFIG = {
                 properties: {
                     name: { type: 'string', description: 'Campaign name' },
                     platform: { type: 'string', description: 'Ad platform' },
-                    objective: { type: 'string', enum: ['awareness', 'traffic', 'engagement', 'leads', 'conversions', 'sales'], description: 'Campaign objective' },
+                    objective: {
+                        type: 'string',
+                        enum: ['awareness', 'traffic', 'engagement', 'leads', 'conversions', 'sales'],
+                        description: 'Campaign objective',
+                    },
                     startDate: { type: 'string', description: 'Start date (ISO string)' },
                     endDate: { type: 'string', description: 'End date (ISO string)' },
-                    adSets: { type: 'array', items: { type: 'object' }, description: 'Ad sets configuration' },
+                    adSets: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Ad sets configuration',
+                    },
                 },
                 required: ['name', 'platform', 'objective'],
             },
@@ -52,7 +68,11 @@ exports.AD_CAMPAIGN_AGENT_CONFIG = {
                     campaignId: { type: 'string', description: 'Campaign ID' },
                     totalBudget: { type: 'number', description: 'Total campaign budget' },
                     dailyBudget: { type: 'number', description: 'Daily budget cap' },
-                    allocation: { type: 'string', enum: ['even', 'performance-based', 'manual', 'ai-optimized'], description: 'Budget allocation strategy' },
+                    allocation: {
+                        type: 'string',
+                        enum: ['even', 'performance-based', 'manual', 'ai-optimized'],
+                        description: 'Budget allocation strategy',
+                    },
                     adSetBudgets: { type: 'object', description: 'Per ad set budget overrides' },
                 },
                 required: ['campaignId', 'totalBudget'],
@@ -76,11 +96,31 @@ exports.AD_CAMPAIGN_AGENT_CONFIG = {
                 properties: {
                     campaignId: { type: 'string', description: 'Campaign ID' },
                     demographics: { type: 'object', description: 'Demographic targeting' },
-                    interests: { type: 'array', items: { type: 'string' }, description: 'Interest targeting' },
-                    behaviors: { type: 'array', items: { type: 'string' }, description: 'Behavioral targeting' },
-                    locations: { type: 'array', items: { type: 'string' }, description: 'Geographic targeting' },
-                    customAudiences: { type: 'array', items: { type: 'string' }, description: 'Custom audience IDs' },
-                    lookalikeAudiences: { type: 'array', items: { type: 'string' }, description: 'Lookalike audience seeds' },
+                    interests: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Interest targeting',
+                    },
+                    behaviors: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Behavioral targeting',
+                    },
+                    locations: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Geographic targeting',
+                    },
+                    customAudiences: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Custom audience IDs',
+                    },
+                    lookalikeAudiences: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Lookalike audience seeds',
+                    },
                 },
                 required: ['campaignId'],
             },
@@ -100,8 +140,15 @@ exports.AD_CAMPAIGN_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     campaignId: { type: 'string', description: 'Campaign ID' },
-                    action: { type: 'string', enum: ['launch', 'pause', 'resume', 'stop'], description: 'Action to perform' },
-                    reviewFirst: { type: 'boolean', description: 'Whether to review settings before launching' },
+                    action: {
+                        type: 'string',
+                        enum: ['launch', 'pause', 'resume', 'stop'],
+                        description: 'Action to perform',
+                    },
+                    reviewFirst: {
+                        type: 'boolean',
+                        description: 'Whether to review settings before launching',
+                    },
                 },
                 required: ['campaignId', 'action'],
             },
@@ -122,7 +169,11 @@ exports.AD_CAMPAIGN_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     campaignId: { type: 'string', description: 'Campaign ID' },
-                    optimizationGoal: { type: 'string', enum: ['cpa', 'roas', 'conversions', 'reach', 'engagement'], description: 'Optimization goal' },
+                    optimizationGoal: {
+                        type: 'string',
+                        enum: ['cpa', 'roas', 'conversions', 'reach', 'engagement'],
+                        description: 'Optimization goal',
+                    },
                     autoApply: { type: 'boolean', description: 'Whether to auto-apply optimizations' },
                     maxBudgetChange: { type: 'number', description: 'Maximum budget change percentage' },
                 },
@@ -147,7 +198,11 @@ exports.AD_CAMPAIGN_AGENT_CONFIG = {
                     campaignId: { type: 'string', description: 'Campaign ID' },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
                     dateTo: { type: 'string', description: 'End date (ISO string)' },
-                    granularity: { type: 'string', enum: ['hourly', 'daily', 'weekly', 'total'], description: 'Report granularity' },
+                    granularity: {
+                        type: 'string',
+                        enum: ['hourly', 'daily', 'weekly', 'total'],
+                        description: 'Report granularity',
+                    },
                     compareWith: { type: 'string', description: 'Another campaign ID for comparison' },
                 },
                 required: ['campaignId'],
@@ -182,8 +237,9 @@ exports.AD_CAMPAIGN_AGENT_CONFIG = {
     },
 };
 let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.campaigns = new Map();
         this.campaignCounter = 0;
     }
@@ -226,6 +282,20 @@ let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_ser
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.MARKETING, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -262,14 +332,22 @@ let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_ser
         this.logger.log('AdCampaign agent destroyed, campaign data cleared');
     }
     async createCampaign(params) {
-        const { name, platform, objective, startDate, endDate, adSets: adSetConfigs = [], } = params;
+        const { name, platform, objective, startDate, endDate, adSets: adSetConfigs = [] } = params;
         if (!name || typeof name !== 'string') {
             throw new Error('A valid campaign name is required');
         }
         if (!platform || typeof platform !== 'string') {
             throw new Error('A valid platform is required');
         }
-        const validPlatforms = ['google-ads', 'facebook', 'instagram', 'linkedin', 'twitter', 'tiktok', 'programmatic'];
+        const validPlatforms = [
+            'google-ads',
+            'facebook',
+            'instagram',
+            'linkedin',
+            'twitter',
+            'tiktok',
+            'programmatic',
+        ];
         if (!validPlatforms.includes(platform)) {
             throw new Error(`Invalid platform: ${platform}. Valid: ${validPlatforms.join(', ')}`);
         }
@@ -284,15 +362,33 @@ let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_ser
                 name: as.name || `Ad Set ${i + 1}`,
                 budget: as.budget || 0,
                 status: 'active',
-                performance: { impressions: 0, clicks: 0, conversions: 0, spend: 0, ctr: 0, cpc: 0, cpa: 0 },
+                performance: {
+                    impressions: 0,
+                    clicks: 0,
+                    conversions: 0,
+                    spend: 0,
+                    ctr: 0,
+                    cpc: 0,
+                    cpa: 0,
+                },
             }))
-            : [{
+            : [
+                {
                     id: 'adset-1',
                     name: 'Default Ad Set',
                     budget: 0,
                     status: 'active',
-                    performance: { impressions: 0, clicks: 0, conversions: 0, spend: 0, ctr: 0, cpc: 0, cpa: 0 },
-                }];
+                    performance: {
+                        impressions: 0,
+                        clicks: 0,
+                        conversions: 0,
+                        spend: 0,
+                        ctr: 0,
+                        cpc: 0,
+                        cpa: 0,
+                    },
+                },
+            ];
         const campaign = {
             id: campaignId,
             name,
@@ -343,7 +439,7 @@ let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_ser
         };
     }
     async setBudget(params) {
-        const { campaignId, totalBudget, dailyBudget, allocation = 'even', adSetBudgets = {}, } = params;
+        const { campaignId, totalBudget, dailyBudget, allocation = 'even', adSetBudgets = {} } = params;
         if (!campaignId || typeof campaignId !== 'string') {
             throw new Error('A valid campaignId is required');
         }
@@ -636,9 +732,7 @@ let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_ser
             const shiftAmount = Math.round(campaign.budget.total * budgetShift);
             this.logger.log(`Auto-applied budget shift: +${shiftAmount} to ${topPerformer.id}`);
         }
-        const projectedImprovement = optimizations
-            .filter((o) => o.applied)
-            .length > 0
+        const projectedImprovement = optimizations.filter((o) => o.applied).length > 0
             ? `Projected ${optimizationGoal.toUpperCase()} improvement of 15-30% based on applied optimizations`
             : `Review and apply optimizations for projected ${optimizationGoal.toUpperCase()} improvement`;
         this.logger.log(`Optimized campaign: ${campaignId}, goal=${optimizationGoal}, optimizations=${optimizations.length}, applied=${autoApply}`);
@@ -717,7 +811,7 @@ let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_ser
         const conversionRate = +(1 + Math.random() * 5).toFixed(2);
         const conversions = Math.floor(clicks * (conversionRate / 100));
         const cpa = conversions > 0 ? +(budget / conversions).toFixed(2) : 0;
-        const roas = conversions > 0 ? +(conversions * 50 / budget).toFixed(2) : 0;
+        const roas = conversions > 0 ? +((conversions * 50) / budget).toFixed(2) : 0;
         const reach = Math.floor(impressions * 0.7);
         const frequency = reach > 0 ? +(impressions / reach).toFixed(2) : 0;
         return {
@@ -789,6 +883,8 @@ let AdCampaignAgentService = class AdCampaignAgentService extends base_agent_ser
 };
 exports.AdCampaignAgentService = AdCampaignAgentService;
 exports.AdCampaignAgentService = AdCampaignAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], AdCampaignAgentService);
 //# sourceMappingURL=ad-campaign-agent.service.js.map

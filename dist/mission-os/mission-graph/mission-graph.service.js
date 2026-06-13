@@ -67,8 +67,7 @@ let MissionGraphService = MissionGraphService_1 = class MissionGraphService {
     }
     addObjective(missionId, objective) {
         const mission = this.getMissionOrThrow(missionId);
-        if (mission.status !== MissionStatus.DRAFT &&
-            mission.status !== MissionStatus.SIMULATING) {
+        if (mission.status !== MissionStatus.DRAFT && mission.status !== MissionStatus.SIMULATING) {
             throw new Error(`Cannot add objective to mission ${missionId}: status is ${mission.status}`);
         }
         const fullObjective = {
@@ -85,8 +84,7 @@ let MissionGraphService = MissionGraphService_1 = class MissionGraphService {
     }
     addSubObjective(missionId, parentObjectiveId, subObjective) {
         const mission = this.getMissionOrThrow(missionId);
-        if (mission.status !== MissionStatus.DRAFT &&
-            mission.status !== MissionStatus.SIMULATING) {
+        if (mission.status !== MissionStatus.DRAFT && mission.status !== MissionStatus.SIMULATING) {
             throw new Error(`Cannot add sub-objective to mission ${missionId}: status is ${mission.status}`);
         }
         const parent = this.findObjectiveRecursive(mission.objectives, parentObjectiveId);
@@ -167,8 +165,7 @@ let MissionGraphService = MissionGraphService_1 = class MissionGraphService {
         mission.executionGraph = executionGraph;
         mission.resultGraph = null;
         mission.updatedAt = new Date();
-        if (mission.status === MissionStatus.DRAFT ||
-            mission.status === MissionStatus.SIMULATING) {
+        if (mission.status === MissionStatus.DRAFT || mission.status === MissionStatus.SIMULATING) {
             mission.status = MissionStatus.APPROVED;
             this.logger.log(`Mission ${missionId} status → APPROVED`);
         }
@@ -468,8 +465,7 @@ let MissionGraphService = MissionGraphService_1 = class MissionGraphService {
     }
     cancelMission(missionId) {
         const mission = this.getMissionOrThrow(missionId);
-        if (mission.status === MissionStatus.COMPLETED ||
-            mission.status === MissionStatus.CANCELLED) {
+        if (mission.status === MissionStatus.COMPLETED || mission.status === MissionStatus.CANCELLED) {
             throw new Error(`Cannot cancel mission ${missionId}: already ${mission.status}`);
         }
         if (mission.taskGraph) {

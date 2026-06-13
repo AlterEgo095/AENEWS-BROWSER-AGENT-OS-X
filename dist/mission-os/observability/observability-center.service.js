@@ -313,7 +313,10 @@ let ObservabilityCenterService = ObservabilityCenterService_1 = class Observabil
             });
         }
         if (typeof metrics.connected === 'boolean' && !metrics.connected) {
-            this.createAlert('error', `infrastructure.${component}`, `${component} connection lost`, { component, metrics });
+            this.createAlert('error', `infrastructure.${component}`, `${component} connection lost`, {
+                component,
+                metrics,
+            });
         }
     }
     updateEqiScore(score, domains) {
@@ -375,7 +378,8 @@ let ObservabilityCenterService = ObservabilityCenterService_1 = class Observabil
         if (snapshot.infrastructure.cpu.usagePercent > 90) {
             issues.push(`Infrastructure CPU critical: ${snapshot.infrastructure.cpu.usagePercent.toFixed(1)}%`);
         }
-        if (snapshot.infrastructure.gpu.available && snapshot.infrastructure.gpu.utilizationPercent > 95) {
+        if (snapshot.infrastructure.gpu.available &&
+            snapshot.infrastructure.gpu.utilizationPercent > 95) {
             issues.push(`GPU utilization critical: ${snapshot.infrastructure.gpu.utilizationPercent.toFixed(1)}%`);
         }
         if (snapshot.agents.circuitBreakersOpen > 0) {
@@ -687,9 +691,7 @@ let ObservabilityCenterService = ObservabilityCenterService_1 = class Observabil
         return 'stable';
     }
     extractChartHistory(metricName, maxPoints) {
-        const points = this.metricsBuffer
-            .filter((m) => m.name === metricName)
-            .slice(-maxPoints);
+        const points = this.metricsBuffer.filter((m) => m.name === metricName).slice(-maxPoints);
         return points.map((m) => ({ timestamp: m.timestamp, value: m.value }));
     }
 };

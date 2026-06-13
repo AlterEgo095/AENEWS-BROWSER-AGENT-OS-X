@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SpreadsheetAgentService = exports.SPREADSHEET_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.SPREADSHEET_AGENT_CONFIG = {
     id: 'office-spreadsheet',
     name: 'Spreadsheet',
@@ -24,9 +32,17 @@ exports.SPREADSHEET_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     title: { type: 'string', description: 'Spreadsheet title' },
-                    sheets: { type: 'array', items: { type: 'object' }, description: 'Initial sheet definitions' },
+                    sheets: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Initial sheet definitions',
+                    },
                     author: { type: 'string', description: 'Spreadsheet author' },
-                    format: { type: 'string', enum: ['xlsx', 'csv', 'ods'], description: 'Spreadsheet format' },
+                    format: {
+                        type: 'string',
+                        enum: ['xlsx', 'csv', 'ods'],
+                        description: 'Spreadsheet format',
+                    },
                 },
                 required: ['title'],
             },
@@ -51,7 +67,11 @@ exports.SPREADSHEET_AGENT_CONFIG = {
                     value: { type: 'string', description: 'New cell value' },
                     formula: { type: 'string', description: 'Cell formula' },
                     format: { type: 'object', description: 'Cell formatting options' },
-                    rangeUpdates: { type: 'array', items: { type: 'object' }, description: 'Batch cell updates' },
+                    rangeUpdates: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Batch cell updates',
+                    },
                 },
                 required: ['spreadsheetId', 'cell'],
             },
@@ -97,7 +117,11 @@ exports.SPREADSHEET_AGENT_CONFIG = {
                 properties: {
                     spreadsheetId: { type: 'string', description: 'ID of the spreadsheet' },
                     sheet: { type: 'string', description: 'Sheet name' },
-                    chartType: { type: 'string', enum: ['bar', 'line', 'pie', 'scatter', 'area', 'column'], description: 'Type of chart' },
+                    chartType: {
+                        type: 'string',
+                        enum: ['bar', 'line', 'pie', 'scatter', 'area', 'column'],
+                        description: 'Type of chart',
+                    },
                     dataRange: { type: 'string', description: 'Data range for chart (e.g., A1:D10)' },
                     title: { type: 'string', description: 'Chart title' },
                     xLabel: { type: 'string', description: 'X-axis label' },
@@ -123,7 +147,10 @@ exports.SPREADSHEET_AGENT_CONFIG = {
                 properties: {
                     spreadsheetId: { type: 'string', description: 'ID of the target spreadsheet' },
                     sheet: { type: 'string', description: 'Target sheet name' },
-                    data: { type: 'object', description: 'Data to import (CSV string, JSON array, or 2D array)' },
+                    data: {
+                        type: 'object',
+                        description: 'Data to import (CSV string, JSON array, or 2D array)',
+                    },
                     format: { type: 'string', enum: ['csv', 'json', 'array'], description: 'Data format' },
                     startCell: { type: 'string', description: 'Starting cell for import (default: A1)' },
                     hasHeaders: { type: 'boolean', description: 'Whether the data includes header row' },
@@ -173,9 +200,21 @@ exports.SPREADSHEET_AGENT_CONFIG = {
                     spreadsheetId: { type: 'string', description: 'ID of the source spreadsheet' },
                     sheet: { type: 'string', description: 'Source sheet name' },
                     dataRange: { type: 'string', description: 'Source data range' },
-                    rows: { type: 'array', items: { type: 'string' }, description: 'Fields for row grouping' },
-                    columns: { type: 'array', items: { type: 'string' }, description: 'Fields for column grouping' },
-                    values: { type: 'array', items: { type: 'object' }, description: 'Value fields with aggregation' },
+                    rows: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Fields for row grouping',
+                    },
+                    columns: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Fields for column grouping',
+                    },
+                    values: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Value fields with aggregation',
+                    },
                     filters: { type: 'array', items: { type: 'object' }, description: 'Filter conditions' },
                 },
                 required: ['spreadsheetId', 'dataRange', 'values'],
@@ -207,8 +246,9 @@ exports.SPREADSHEET_AGENT_CONFIG = {
     },
 };
 let SpreadsheetAgentService = class SpreadsheetAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.spreadsheets = new Map();
         this.spreadsheetCounter = 0;
         this.chartCounter = 0;
@@ -258,6 +298,20 @@ let SpreadsheetAgentService = class SpreadsheetAgentService extends base_agent_s
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.OfficeCapability.EXCEL, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -662,14 +716,22 @@ let SpreadsheetAgentService = class SpreadsheetAgentService extends base_agent_s
             filteredRows = filteredRows.filter((rowMap) => {
                 const val = rowMap.get(filter.field);
                 switch (filter.operator) {
-                    case 'eq': return val === filter.value;
-                    case 'neq': return val !== filter.value;
-                    case 'gt': return Number(val) > Number(filter.value);
-                    case 'lt': return Number(val) < Number(filter.value);
-                    case 'gte': return Number(val) >= Number(filter.value);
-                    case 'lte': return Number(val) <= Number(filter.value);
-                    case 'contains': return String(val).includes(String(filter.value));
-                    default: return true;
+                    case 'eq':
+                        return val === filter.value;
+                    case 'neq':
+                        return val !== filter.value;
+                    case 'gt':
+                        return Number(val) > Number(filter.value);
+                    case 'lt':
+                        return Number(val) < Number(filter.value);
+                    case 'gte':
+                        return Number(val) >= Number(filter.value);
+                    case 'lte':
+                        return Number(val) <= Number(filter.value);
+                    case 'contains':
+                        return String(val).includes(String(filter.value));
+                    default:
+                        return true;
                 }
             });
         }
@@ -833,13 +895,17 @@ let SpreadsheetAgentService = class SpreadsheetAgentService extends base_agent_s
         if (cells.length === 0)
             return '';
         const grid = this.convertTo2DArray(cells, range);
-        return grid.map((row) => row.map((cell) => {
+        return grid
+            .map((row) => row
+            .map((cell) => {
             const str = String(cell);
             if (str.includes(',') || str.includes('"') || str.includes('\n')) {
                 return `"${str.replace(/"/g, '""')}"`;
             }
             return str;
-        }).join(',')).join('\n');
+        })
+            .join(','))
+            .join('\n');
     }
     convertToJson(cells, range, includeHeaders) {
         const grid = this.convertTo2DArray(cells, range);
@@ -893,9 +959,7 @@ let SpreadsheetAgentService = class SpreadsheetAgentService extends base_agent_s
         for (const [groupKey, groupRows] of groups) {
             const aggregated = new Map();
             for (const vf of valueFields) {
-                const vals = groupRows
-                    .map((r) => Number(r.get(vf.field)))
-                    .filter((v) => !isNaN(v));
+                const vals = groupRows.map((r) => Number(r.get(vf.field))).filter((v) => !isNaN(v));
                 let result;
                 switch (vf.aggregation.toLowerCase()) {
                     case 'sum':
@@ -929,6 +993,8 @@ let SpreadsheetAgentService = class SpreadsheetAgentService extends base_agent_s
 };
 exports.SpreadsheetAgentService = SpreadsheetAgentService;
 exports.SpreadsheetAgentService = SpreadsheetAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], SpreadsheetAgentService);
 //# sourceMappingURL=spreadsheet-agent.service.js.map

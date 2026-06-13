@@ -116,7 +116,8 @@ let DeliveryConnector = DeliveryConnector_1 = class DeliveryConnector {
         }
     }
     async executeZip(input) {
-        const outputZipPath = input.parameters.outputPath || path.join('/home/z/my-project/download/missions', `${input.missionId}.zip`);
+        const outputZipPath = input.parameters.outputPath ||
+            path.join('/home/z/my-project/download/missions', `${input.missionId}.zip`);
         fs.mkdirSync(path.dirname(outputZipPath), { recursive: true });
         try {
             (0, child_process_1.execSync)(`cd "${input.workspaceDir}" && zip -r "${outputZipPath}" . -x "*.git*" "node_modules/*" 2>&1`, {
@@ -128,7 +129,9 @@ let DeliveryConnector = DeliveryConnector_1 = class DeliveryConnector {
                 this.logger.log(`ZIP created: ${outputZipPath} (${stats.size} bytes)`);
                 return {
                     success: true,
-                    artifacts: [this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size)],
+                    artifacts: [
+                        this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size),
+                    ],
                     output: { zipPath: outputZipPath, sizeBytes: stats.size },
                     costUsd: 0,
                     durationMs: 0,
@@ -154,7 +157,9 @@ let DeliveryConnector = DeliveryConnector_1 = class DeliveryConnector {
             this.logger.log(`ZIP created (archiver): ${outputZipPath} (${stats.size} bytes)`);
             return {
                 success: true,
-                artifacts: [this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size)],
+                artifacts: [
+                    this.makeArtifact(`${input.missionId}.zip`, 'archive', outputZipPath, stats.size),
+                ],
                 output: { zipPath: outputZipPath, sizeBytes: stats.size },
                 costUsd: 0,
                 durationMs: 0,
@@ -194,12 +199,16 @@ let DeliveryConnector = DeliveryConnector_1 = class DeliveryConnector {
                 results.push({ command: cmd.split('&&').pop()?.trim(), success: true, output });
             }
             catch (err) {
-                results.push({ command: cmd.split('&&').pop()?.trim(), success: false, error: err.message?.slice(0, 200) });
+                results.push({
+                    command: cmd.split('&&').pop()?.trim(),
+                    success: false,
+                    error: err.message?.slice(0, 200),
+                });
                 allSucceeded = false;
             }
         }
         return {
-            success: allSucceeded || results.some(r => r.command?.includes('commit') && r.success),
+            success: allSucceeded || results.some((r) => r.command?.includes('commit') && r.success),
             artifacts: [],
             output: { repoUrl, branch, results },
             costUsd: 0,
@@ -211,9 +220,7 @@ let DeliveryConnector = DeliveryConnector_1 = class DeliveryConnector {
         const registry = input.parameters.registry || '';
         const tag = input.parameters.tag || 'latest';
         const fullImageName = registry ? `${registry}/${imageName}:${tag}` : `${imageName}:${tag}`;
-        const commands = [
-            `cd "${input.workspaceDir}" && docker build -t ${fullImageName} .`,
-        ];
+        const commands = [`cd "${input.workspaceDir}" && docker build -t ${fullImageName} .`];
         if (registry) {
             commands.push(`docker push ${fullImageName}`);
         }
@@ -225,7 +232,11 @@ let DeliveryConnector = DeliveryConnector_1 = class DeliveryConnector {
                 results.push({ command: cmd.split('docker')[1]?.trim()?.split(' ')[0], success: true });
             }
             catch (err) {
-                results.push({ command: cmd.split('docker')[1]?.trim()?.split(' ')[0], success: false, error: err.message?.slice(0, 300) });
+                results.push({
+                    command: cmd.split('docker')[1]?.trim()?.split(' ')[0],
+                    success: false,
+                    error: err.message?.slice(0, 300),
+                });
                 allSucceeded = false;
             }
         }
@@ -263,11 +274,15 @@ let DeliveryConnector = DeliveryConnector_1 = class DeliveryConnector {
                 results.push({ command: cmd.split(' ')[0], success: true });
             }
             catch (err) {
-                results.push({ command: cmd.split(' ')[0], success: false, error: err.message?.slice(0, 200) });
+                results.push({
+                    command: cmd.split(' ')[0],
+                    success: false,
+                    error: err.message?.slice(0, 200),
+                });
             }
         }
         return {
-            success: results.every(r => r.success),
+            success: results.every((r) => r.success),
             artifacts: [],
             output: { host, remotePath, results },
             costUsd: 0,
@@ -396,7 +411,11 @@ echo "Deployment complete!"
         return {
             success: true,
             artifacts: [],
-            output: { feature, status: 'not_implemented', note: `${feature} delivery will be available in a future sprint` },
+            output: {
+                feature,
+                status: 'not_implemented',
+                note: `${feature} delivery will be available in a future sprint`,
+            },
             costUsd: 0,
             durationMs: 0,
         };
@@ -470,7 +489,8 @@ See \`docs/certification/\` directory for detailed certification reports.
                 try {
                     size += fs.statSync(fullPath).size;
                 }
-                catch { }
+                catch {
+                }
             }
         }
         return size;

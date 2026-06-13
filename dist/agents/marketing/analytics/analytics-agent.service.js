@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnalyticsAgentService = exports.ANALYTICS_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.ANALYTICS_AGENT_CONFIG = {
     id: 'marketing-analytics',
     name: 'Analytics',
@@ -23,11 +31,23 @@ exports.ANALYTICS_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    reportType: { type: 'string', enum: ['overview', 'campaign', 'channel', 'content', 'custom'], description: 'Type of report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['overview', 'campaign', 'channel', 'content', 'custom'],
+                        description: 'Type of report',
+                    },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
                     dateTo: { type: 'string', description: 'End date (ISO string)' },
-                    channels: { type: 'array', items: { type: 'string' }, description: 'Channels to include' },
-                    metrics: { type: 'array', items: { type: 'string' }, description: 'Specific metrics to include' },
+                    channels: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Channels to include',
+                    },
+                    metrics: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Specific metrics to include',
+                    },
                 },
                 required: ['reportType'],
             },
@@ -51,7 +71,11 @@ exports.ANALYTICS_AGENT_CONFIG = {
                     conversionType: { type: 'string', description: 'Type of conversion to track' },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
                     dateTo: { type: 'string', description: 'End date (ISO string)' },
-                    attributionModel: { type: 'string', enum: ['first-touch', 'last-touch', 'linear', 'time-decay'], description: 'Attribution model' },
+                    attributionModel: {
+                        type: 'string',
+                        enum: ['first-touch', 'last-touch', 'linear', 'time-decay'],
+                        description: 'Attribution model',
+                    },
                     channels: { type: 'array', items: { type: 'string' }, description: 'Channels to track' },
                 },
                 required: ['conversionType'],
@@ -73,8 +97,16 @@ exports.ANALYTICS_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    funnelType: { type: 'string', enum: ['awareness', 'conversion', 'retention', 'custom'], description: 'Funnel type' },
-                    stages: { type: 'array', items: { type: 'object' }, description: 'Funnel stages with names' },
+                    funnelType: {
+                        type: 'string',
+                        enum: ['awareness', 'conversion', 'retention', 'custom'],
+                        description: 'Funnel type',
+                    },
+                    stages: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Funnel stages with names',
+                    },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
                     dateTo: { type: 'string', description: 'End date (ISO string)' },
                 },
@@ -96,11 +128,22 @@ exports.ANALYTICS_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    campaignIds: { type: 'array', items: { type: 'string' }, description: 'Campaign IDs to calculate ROI for' },
-                    channels: { type: 'array', items: { type: 'string' }, description: 'Channels to include' },
+                    campaignIds: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Campaign IDs to calculate ROI for',
+                    },
+                    channels: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Channels to include',
+                    },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
                     dateTo: { type: 'string', description: 'End date (ISO string)' },
-                    includeAttribution: { type: 'boolean', description: 'Whether to include attribution data' },
+                    includeAttribution: {
+                        type: 'boolean',
+                        description: 'Whether to include attribution data',
+                    },
                 },
                 required: [],
             },
@@ -145,8 +188,16 @@ exports.ANALYTICS_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    dataType: { type: 'string', enum: ['report', 'conversions', 'funnel', 'roi', 'raw'], description: 'Type of data to export' },
-                    format: { type: 'string', enum: ['csv', 'json', 'xlsx', 'pdf'], description: 'Export format' },
+                    dataType: {
+                        type: 'string',
+                        enum: ['report', 'conversions', 'funnel', 'roi', 'raw'],
+                        description: 'Type of data to export',
+                    },
+                    format: {
+                        type: 'string',
+                        enum: ['csv', 'json', 'xlsx', 'pdf'],
+                        description: 'Export format',
+                    },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
                     dateTo: { type: 'string', description: 'End date (ISO string)' },
                     filters: { type: 'object', description: 'Additional filters' },
@@ -181,8 +232,9 @@ exports.ANALYTICS_AGENT_CONFIG = {
     },
 };
 let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.reports = new Map();
         this.conversionData = [];
         this.exportCounter = 0;
@@ -227,6 +279,20 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.ANALYTICS, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -269,7 +335,9 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
         if (!validReportTypes.includes(reportType)) {
             throw new Error(`Invalid report type: ${reportType}. Valid: ${validReportTypes.join(', ')}`);
         }
-        const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const fromDate = dateFrom
+            ? new Date(dateFrom)
+            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const toDate = dateTo ? new Date(dateTo) : new Date();
         const reportId = `rpt-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
         const summary = {};
@@ -280,8 +348,9 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
                 summary.totalLeads = 2500 + Math.floor(Math.random() * 1500);
                 summary.totalConversions = 350 + Math.floor(Math.random() * 200);
                 summary.totalRevenue = +(15000 + Math.random() * 25000).toFixed(2);
-                summary.avgConversionRate = +((summary.totalConversions / summary.totalVisitors) * 100).toFixed(2);
-                summary.avgCPA = +(summary.totalRevenue / summary.totalConversions * 0.3).toFixed(2);
+                summary.avgConversionRate = +((summary.totalConversions / summary.totalVisitors) *
+                    100).toFixed(2);
+                summary.avgCPA = +((summary.totalRevenue / summary.totalConversions) * 0.3).toFixed(2);
                 data.channels = this.generateChannelData(channels);
                 data.trends = this.generateTrendData(fromDate, toDate, 30);
                 data.topPerformers = {
@@ -357,7 +426,9 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
         if (!conversionType || typeof conversionType !== 'string') {
             throw new Error('A valid conversionType is required');
         }
-        const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const fromDate = dateFrom
+            ? new Date(dateFrom)
+            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const toDate = dateTo ? new Date(dateTo) : new Date();
         const filtered = this.conversionData.filter((c) => {
             if (c.type !== conversionType)
@@ -458,7 +529,8 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
             currentVisitors = stageVisitors;
         }
         const overallConversionRate = funnelStages.length > 0 && funnelStages[0].visitors > 0
-            ? +((funnelStages[funnelStages.length - 1].visitors / funnelStages[0].visitors) * 100).toFixed(2)
+            ? +((funnelStages[funnelStages.length - 1].visitors / funnelStages[0].visitors) *
+                100).toFixed(2)
             : 0;
         const recommendations = this.generateFunnelRecommendations(funnelStages, biggestDropOff);
         this.logger.log(`Funnel analysis: type=${funnelType}, stages=${funnelStages.length}, overallRate=${overallConversionRate}%`);
@@ -503,12 +575,19 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
         };
     }
     async comparePeriods(params) {
-        const { periodAFrom, periodATo, periodBFrom, periodBTo, metrics: requestedMetrics = [] } = params;
+        const { periodAFrom, periodATo, periodBFrom, periodBTo, metrics: requestedMetrics = [], } = params;
         const dates = [periodAFrom, periodATo, periodBFrom, periodBTo].map((d) => new Date(d));
         if (dates.some((d) => isNaN(d.getTime()))) {
             throw new Error('All period dates must be valid ISO timestamps');
         }
-        const defaultMetrics = ['visitors', 'leads', 'conversions', 'revenue', 'conversionRate', 'avgOrderValue'];
+        const defaultMetrics = [
+            'visitors',
+            'leads',
+            'conversions',
+            'revenue',
+            'conversionRate',
+            'avgOrderValue',
+        ];
         const metricKeys = requestedMetrics.length > 0 ? requestedMetrics : defaultMetrics;
         const generatePeriodMetrics = () => {
             const m = {};
@@ -532,7 +611,8 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
                     case 'avgOrderValue':
                         m[key] = +(30 + Math.random() * 70).toFixed(2);
                         break;
-                    default: m[key] = Math.floor(Math.random() * 10000);
+                    default:
+                        m[key] = Math.floor(Math.random() * 10000);
                 }
             }
             return m;
@@ -604,7 +684,15 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
     }
     seedConversionData() {
         const channels = ['email', 'social', 'paid-search', 'organic', 'referral', 'display'];
-        const sources = ['google', 'facebook', 'instagram', 'linkedin', 'twitter', 'direct', 'newsletter'];
+        const sources = [
+            'google',
+            'facebook',
+            'instagram',
+            'linkedin',
+            'twitter',
+            'direct',
+            'newsletter',
+        ];
         const types = ['purchase', 'signup', 'download', 'trial', 'demo'];
         for (let i = 0; i < 500; i++) {
             this.conversionData.push({
@@ -681,6 +769,8 @@ let AnalyticsAgentService = class AnalyticsAgentService extends base_agent_servi
 };
 exports.AnalyticsAgentService = AnalyticsAgentService;
 exports.AnalyticsAgentService = AnalyticsAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], AnalyticsAgentService);
 //# sourceMappingURL=analytics-agent.service.js.map

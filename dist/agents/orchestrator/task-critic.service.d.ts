@@ -1,5 +1,6 @@
 import { OrchestrationRequest } from './orchestrator.service';
 import { StepExecutionResult } from './task-executor.service';
+import { AgentConnectorBridge } from '../bridge';
 export interface CritiqueResult {
     passed: boolean;
     score: number;
@@ -33,9 +34,12 @@ export interface CritiqueConfig {
     enableDataQualityCheck: boolean;
 }
 export declare class TaskCriticService {
+    private readonly bridge?;
     private readonly logger;
     private readonly config;
+    constructor(bridge?: AgentConnectorBridge | undefined);
     critique(results: StepExecutionResult[], request: OrchestrationRequest): Promise<CritiqueResult>;
+    llmCritique(results: StepExecutionResult[], request: OrchestrationRequest): Promise<CritiqueResult | null>;
     private evaluateStepResult;
     private assessOutputQuality;
     private checkCrossStepConsistency;

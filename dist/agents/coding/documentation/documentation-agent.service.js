@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DocumentationAgentService = exports.DOCUMENTATION_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.DOCUMENTATION_AGENT_CONFIG = {
     id: 'coding-documentation',
     name: 'Documentation',
@@ -143,8 +151,9 @@ exports.DOCUMENTATION_AGENT_CONFIG = {
     },
 };
 let DocumentationAgentService = class DocumentationAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.docHistory = [];
     }
     defineConfig() {
@@ -181,6 +190,20 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DOCUMENTATION, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback to local: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -267,7 +290,9 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
                 });
             }
             const methodMatch = line.match(/(?:public|private|protected)?\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)(?:\s*:\s*(\w+))?\s*{/);
-            if (methodMatch && !funcMatch && !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])) {
+            if (methodMatch &&
+                !funcMatch &&
+                !['if', 'for', 'while', 'switch', 'catch'].includes(methodMatch[1])) {
                 totalDocTargets++;
                 const doc = this.generateMethodDoc(methodMatch[1], methodMatch[2], methodMatch[3], style, language);
                 if (!hasExistingDoc) {
@@ -387,7 +412,7 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
             content += `## Configuration\n\n`;
             content += '| Option | Type | Default | Description |\n';
             content += '|--------|------|---------|-------------|\n';
-            content += '| `option1` | `string` | `\'default\'` | Description for option1 |\n';
+            content += "| `option1` | `string` | `'default'` | Description for option1 |\n";
             content += '| `option2` | `boolean` | `false` | Description for option2 |\n\n';
             sections.push('configuration');
         }
@@ -443,9 +468,10 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
         if (currentChangelog) {
             const headerEnd = currentChangelog.indexOf('\n\n');
             if (headerEnd !== -1) {
-                content = currentChangelog.substring(0, headerEnd + 2) +
-                    newEntry +
-                    currentChangelog.substring(headerEnd + 2);
+                content =
+                    currentChangelog.substring(0, headerEnd + 2) +
+                        newEntry +
+                        currentChangelog.substring(headerEnd + 2);
             }
             else {
                 content = currentChangelog + '\n\n' + newEntry;
@@ -642,7 +668,10 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
         const controllerMatch = beforePosition.match(/@Controller\(['"]?([^'")\]]+)/g);
         if (controllerMatch) {
             const lastController = controllerMatch[controllerMatch.length - 1];
-            const tag = lastController.replace("@Controller('", '').replace('@Controller("', '').replace('@Controller(', '');
+            const tag = lastController
+                .replace("@Controller('", '')
+                .replace('@Controller("', '')
+                .replace('@Controller(', '');
             return [tag];
         }
         return ['default'];
@@ -761,7 +790,10 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
             const name = match[1];
             const body = match[2];
             const isExported = code.substring(match.index - 7, match.index).includes('export');
-            const values = body.split(',').map((v) => v.trim().split('=')[0].trim()).filter((v) => v.length > 0);
+            const values = body
+                .split(',')
+                .map((v) => v.trim().split('=')[0].trim())
+                .filter((v) => v.length > 0);
             types.push({
                 name,
                 kind: 'enum',
@@ -785,7 +817,10 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
     }
     parseTypeProperties(body) {
         const properties = [];
-        const lines = body.split(';').map((l) => l.trim()).filter((l) => l.length > 0);
+        const lines = body
+            .split(';')
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
         for (const line of lines) {
             const propMatch = line.match(/(\w+)(\??):\s*([^;]+)/);
             if (propMatch) {
@@ -883,18 +918,23 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
     parseParamsList(paramsStr) {
         if (!paramsStr.trim())
             return [];
-        return paramsStr.split(',').map((param) => {
+        return paramsStr
+            .split(',')
+            .map((param) => {
             const trimmed = param.trim();
             const parts = trimmed.split(':');
             const name = parts[0].replace(/\?.*$/, '').trim();
             const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'any';
             return { name, type };
-        }).filter((p) => p.name.length > 0);
+        })
+            .filter((p) => p.name.length > 0);
     }
     parsePythonParamsList(paramsStr) {
         if (!paramsStr.trim())
             return [];
-        return paramsStr.split(',').map((param) => {
+        return paramsStr
+            .split(',')
+            .map((param) => {
             const trimmed = param.trim();
             if (trimmed === 'self' || trimmed === 'cls')
                 return { name: trimmed, type: 'self' };
@@ -902,7 +942,8 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
             const name = parts[0].replace(/\s*=\s*.*$/, '').trim();
             const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'Any';
             return { name, type };
-        }).filter((p) => p.name.length > 0 && p.type !== 'self');
+        })
+            .filter((p) => p.name.length > 0 && p.type !== 'self');
     }
     generateDescription(name) {
         return `${this.humanizeName(name)}`;
@@ -961,6 +1002,8 @@ let DocumentationAgentService = class DocumentationAgentService extends base_age
 };
 exports.DocumentationAgentService = DocumentationAgentService;
 exports.DocumentationAgentService = DocumentationAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], DocumentationAgentService);
 //# sourceMappingURL=documentation-agent.service.js.map

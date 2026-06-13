@@ -55,12 +55,8 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
         let isHealthy = false;
         let details = {};
         try {
-            const isStatusHealthy = [
-                agent_interface_1.AgentStatus.IDLE,
-                agent_interface_1.AgentStatus.RUNNING,
-                agent_interface_1.AgentStatus.PAUSED,
-            ].includes(state.status);
-            const customHealthy = await agent.performHealthCheck?.() ?? true;
+            const isStatusHealthy = [agent_interface_1.AgentStatus.IDLE, agent_interface_1.AgentStatus.RUNNING, agent_interface_1.AgentStatus.PAUSED].includes(state.status);
+            const customHealthy = (await agent.performHealthCheck?.()) ?? true;
             isHealthy = isStatusHealthy && customHealthy;
             details = {
                 status: state.status,
@@ -77,9 +73,7 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
         }
         const responseTimeMs = Date.now() - startTime;
         const previousResult = this.healthResults.get(agentId);
-        const consecutiveFailures = isHealthy
-            ? 0
-            : (previousResult?.consecutiveFailures || 0) + 1;
+        const consecutiveFailures = isHealthy ? 0 : (previousResult?.consecutiveFailures || 0) + 1;
         if (consecutiveFailures > 0 && consecutiveFailures % 3 === 0) {
             this.logger.warn(`Agent ${agentId} has ${consecutiveFailures} consecutive health check failures`);
         }
@@ -131,8 +125,7 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
         const healthyCount = Object.values(results).filter((r) => r.isHealthy).length;
         const unhealthyCount = Object.values(results).filter((r) => !r.isHealthy).length;
         const maintenanceCount = Object.values(results).filter((r) => r.status === agent_interface_1.AgentStatus.MAINTENANCE).length;
-        const openBreakers = Array.from(this.circuitBreakers.values())
-            .filter((cb) => cb.state === 'open').length;
+        const openBreakers = Array.from(this.circuitBreakers.values()).filter((cb) => cb.state === 'open').length;
         let status;
         if (unhealthyCount === 0 && openBreakers === 0) {
             status = 'healthy';
@@ -165,14 +158,10 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
         return this.healthResults.get(agentId) || null;
     }
     getSystemHealth() {
-        const healthyCount = Array.from(this.healthResults.values())
-            .filter((r) => r.isHealthy).length;
-        const unhealthyCount = Array.from(this.healthResults.values())
-            .filter((r) => !r.isHealthy).length;
-        const maintenanceCount = Array.from(this.healthResults.values())
-            .filter((r) => r.status === agent_interface_1.AgentStatus.MAINTENANCE).length;
-        const openBreakers = Array.from(this.circuitBreakers.values())
-            .filter((cb) => cb.state === 'open').length;
+        const healthyCount = Array.from(this.healthResults.values()).filter((r) => r.isHealthy).length;
+        const unhealthyCount = Array.from(this.healthResults.values()).filter((r) => !r.isHealthy).length;
+        const maintenanceCount = Array.from(this.healthResults.values()).filter((r) => r.status === agent_interface_1.AgentStatus.MAINTENANCE).length;
+        const openBreakers = Array.from(this.circuitBreakers.values()).filter((cb) => cb.state === 'open').length;
         let status;
         if (unhealthyCount === 0 && openBreakers === 0) {
             status = 'healthy';
@@ -252,7 +241,8 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
                 cb.lastStateChange = new Date();
                 cb.nextRetryTime = null;
                 this.logger.log(`Circuit breaker CLOSED for agent ${agentId}`);
-                this.eventBus.publish({
+                this.eventBus
+                    .publish({
                     type: agent_event_interface_1.AgentEventType.CIRCUIT_BREAKER_CLOSED,
                     sourceAgentId: 'health-service',
                     payload: {
@@ -264,7 +254,8 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
                     priority: 1,
                     correlationId: agentId,
                     metadata: {},
-                }).catch(() => { });
+                })
+                    .catch(() => { });
             }
         }
         else {
@@ -282,7 +273,8 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
                 cb.lastStateChange = new Date();
                 cb.nextRetryTime = new Date(Date.now() + this.resetTimeoutMs);
                 this.logger.warn(`Circuit breaker OPENED for agent ${agentId} (${cb.failureCount} failures)`);
-                this.eventBus.publish({
+                this.eventBus
+                    .publish({
                     type: agent_event_interface_1.AgentEventType.CIRCUIT_BREAKER_OPENED,
                     sourceAgentId: 'health-service',
                     payload: {
@@ -294,7 +286,8 @@ let AgentHealthService = AgentHealthService_1 = class AgentHealthService {
                     priority: 2,
                     correlationId: agentId,
                     metadata: {},
-                }).catch(() => { });
+                })
+                    .catch(() => { });
             }
         }
     }

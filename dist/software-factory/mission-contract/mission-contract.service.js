@@ -74,7 +74,7 @@ let MissionContractService = MissionContractService_1 = class MissionContractSer
             feasibilityScore -= 30;
         }
         const deadlineMs = contract.deadline.deadline.getTime() - Date.now();
-        const deliverableCount = contract.deliverables.filter(d => d.required).length;
+        const deliverableCount = contract.deliverables.filter((d) => d.required).length;
         const estimatedDurationMs = deliverableCount * 2 * 60 * 60 * 1000;
         if (deadlineMs < estimatedDurationMs) {
             warnings.push(`Deadline may be too tight for ${deliverableCount} deliverables (est. ${estimatedDurationMs / 3600000}h)`);
@@ -138,7 +138,7 @@ let MissionContractService = MissionContractService_1 = class MissionContractSer
         const contract = this.contracts.get(contractId);
         if (!contract)
             return false;
-        const deliverable = contract.deliverables.find(d => d.type === deliverableType);
+        const deliverable = contract.deliverables.find((d) => d.type === deliverableType);
         if (deliverable) {
             deliverable.validated = true;
             deliverable.path = path;
@@ -152,7 +152,7 @@ let MissionContractService = MissionContractService_1 = class MissionContractSer
         const contract = this.contracts.get(contractId);
         if (!contract)
             return false;
-        const criterion = contract.acceptanceCriteria.find(c => c.id === criterionId);
+        const criterion = contract.acceptanceCriteria.find((c) => c.id === criterionId);
         if (criterion) {
             criterion.verified = true;
             criterion.verifiedBy = verifiedBy;
@@ -170,30 +170,28 @@ let MissionContractService = MissionContractService_1 = class MissionContractSer
         const contract = this.contracts.get(contractId);
         if (!contract)
             return false;
-        return contract.deliverables
-            .filter(d => d.required)
-            .every(d => d.validated);
+        return contract.deliverables.filter((d) => d.required).every((d) => d.validated);
     }
     areCriteriaMet(contractId) {
         const contract = this.contracts.get(contractId);
         if (!contract)
             return false;
-        return contract.acceptanceCriteria
-            .filter(c => c.mandatory)
-            .every(c => c.verified);
+        return contract.acceptanceCriteria.filter((c) => c.mandatory).every((c) => c.verified);
     }
     getCompletionPercentage(contractId) {
         const contract = this.contracts.get(contractId);
         if (!contract)
             return 0;
-        const deliverableScore = contract.deliverables.filter(d => d.validated).length / Math.max(contract.deliverables.length, 1);
-        const criteriaScore = contract.acceptanceCriteria.filter(c => c.verified).length / Math.max(contract.acceptanceCriteria.length, 1);
+        const deliverableScore = contract.deliverables.filter((d) => d.validated).length /
+            Math.max(contract.deliverables.length, 1);
+        const criteriaScore = contract.acceptanceCriteria.filter((c) => c.verified).length /
+            Math.max(contract.acceptanceCriteria.length, 1);
         const budgetScore = Math.min(1, contract.budget.currentSpendUsd / Math.max(contract.budget.maxApiCostUsd, 1));
         return Math.round((deliverableScore * 0.4 + criteriaScore * 0.4 + budgetScore * 0.2) * 100);
     }
     inferDeliverables(requested, mission) {
         if (requested && requested.length > 0) {
-            return requested.map(type => ({
+            return requested.map((type) => ({
                 type,
                 description: `${type} for: ${mission}`,
                 required: true,
@@ -202,25 +200,92 @@ let MissionContractService = MissionContractService_1 = class MissionContractSer
         }
         const missionLower = mission.toLowerCase();
         const deliverables = [];
-        deliverables.push({ type: interfaces_1.DeliverableType.README, description: 'Project README', required: true, validated: false }, { type: interfaces_1.DeliverableType.DOCUMENTATION, description: 'Technical documentation', required: true, validated: false });
-        if (missionLower.includes('saas') || missionLower.includes('application') || missionLower.includes('app') || missionLower.includes('développ') || missionLower.includes('créer') || missionLower.includes('create')) {
-            deliverables.push({ type: interfaces_1.DeliverableType.SOURCE_CODE, description: 'Application source code', required: true, validated: false }, { type: interfaces_1.DeliverableType.TEST_SUITE, description: 'Automated test suite', required: true, validated: false }, { type: interfaces_1.DeliverableType.DOCKER_IMAGE, description: 'Docker configuration', required: true, validated: false }, { type: interfaces_1.DeliverableType.DEPLOYMENT, description: 'Deployment scripts and configuration', required: false, validated: false });
+        deliverables.push({
+            type: interfaces_1.DeliverableType.README,
+            description: 'Project README',
+            required: true,
+            validated: false,
+        }, {
+            type: interfaces_1.DeliverableType.DOCUMENTATION,
+            description: 'Technical documentation',
+            required: true,
+            validated: false,
+        });
+        if (missionLower.includes('saas') ||
+            missionLower.includes('application') ||
+            missionLower.includes('app') ||
+            missionLower.includes('développ') ||
+            missionLower.includes('créer') ||
+            missionLower.includes('create')) {
+            deliverables.push({
+                type: interfaces_1.DeliverableType.SOURCE_CODE,
+                description: 'Application source code',
+                required: true,
+                validated: false,
+            }, {
+                type: interfaces_1.DeliverableType.TEST_SUITE,
+                description: 'Automated test suite',
+                required: true,
+                validated: false,
+            }, {
+                type: interfaces_1.DeliverableType.DOCKER_IMAGE,
+                description: 'Docker configuration',
+                required: true,
+                validated: false,
+            }, {
+                type: interfaces_1.DeliverableType.DEPLOYMENT,
+                description: 'Deployment scripts and configuration',
+                required: false,
+                validated: false,
+            });
         }
-        if (missionLower.includes('rapport') || missionLower.includes('report') || missionLower.includes('audit') || missionLower.includes('analyse') || missionLower.includes('analyze')) {
-            deliverables.push({ type: interfaces_1.DeliverableType.PDF_REPORT, description: 'Analysis report (PDF)', required: true, validated: false });
+        if (missionLower.includes('rapport') ||
+            missionLower.includes('report') ||
+            missionLower.includes('audit') ||
+            missionLower.includes('analyse') ||
+            missionLower.includes('analyze')) {
+            deliverables.push({
+                type: interfaces_1.DeliverableType.PDF_REPORT,
+                description: 'Analysis report (PDF)',
+                required: true,
+                validated: false,
+            });
         }
         if (missionLower.includes('api') || missionLower.includes('backend')) {
-            deliverables.push({ type: interfaces_1.DeliverableType.API_SPEC, description: 'API specification', required: true, validated: false }, { type: interfaces_1.DeliverableType.DATABASE_SCRIPT, description: 'Database migration scripts', required: false, validated: false });
+            deliverables.push({
+                type: interfaces_1.DeliverableType.API_SPEC,
+                description: 'API specification',
+                required: true,
+                validated: false,
+            }, {
+                type: interfaces_1.DeliverableType.DATABASE_SCRIPT,
+                description: 'Database migration scripts',
+                required: false,
+                validated: false,
+            });
         }
-        if (!deliverables.find(d => d.type === interfaces_1.DeliverableType.SOURCE_CODE)) {
-            deliverables.push({ type: interfaces_1.DeliverableType.SOURCE_CODE, description: 'Generated source code', required: true, validated: false });
+        if (!deliverables.find((d) => d.type === interfaces_1.DeliverableType.SOURCE_CODE)) {
+            deliverables.push({
+                type: interfaces_1.DeliverableType.SOURCE_CODE,
+                description: 'Generated source code',
+                required: true,
+                validated: false,
+            });
         }
         return deliverables;
     }
     generateDefaultMilestones(deadline) {
         const totalMs = deadline.getTime() - Date.now();
         const now = Date.now();
-        const states = ['PLANNED', 'RESEARCH', 'BUILDING', 'TESTING', 'AUDITING', 'CERTIFYING', 'DELIVERING'];
+        const states = [
+            'PLANNED',
+            'RESEARCH',
+            'BUILDING',
+            'TESTING',
+            'AUDITING',
+            'CERTIFYING',
+            'DELIVERING',
+        ];
         const weights = [0.05, 0.15, 0.35, 0.15, 0.1, 0.1, 0.1];
         return states.map((state, idx) => {
             const offsetMs = weights.slice(0, idx + 1).reduce((a, b) => a + b, 0) * totalMs;
@@ -243,7 +308,9 @@ let MissionContractService = MissionContractService_1 = class MissionContractSer
             criteria.push('Test coverage meets minimum threshold (80%)');
             criteria.push('All test cases pass successfully');
         }
-        if (missionLower.includes('sécur') || missionLower.includes('security') || missionLower.includes('audit')) {
+        if (missionLower.includes('sécur') ||
+            missionLower.includes('security') ||
+            missionLower.includes('audit')) {
             criteria.push('Security audit passes with no critical findings');
             criteria.push('No sensitive data exposed in deliverables');
         }

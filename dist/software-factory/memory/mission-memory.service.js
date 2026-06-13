@@ -101,7 +101,7 @@ let MissionMemoryService = MissionMemoryService_1 = class MissionMemoryService {
     }
     getLatestEntry(missionId, category, key) {
         const missionEntries = this.entries.get(missionId) || [];
-        const matching = missionEntries.filter(e => e.category === category && e.key === key);
+        const matching = missionEntries.filter((e) => e.category === category && e.key === key);
         return matching.length > 0 ? matching[matching.length - 1].data : undefined;
     }
 };

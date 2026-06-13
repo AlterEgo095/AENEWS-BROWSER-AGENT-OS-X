@@ -17,16 +17,13 @@ let HttpExceptionFilter = HttpExceptionFilter_1 = class HttpExceptionFilter {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse();
         const request = ctx.getRequest();
-        const statusCode = exception instanceof common_1.HttpException
-            ? exception.getStatus()
-            : common_1.HttpStatus.INTERNAL_SERVER_ERROR;
+        const statusCode = exception instanceof common_1.HttpException ? exception.getStatus() : common_1.HttpStatus.INTERNAL_SERVER_ERROR;
         const exceptionResponse = exception instanceof common_1.HttpException ? exception.getResponse() : null;
         const message = typeof exceptionResponse === 'string'
             ? exceptionResponse
             : exceptionResponse?.message ||
                 (exception instanceof Error ? exception.message : 'Internal server error');
-        const error = typeof exceptionResponse === 'object' &&
-            exceptionResponse?.error
+        const error = typeof exceptionResponse === 'object' && exceptionResponse?.error
             ? exceptionResponse.error
             : common_1.HttpStatus[statusCode] || 'Internal Server Error';
         const errorResponse = {
@@ -37,8 +34,7 @@ let HttpExceptionFilter = HttpExceptionFilter_1 = class HttpExceptionFilter {
             path: request.url,
             correlationId: request.headers['x-correlation-id'],
         };
-        if (exception instanceof common_1.HttpException &&
-            typeof exceptionResponse === 'object') {
+        if (exception instanceof common_1.HttpException && typeof exceptionResponse === 'object') {
             const details = exceptionResponse.details;
             if (details) {
                 errorResponse.details = details;

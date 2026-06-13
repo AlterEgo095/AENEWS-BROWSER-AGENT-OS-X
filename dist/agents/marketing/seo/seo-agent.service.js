@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SEOOptimizationAgentService = exports.SEO_OPTIMIZATION_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
     id: 'marketing-seo',
     name: 'SEOOptimization',
@@ -25,7 +33,11 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
                 properties: {
                     content: { type: 'string', description: 'Content to analyze' },
                     url: { type: 'string', description: 'URL to analyze (alternative to content)' },
-                    targetKeywords: { type: 'array', items: { type: 'string' }, description: 'Keywords to evaluate against' },
+                    targetKeywords: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Keywords to evaluate against',
+                    },
                 },
                 required: ['content'],
             },
@@ -46,7 +58,11 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     topic: { type: 'string', description: 'Topic or niche for keyword research' },
-                    seedKeywords: { type: 'array', items: { type: 'string' }, description: 'Starting keywords' },
+                    seedKeywords: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Starting keywords',
+                    },
                     language: { type: 'string', description: 'Target language' },
                     region: { type: 'string', description: 'Target region for search volume' },
                 },
@@ -68,9 +84,17 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     content: { type: 'string', description: 'Content to optimize' },
-                    targetKeywords: { type: 'array', items: { type: 'string' }, description: 'Target keywords' },
+                    targetKeywords: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Target keywords',
+                    },
                     title: { type: 'string', description: 'Page title' },
-                    optimizeFor: { type: 'string', enum: ['keywords', 'readability', 'featured-snippet', 'all'], description: 'Optimization focus' },
+                    optimizeFor: {
+                        type: 'string',
+                        enum: ['keywords', 'readability', 'featured-snippet', 'all'],
+                        description: 'Optimization focus',
+                    },
                 },
                 required: ['content', 'targetKeywords'],
             },
@@ -93,7 +117,11 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
                     description: { type: 'string', description: 'Page description' },
                     keywords: { type: 'array', items: { type: 'string' }, description: 'Target keywords' },
                     url: { type: 'string', description: 'Page URL' },
-                    type: { type: 'string', enum: ['website', 'article', 'product', 'profile'], description: 'Page type' },
+                    type: {
+                        type: 'string',
+                        enum: ['website', 'article', 'product', 'profile'],
+                        description: 'Page type',
+                    },
                     imageUrl: { type: 'string', description: 'OG image URL' },
                 },
                 required: ['title', 'description'],
@@ -116,8 +144,16 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     domain: { type: 'string', description: 'Your domain' },
-                    competitorDomains: { type: 'array', items: { type: 'string' }, description: 'Competitor domains to analyze' },
-                    keywords: { type: 'array', items: { type: 'string' }, description: 'Keywords to compare' },
+                    competitorDomains: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Competitor domains to analyze',
+                    },
+                    keywords: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Keywords to compare',
+                    },
                 },
                 required: ['domain', 'competitorDomains'],
             },
@@ -137,8 +173,16 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     url: { type: 'string', description: 'URL or domain to audit' },
-                    checkCategories: { type: 'array', items: { type: 'string' }, description: 'Categories to check' },
-                    depth: { type: 'string', enum: ['quick', 'standard', 'comprehensive'], description: 'Audit depth' },
+                    checkCategories: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Categories to check',
+                    },
+                    depth: {
+                        type: 'string',
+                        enum: ['quick', 'standard', 'comprehensive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['url'],
             },
@@ -153,13 +197,7 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:seo',
-        'write:seo',
-        'read:content',
-        'read:analytics',
-    ],
+    permissions: ['execute:task', 'read:seo', 'write:seo', 'read:content', 'read:analytics'],
     maxConcurrentTasks: 3,
     timeout: 90000,
     retryPolicy: {
@@ -169,8 +207,9 @@ exports.SEO_OPTIMIZATION_AGENT_CONFIG = {
     },
 };
 let SEOOptimizationAgentService = class SEOOptimizationAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.auditHistory = [];
         this.keywordCache = new Map();
     }
@@ -213,6 +252,20 @@ let SEOOptimizationAgentService = class SEOOptimizationAgentService extends base
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.SEO, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -367,7 +420,7 @@ let SEOOptimizationAgentService = class SEOOptimizationAgentService extends base
                 });
             }
         }
-        allKeywords.sort((a, b) => (b.relevance * b.searchVolume) - (a.relevance * a.searchVolume));
+        allKeywords.sort((a, b) => b.relevance * b.searchVolume - a.relevance * a.searchVolume);
         const keywords = allKeywords.slice(0, 30);
         const relatedTopics = this.generateRelatedTopics(topic, seedKeywords);
         const contentGaps = this.identifyContentGaps(topic, keywords);
@@ -426,7 +479,7 @@ let SEOOptimizationAgentService = class SEOOptimizationAgentService extends base
         return { optimizedContent, changes, seoScore };
     }
     async generateMetaTags(params) {
-        const { title, description, keywords = [], url = '', type = 'website', imageUrl = '', } = params;
+        const { title, description, keywords = [], url = '', type = 'website', imageUrl = '' } = params;
         if (!title || typeof title !== 'string') {
             throw new Error('A valid title is required');
         }
@@ -514,7 +567,14 @@ let SEOOptimizationAgentService = class SEOOptimizationAgentService extends base
         const issues = [];
         const recommendations = [];
         const categories = {};
-        const allCategories = ['crawlability', 'indexability', 'performance', 'mobile', 'security', 'structured-data'];
+        const allCategories = [
+            'crawlability',
+            'indexability',
+            'performance',
+            'mobile',
+            'security',
+            'structured-data',
+        ];
         const activeCategories = checkCategories.includes('all') ? allCategories : checkCategories;
         if (activeCategories.includes('crawlability')) {
             const crawlScore = 85;
@@ -791,6 +851,8 @@ let SEOOptimizationAgentService = class SEOOptimizationAgentService extends base
 };
 exports.SEOOptimizationAgentService = SEOOptimizationAgentService;
 exports.SEOOptimizationAgentService = SEOOptimizationAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], SEOOptimizationAgentService);
 //# sourceMappingURL=seo-agent.service.js.map

@@ -24,7 +24,8 @@ let WorkingMemoryService = WorkingMemoryService_1 = class WorkingMemoryService {
             this.store.set(agentId, new Map());
         }
         const agentStore = this.store.get(agentId);
-        if (agentStore.size >= WorkingMemoryService_1.DEFAULT_MAX_ENTRIES_PER_AGENT && !agentStore.has(key)) {
+        if (agentStore.size >= WorkingMemoryService_1.DEFAULT_MAX_ENTRIES_PER_AGENT &&
+            !agentStore.has(key)) {
             this.evictLRU(agentStore);
         }
         agentStore.set(key, {

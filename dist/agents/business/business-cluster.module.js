@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BusinessClusterModule = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_module_1 = require("../base/base-agent.module");
+const bridge_1 = require("../bridge");
 const market_research_agent_service_1 = require("./market-research/market-research-agent.service");
 const financial_analysis_agent_service_1 = require("./financial-analysis/financial-analysis-agent.service");
 const strategy_agent_service_1 = require("./strategy/strategy-agent.service");
@@ -22,7 +23,7 @@ let BusinessClusterModule = class BusinessClusterModule {
 exports.BusinessClusterModule = BusinessClusterModule;
 exports.BusinessClusterModule = BusinessClusterModule = __decorate([
     (0, common_1.Module)({
-        imports: [base_agent_module_1.BaseAgentModule],
+        imports: [base_agent_module_1.BaseAgentModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             market_research_agent_service_1.MarketResearchAgentService,
             financial_analysis_agent_service_1.FinancialAnalysisAgentService,

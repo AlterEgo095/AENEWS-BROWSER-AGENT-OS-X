@@ -1,6 +1,7 @@
-import { TaskDefinition, TaskPriority, OrchestrationPlan, AgentCluster } from '../interfaces/agent.interface';
+import { TaskDefinition, TaskPriority, OrchestrationPlan, AgentCluster, AgentInput, ExecutionPlan } from '../interfaces/agent.interface';
 import { AgentRegistryService } from '../registry/agent-registry.service';
 import { OrchestrationRequest } from './orchestrator.service';
+import { AgentConnectorBridge } from '../bridge';
 export interface PlanningConstraints {
     maxParallelSteps: number;
     maxTotalDurationMs: number;
@@ -27,9 +28,11 @@ export interface ResourceUtilization {
 }
 export declare class TaskPlannerService {
     private readonly agentRegistry;
+    private readonly bridge?;
     private readonly logger;
-    constructor(agentRegistry: AgentRegistryService);
+    constructor(agentRegistry: AgentRegistryService, bridge?: AgentConnectorBridge | undefined);
     createPlan(subtasks: TaskDefinition[], request: OrchestrationRequest): Promise<OrchestrationPlan>;
+    llmPlan(input: AgentInput, subtasks: TaskDefinition[]): Promise<ExecutionPlan | null>;
     private buildSteps;
     private estimateStepResources;
     private resolveDependencies;

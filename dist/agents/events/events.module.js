@@ -52,12 +52,7 @@ exports.EventsModule = EventsModule = __decorate([
             event_replay_service_1.EventReplayService,
             EventsModuleInitializer,
         ],
-        exports: [
-            event_bus_service_1.EventBusService,
-            event_store_service_1.EventStoreService,
-            dead_letter_queue_service_1.DeadLetterQueueService,
-            event_replay_service_1.EventReplayService,
-        ],
+        exports: [event_bus_service_1.EventBusService, event_store_service_1.EventStoreService, dead_letter_queue_service_1.DeadLetterQueueService, event_replay_service_1.EventReplayService],
     })
 ], EventsModule);
 //# sourceMappingURL=events.module.js.map

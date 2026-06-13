@@ -1,5 +1,5 @@
 import { LLMCallOptions, LLMCallResult } from './connector.interface';
-interface LLMMetrics {
+export interface LLMMetrics {
     totalCalls: number;
     cacheHits: number;
     cacheMisses: number;
@@ -44,4 +44,3 @@ export declare class LLMHelper {
     private evictOldest;
     private summarizeOutput;
 }
-export {};

@@ -5,10 +5,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MetricAnalyzerAgent = exports.SELF_EVOLUTION_METRIC_ANALYZER_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../base/base-agent.service");
+const bridge_1 = require("../bridge");
 exports.SELF_EVOLUTION_METRIC_ANALYZER_CONFIG = {
     id: 'self-evolution-metric-analyzer',
     name: 'MetricAnalyzer',
@@ -98,8 +105,9 @@ exports.SELF_EVOLUTION_METRIC_ANALYZER_CONFIG = {
     retryPolicy: { maxRetries: 3, backoffMs: 2000, exponentialBackoff: true },
 };
 let MetricAnalyzerAgent = class MetricAnalyzerAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.baselines = new Map();
         this.analysisReports = new Map();
         this.anomalyHistory = [];
@@ -127,8 +135,23 @@ let MetricAnalyzerAgent = class MetricAnalyzerAgent extends base_agent_service_1
         this.logger.log('MetricAnalyzer agent initialized with 3 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'execute';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const llmResult = await this.bridge.callLLM({
+                    systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed metric analysis, baseline collection, and anomaly detection.`,
+                    userPrompt: JSON.stringify(input.payload),
+                    temperature: 0.3,
+                    maxTokens: 2048,
+                });
+                const analysis = llmResult.content;
+                return this.createAgentOutput(input.taskId, true, { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount }, undefined, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge LLM failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'execute';
         try {
             let result;
             switch (action) {
@@ -197,7 +220,11 @@ let MetricAnalyzerAgent = class MetricAnalyzerAgent extends base_agent_service_1
             };
         });
         const degradingCount = metrics.filter((m) => m.trend === 'degrading').length;
-        const overallHealth = degradingCount === 0 ? 'healthy' : degradingCount < metricNames.length / 2 ? 'warning' : 'critical';
+        const overallHealth = degradingCount === 0
+            ? 'healthy'
+            : degradingCount < metricNames.length / 2
+                ? 'warning'
+                : 'critical';
         const report = {
             reportId,
             analyzedAt: new Date().toISOString(),
@@ -212,7 +239,7 @@ let MetricAnalyzerAgent = class MetricAnalyzerAgent extends base_agent_service_1
         return report;
     }
     async collectBaseline(params) {
-        const { metricNames, windowSize = '7d', percentiles = [50, 90, 95, 99], } = params;
+        const { metricNames, windowSize = '7d', percentiles = [50, 90, 95, 99] } = params;
         if (!metricNames || !Array.isArray(metricNames) || metricNames.length === 0) {
             throw new Error('Non-empty metricNames array is required');
         }
@@ -222,7 +249,7 @@ let MetricAnalyzerAgent = class MetricAnalyzerAgent extends base_agent_service_1
             const standardDeviation = mean * (0.05 + Math.random() * 0.15);
             const percentileValues = {};
             for (const p of percentiles) {
-                const zScore = p <= 50 ? -(1 - p / 100) * 2 : ((p / 100) - 0.5) * 2;
+                const zScore = p <= 50 ? -(1 - p / 100) * 2 : (p / 100 - 0.5) * 2;
                 percentileValues[p] = Math.round((mean + zScore * standardDeviation) * 100) / 100;
             }
             const baseline = {
@@ -245,7 +272,7 @@ let MetricAnalyzerAgent = class MetricAnalyzerAgent extends base_agent_service_1
         };
     }
     async detectAnomaly(params) {
-        const { metricName, sensitivity = 2.0, lookbackWindow = '1h', } = params;
+        const { metricName, sensitivity = 2.0, lookbackWindow = '1h' } = params;
         if (!metricName || typeof metricName !== 'string') {
             throw new Error('Valid metricName string is required');
         }
@@ -299,6 +326,9 @@ let MetricAnalyzerAgent = class MetricAnalyzerAgent extends base_agent_service_1
 };
 exports.MetricAnalyzerAgent = MetricAnalyzerAgent;
 exports.MetricAnalyzerAgent = MetricAnalyzerAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], MetricAnalyzerAgent);
 //# sourceMappingURL=metric-analyzer.agent.js.map

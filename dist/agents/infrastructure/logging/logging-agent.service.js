@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LoggingAgentService = exports.LOGGING_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.LOGGING_AGENT_CONFIG = {
     id: 'infrastructure-logging',
     name: 'Logging',
@@ -25,8 +33,16 @@ exports.LOGGING_AGENT_CONFIG = {
                 properties: {
                     query: { type: 'string', description: 'Search query (supports Lucene syntax)' },
                     service: { type: 'string', description: 'Filter by service name' },
-                    level: { type: 'string', enum: ['debug', 'info', 'warn', 'error', 'fatal'], description: 'Filter by log level' },
-                    timeRange: { type: 'string', enum: ['5m', '15m', '1h', '6h', '24h', '7d'], default: '1h' },
+                    level: {
+                        type: 'string',
+                        enum: ['debug', 'info', 'warn', 'error', 'fatal'],
+                        description: 'Filter by log level',
+                    },
+                    timeRange: {
+                        type: 'string',
+                        enum: ['5m', '15m', '1h', '6h', '24h', '7d'],
+                        default: '1h',
+                    },
                     limit: { type: 'number', default: 100, maximum: 1000 },
                     offset: { type: 'number', default: 0 },
                 },
@@ -48,8 +64,15 @@ exports.LOGGING_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     service: { type: 'string' },
-                    field: { type: 'string', description: 'Field to aggregate by (e.g., "level", "service", "host")' },
-                    aggregation: { type: 'string', enum: ['count', 'sum', 'avg', 'percentile', 'terms'], default: 'terms' },
+                    field: {
+                        type: 'string',
+                        description: 'Field to aggregate by (e.g., "level", "service", "host")',
+                    },
+                    aggregation: {
+                        type: 'string',
+                        enum: ['count', 'sum', 'avg', 'percentile', 'terms'],
+                        default: 'terms',
+                    },
                     timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d', '30d'], default: '24h' },
                     interval: { type: 'string', enum: ['1m', '5m', '15m', '1h', '1d'], default: '1h' },
                 },
@@ -119,7 +142,11 @@ exports.LOGGING_AGENT_CONFIG = {
                 properties: {
                     service: { type: 'string' },
                     timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d'], default: '24h' },
-                    analysisType: { type: 'string', enum: ['anomaly', 'frequency', 'correlation', 'trend'], default: 'anomaly' },
+                    analysisType: {
+                        type: 'string',
+                        enum: ['anomaly', 'frequency', 'correlation', 'trend'],
+                        default: 'anomaly',
+                    },
                 },
                 required: ['service'],
             },
@@ -156,13 +183,7 @@ exports.LOGGING_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:logs',
-        'write:log-alerts',
-        'export:logs',
-        'manage:retention',
-    ],
+    permissions: ['execute:task', 'read:logs', 'write:log-alerts', 'export:logs', 'manage:retention'],
     maxConcurrentTasks: 5,
     timeout: 60000,
     retryPolicy: {
@@ -172,18 +193,34 @@ exports.LOGGING_AGENT_CONFIG = {
     },
 };
 let LoggingAgentService = class LoggingAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.logAlerts = new Map();
         this.retentionPolicies = new Map();
         this.logAlertCounter = 0;
         this.retentionCounter = 0;
         this.exportCounter = 0;
         this.simulatedServices = [
-            'api-gateway', 'auth-service', 'user-service', 'payment-service',
-            'notification-service', 'search-service', 'worker-service', 'scheduler-service',
+            'api-gateway',
+            'auth-service',
+            'user-service',
+            'payment-service',
+            'notification-service',
+            'search-service',
+            'worker-service',
+            'scheduler-service',
         ];
-        this.simulatedLevels = ['debug', 'info', 'info', 'info', 'warn', 'warn', 'error', 'fatal'];
+        this.simulatedLevels = [
+            'debug',
+            'info',
+            'info',
+            'info',
+            'warn',
+            'warn',
+            'error',
+            'fatal',
+        ];
         this.simulatedMessages = [
             'Request processed successfully',
             'Connection established to database',
@@ -241,13 +278,31 @@ let LoggingAgentService = class LoggingAgentService extends base_agent_service_1
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DeliveryCapability.MONITORING_SETUP, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'searchLogs', 'aggregateLogs', 'createLogAlert',
-            'exportLogs', 'analyzePatterns', 'setRetentionPolicy',
+            'searchLogs',
+            'aggregateLogs',
+            'createLogAlert',
+            'exportLogs',
+            'analyzePatterns',
+            'setRetentionPolicy',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown logging action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -285,7 +340,8 @@ let LoggingAgentService = class LoggingAgentService extends base_agent_service_1
         const logs = [];
         const effectiveLimit = Math.min(limit, totalCount - offset);
         for (let i = 0; i < effectiveLimit; i++) {
-            const logService = service || this.simulatedServices[Math.floor(Math.random() * this.simulatedServices.length)];
+            const logService = service ||
+                this.simulatedServices[Math.floor(Math.random() * this.simulatedServices.length)];
             const logLevel = level || this.simulatedLevels[Math.floor(Math.random() * this.simulatedLevels.length)];
             const message = this.simulatedMessages[Math.floor(Math.random() * this.simulatedMessages.length)];
             logs.push({
@@ -296,7 +352,12 @@ let LoggingAgentService = class LoggingAgentService extends base_agent_service_1
                 message: query === '*' ? message : `${message} [matched: "${query}"]`,
                 host: `host-${Math.floor(Math.random() * 10) + 1}.dc1`,
                 traceId: Math.random() > 0.5 ? this.generateTraceId() : undefined,
-                metadata: Math.random() > 0.7 ? { requestId: this.generateTraceId(), userId: `user-${Math.floor(Math.random() * 1000)}` } : undefined,
+                metadata: Math.random() > 0.7
+                    ? {
+                        requestId: this.generateTraceId(),
+                        userId: `user-${Math.floor(Math.random() * 1000)}`,
+                    }
+                    : undefined,
             });
         }
         const searchTimeMs = Date.now() - searchStart;
@@ -332,16 +393,27 @@ let LoggingAgentService = class LoggingAgentService extends base_agent_service_1
         }
         else if (field === 'host') {
             for (let i = 1; i <= 10; i++) {
-                buckets.push({ key: `host-${i}.dc1`, docCount: Math.round(totalDocuments / 10 * (0.7 + Math.random() * 0.6)) });
+                buckets.push({
+                    key: `host-${i}.dc1`,
+                    docCount: Math.round((totalDocuments / 10) * (0.7 + Math.random() * 0.6)),
+                });
             }
         }
         else {
-            const intervals = interval === '1m' ? 60 : interval === '5m' ? 288 : interval === '15m' ? 96 : interval === '1h' ? 24 : 30;
+            const intervals = interval === '1m'
+                ? 60
+                : interval === '5m'
+                    ? 288
+                    : interval === '15m'
+                        ? 96
+                        : interval === '1h'
+                            ? 24
+                            : 30;
             for (let i = 0; i < intervals; i++) {
                 const bucketTime = new Date(Date.now() - (intervals - i) * this.intervalToMs(interval));
                 buckets.push({
                     key: bucketTime.toISOString(),
-                    docCount: Math.round(totalDocuments / intervals * (0.5 + Math.random())),
+                    docCount: Math.round((totalDocuments / intervals) * (0.5 + Math.random())),
                 });
             }
         }
@@ -511,13 +583,23 @@ let LoggingAgentService = class LoggingAgentService extends base_agent_service_1
     }
     timeRangeToMs(timeRange) {
         const map = {
-            '5m': 300000, '15m': 900000, '1h': 3600000, '6h': 21600000, '24h': 86400000, '7d': 604800000, '30d': 2592000000,
+            '5m': 300000,
+            '15m': 900000,
+            '1h': 3600000,
+            '6h': 21600000,
+            '24h': 86400000,
+            '7d': 604800000,
+            '30d': 2592000000,
         };
         return map[timeRange] || 3600000;
     }
     intervalToMs(interval) {
         const map = {
-            '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, '1d': 86400000,
+            '1m': 60000,
+            '5m': 300000,
+            '15m': 900000,
+            '1h': 3600000,
+            '1d': 86400000,
         };
         return map[interval] || 3600000;
     }
@@ -534,6 +616,8 @@ let LoggingAgentService = class LoggingAgentService extends base_agent_service_1
 };
 exports.LoggingAgentService = LoggingAgentService;
 exports.LoggingAgentService = LoggingAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], LoggingAgentService);
 //# sourceMappingURL=logging-agent.service.js.map

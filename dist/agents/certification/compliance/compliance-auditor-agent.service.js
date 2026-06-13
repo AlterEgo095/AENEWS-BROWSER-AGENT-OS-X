@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ComplianceAuditorAgent = exports.COMPLIANCE_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.COMPLIANCE_AUDITOR_CONFIG = {
     id: 'certification-compliance-auditor',
     name: 'ComplianceAuditor',
@@ -23,7 +31,11 @@ exports.COMPLIANCE_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'System or process to audit compliance' },
-                    frameworks: { type: 'array', items: { type: 'string' }, description: 'Compliance frameworks to check' },
+                    frameworks: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Compliance frameworks to check',
+                    },
                 },
                 required: ['target'],
             },
@@ -88,14 +100,20 @@ exports.COMPLIANCE_AUDITOR_CONFIG = {
             },
         },
     ],
-    permissions: ['certification:audit', 'certification:compliance', 'read:compliance', 'read:audit-log'],
+    permissions: [
+        'certification:audit',
+        'certification:compliance',
+        'read:compliance',
+        'read:audit-log',
+    ],
     maxConcurrentTasks: 5,
     timeout: 60000,
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let ComplianceAuditorAgent = class ComplianceAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.complianceAuditLog = [];
     }
     defineConfig() {
@@ -125,8 +143,22 @@ let ComplianceAuditorAgent = class ComplianceAuditorAgent extends base_agent_ser
         this.logger.log('ComplianceAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.COMPLIANCE, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -169,15 +201,24 @@ let ComplianceAuditorAgent = class ComplianceAuditorAgent extends base_agent_ser
                 category,
                 description: `Compliance issue in ${target}: ${this.getComplianceDescription(category)}`,
                 article: category === 'gdpr' ? `Article ${Math.floor(Math.random() * 50) + 1}` : undefined,
-                control: category === 'soc2' ? `CC${Math.floor(Math.random() * 9) + 1}.${Math.floor(Math.random() * 3) + 1}` : undefined,
+                control: category === 'soc2'
+                    ? `CC${Math.floor(Math.random() * 9) + 1}.${Math.floor(Math.random() * 3) + 1}`
+                    : undefined,
             };
             issues.push(issue);
             this.complianceAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 30 : issue.severity === 'high' ? 20 : issue.severity === 'medium' ? 10 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 30
+                    : issue.severity === 'high'
+                        ? 20
+                        : issue.severity === 'medium'
+                            ? 10
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'gdpr')) {
             recommendations.push('Implement data subject access request handling and consent management');
         }
@@ -192,16 +233,42 @@ let ComplianceAuditorAgent = class ComplianceAuditorAgent extends base_agent_ser
     }
     async checkGDPR(target) {
         const gdprArticles = [
-            { article: 'Article 6', requirement: 'Lawfulness of processing', compliant: Math.random() > 0.3 },
-            { article: 'Article 7', requirement: 'Conditions for consent', compliant: Math.random() > 0.3 },
-            { article: 'Article 13', requirement: 'Information to be provided', compliant: Math.random() > 0.4 },
+            {
+                article: 'Article 6',
+                requirement: 'Lawfulness of processing',
+                compliant: Math.random() > 0.3,
+            },
+            {
+                article: 'Article 7',
+                requirement: 'Conditions for consent',
+                compliant: Math.random() > 0.3,
+            },
+            {
+                article: 'Article 13',
+                requirement: 'Information to be provided',
+                compliant: Math.random() > 0.4,
+            },
             { article: 'Article 17', requirement: 'Right to erasure', compliant: Math.random() > 0.3 },
-            { article: 'Article 25', requirement: 'Data protection by design', compliant: Math.random() > 0.4 },
-            { article: 'Article 32', requirement: 'Security of processing', compliant: Math.random() > 0.3 },
+            {
+                article: 'Article 25',
+                requirement: 'Data protection by design',
+                compliant: Math.random() > 0.4,
+            },
+            {
+                article: 'Article 32',
+                requirement: 'Security of processing',
+                compliant: Math.random() > 0.3,
+            },
             { article: 'Article 33', requirement: 'Breach notification', compliant: Math.random() > 0.5 },
-            { article: 'Article 35', requirement: 'Data protection impact assessment', compliant: Math.random() > 0.4 },
+            {
+                article: 'Article 35',
+                requirement: 'Data protection impact assessment',
+                compliant: Math.random() > 0.4,
+            },
         ];
-        const violations = gdprArticles.filter((a) => !a.compliant).map((a) => ({
+        const violations = gdprArticles
+            .filter((a) => !a.compliant)
+            .map((a) => ({
             article: a.article,
             requirement: a.requirement,
             status: 'non_compliant',
@@ -225,7 +292,9 @@ let ComplianceAuditorAgent = class ComplianceAuditorAgent extends base_agent_ser
             { control: 'CC8.1', category: 'Change Management', implemented: Math.random() > 0.3 },
             { control: 'CC9.1', category: 'Risk Mitigation', implemented: Math.random() > 0.4 },
         ];
-        const controlGaps = controls.filter((c) => !c.implemented).map((c) => ({
+        const controlGaps = controls
+            .filter((c) => !c.implemented)
+            .map((c) => ({
             control: c.control,
             category: c.category,
             status: 'gap',
@@ -271,6 +340,9 @@ let ComplianceAuditorAgent = class ComplianceAuditorAgent extends base_agent_ser
 };
 exports.ComplianceAuditorAgent = ComplianceAuditorAgent;
 exports.ComplianceAuditorAgent = ComplianceAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], ComplianceAuditorAgent);
 //# sourceMappingURL=compliance-auditor-agent.service.js.map

@@ -5,10 +5,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AutoCertifierAgent = exports.SELF_EVOLUTION_AUTO_CERTIFIER_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../base/base-agent.service");
+const bridge_1 = require("../bridge");
 exports.SELF_EVOLUTION_AUTO_CERTIFIER_CONFIG = {
     id: 'self-evolution-auto-certifier',
     name: 'AutoCertifier',
@@ -106,8 +113,9 @@ exports.SELF_EVOLUTION_AUTO_CERTIFIER_CONFIG = {
     retryPolicy: { maxRetries: 3, backoffMs: 2000, exponentialBackoff: true },
 };
 let AutoCertifierAgent = class AutoCertifierAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.certifications = new Map();
         this.eqiComparisons = new Map();
         this.mergeDecisions = new Map();
@@ -140,8 +148,23 @@ let AutoCertifierAgent = class AutoCertifierAgent extends base_agent_service_1.B
         this.logger.log(`AutoCertifier agent initialized with 3 tools, baseline EQI=${this.currentBaselineEQI}`);
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'execute';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const llmResult = await this.bridge.callLLM({
+                    systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed certification analysis, EQI comparison, and merge decisions.`,
+                    userPrompt: JSON.stringify(input.payload),
+                    temperature: 0.3,
+                    maxTokens: 2048,
+                });
+                const analysis = llmResult.content;
+                return this.createAgentOutput(input.taskId, true, { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount }, undefined, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge LLM failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'execute';
         try {
             let result;
             switch (action) {
@@ -174,7 +197,7 @@ let AutoCertifierAgent = class AutoCertifierAgent extends base_agent_service_1.B
         this.logger.log('AutoCertifier agent destroyed, state cleared, baseline EQI persisted');
     }
     async runCertification(params) {
-        const { branchName, patchIds = [], certificationLevel = 'full', timeoutMs = 120000, } = params;
+        const { branchName, patchIds = [], certificationLevel = 'full', timeoutMs = 120000 } = params;
         if (!branchName || typeof branchName !== 'string') {
             throw new Error('Valid branchName string is required');
         }
@@ -245,9 +268,7 @@ let AutoCertifierAgent = class AutoCertifierAgent extends base_agent_service_1.B
         const baselineEQI = this.currentBaselineEQI;
         const patchedEQI = certification.eqiScore;
         const delta = Math.round((patchedEQI - baselineEQI) * 100) / 100;
-        const deltaPercent = baselineEQI > 0
-            ? Math.round((delta / baselineEQI) * 10000) / 100
-            : 0;
+        const deltaPercent = baselineEQI > 0 ? Math.round((delta / baselineEQI) * 10000) / 100 : 0;
         const isImprovement = delta > (baselineEQI * tolerancePercent) / 100;
         let verdict;
         if (isImprovement && delta > 2) {
@@ -302,7 +323,8 @@ let AutoCertifierAgent = class AutoCertifierAgent extends base_agent_service_1.B
             merged = false;
             reason = `EQI regression detected — patched EQI (${comparison.patchedEQI}) does not exceed baseline (${comparison.baselineEQI}); merge blocked`;
         }
-        else if (requirePercentImprovement > 0 && comparison.deltaPercent < requirePercentImprovement) {
+        else if (requirePercentImprovement > 0 &&
+            comparison.deltaPercent < requirePercentImprovement) {
             merged = false;
             reason = `Insufficient EQI improvement — ${comparison.deltaPercent}% < required ${requirePercentImprovement}%; merge blocked`;
         }
@@ -358,6 +380,9 @@ let AutoCertifierAgent = class AutoCertifierAgent extends base_agent_service_1.B
 };
 exports.AutoCertifierAgent = AutoCertifierAgent;
 exports.AutoCertifierAgent = AutoCertifierAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], AutoCertifierAgent);
 //# sourceMappingURL=auto-certifier.agent.js.map

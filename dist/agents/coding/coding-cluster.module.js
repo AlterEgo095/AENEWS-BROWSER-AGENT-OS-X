@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodingClusterModule = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_module_1 = require("../base/base-agent.module");
+const bridge_1 = require("../bridge");
 const code_generation_agent_service_1 = require("./code-generation/code-generation-agent.service");
 const code_review_agent_service_1 = require("./code-review/code-review-agent.service");
 const testing_agent_service_1 = require("./testing/testing-agent.service");
@@ -22,7 +23,7 @@ let CodingClusterModule = class CodingClusterModule {
 exports.CodingClusterModule = CodingClusterModule;
 exports.CodingClusterModule = CodingClusterModule = __decorate([
     (0, common_1.Module)({
-        imports: [base_agent_module_1.BaseAgentModule],
+        imports: [base_agent_module_1.BaseAgentModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             code_generation_agent_service_1.CodeGenerationAgentService,
             code_review_agent_service_1.CodeReviewAgentService,

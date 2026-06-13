@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RegressionAuditorAgent = exports.REGRESSION_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.REGRESSION_AUDITOR_CONFIG = {
     id: 'certification-regression-auditor',
     name: 'RegressionAuditor',
@@ -23,7 +31,11 @@ exports.REGRESSION_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'System or module to audit for regression' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -95,8 +107,9 @@ exports.REGRESSION_AUDITOR_CONFIG = {
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let RegressionAuditorAgent = class RegressionAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.regressionAuditLog = [];
     }
     defineConfig() {
@@ -126,8 +139,22 @@ let RegressionAuditorAgent = class RegressionAuditorAgent extends base_agent_ser
         this.logger.log('RegressionAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.REGRESSION, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -173,10 +200,17 @@ let RegressionAuditorAgent = class RegressionAuditorAgent extends base_agent_ser
             issues.push(issue);
             this.regressionAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 25
+                    : issue.severity === 'high'
+                        ? 15
+                        : issue.severity === 'medium'
+                            ? 8
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'baseline')) {
             recommendations.push('Establish and maintain comprehensive performance and behavior baselines');
         }
@@ -210,7 +244,14 @@ let RegressionAuditorAgent = class RegressionAuditorAgent extends base_agent_ser
     }
     async detectRegressions(baselineVersion, currentVersion) {
         const regressions = [];
-        const metrics = ['latency_p50', 'latency_p99', 'throughput', 'error_rate', 'memory_usage', 'cpu_usage'];
+        const metrics = [
+            'latency_p50',
+            'latency_p99',
+            'throughput',
+            'error_rate',
+            'memory_usage',
+            'cpu_usage',
+        ];
         for (const metric of metrics) {
             const hasRegressed = Math.random() > 0.6;
             if (hasRegressed) {
@@ -258,6 +299,9 @@ let RegressionAuditorAgent = class RegressionAuditorAgent extends base_agent_ser
 };
 exports.RegressionAuditorAgent = RegressionAuditorAgent;
 exports.RegressionAuditorAgent = RegressionAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], RegressionAuditorAgent);
 //# sourceMappingURL=regression-auditor-agent.service.js.map

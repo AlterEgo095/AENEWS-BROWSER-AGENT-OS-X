@@ -96,7 +96,7 @@ class LLMHelper {
                 if (isRateLimit && attempt < maxRetries - 1) {
                     const delayMs = Math.pow(2, attempt) * 3000;
                     this.logger.warn(`Rate limited, retrying in ${delayMs / 1000}s... (${attempt + 1}/${maxRetries})`);
-                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                    await new Promise((resolve) => setTimeout(resolve, delayMs));
                     continue;
                 }
                 this.logger.warn(`LLM call failed (attempt ${attempt + 1}): ${err.message}`);
@@ -127,10 +127,21 @@ class LLMHelper {
             return files;
         const codeBlockRegex = /```(\w*?)\s*\n([\s\S]*?)```/g;
         const langMap = {
-            html: 'index.html', css: 'style.css', javascript: 'app.js', js: 'app.js',
-            typescript: 'app.ts', ts: 'app.ts', python: 'app.py', json: 'package.json',
-            yaml: 'docker-compose.yml', yml: 'docker-compose.yml', dockerfile: 'Dockerfile',
-            bash: 'start.sh', sh: 'start.sh', sql: 'schema.sql', md: 'README.md',
+            html: 'index.html',
+            css: 'style.css',
+            javascript: 'app.js',
+            js: 'app.js',
+            typescript: 'app.ts',
+            ts: 'app.ts',
+            python: 'app.py',
+            json: 'package.json',
+            yaml: 'docker-compose.yml',
+            yml: 'docker-compose.yml',
+            dockerfile: 'Dockerfile',
+            bash: 'start.sh',
+            sh: 'start.sh',
+            sql: 'schema.sql',
+            md: 'README.md',
         };
         while ((match = codeBlockRegex.exec(response)) !== null) {
             const lang = match[1].trim().toLowerCase();
@@ -170,7 +181,11 @@ class LLMHelper {
     getMetrics() {
         const byConnectorObj = {};
         for (const [name, m] of this.byConnector) {
-            byConnectorObj[name] = { calls: m.calls, costUsd: m.costUsd, avgMs: Math.round(m.totalMs / m.calls) };
+            byConnectorObj[name] = {
+                calls: m.calls,
+                costUsd: m.costUsd,
+                avgMs: Math.round(m.totalMs / m.calls),
+            };
         }
         return {
             totalCalls: this.callCount,
@@ -240,7 +255,9 @@ class LLMHelper {
             return '';
         const artifacts = output.artifacts || output.results?.artifacts || [];
         const artifactList = Array.isArray(artifacts)
-            ? artifacts.map((a) => `- ${a.name || a.path} (${a.type || 'file'}, ${a.size || '?'} bytes)`).join('\n')
+            ? artifacts
+                .map((a) => `- ${a.name || a.path} (${a.type || 'file'}, ${a.size || '?'} bytes)`)
+                .join('\n')
             : '';
         let contentSummary = '';
         if (output.output) {

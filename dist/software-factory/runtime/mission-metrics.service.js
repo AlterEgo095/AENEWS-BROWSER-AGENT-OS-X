@@ -64,7 +64,7 @@ var MissionCategory;
     MissionCategory["OTHER"] = "other";
 })(MissionCategory || (exports.MissionCategory = MissionCategory = {}));
 exports.MSR_TARGETS = [
-    { label: 'MVP', target: 0.70 },
+    { label: 'MVP', target: 0.7 },
     { label: 'Beta', target: 0.85 },
     { label: 'Enterprise', target: 0.95 },
     { label: 'Elite', target: 0.99 },
@@ -95,12 +95,12 @@ let MissionMetricsService = MissionMetricsService_1 = class MissionMetricsServic
     getMSR() {
         if (this.metrics.length === 0)
             return 0;
-        return this.metrics.filter(m => m.success).length / this.metrics.length;
+        return this.metrics.filter((m) => m.success).length / this.metrics.length;
     }
     getCertificationRate() {
         if (this.metrics.length === 0)
             return 0;
-        return this.metrics.filter(m => m.certified).length / this.metrics.length;
+        return this.metrics.filter((m) => m.certified).length / this.metrics.length;
     }
     getCurrentMsrTarget() {
         const msr = this.getMSR();
@@ -112,12 +112,16 @@ let MissionMetricsService = MissionMetricsService_1 = class MissionMetricsServic
     }
     getAggregate() {
         const total = this.metrics.length;
-        const successes = this.metrics.filter(m => m.success).length;
-        const certified = this.metrics.filter(m => m.certified).length;
-        const durations = this.metrics.map(m => m.durationMs).sort((a, b) => a - b);
+        const successes = this.metrics.filter((m) => m.success).length;
+        const certified = this.metrics.filter((m) => m.certified).length;
+        const durations = this.metrics.map((m) => m.durationMs).sort((a, b) => a - b);
         const p50 = durations.length > 0 ? durations[Math.floor(durations.length * 0.5)] : 0;
-        const p95 = durations.length > 0 ? durations[Math.min(Math.floor(durations.length * 0.95), durations.length - 1)] : 0;
-        const p99 = durations.length > 0 ? durations[Math.min(Math.floor(durations.length * 0.99), durations.length - 1)] : 0;
+        const p95 = durations.length > 0
+            ? durations[Math.min(Math.floor(durations.length * 0.95), durations.length - 1)]
+            : 0;
+        const p99 = durations.length > 0
+            ? durations[Math.min(Math.floor(durations.length * 0.99), durations.length - 1)]
+            : 0;
         const target = this.getCurrentMsrTarget();
         return {
             totalMissions: total,
@@ -151,9 +155,9 @@ let MissionMetricsService = MissionMetricsService_1 = class MissionMetricsServic
             const m = data.metrics;
             result[cat] = {
                 total: m.length,
-                successes: m.filter(x => x.success).length,
-                certified: m.filter(x => x.certified).length,
-                msr: m.length > 0 ? m.filter(x => x.success).length / m.length : 0,
+                successes: m.filter((x) => x.success).length,
+                certified: m.filter((x) => x.certified).length,
+                msr: m.length > 0 ? m.filter((x) => x.success).length / m.length : 0,
                 avgDurationMs: m.length > 0 ? Math.round(m.reduce((s, x) => s + x.durationMs, 0) / m.length) : 0,
                 avgCostUsd: m.length > 0 ? m.reduce((s, x) => s + x.costUsd, 0) / m.length : 0,
                 avgQualityScore: m.length > 0 ? m.reduce((s, x) => s + x.qualityScore, 0) / m.length : 0,
@@ -165,9 +169,9 @@ let MissionMetricsService = MissionMetricsService_1 = class MissionMetricsServic
         const last10 = this.metrics.slice(-10);
         const last25 = this.metrics.slice(-25);
         const last50 = this.metrics.slice(-50);
-        const msr10 = last10.length > 0 ? last10.filter(m => m.success).length / last10.length : 0;
-        const msr25 = last25.length > 0 ? last25.filter(m => m.success).length / last25.length : 0;
-        const msr50 = last50.length > 0 ? last50.filter(m => m.success).length / last50.length : 0;
+        const msr10 = last10.length > 0 ? last10.filter((m) => m.success).length / last10.length : 0;
+        const msr25 = last25.length > 0 ? last25.filter((m) => m.success).length / last25.length : 0;
+        const msr50 = last50.length > 0 ? last50.filter((m) => m.success).length / last50.length : 0;
         const improving = last10.length >= 5 && msr10 >= msr50;
         return { last10Msr: msr10, last25Msr: msr25, last50Msr: msr50, improving };
     }
@@ -175,10 +179,10 @@ let MissionMetricsService = MissionMetricsService_1 = class MissionMetricsServic
         return this.metrics.slice(-count);
     }
     getByCategory(category) {
-        return this.metrics.filter(m => m.category === category);
+        return this.metrics.filter((m) => m.category === category);
     }
     getFailures() {
-        return this.metrics.filter(m => !m.success);
+        return this.metrics.filter((m) => !m.success);
     }
     getSlowest(count = 10) {
         return [...this.metrics].sort((a, b) => b.durationMs - a.durationMs).slice(0, count);
@@ -220,40 +224,86 @@ let MissionMetricsService = MissionMetricsService_1 = class MissionMetricsServic
     }
     static classifyMission(instruction) {
         const lower = instruction.toLowerCase();
-        if (lower.includes('e-commerce') || lower.includes('boutique') || lower.includes('shop') || lower.includes('store')) {
+        if (lower.includes('e-commerce') ||
+            lower.includes('boutique') ||
+            lower.includes('shop') ||
+            lower.includes('store')) {
             return MissionCategory.ECOMMERCE;
         }
-        if (lower.includes('saas') || lower.includes('subscription') || lower.includes('rh') || lower.includes('scolaire') || lower.includes('crm') || lower.includes('erp')) {
+        if (lower.includes('saas') ||
+            lower.includes('subscription') ||
+            lower.includes('rh') ||
+            lower.includes('scolaire') ||
+            lower.includes('crm') ||
+            lower.includes('erp')) {
             return MissionCategory.SAAS;
         }
-        if (lower.includes('landing') || lower.includes('page') || lower.includes('portfolio') || lower.includes('cv') || lower.includes('vitrine')) {
+        if (lower.includes('landing') ||
+            lower.includes('page') ||
+            lower.includes('portfolio') ||
+            lower.includes('cv') ||
+            lower.includes('vitrine')) {
             return MissionCategory.LANDING_PAGE;
         }
-        if (lower.includes('portfolio') || lower.includes('cv') || lower.includes('resume') || lower.includes('personal site')) {
+        if (lower.includes('portfolio') ||
+            lower.includes('cv') ||
+            lower.includes('resume') ||
+            lower.includes('personal site')) {
             return MissionCategory.PORTFOLIO;
         }
-        if (lower.includes('api') || lower.includes('rest') || lower.includes('graphql') || lower.includes('endpoint') || lower.includes('microservice')) {
+        if (lower.includes('api') ||
+            lower.includes('rest') ||
+            lower.includes('graphql') ||
+            lower.includes('endpoint') ||
+            lower.includes('microservice')) {
             return MissionCategory.API;
         }
-        if (lower.includes('chatbot') || lower.includes('chat') || lower.includes('bot') || lower.includes('assistant')) {
+        if (lower.includes('chatbot') ||
+            lower.includes('chat') ||
+            lower.includes('bot') ||
+            lower.includes('assistant')) {
             return MissionCategory.CHATBOT;
         }
-        if (lower.includes('automat') || lower.includes('scraper') || lower.includes('crawler') || lower.includes('pipeline')) {
+        if (lower.includes('automat') ||
+            lower.includes('scraper') ||
+            lower.includes('crawler') ||
+            lower.includes('pipeline')) {
             return MissionCategory.AUTOMATION;
         }
-        if (lower.includes('audit') || lower.includes('seo') || lower.includes('analyz') || lower.includes('report') || lower.includes('scan')) {
+        if (lower.includes('audit') ||
+            lower.includes('seo') ||
+            lower.includes('analyz') ||
+            lower.includes('report') ||
+            lower.includes('scan')) {
             return MissionCategory.AUDIT;
         }
-        if (lower.includes('deploy') || lower.includes('docker') || lower.includes('vps') || lower.includes('infra') || lower.includes('ci/cd')) {
+        if (lower.includes('deploy') ||
+            lower.includes('docker') ||
+            lower.includes('vps') ||
+            lower.includes('infra') ||
+            lower.includes('ci/cd')) {
             return MissionCategory.DEPLOYMENT;
         }
-        if (lower.includes('document') || lower.includes('pdf') || lower.includes('ppt') || lower.includes('readme') || lower.includes('doc')) {
+        if (lower.includes('document') ||
+            lower.includes('pdf') ||
+            lower.includes('ppt') ||
+            lower.includes('readme') ||
+            lower.includes('doc')) {
             return MissionCategory.DOCUMENT;
         }
-        if (lower.includes('app') || lower.includes('application') || lower.includes('todo') || lower.includes('list') || lower.includes('manager') || lower.includes('dashboard')) {
+        if (lower.includes('app') ||
+            lower.includes('application') ||
+            lower.includes('todo') ||
+            lower.includes('list') ||
+            lower.includes('manager') ||
+            lower.includes('dashboard')) {
             return MissionCategory.WEB_APP;
         }
-        if (lower.includes('tool') || lower.includes('cli') || lower.includes('script') || lower.includes('generator') || lower.includes('converter')) {
+        if (lower.includes('tool') ||
+            lower.includes('cli') ||
+            lower.includes('script') ||
+            lower.includes('generator') ||
+            lower.includes('converter')) {
             return MissionCategory.TOOL;
         }
         return MissionCategory.OTHER;

@@ -1,8 +1,11 @@
 import { BaseAgentService } from '../../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 export declare const NOTIFICATION_AGENT_CONFIG: AgentConfig;
 export declare class NotificationAgentService extends BaseAgentService {
+    private readonly bridge?;
     private notifications;
+    constructor(eventBusService?: any, memoryService?: any, permissionEvaluator?: any, bridge?: AgentConnectorBridge | undefined);
     private reminders;
     private notificationCounter;
     private reminderCounter;

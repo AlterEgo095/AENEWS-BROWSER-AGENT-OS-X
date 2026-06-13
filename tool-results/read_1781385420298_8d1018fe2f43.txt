@@ -1,0 +1,1258 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Observability Center Service
+     3→ *
+     4→ * The single pane of glass for the entire system. Unified view of:
+     5→ * Logs, Metrics, Traces, EQI, Memory, Browser, Agent Health,
+     6→ * CPU, GPU, Redis, RabbitMQ, PostgreSQL.
+     7→ *
+     8→ * All subsystems push their state here; this service composes the
+     9→ * full ObservabilitySnapshot on demand and provides querying,
+    10→ * alerting, and time-series aggregation across every dimension.
+    11→ */
+    12→
+    13→import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+    14→
+    15→// ─── Type Definitions ──────────────────────────────────────────────
+    16→
+    17→export interface ObservabilitySnapshot {
+    18→  timestamp: Date;
+    19→  system: SystemHealth;
+    20→  agents: AgentObservability;
+    21→  memory: MemoryObservability;
+    22→  browser: BrowserObservability;
+    23→  infrastructure: InfrastructureObservability;
+    24→  eqi: EqiObservability;
+    25→  alerts: Alert[];
+    26→}
+    27→
+    28→export interface SystemHealth {
+    29→  cpuPercent: number;
+    30→  memoryPercent: number;
+    31→  diskPercent: number;
+    32→  uptime: number;
+    33→  nodeVersion: string;
+    34→  activeHandles: number;
+    35→  activeRequests: number;
+    36→}
+    37→
+    38→export interface AgentObservability {
+    39→  totalAgents: number;
+    40→  activeAgents: number;
+    41→  healthyAgents: number;
+    42→  byCluster: Record<string, { total: number; active: number; healthy: number }>;
+    43→  byStatus: Record<string, number>;
+    44→  totalTasksCompleted: number;
+    45→  totalTasksFailed: number;
+    46→  avgExecutionTimeMs: number;
+    47→  circuitBreakersOpen: number;
+    48→}
+    49→
+    50→export interface MemoryObservability {
+    51→  workingMemory: { entries: number; sizeBytes: number };
+    52→  sessionMemory: { entries: number; sizeBytes: number; activeSessions: number };
+    53→  longTermMemory: { entries: number; sizeBytes: number };
+    54→  knowledgeGraph: { nodes: number; edges: number };
+    55→  vectorSearch: { indexed: number; queries: number; avgLatencyMs: number };
+    56→  totalSizeBytes: number;
+    57→}
+    58→
+    59→export interface BrowserObservability {
+    60→  activeSessions: number;
+    61→  totalSessions: number;
+    62→  avgPageLoadMs: number;
+    63→  errorRate: number;
+    64→  byType: Record<string, { count: number; status: string }>;
+    65→}
+    66→
+    67→export interface InfrastructureObservability {
+    68→  redis: { connected: boolean; memoryUsedMb: number; commandsPerSec: number; keys: number };
+    69→  rabbitmq: { connected: boolean; queues: number; messages: number; consumers: number };
+    70→  postgresql: {
+    71→    connected: boolean;
+    72→    activeConnections: number;
+    73→    queriesPerSec: number;
+    74→    sizeMb: number;
+    75→  };
+    76→  cpu: { cores: number; usagePercent: number; loadAvg: number[] };
+    77→  gpu: {
+    78→    available: boolean;
+    79→    memoryUsedMb: number;
+    80→    memoryTotalMb: number;
+    81→    utilizationPercent: number;
+    82→  };
+    83→}
+    84→
+    85→export interface EqiObservability {
+    86→  currentScore: number;
+    87→  trend: number[]; // Last N scores
+    88→  byDomain: Record<string, number>;
+    89→  lastCertificationAt: Date | null;
+    90→  certificationLevel: string;
+    91→}
+    92→
+    93→export interface Alert {
+    94→  id: string;
+    95→  severity: 'info' | 'warning' | 'error' | 'critical';
+    96→  source: string;
+    97→  message: string;
+    98→  timestamp: Date;
+    99→  acknowledged: boolean;
+   100→  resolvedAt: Date | null;
+   101→  metadata: Record<string, any>;
+   102→}
+   103→
+   104→export interface ObservabilityMetric {
+   105→  name: string;
+   106→  value: number;
+   107→  unit: string;
+   108→  timestamp: Date;
+   109→  labels: Record<string, string>;
+   110→}
+   111→
+   112→export interface ObservabilityLogEntry {
+   113→  id: string;
+   114→  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+   115→  source: string;
+   116→  message: string;
+   117→  timestamp: Date;
+   118→  metadata: Record<string, any>;
+   119→  correlationId: string | null;
+   120→}
+   121→
+   122→export interface ObservabilityTrace {
+   123→  id: string;
+   124→  operation: string;
+   125→  startTime: Date;
+   126→  durationMs: number;
+   127→  status: 'ok' | 'error';
+   128→  spans: TraceSpan[];
+   129→  correlationId: string;
+   130→}
+   131→
+   132→export interface TraceSpan {
+   133→  id: string;
+   134→  operation: string;
+   135→  startTime: Date;
+   136→  durationMs: number;
+   137→  status: 'ok' | 'error';
+   138→  agentId: string | null;
+   139→  metadata: Record<string, any>;
+   140→}
+   141→
+   142→// ─── Internal helper types ─────────────────────────────────────────
+   143→
+   144→interface AgentMetricState {
+   145→  agentId: string;
+   146→  cluster: string;
+   147→  status: string;
+   148→  healthy: boolean;
+   149→  tasksCompleted: number;
+   150→  tasksFailed: number;
+   151→  lastExecutionTimeMs: number;
+   152→  circuitBreakerOpen: boolean;
+   153→  updatedAt: Date;
+   154→}
+   155→
+   156→interface LogFilter {
+   157→  level?: ObservabilityLogEntry['level'];
+   158→  source?: string;
+   159→  correlationId?: string;
+   160→  from?: Date;
+   161→  to?: Date;
+   162→  limit?: number;
+   163→}
+   164→
+   165→interface Dashboard {
+   166→  generatedAt: Date;
+   167→  summary: {
+   168→    systemHealthy: boolean;
+   169→    activeAgents: number;
+   170→    totalAgents: number;
+   171→    activeAlerts: number;
+   172→    criticalAlerts: number;
+   173→    eqiScore: number;
+   174→    infrastructureConnected: boolean;
+   175→  };
+   176→  keyMetrics: Array<{ name: string; value: number; unit: string; trend: 'up' | 'down' | 'stable' }>;
+   177→  alertSummary: Record<Alert['severity'], number>;
+   178→  agentHealth: { healthy: number; degraded: number; failed: number };
+   179→  infrastructure: {
+   180→    redisConnected: boolean;
+   181→    rabbitmqConnected: boolean;
+   182→    postgresqlConnected: boolean;
+   183→    cpuUsagePercent: number;
+   184→    memoryUsagePercent: number;
+   185→  };
+   186→  charts: {
+   187→    cpuHistory: Array<{ timestamp: Date; value: number }>;
+   188→    memoryHistory: Array<{ timestamp: Date; value: number }>;
+   189→    requestRate: Array<{ timestamp: Date; value: number }>;
+   190→    eqiTrend: Array<{ timestamp: Date; value: number }>;
+   191→  };
+   192→  recentAlerts: Alert[];
+   193→}
+   194→
+   195→interface TimeSeriesBucket {
+   196→  timestamp: Date;
+   197→  min: number;
+   198→  max: number;
+   199→  avg: number;
+   200→  sum: number;
+   201→  count: number;
+   202→}
+   203→
+   204→// ─── Constants ─────────────────────────────────────────────────────
+   205→
+   206→const MAX_METRICS = 100_000;
+   207→const MAX_LOGS = 50_000;
+   208→const MAX_TRACES = 20_000;
+   209→const MAX_ALERTS = 5_000;
+   210→const MAX_EQI_TREND = 100;
+   211→const DEFAULT_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 hours
+   212→
+   213→// ─── Service ───────────────────────────────────────────────────────
+   214→
+   215→@Injectable()
+   216→export class ObservabilityCenterService implements OnModuleInit {
+   217→  private readonly logger = new Logger(ObservabilityCenterService.name);
+   218→
+   219→  /** Bounded time-series buffer for all recorded metrics */
+   220→  private readonly metricsBuffer: ObservabilityMetric[] = [];
+   221→
+   222→  /** Bounded log buffer */
+   223→  private readonly logBuffer: ObservabilityLogEntry[] = [];
+   224→
+   225→  /** Bounded trace buffer */
+   226→  private readonly traceBuffer: ObservabilityTrace[] = [];
+   227→
+   228→  /** Active alerts (unresolved) + recently resolved */
+   229→  private readonly alerts: Alert[] = [];
+   230→
+   231→  /** Agent metric states keyed by agentId */
+   232→  private readonly agentStates: Map<string, AgentMetricState> = new Map();
+   233→
+   234→  /** Latest infrastructure metrics per component */
+   235→  private readonly infraStates: Map<string, Record<string, any>> = new Map();
+   236→
+   237→  /** EQI state */
+   238→  private eqiState: EqiObservability = {
+   239→    currentScore: 0,
+   240→    trend: [],
+   241→    byDomain: {},
+   242→    lastCertificationAt: null,
+   243→    certificationLevel: 'uncertified',
+   244→  };
+   245→
+   246→  /** Browser state */
+   247→  private browserState: BrowserObservability = {
+   248→    activeSessions: 0,
+   249→    totalSessions: 0,
+   250→    avgPageLoadMs: 0,
+   251→    errorRate: 0,
+   252→    byType: {},
+   253→  };
+   254→
+   255→  /** Memory state */
+   256→  private memoryState: MemoryObservability = {
+   257→    workingMemory: { entries: 0, sizeBytes: 0 },
+   258→    sessionMemory: { entries: 0, sizeBytes: 0, activeSessions: 0 },
+   259→    longTermMemory: { entries: 0, sizeBytes: 0 },
+   260→    knowledgeGraph: { nodes: 0, edges: 0 },
+   261→    vectorSearch: { indexed: 0, queries: 0, avgLatencyMs: 0 },
+   262→    totalSizeBytes: 0,
+   263→  };
+   264→
+   265→  /** Monotonic counter for alert IDs */
+   266→  private alertCounter = 0;
+   267→
+   268→  /** Module start time for uptime calculation */
+   269→  private readonly startTime = Date.now();
+   270→
+   271→  // ─── Lifecycle ────────────────────────────────────────────────────
+   272→
+   273→  onModuleInit(): void {
+   274→    this.logger.log('ObservabilityCenterService initialised — single pane of glass online');
+   275→  }
+   276→
+   277→  // ─── 1. getSnapshot ───────────────────────────────────────────────
+   278→
+   279→  /**
+   280→   * THE CORE METHOD. Collect current state from all subsystems and
+   281→   * return a unified ObservabilitySnapshot. Reads from internal
+   282→   * state since we don't have live external connections yet.
+   283→   */
+   284→  getSnapshot(): ObservabilitySnapshot {
+   285→    const now = new Date();
+   286→
+   287→    const system: SystemHealth = this.computeSystemHealth(now);
+   288→
+   289→    const agents: AgentObservability = this.computeAgentObservability();
+   290→
+   291→    const infrastructure = this.computeInfrastructureObservability();
+   292→
+   293→    return {
+   294→      timestamp: now,
+   295→      system,
+   296→      agents,
+   297→      memory: { ...this.memoryState },
+   298→      browser: { ...this.browserState },
+   299→      infrastructure,
+   300→      eqi: {
+   301→        ...this.eqiState,
+   302→        trend: [...this.eqiState.trend],
+   303→        byDomain: { ...this.eqiState.byDomain },
+   304→      },
+   305→      alerts: this.alerts
+   306→        .filter((a) => a.resolvedAt === null)
+   307→        .map((a) => ({ ...a, metadata: { ...a.metadata } })),
+   308→    };
+   309→  }
+   310→
+   311→  // ─── 2. recordMetric ──────────────────────────────────────────────
+   312→
+   313→  /**
+   314→   * Record a metric data point into the time-series buffer.
+   315→   * The buffer is bounded; oldest entries are evicted when full.
+   316→   */
+   317→  recordMetric(metric: ObservabilityMetric): void {
+   318→    this.metricsBuffer.push({
+   319→      ...metric,
+   320→      labels: { ...metric.labels },
+   321→      timestamp: metric.timestamp ?? new Date(),
+   322→    });
+   323→
+   324→    if (this.metricsBuffer.length > MAX_METRICS) {
+   325→      this.metricsBuffer.splice(0, this.metricsBuffer.length - MAX_METRICS);
+   326→    }
+   327→  }
+   328→
+   329→  // ─── 3. recordLog ─────────────────────────────────────────────────
+   330→
+   331→  /**
+   332→   * Record a log entry into the bounded log buffer.
+   333→   */
+   334→  recordLog(entry: ObservabilityLogEntry): void {
+   335→    this.logBuffer.push({
+   336→      ...entry,
+   337→      metadata: { ...entry.metadata },
+   338→      timestamp: entry.timestamp ?? new Date(),
+   339→    });
+   340→
+   341→    if (this.logBuffer.length > MAX_LOGS) {
+   342→      this.logBuffer.splice(0, this.logBuffer.length - MAX_LOGS);
+   343→    }
+   344→  }
+   345→
+   346→  // ─── 4. recordTrace ───────────────────────────────────────────────
+   347→
+   348→  /**
+   349→   * Record a distributed trace into the bounded trace buffer.
+   350→   */
+   351→  recordTrace(trace: ObservabilityTrace): void {
+   352→    this.traceBuffer.push({
+   353→      ...trace,
+   354→      spans: trace.spans.map((s) => ({
+   355→        ...s,
+   356→        metadata: { ...s.metadata },
+   357→      })),
+   358→      startTime: trace.startTime ?? new Date(),
+   359→    });
+   360→
+   361→    if (this.traceBuffer.length > MAX_TRACES) {
+   362→      this.traceBuffer.splice(0, this.traceBuffer.length - MAX_TRACES);
+   363→    }
+   364→  }
+   365→
+   366→  // ─── 5. createAlert ───────────────────────────────────────────────
+   367→
+   368→  /**
+   369→   * Create a new alert. Auto-generates an ID and timestamp.
+   370→   * Returns the created alert.
+   371→   */
+   372→  createAlert(
+   373→    severity: Alert['severity'],
+   374→    source: string,
+   375→    message: string,
+   376→    metadata?: Record<string, any>,
+   377→  ): Alert {
+   378→    const alert: Alert = {
+   379→      id: `alert-${++this.alertCounter}`,
+   380→      severity,
+   381→      source,
+   382→      message,
+   383→      timestamp: new Date(),
+   384→      acknowledged: false,
+   385→      resolvedAt: null,
+   386→      metadata: metadata ?? {},
+   387→    };
+   388→
+   389→    this.alerts.push(alert);
+   390→
+   391→    if (this.alerts.length > MAX_ALERTS) {
+   392→      this.alerts.splice(0, this.alerts.length - MAX_ALERTS);
+   393→    }
+   394→
+   395→    this.logger.warn(`Alert created [${severity}] from ${source}: ${message}`);
+   396→
+   397→    return { ...alert, metadata: { ...alert.metadata } };
+   398→  }
+   399→
+   400→  // ─── 6. acknowledgeAlert ──────────────────────────────────────────
+   401→
+   402→  /**
+   403→   * Acknowledge an alert by ID. No-op if not found.
+   404→   */
+   405→  acknowledgeAlert(alertId: string): void {
+   406→    const alert = this.alerts.find((a) => a.id === alertId);
+   407→    if (!alert) {
+   408→      this.logger.debug(`Cannot acknowledge alert — id "${alertId}" not found`);
+   409→      return;
+   410→    }
+   411→
+   412→    if (alert.acknowledged) {
+   413→      this.logger.debug(`Alert "${alertId}" is already acknowledged`);
+   414→      return;
+   415→    }
+   416→
+   417→    alert.acknowledged = true;
+   418→    this.logger.log(`Alert acknowledged: ${alertId}`);
+   419→  }
+   420→
+   421→  // ─── 7. resolveAlert ──────────────────────────────────────────────
+   422→
+   423→  /**
+   424→   * Resolve an alert by ID. Sets resolvedAt to now. No-op if not found
+   425→   * or already resolved.
+   426→   */
+   427→  resolveAlert(alertId: string): void {
+   428→    const alert = this.alerts.find((a) => a.id === alertId);
+   429→    if (!alert) {
+   430→      this.logger.debug(`Cannot resolve alert — id "${alertId}" not found`);
+   431→      return;
+   432→    }
+   433→
+   434→    if (alert.resolvedAt !== null) {
+   435→      this.logger.debug(`Alert "${alertId}" is already resolved`);
+   436→      return;
+   437→    }
+   438→
+   439→    alert.resolvedAt = new Date();
+   440→    this.logger.log(`Alert resolved: ${alertId}`);
+   441→  }
+   442→
+   443→  // ─── 8. getMetrics ────────────────────────────────────────────────
+   444→
+   445→  /**
+   446→   * Query metrics by name and/or time range.
+   447→   * Returns copies, not references.
+   448→   */
+   449→  getMetrics(name?: string, from?: Date, to?: Date): ObservabilityMetric[] {
+   450→    let result = this.metricsBuffer;
+   451→
+   452→    if (name) {
+   453→      result = result.filter((m) => m.name === name);
+   454→    }
+   455→
+   456→    if (from) {
+   457→      result = result.filter((m) => m.timestamp >= from);
+   458→    }
+   459→
+   460→    if (to) {
+   461→      result = result.filter((m) => m.timestamp <= to);
+   462→    }
+   463→
+   464→    return result.map((m) => ({ ...m, labels: { ...m.labels } }));
+   465→  }
+   466→
+   467→  // ─── 9. getLogs ───────────────────────────────────────────────────
+   468→
+   469→  /**
+   470→   * Query logs with filter support: level, source, correlationId,
+   471→   * and time range. Returns copies.
+   472→   */
+   473→  getLogs(filter?: LogFilter): ObservabilityLogEntry[] {
+   474→    let result = this.logBuffer;
+   475→
+   476→    if (filter) {
+   477→      if (filter.level) {
+   478→        result = result.filter((l) => l.level === filter.level);
+   479→      }
+   480→      if (filter.source) {
+   481→        result = result.filter((l) => l.source === filter.source);
+   482→      }
+   483→      if (filter.correlationId) {
+   484→        result = result.filter((l) => l.correlationId === filter.correlationId);
+   485→      }
+   486→      if (filter.from) {
+   487→        result = result.filter((l) => l.timestamp >= filter.from!);
+   488→      }
+   489→      if (filter.to) {
+   490→        result = result.filter((l) => l.timestamp <= filter.to!);
+   491→      }
+   492→    }
+   493→
+   494→    const limited = filter?.limit ? result.slice(-filter.limit) : result;
+   495→
+   496→    return limited.map((l) => ({ ...l, metadata: { ...l.metadata } }));
+   497→  }
+   498→
+   499→  // ─── 10. getTraces ────────────────────────────────────────────────
+   500→
+   501→  /**
+   502→   * Query traces by operation name and/or correlationId.
+   503→   * Returns copies.
+   504→   */
+   505→  getTraces(operation?: string, correlationId?: string): ObservabilityTrace[] {
+   506→    let result = this.traceBuffer;
+   507→
+   508→    if (operation) {
+   509→      result = result.filter((t) => t.operation === operation);
+   510→    }
+   511→
+   512→    if (correlationId) {
+   513→      result = result.filter((t) => t.correlationId === correlationId);
+   514→    }
+   515→
+   516→    return result.map((t) => ({
+   517→      ...t,
+   518→      spans: t.spans.map((s) => ({ ...s, metadata: { ...s.metadata } })),
+   519→    }));
+   520→  }
+   521→
+   522→  // ─── 11. getAlerts ────────────────────────────────────────────────
+   523→
+   524→  /**
+   525→   * Query alerts with optional severity and acknowledgement filters.
+   526→   * Returns copies.
+   527→   */
+   528→  getAlerts(severity?: Alert['severity'], acknowledged?: boolean): Alert[] {
+   529→    let result = this.alerts;
+   530→
+   531→    if (severity) {
+   532→      result = result.filter((a) => a.severity === severity);
+   533→    }
+   534→
+   535→    if (acknowledged !== undefined) {
+   536→      result = result.filter((a) => a.acknowledged === acknowledged);
+   537→    }
+   538→
+   539→    return result.map((a) => ({ ...a, metadata: { ...a.metadata } }));
+   540→  }
+   541→
+   542→  // ─── 12. getDashboard ─────────────────────────────────────────────
+   543→
+   544→  /**
+   545→   * Return a structured dashboard object with key metrics, chart data,
+   546→   * and alert summary. Designed for frontend consumption.
+   547→   */
+   548→  getDashboard(): Dashboard {
+   549→    const now = new Date();
+   550→    const snapshot = this.getSnapshot();
+   551→
+   552→    // Derive key metrics with simple trend detection
+   553→    const keyMetrics = this.computeDashboardKeyMetrics(snapshot);
+   554→
+   555→    // Alert summary by severity
+   556→    const alertSummary: Record<Alert['severity'], number> = {
+   557→      info: 0,
+   558→      warning: 0,
+   559→      error: 0,
+   560→      critical: 0,
+   561→    };
+   562→    for (const alert of this.alerts) {
+   563→      if (alert.resolvedAt === null) {
+   564→        alertSummary[alert.severity]++;
+   565→      }
+   566→    }
+   567→
+   568→    // Agent health breakdown
+   569→    let healthy = 0;
+   570→    let degraded = 0;
+   571→    let failed = 0;
+   572→    for (const state of this.agentStates.values()) {
+   573→      if (state.healthy) {
+   574→        healthy++;
+   575→      } else if (state.status === 'failed') {
+   576→        failed++;
+   577→      } else {
+   578→        degraded++;
+   579→      }
+   580→    }
+   581→
+   582→    // Infrastructure connection status
+   583→    const redisState = this.infraStates.get('redis') ?? {};
+   584→    const rabbitmqState = this.infraStates.get('rabbitmq') ?? {};
+   585→    const postgresqlState = this.infraStates.get('postgresql') ?? {};
+   586→    const cpuState = this.infraStates.get('cpu') ?? {};
+   587→    const memState = this.infraStates.get('system-memory') ?? {};
+   588→
+   589→    // Chart data — last 60 data points for CPU / memory / request rate / EQI
+   590→    const cpuHistory = this.extractChartHistory('system.cpu.percent', 60);
+   591→    const memoryHistory = this.extractChartHistory('system.memory.percent', 60);
+   592→    const requestRate = this.extractChartHistory('system.requests.per_sec', 60);
+   593→    const eqiTrend = this.eqiState.trend.map((score, i) => ({
+   594→      timestamp: new Date(now.getTime() - (this.eqiState.trend.length - i) * 60_000),
+   595→      value: score,
+   596→    }));
+   597→
+   598→    const criticalAlerts = this.alerts.filter(
+   599→      (a) => a.resolvedAt === null && a.severity === 'critical',
+   600→    );
+   601→
+   602→    return {
+   603→      generatedAt: now,
+   604→      summary: {
+   605→        systemHealthy: snapshot.system.cpuPercent < 90 && snapshot.system.memoryPercent < 90,
+   606→        activeAgents: snapshot.agents.activeAgents,
+   607→        totalAgents: snapshot.agents.totalAgents,
+   608→        activeAlerts: this.alerts.filter((a) => a.resolvedAt === null).length,
+   609→        criticalAlerts: criticalAlerts.length,
+   610→        eqiScore: snapshot.eqi.currentScore,
+   611→        infrastructureConnected:
+   612→          ((redisState.connected as boolean) ?? true) &&
+   613→          ((rabbitmqState.connected as boolean) ?? true) &&
+   614→          ((postgresqlState.connected as boolean) ?? true),
+   615→      },
+   616→      keyMetrics,
+   617→      alertSummary,
+   618→      agentHealth: { healthy, degraded, failed },
+   619→      infrastructure: {
+   620→        redisConnected: (redisState.connected as boolean) ?? true,
+   621→        rabbitmqConnected: (rabbitmqState.connected as boolean) ?? true,
+   622→        postgresqlConnected: (postgresqlState.connected as boolean) ?? true,
+   623→        cpuUsagePercent: (cpuState.usagePercent as number) ?? snapshot.system.cpuPercent,
+   624→        memoryUsagePercent: (memState.percent as number) ?? snapshot.system.memoryPercent,
+   625→      },
+   626→      charts: {
+   627→        cpuHistory,
+   628→        memoryHistory,
+   629→        requestRate,
+   630→        eqiTrend,
+   631→      },
+   632→      recentAlerts: this.alerts
+   633→        .filter((a) => a.resolvedAt === null)
+   634→        .slice(-10)
+   635→        .map((a) => ({ ...a, metadata: { ...a.metadata } })),
+   636→    };
+   637→  }
+   638→
+   639→  // ─── 13. updateAgentMetrics ───────────────────────────────────────
+   640→
+   641→  /**
+   642→   * Push agent metrics into observability. Creates or updates the
+   643→   * agent's state record.
+   644→   */
+   645→  updateAgentMetrics(
+   646→    agentId: string,
+   647→    metrics: {
+   648→      cluster?: string;
+   649→      status?: string;
+   650→      healthy?: boolean;
+   651→      tasksCompleted?: number;
+   652→      tasksFailed?: number;
+   653→      lastExecutionTimeMs?: number;
+   654→      circuitBreakerOpen?: boolean;
+   655→    },
+   656→  ): void {
+   657→    const existing = this.agentStates.get(agentId);
+   658→
+   659→    const updated: AgentMetricState = {
+   660→      agentId,
+   661→      cluster: metrics.cluster ?? existing?.cluster ?? 'default',
+   662→      status: metrics.status ?? existing?.status ?? 'idle',
+   663→      healthy: metrics.healthy ?? existing?.healthy ?? true,
+   664→      tasksCompleted: metrics.tasksCompleted ?? existing?.tasksCompleted ?? 0,
+   665→      tasksFailed: metrics.tasksFailed ?? existing?.tasksFailed ?? 0,
+   666→      lastExecutionTimeMs: metrics.lastExecutionTimeMs ?? existing?.lastExecutionTimeMs ?? 0,
+   667→      circuitBreakerOpen: metrics.circuitBreakerOpen ?? existing?.circuitBreakerOpen ?? false,
+   668→      updatedAt: new Date(),
+   669→    };
+   670→
+   671→    this.agentStates.set(agentId, updated);
+   672→  }
+   673→
+   674→  // ─── 14. updateInfrastructureMetrics ──────────────────────────────
+   675→
+   676→  /**
+   677→   * Push infrastructure metrics for a component (redis, rabbitmq,
+   678→   * postgresql, cpu, gpu, system-memory, etc.).
+   679→   */
+   680→  updateInfrastructureMetrics(component: string, metrics: Record<string, any>): void {
+   681→    this.infraStates.set(component, { ...metrics });
+   682→
+   683→    // Auto-record a metric for the update
+   684→    if (typeof metrics.usagePercent === 'number') {
+   685→      this.recordMetric({
+   686→        name: `infra.${component}.usage_percent`,
+   687→        value: metrics.usagePercent,
+   688→        unit: 'percent',
+   689→        timestamp: new Date(),
+   690→        labels: { component },
+   691→      });
+   692→    }
+   693→
+   694→    if (typeof metrics.connected === 'boolean' && !metrics.connected) {
+   695→      this.createAlert('error', `infrastructure.${component}`, `${component} connection lost`, {
+   696→        component,
+   697→        metrics,
+   698→      });
+   699→    }
+   700→  }
+   701→
+   702→  // ─── 15. updateEqiScore ───────────────────────────────────────────
+   703→
+   704→  /**
+   705→   * Update EQI observability with the latest score and domain breakdown.
+   706→   */
+   707→  updateEqiScore(score: number, domains: Record<string, number>): void {
+   708→    const trend = [...this.eqiState.trend, score];
+   709→    if (trend.length > MAX_EQI_TREND) {
+   710→      trend.splice(0, trend.length - MAX_EQI_TREND);
+   711→    }
+   712→
+   713→    // Derive certification level from score
+   714→    let certificationLevel = 'uncertified';
+   715→    if (score >= 95) certificationLevel = 'platinum';
+   716→    else if (score >= 85) certificationLevel = 'gold';
+   717→    else if (score >= 70) certificationLevel = 'silver';
+   718→    else if (score >= 50) certificationLevel = 'bronze';
+   719→
+   720→    this.eqiState = {
+   721→      currentScore: score,
+   722→      trend,
+   723→      byDomain: { ...domains },
+   724→      lastCertificationAt:
+   725→        certificationLevel !== 'uncertified' ? new Date() : this.eqiState.lastCertificationAt,
+   726→      certificationLevel,
+   727→    };
+   728→
+   729→    // Record EQI as a metric
+   730→    this.recordMetric({
+   731→      name: 'eqi.score',
+   732→      value: score,
+   733→      unit: 'score',
+   734→      timestamp: new Date(),
+   735→      labels: { certificationLevel },
+   736→    });
+   737→
+   738→    // Alert on score drops
+   739→    if (this.eqiState.trend.length >= 2) {
+   740→      const prev = this.eqiState.trend[this.eqiState.trend.length - 2];
+   741→      if (prev - score >= 10) {
+   742→        this.createAlert(
+   743→          'warning',
+   744→          'eqi',
+   745→          `EQI score dropped by ${(prev - score).toFixed(1)} points (from ${prev} to ${score})`,
+   746→          { previousScore: prev, currentScore: score },
+   747→        );
+   748→      }
+   749→    }
+   750→  }
+   751→
+   752→  // ─── 16. getHealthStatus ──────────────────────────────────────────
+   753→
+   754→  /**
+   755→   * Quick health check: is everything OK?
+   756→   * Returns { healthy, issues } where issues lists what's wrong.
+   757→   */
+   758→  getHealthStatus(): { healthy: boolean; issues: string[] } {
+   759→    const issues: string[] = [];
+   760→    const snapshot = this.getSnapshot();
+   761→
+   762→    // System health checks
+   763→    if (snapshot.system.cpuPercent > 90) {
+   764→      issues.push(`CPU usage critical: ${snapshot.system.cpuPercent.toFixed(1)}%`);
+   765→    }
+   766→    if (snapshot.system.memoryPercent > 90) {
+   767→      issues.push(`Memory usage critical: ${snapshot.system.memoryPercent.toFixed(1)}%`);
+   768→    }
+   769→    if (snapshot.system.diskPercent > 95) {
+   770→      issues.push(`Disk usage critical: ${snapshot.system.diskPercent.toFixed(1)}%`);
+   771→    }
+   772→
+   773→    // Infrastructure connectivity
+   774→    if (!snapshot.infrastructure.redis.connected) {
+   775→      issues.push('Redis is not connected');
+   776→    }
+   777→    if (!snapshot.infrastructure.rabbitmq.connected) {
+   778→      issues.push('RabbitMQ is not connected');
+   779→    }
+   780→    if (!snapshot.infrastructure.postgresql.connected) {
+   781→      issues.push('PostgreSQL is not connected');
+   782→    }
+   783→
+   784→    // Infrastructure resource pressure
+   785→    if (snapshot.infrastructure.cpu.usagePercent > 90) {
+   786→      issues.push(
+   787→        `Infrastructure CPU critical: ${snapshot.infrastructure.cpu.usagePercent.toFixed(1)}%`,
+   788→      );
+   789→    }
+   790→    if (
+   791→      snapshot.infrastructure.gpu.available &&
+   792→      snapshot.infrastructure.gpu.utilizationPercent > 95
+   793→    ) {
+   794→      issues.push(
+   795→        `GPU utilization critical: ${snapshot.infrastructure.gpu.utilizationPercent.toFixed(1)}%`,
+   796→      );
+   797→    }
+   798→
+   799→    // Agent health
+   800→    if (snapshot.agents.circuitBreakersOpen > 0) {
+   801→      issues.push(`${snapshot.agents.circuitBreakersOpen} circuit breaker(s) open`);
+   802→    }
+   803→    if (snapshot.agents.totalAgents > 0 && snapshot.agents.healthyAgents === 0) {
+   804→      issues.push('No healthy agents');
+   805→    }
+   806→
+   807→    // Alert-based issues
+   808→    const criticalAlerts = this.alerts.filter(
+   809→      (a) => a.resolvedAt === null && a.severity === 'critical' && !a.acknowledged,
+   810→    );
+   811→    if (criticalAlerts.length > 0) {
+   812→      issues.push(`${criticalAlerts.length} unacknowledged critical alert(s)`);
+   813→    }
+   814→
+   815→    // EQI
+   816→    if (snapshot.eqi.currentScore > 0 && snapshot.eqi.currentScore < 50) {
+   817→      issues.push(`EQI score below threshold: ${snapshot.eqi.currentScore}`);
+   818→    }
+   819→
+   820→    // Browser
+   821→    if (snapshot.browser.errorRate > 0.5) {
+   822→      issues.push(`Browser error rate high: ${(snapshot.browser.errorRate * 100).toFixed(1)}%`);
+   823→    }
+   824→
+   825→    return {
+   826→      healthy: issues.length === 0,
+   827→      issues,
+   828→    };
+   829→  }
+   830→
+   831→  // ─── 17. getMetricTimeSeries ──────────────────────────────────────
+   832→
+   833→  /**
+   834→   * Get time-series data for a metric with aggregation.
+   835→   * Buckets data into intervals and computes min/max/avg/sum/count
+   836→   * per bucket.
+   837→   */
+   838→  getMetricTimeSeries(name: string, from: Date, to: Date, intervalMs: number): TimeSeriesBucket[] {
+   839→    if (intervalMs <= 0) {
+   840→      throw new Error('intervalMs must be positive');
+   841→    }
+   842→
+   843→    // Filter metrics by name and time range
+   844→    const relevant = this.metricsBuffer.filter(
+   845→      (m) => m.name === name && m.timestamp >= from && m.timestamp <= to,
+   846→    );
+   847→
+   848→    if (relevant.length === 0) {
+   849→      return [];
+   850→    }
+   851→
+   852→    // Create buckets
+   853→    const buckets: TimeSeriesBucket[] = [];
+   854→    const bucketStart = from.getTime();
+   855→    const bucketEnd = to.getTime();
+   856→
+   857→    for (let t = bucketStart; t < bucketEnd; t += intervalMs) {
+   858→      const bucketTimestamp = new Date(t);
+   859→      const bucketEndMs = t + intervalMs;
+   860→
+   861→      const inBucket = relevant.filter(
+   862→        (m) => m.timestamp.getTime() >= t && m.timestamp.getTime() < bucketEndMs,
+   863→      );
+   864→
+   865→      if (inBucket.length > 0) {
+   866→        const values = inBucket.map((m) => m.value);
+   867→        buckets.push({
+   868→          timestamp: bucketTimestamp,
+   869→          min: Math.min(...values),
+   870→          max: Math.max(...values),
+   871→          avg: values.reduce((s, v) => s + v, 0) / values.length,
+   872→          sum: values.reduce((s, v) => s + v, 0),
+   873→          count: values.length,
+   874→        });
+   875→      }
+   876→    }
+   877→
+   878→    return buckets;
+   879→  }
+   880→
+   881→  // ─── 18. cleanup ──────────────────────────────────────────────────
+   882→
+   883→  /**
+   884→   * Clean up old data beyond the retention period. Removes expired
+   885→   * metrics, logs, traces, and resolved alerts.
+   886→   */
+   887→  cleanup(retentionMs?: number): {
+   888→    metricsRemoved: number;
+   889→    logsRemoved: number;
+   890→    tracesRemoved: number;
+   891→    alertsRemoved: number;
+   892→  } {
+   893→    const retention = retentionMs ?? DEFAULT_RETENTION_MS;
+   894→    const cutoff = new Date(Date.now() - retention);
+   895→
+   896→    // Count before
+   897→    const metricsBefore = this.metricsBuffer.length;
+   898→    const logsBefore = this.logBuffer.length;
+   899→    const tracesBefore = this.traceBuffer.length;
+   900→    const alertsBefore = this.alerts.length;
+   901→
+   902→    // Remove expired metrics
+   903→    let writeIdx = 0;
+   904→    for (let i = 0; i < this.metricsBuffer.length; i++) {
+   905→      if (this.metricsBuffer[i].timestamp >= cutoff) {
+   906→        this.metricsBuffer[writeIdx++] = this.metricsBuffer[i];
+   907→      }
+   908→    }
+   909→    this.metricsBuffer.length = writeIdx;
+   910→
+   911→    // Remove expired logs
+   912→    writeIdx = 0;
+   913→    for (let i = 0; i < this.logBuffer.length; i++) {
+   914→      if (this.logBuffer[i].timestamp >= cutoff) {
+   915→        this.logBuffer[writeIdx++] = this.logBuffer[i];
+   916→      }
+   917→    }
+   918→    this.logBuffer.length = writeIdx;
+   919→
+   920→    // Remove expired traces
+   921→    writeIdx = 0;
+   922→    for (let i = 0; i < this.traceBuffer.length; i++) {
+   923→      if (this.traceBuffer[i].startTime >= cutoff) {
+   924→        this.traceBuffer[writeIdx++] = this.traceBuffer[i];
+   925→      }
+   926→    }
+   927→    this.traceBuffer.length = writeIdx;
+   928→
+   929→    // Remove resolved alerts older than retention
+   930→    writeIdx = 0;
+   931→    for (let i = 0; i < this.alerts.length; i++) {
+   932→      const alert = this.alerts[i];
+   933→      // Keep unresolved alerts regardless of age
+   934→      if (alert.resolvedAt === null) {
+   935→        this.alerts[writeIdx++] = alert;
+   936→      } else if (alert.resolvedAt >= cutoff) {
+   937→        this.alerts[writeIdx++] = alert;
+   938→      }
+   939→    }
+   940→    this.alerts.length = writeIdx;
+   941→
+   942→    // Clean up stale agent states (not updated within retention)
+   943→    const agentCutoff = new Date(Date.now() - retention);
+   944→    for (const [agentId, state] of this.agentStates.entries()) {
+   945→      if (state.updatedAt < agentCutoff) {
+   946→        this.agentStates.delete(agentId);
+   947→      }
+   948→    }
+   949→
+   950→    const result = {
+   951→      metricsRemoved: metricsBefore - this.metricsBuffer.length,
+   952→      logsRemoved: logsBefore - this.logBuffer.length,
+   953→      tracesRemoved: tracesBefore - this.traceBuffer.length,
+   954→      alertsRemoved: alertsBefore - this.alerts.length,
+   955→    };
+   956→
+   957→    this.logger.log(
+   958→      `Cleanup complete: removed ${result.metricsRemoved} metrics, ` +
+   959→        `${result.logsRemoved} logs, ${result.tracesRemoved} traces, ` +
+   960→        `${result.alertsRemoved} alerts (retention=${retention}ms)`,
+   961→    );
+   962→
+   963→    return result;
+   964→  }
+   965→
+   966→  // ─── Public setters for browser & memory state ─────────────────────
+   967→
+   968→  /**
+   969→   * Update the browser observability state.
+   970→   */
+   971→  updateBrowserState(state: Partial<BrowserObservability>): void {
+   972→    this.browserState = {
+   973→      ...this.browserState,
+   974→      ...state,
+   975→      byType: state.byType ?? this.browserState.byType,
+   976→    };
+   977→  }
+   978→
+   979→  /**
+   980→   * Update the memory observability state.
+   981→   */
+   982→  updateMemoryState(state: Partial<MemoryObservability>): void {
+   983→    this.memoryState = {
+   984→      ...this.memoryState,
+   985→      ...state,
+   986→      workingMemory: state.workingMemory ?? this.memoryState.workingMemory,
+   987→      sessionMemory: state.sessionMemory ?? this.memoryState.sessionMemory,
+   988→      longTermMemory: state.longTermMemory ?? this.memoryState.longTermMemory,
+   989→      knowledgeGraph: state.knowledgeGraph ?? this.memoryState.knowledgeGraph,
+   990→      vectorSearch: state.vectorSearch ?? this.memoryState.vectorSearch,
+   991→    };
+   992→  }
+   993→
+   994→  // ─── Private Helpers ────────────────────────────────────────────────
+   995→
+   996→  /**
+   997→   * Compute the current SystemHealth from process metrics and
+   998→   * internal state.
+   999→   */
+  1000→  private computeSystemHealth(now: Date): SystemHealth {
+  1001→    // Collect CPU metric from buffer
+  1002→    const cpuMetrics = this.metricsBuffer.filter((m) => m.name === 'system.cpu.percent');
+  1003→    const cpuPercent =
+  1004→      cpuMetrics.length > 0
+  1005→        ? cpuMetrics[cpuMetrics.length - 1].value
+  1006→        : process.cpuUsage?.().user
+  1007→          ? (process.cpuUsage().user / 1_000_000) * 100
+  1008→          : 0;
+  1009→
+  1010→    // Memory from process or metric buffer
+  1011→    const memMetrics = this.metricsBuffer.filter((m) => m.name === 'system.memory.percent');
+  1012→    let memoryPercent = 0;
+  1013→    if (memMetrics.length > 0) {
+  1014→      memoryPercent = memMetrics[memMetrics.length - 1].value;
+  1015→    } else if (typeof process.memoryUsage === 'function') {
+  1016→      const mem = process.memoryUsage();
+  1017→      memoryPercent = (mem.heapUsed / mem.heapTotal) * 100;
+  1018→    }
+  1019→
+  1020→    // Disk — read from infra state or default
+  1021→    const diskState = this.infraStates.get('disk') ?? {};
+  1022→    const diskPercent = (diskState.percent as number) ?? 0;
+  1023→
+  1024→    return {
+  1025→      cpuPercent: Math.min(100, Math.max(0, cpuPercent)),
+  1026→      memoryPercent: Math.min(100, Math.max(0, memoryPercent)),
+  1027→      diskPercent: Math.min(100, Math.max(0, diskPercent)),
+  1028→      uptime: now.getTime() - this.startTime,
+  1029→      nodeVersion: process.version,
+  1030→      activeHandles: (process as any)._getActiveHandles?.()?.length ?? 0,
+  1031→      activeRequests: (process as any)._getActiveRequests?.()?.length ?? 0,
+  1032→    };
+  1033→  }
+  1034→
+  1035→  /**
+  1036→   * Compute AgentObservability from the agent states map.
+  1037→   */
+  1038→  private computeAgentObservability(): AgentObservability {
+  1039→    const states = [...this.agentStates.values()];
+  1040→
+  1041→    const byCluster: Record<string, { total: number; active: number; healthy: number }> = {};
+  1042→    const byStatus: Record<string, number> = {};
+  1043→
+  1044→    let activeAgents = 0;
+  1045→    let healthyAgents = 0;
+  1046→    let totalTasksCompleted = 0;
+  1047→    let totalTasksFailed = 0;
+  1048→    let totalExecTimeMs = 0;
+  1049→    let execTimeCount = 0;
+  1050→    let circuitBreakersOpen = 0;
+  1051→
+  1052→    for (const state of states) {
+  1053→      // Cluster aggregation
+  1054→      if (!byCluster[state.cluster]) {
+  1055→        byCluster[state.cluster] = { total: 0, active: 0, healthy: 0 };
+  1056→      }
+  1057→      byCluster[state.cluster].total++;
+  1058→      if (state.status === 'active' || state.status === 'running') {
+  1059→        byCluster[state.cluster].active++;
+  1060→        activeAgents++;
+  1061→      }
+  1062→      if (state.healthy) {
+  1063→        byCluster[state.cluster].healthy++;
+  1064→        healthyAgents++;
+  1065→      }
+  1066→
+  1067→      // Status aggregation
+  1068→      byStatus[state.status] = (byStatus[state.status] ?? 0) + 1;
+  1069→
+  1070→      // Task counters
+  1071→      totalTasksCompleted += state.tasksCompleted;
+  1072→      totalTasksFailed += state.tasksFailed;
+  1073→
+  1074→      // Execution time
+  1075→      if (state.lastExecutionTimeMs > 0) {
+  1076→        totalExecTimeMs += state.lastExecutionTimeMs;
+  1077→        execTimeCount++;
+  1078→      }
+  1079→
+  1080→      // Circuit breakers
+  1081→      if (state.circuitBreakerOpen) {
+  1082→        circuitBreakersOpen++;
+  1083→      }
+  1084→    }
+  1085→
+  1086→    return {
+  1087→      totalAgents: states.length,
+  1088→      activeAgents,
+  1089→      healthyAgents,
+  1090→      byCluster,
+  1091→      byStatus,
+  1092→      totalTasksCompleted,
+  1093→      totalTasksFailed,
+  1094→      avgExecutionTimeMs: execTimeCount > 0 ? totalExecTimeMs / execTimeCount : 0,
+  1095→      circuitBreakersOpen,
+  1096→    };
+  1097→  }
+  1098→
+  1099→  /**
+  1100→   * Compute InfrastructureObservability from the infra states map.
+  1101→   */
+  1102→  private computeInfrastructureObservability(): InfrastructureObservability {
+  1103→    const redis = this.infraStates.get('redis') ?? {};
+  1104→    const rabbitmq = this.infraStates.get('rabbitmq') ?? {};
+  1105→    const postgresql = this.infraStates.get('postgresql') ?? {};
+  1106→    const cpu = this.infraStates.get('cpu') ?? {};
+  1107→    const gpu = this.infraStates.get('gpu') ?? {};
+  1108→
+  1109→    return {
+  1110→      redis: {
+  1111→        connected: (redis.connected as boolean) ?? false,
+  1112→        memoryUsedMb: (redis.memoryUsedMb as number) ?? 0,
+  1113→        commandsPerSec: (redis.commandsPerSec as number) ?? 0,
+  1114→        keys: (redis.keys as number) ?? 0,
+  1115→      },
+  1116→      rabbitmq: {
+  1117→        connected: (rabbitmq.connected as boolean) ?? false,
+  1118→        queues: (rabbitmq.queues as number) ?? 0,
+  1119→        messages: (rabbitmq.messages as number) ?? 0,
+  1120→        consumers: (rabbitmq.consumers as number) ?? 0,
+  1121→      },
+  1122→      postgresql: {
+  1123→        connected: (postgresql.connected as boolean) ?? false,
+  1124→        activeConnections: (postgresql.activeConnections as number) ?? 0,
+  1125→        queriesPerSec: (postgresql.queriesPerSec as number) ?? 0,
+  1126→        sizeMb: (postgresql.sizeMb as number) ?? 0,
+  1127→      },
+  1128→      cpu: {
+  1129→        cores: (cpu.cores as number) ?? 0,
+  1130→        usagePercent: (cpu.usagePercent as number) ?? 0,
+  1131→        loadAvg: Array.isArray(cpu.loadAvg) ? [...cpu.loadAvg] : [],
+  1132→      },
+  1133→      gpu: {
+  1134→        available: (gpu.available as boolean) ?? false,
+  1135→        memoryUsedMb: (gpu.memoryUsedMb as number) ?? 0,
+  1136→        memoryTotalMb: (gpu.memoryTotalMb as number) ?? 0,
+  1137→        utilizationPercent: (gpu.utilizationPercent as number) ?? 0,
+  1138→      },
+  1139→    };
+  1140→  }
+  1141→
+  1142→  /**
+  1143→   * Compute dashboard key metrics with trend detection.
+  1144→   */
+  1145→  private computeDashboardKeyMetrics(
+  1146→    snapshot: ObservabilitySnapshot,
+  1147→  ): Array<{ name: string; value: number; unit: string; trend: 'up' | 'down' | 'stable' }> {
+  1148→    const metrics: Array<{
+  1149→      name: string;
+  1150→      value: number;
+  1151→      unit: string;
+  1152→      trend: 'up' | 'down' | 'stable';
+  1153→    }> = [];
+  1154→
+  1155→    // CPU
+  1156→    metrics.push({
+  1157→      name: 'CPU Usage',
+  1158→      value: Math.round(snapshot.system.cpuPercent * 10) / 10,
+  1159→      unit: '%',
+  1160→      trend: this.detectTrend('system.cpu.percent'),
+  1161→    });
+  1162→
+  1163→    // Memory
+  1164→    metrics.push({
+  1165→      name: 'Memory Usage',
+  1166→      value: Math.round(snapshot.system.memoryPercent * 10) / 10,
+  1167→      unit: '%',
+  1168→      trend: this.detectTrend('system.memory.percent'),
+  1169→    });
+  1170→
+  1171→    // Active agents
+  1172→    metrics.push({
+  1173→      name: 'Active Agents',
+  1174→      value: snapshot.agents.activeAgents,
+  1175→      unit: 'agents',
+  1176→      trend: 'stable',
+  1177→    });
+  1178→
+  1179→    // EQI Score
+  1180→    metrics.push({
+  1181→      name: 'EQI Score',
+  1182→      value: snapshot.eqi.currentScore,
+  1183→      unit: 'score',
+  1184→      trend: this.detectEqiTrend(),
+  1185→    });
+  1186→
+  1187→    // Redis commands/sec
+  1188→    metrics.push({
+  1189→      name: 'Redis Commands/sec',
+  1190→      value: snapshot.infrastructure.redis.commandsPerSec,
+  1191→      unit: 'cmd/s',
+  1192→      trend: this.detectTrend('infra.redis.usage_percent'),
+  1193→    });
+  1194→
+  1195→    // PostgreSQL queries/sec
+  1196→    metrics.push({
+  1197→      name: 'PostgreSQL Queries/sec',
+  1198→      value: snapshot.infrastructure.postgresql.queriesPerSec,
+  1199→      unit: 'qps',
+  1200→      trend: this.detectTrend('infra.postgresql.usage_percent'),
+  1201→    });
+  1202→
+  1203→    // Browser error rate
+  1204→    metrics.push({
+  1205→      name: 'Browser Error Rate',
+  1206→      value: Math.round(snapshot.browser.errorRate * 1000) / 10,
+  1207→      unit: '%',
+  1208→      trend: this.detectTrend('browser.error_rate'),
+  1209→    });
+  1210→
+  1211→    return metrics;
+  1212→  }
+  1213→
+  1214→  /**
+  1215→   * Detect the trend direction for a metric by comparing the last
+  1216→   * two data points (if available).
+  1217→   */
+  1218→  private detectTrend(metricName: string): 'up' | 'down' | 'stable' {
+  1219→    const points = this.metricsBuffer.filter((m) => m.name === metricName).slice(-2);
+  1220→    if (points.length < 2) return 'stable';
+  1221→
+  1222→    const diff = points[1].value - points[0].value;
+  1223→    const threshold = Math.max(Math.abs(points[0].value) * 0.01, 0.1);
+  1224→
+  1225→    if (diff > threshold) return 'up';
+  1226→    if (diff < -threshold) return 'down';
+  1227→    return 'stable';
+  1228→  }
+  1229→
+  1230→  /**
+  1231→   * Detect EQI trend from the internal trend array.
+  1232→   */
+  1233→  private detectEqiTrend(): 'up' | 'down' | 'stable' {
+  1234→    const trend = this.eqiState.trend;
+  1235→    if (trend.length < 2) return 'stable';
+  1236→
+  1237→    const latest = trend[trend.length - 1];
+  1238→    const previous = trend[trend.length - 2];
+  1239→    const diff = latest - previous;
+  1240→
+  1241→    if (diff > 2) return 'up';
+  1242→    if (diff < -2) return 'down';
+  1243→    return 'stable';
+  1244→  }
+  1245→
+  1246→  /**
+  1247→   * Extract the last N data points for a metric as chart data.
+  1248→   */
+  1249→  private extractChartHistory(
+  1250→    metricName: string,
+  1251→    maxPoints: number,
+  1252→  ): Array<{ timestamp: Date; value: number }> {
+  1253→    const points = this.metricsBuffer.filter((m) => m.name === metricName).slice(-maxPoints);
+  1254→
+  1255→    return points.map((m) => ({ timestamp: m.timestamp, value: m.value }));
+  1256→  }
+  1257→}
+  1258→

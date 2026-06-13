@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContentCreationAgentService = exports.CONTENT_CREATION_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.CONTENT_CREATION_AGENT_CONFIG = {
     id: 'marketing-content-creation',
     name: 'ContentCreation',
@@ -24,9 +32,21 @@ exports.CONTENT_CREATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     topic: { type: 'string', description: 'Blog post topic or title' },
-                    outline: { type: 'array', items: { type: 'string' }, description: 'Optional section outline' },
-                    keywords: { type: 'array', items: { type: 'string' }, description: 'SEO keywords to include' },
-                    tone: { type: 'string', enum: ['professional', 'casual', 'informative', 'persuasive'], description: 'Writing tone' },
+                    outline: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Optional section outline',
+                    },
+                    keywords: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'SEO keywords to include',
+                    },
+                    tone: {
+                        type: 'string',
+                        enum: ['professional', 'casual', 'informative', 'persuasive'],
+                        description: 'Writing tone',
+                    },
                     wordCount: { type: 'number', description: 'Target word count' },
                 },
                 required: ['topic'],
@@ -49,8 +69,16 @@ exports.CONTENT_CREATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     product: { type: 'string', description: 'Product or service name' },
-                    platform: { type: 'string', enum: ['google', 'facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'], description: 'Ad platform' },
-                    objective: { type: 'string', enum: ['awareness', 'conversion', 'engagement', 'traffic'], description: 'Campaign objective' },
+                    platform: {
+                        type: 'string',
+                        enum: ['google', 'facebook', 'instagram', 'linkedin', 'twitter', 'tiktok'],
+                        description: 'Ad platform',
+                    },
+                    objective: {
+                        type: 'string',
+                        enum: ['awareness', 'conversion', 'engagement', 'traffic'],
+                        description: 'Campaign objective',
+                    },
                     audience: { type: 'string', description: 'Target audience description' },
                     cta: { type: 'string', description: 'Call-to-action text' },
                     headlineCount: { type: 'number', description: 'Number of headline variations' },
@@ -74,8 +102,16 @@ exports.CONTENT_CREATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     message: { type: 'string', description: 'Core message or topic' },
-                    platform: { type: 'string', enum: ['twitter', 'facebook', 'instagram', 'linkedin', 'tiktok', 'threads'], description: 'Social media platform' },
-                    tone: { type: 'string', enum: ['professional', 'casual', 'witty', 'inspirational', 'urgent'], description: 'Post tone' },
+                    platform: {
+                        type: 'string',
+                        enum: ['twitter', 'facebook', 'instagram', 'linkedin', 'tiktok', 'threads'],
+                        description: 'Social media platform',
+                    },
+                    tone: {
+                        type: 'string',
+                        enum: ['professional', 'casual', 'witty', 'inspirational', 'urgent'],
+                        description: 'Post tone',
+                    },
                     includeHashtags: { type: 'boolean', description: 'Whether to include hashtags' },
                     includeEmoji: { type: 'boolean', description: 'Whether to include emojis' },
                 },
@@ -98,7 +134,18 @@ exports.CONTENT_CREATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     topic: { type: 'string', description: 'Subject of the headline' },
-                    style: { type: 'string', enum: ['how-to', 'listicle', 'question', 'statistical', 'provocative', 'benefit-driven'], description: 'Headline style' },
+                    style: {
+                        type: 'string',
+                        enum: [
+                            'how-to',
+                            'listicle',
+                            'question',
+                            'statistical',
+                            'provocative',
+                            'benefit-driven',
+                        ],
+                        description: 'Headline style',
+                    },
                     count: { type: 'number', description: 'Number of variations to generate' },
                     maxLength: { type: 'number', description: 'Maximum character length' },
                 },
@@ -120,8 +167,16 @@ exports.CONTENT_CREATION_AGENT_CONFIG = {
                 properties: {
                     brand: { type: 'string', description: 'Brand name' },
                     industry: { type: 'string', description: 'Industry or niche' },
-                    values: { type: 'array', items: { type: 'string' }, description: 'Brand values to convey' },
-                    tone: { type: 'string', enum: ['bold', 'friendly', 'luxurious', 'playful', 'trustworthy'], description: 'Slogan tone' },
+                    values: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Brand values to convey',
+                    },
+                    tone: {
+                        type: 'string',
+                        enum: ['bold', 'friendly', 'luxurious', 'playful', 'trustworthy'],
+                        description: 'Slogan tone',
+                    },
                     count: { type: 'number', description: 'Number of variations' },
                 },
                 required: ['brand', 'industry'],
@@ -141,8 +196,16 @@ exports.CONTENT_CREATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     content: { type: 'string', description: 'Original content to rewrite' },
-                    tone: { type: 'string', enum: ['professional', 'casual', 'formal', 'persuasive', 'simplified'], description: 'Desired tone' },
-                    length: { type: 'string', enum: ['shorter', 'same', 'longer'], description: 'Target length relative to original' },
+                    tone: {
+                        type: 'string',
+                        enum: ['professional', 'casual', 'formal', 'persuasive', 'simplified'],
+                        description: 'Desired tone',
+                    },
+                    length: {
+                        type: 'string',
+                        enum: ['shorter', 'same', 'longer'],
+                        description: 'Target length relative to original',
+                    },
                     focus: { type: 'string', description: 'Specific focus or angle for the rewrite' },
                 },
                 required: ['content', 'tone'],
@@ -174,8 +237,9 @@ exports.CONTENT_CREATION_AGENT_CONFIG = {
     },
 };
 let ContentCreationAgentService = class ContentCreationAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.templates = new Map();
         this.contentHistory = [];
         this.contentCounter = 0;
@@ -220,6 +284,20 @@ let ContentCreationAgentService = class ContentCreationAgentService extends base
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.COPYWRITING, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -270,7 +348,13 @@ let ContentCreationAgentService = class ContentCreationAgentService extends base
         }
         const sections = outline.length > 0
             ? outline
-            : ['Introduction', `Understanding ${topic}`, 'Key Benefits', 'Best Practices', 'Conclusion'];
+            : [
+                'Introduction',
+                `Understanding ${topic}`,
+                'Key Benefits',
+                'Best Practices',
+                'Conclusion',
+            ];
         const contentParts = [];
         contentParts.push(`# ${topic}\n`);
         for (const section of sections) {
@@ -342,7 +426,14 @@ let ContentCreationAgentService = class ContentCreationAgentService extends base
         if (!topic || typeof topic !== 'string') {
             throw new Error('A valid topic string is required');
         }
-        const validStyles = ['how-to', 'listicle', 'question', 'statistical', 'provocative', 'benefit-driven'];
+        const validStyles = [
+            'how-to',
+            'listicle',
+            'question',
+            'statistical',
+            'provocative',
+            'benefit-driven',
+        ];
         if (!validStyles.includes(style)) {
             throw new Error(`Invalid style: ${style}. Valid: ${validStyles.join(', ')}`);
         }
@@ -391,7 +482,13 @@ let ContentCreationAgentService = class ContentCreationAgentService extends base
             {
                 id: 'blog-how-to',
                 type: 'blog',
-                structure: ['Introduction', 'Prerequisites', 'Step-by-Step Guide', 'Tips & Tricks', 'Conclusion'],
+                structure: [
+                    'Introduction',
+                    'Prerequisites',
+                    'Step-by-Step Guide',
+                    'Tips & Tricks',
+                    'Conclusion',
+                ],
                 placeholder: 'A comprehensive how-to guide on {{topic}}',
             },
             {
@@ -631,11 +728,26 @@ let ContentCreationAgentService = class ContentCreationAgentService extends base
     }
     applyToneRewrite(content, tone) {
         const toneTransforms = {
-            professional: (text) => text.replace(/\bget\b/gi, 'obtain').replace(/\buse\b/gi, 'utilize').replace(/\bbig\b/gi, 'significant'),
-            casual: (text) => text.replace(/\bobtain\b/gi, 'get').replace(/\butilize\b/gi, 'use').replace(/\bsignificant\b/gi, 'big'),
-            formal: (text) => text.replace(/\bcan't\b/gi, 'cannot').replace(/\bdon't\b/gi, 'do not').replace(/\bwon't\b/gi, 'will not'),
-            persuasive: (text) => text.replace(/\byou can\b/gi, 'you will').replace(/\bconsider\b/gi, 'choose').replace(/\bmaybe\b/gi, 'definitely'),
-            simplified: (text) => text.replace(/\butilize\b/gi, 'use').replace(/\bimplement\b/gi, 'do').replace(/\bfacilitate\b/gi, 'help'),
+            professional: (text) => text
+                .replace(/\bget\b/gi, 'obtain')
+                .replace(/\buse\b/gi, 'utilize')
+                .replace(/\bbig\b/gi, 'significant'),
+            casual: (text) => text
+                .replace(/\bobtain\b/gi, 'get')
+                .replace(/\butilize\b/gi, 'use')
+                .replace(/\bsignificant\b/gi, 'big'),
+            formal: (text) => text
+                .replace(/\bcan't\b/gi, 'cannot')
+                .replace(/\bdon't\b/gi, 'do not')
+                .replace(/\bwon't\b/gi, 'will not'),
+            persuasive: (text) => text
+                .replace(/\byou can\b/gi, 'you will')
+                .replace(/\bconsider\b/gi, 'choose')
+                .replace(/\bmaybe\b/gi, 'definitely'),
+            simplified: (text) => text
+                .replace(/\butilize\b/gi, 'use')
+                .replace(/\bimplement\b/gi, 'do')
+                .replace(/\bfacilitate\b/gi, 'help'),
         };
         const transform = toneTransforms[tone];
         return transform ? transform(content) : content;
@@ -654,7 +766,8 @@ let ContentCreationAgentService = class ContentCreationAgentService extends base
             const targetCount = Math.floor(originalWordCount * 1.3);
             let expanded = content;
             while (expanded.split(/\s+/).length < targetCount) {
-                expanded += '\n\nFurthermore, this topic warrants additional exploration and consideration of the broader implications involved.';
+                expanded +=
+                    '\n\nFurthermore, this topic warrants additional exploration and consideration of the broader implications involved.';
             }
             return expanded.split(/\s+/).slice(0, targetCount).join(' ');
         }
@@ -663,6 +776,8 @@ let ContentCreationAgentService = class ContentCreationAgentService extends base
 };
 exports.ContentCreationAgentService = ContentCreationAgentService;
 exports.ContentCreationAgentService = ContentCreationAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ContentCreationAgentService);
 //# sourceMappingURL=content-creation-agent.service.js.map

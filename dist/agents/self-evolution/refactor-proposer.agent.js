@@ -5,10 +5,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RefactorProposerAgent = exports.SELF_EVOLUTION_REFACTOR_PROPOSER_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../base/base-agent.service");
+const bridge_1 = require("../bridge");
 exports.SELF_EVOLUTION_REFACTOR_PROPOSER_CONFIG = {
     id: 'self-evolution-refactor-proposer',
     name: 'RefactorProposer',
@@ -98,8 +105,9 @@ exports.SELF_EVOLUTION_REFACTOR_PROPOSER_CONFIG = {
     retryPolicy: { maxRetries: 3, backoffMs: 2000, exponentialBackoff: true },
 };
 let RefactorProposerAgent = class RefactorProposerAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.proposals = new Map();
         this.impactAnalyses = new Map();
         this.executionPlans = new Map();
@@ -127,8 +135,23 @@ let RefactorProposerAgent = class RefactorProposerAgent extends base_agent_servi
         this.logger.log('RefactorProposer agent initialized with 3 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'execute';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const llmResult = await this.bridge.callLLM({
+                    systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed refactoring proposals, impact analysis, and execution plans.`,
+                    userPrompt: JSON.stringify(input.payload),
+                    temperature: 0.3,
+                    maxTokens: 2048,
+                });
+                const analysis = llmResult.content;
+                return this.createAgentOutput(input.taskId, true, { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount }, undefined, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge LLM failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'execute';
         try {
             let result;
             switch (action) {
@@ -170,13 +193,15 @@ let RefactorProposerAgent = class RefactorProposerAgent extends base_agent_servi
             const refactorActions = this.generateRefactorActions(weakness, constraints);
             refactors.push(...refactorActions);
         }
-        refactors.sort((a, b) => (b.expectedGain / b.estimatedEffort) - (a.expectedGain / a.estimatedEffort));
+        refactors.sort((a, b) => b.expectedGain / b.estimatedEffort - a.expectedGain / a.estimatedEffort);
         const totalExpectedGain = refactors.reduce((sum, r) => sum + r.expectedGain, 0);
         const maxPossibleGain = weaknesses.length * 30;
         const estimatedImprovement = Math.min(100, Math.round((totalExpectedGain / maxPossibleGain) * 100));
-        const riskLevel = weaknesses.some((w) => w.severity === 'critical') || refactors.some((r) => r.estimatedEffort > 8)
+        const riskLevel = weaknesses.some((w) => w.severity === 'critical') ||
+            refactors.some((r) => r.estimatedEffort > 8)
             ? 'high'
-            : weaknesses.some((w) => w.severity === 'high') || refactors.some((r) => r.estimatedEffort > 5)
+            : weaknesses.some((w) => w.severity === 'high') ||
+                refactors.some((r) => r.estimatedEffort > 5)
                 ? 'medium'
                 : 'low';
         const proposal = {
@@ -319,7 +344,11 @@ let RefactorProposerAgent = class RefactorProposerAgent extends base_agent_servi
                         : relatedRefactors.some((r) => r.type === 'removal')
                             ? 'removed'
                             : 'modified',
-                severity: maxEffort > 6 ? 'major' : maxEffort > 3 ? 'moderate' : 'minor',
+                severity: maxEffort > 6
+                    ? 'major'
+                    : maxEffort > 3
+                        ? 'moderate'
+                        : 'minor',
                 description: `${relatedRefactors.length} refactoring action(s) targeting ${component}`,
                 riskOfRegression: Math.round((0.1 + (maxEffort / 10) * 0.5) * 100) / 100,
             };
@@ -331,18 +360,19 @@ let RefactorProposerAgent = class RefactorProposerAgent extends base_agent_servi
                 : affectedComponents.some((c) => c.severity === 'moderate')
                     ? 'medium'
                     : 'low';
-        const regressionProbability = Math.round(affectedComponents.reduce((sum, c) => sum + c.riskOfRegression, 0) / affectedComponents.length * 100) / 100;
-        const blastRadius = [...new Set([
-                ...componentsToAnalyze,
-                ...proposal.refactors.flatMap((r) => r.dependencies),
-            ])];
+        const regressionProbability = Math.round((affectedComponents.reduce((sum, c) => sum + c.riskOfRegression, 0) /
+            affectedComponents.length) *
+            100) / 100;
+        const blastRadius = [
+            ...new Set([...componentsToAnalyze, ...proposal.refactors.flatMap((r) => r.dependencies)]),
+        ];
         const mitigations = [
             'Run full certification suite before and after each refactoring phase',
             'Deploy changes behind feature flags for gradual rollout',
             'Maintain rollback capability for each step in the execution plan',
             'Monitor EQI in real-time during refactoring execution',
         ];
-        const impactScore = Math.round((proposal.estimatedImprovement * (1 - regressionProbability)) * 100) / 100;
+        const impactScore = Math.round(proposal.estimatedImprovement * (1 - regressionProbability) * 100) / 100;
         const predictedEQIDelta = Math.round((proposal.estimatedImprovement * 0.3 - regressionProbability * 5) * 100) / 100;
         const analysis = {
             proposalId,
@@ -402,15 +432,19 @@ let RefactorProposerAgent = class RefactorProposerAgent extends base_agent_servi
         const phases = [
             {
                 name: 'Preparation',
-                steps: preparationSteps.length > 0 ? preparationSteps : [{
-                        id: `${planId}-prep-0`,
-                        description: 'No dependency preparation required',
-                        component: 'system',
-                        action: 'noop',
-                        estimatedDurationMs: 0,
-                        dependencies: [],
-                        canRollback: true,
-                    }],
+                steps: preparationSteps.length > 0
+                    ? preparationSteps
+                    : [
+                        {
+                            id: `${planId}-prep-0`,
+                            description: 'No dependency preparation required',
+                            component: 'system',
+                            action: 'noop',
+                            estimatedDurationMs: 0,
+                            dependencies: [],
+                            canRollback: true,
+                        },
+                    ],
                 parallelizable: true,
             },
             {
@@ -472,6 +506,9 @@ let RefactorProposerAgent = class RefactorProposerAgent extends base_agent_servi
 };
 exports.RefactorProposerAgent = RefactorProposerAgent;
 exports.RefactorProposerAgent = RefactorProposerAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], RefactorProposerAgent);
 //# sourceMappingURL=refactor-proposer.agent.js.map

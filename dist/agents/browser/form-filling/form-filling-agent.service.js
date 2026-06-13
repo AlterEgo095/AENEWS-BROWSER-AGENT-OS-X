@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FormFillingAgentService = exports.FORM_FILLING_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.FORM_FILLING_AGENT_CONFIG = {
     id: 'browser-form-filling',
     name: 'FormFilling',
@@ -149,8 +157,9 @@ exports.FORM_FILLING_AGENT_CONFIG = {
     },
 };
 let FormFillingAgentService = class FormFillingAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.formState = new Map();
     }
     defineConfig() {
@@ -192,6 +201,20 @@ let FormFillingAgentService = class FormFillingAgentService extends base_agent_s
     async onExecute(input) {
         const startTime = Date.now();
         const { action, ...params } = input.payload;
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BrowserCapability.FORM, {
+                    missionId: input.taskId,
+                    instruction: action || 'fillForm',
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge execution failed, falling back to local: ${error.message}`);
+            }
+        }
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
@@ -407,6 +430,8 @@ let FormFillingAgentService = class FormFillingAgentService extends base_agent_s
 };
 exports.FormFillingAgentService = FormFillingAgentService;
 exports.FormFillingAgentService = FormFillingAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], FormFillingAgentService);
 //# sourceMappingURL=form-filling-agent.service.js.map

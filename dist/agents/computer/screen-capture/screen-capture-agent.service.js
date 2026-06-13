@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ScreenCaptureAgentService = exports.SCREEN_CAPTURE_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.SCREEN_CAPTURE_AGENT_CONFIG = {
     id: 'computer-screen-capture',
     name: 'ScreenCapture',
@@ -50,7 +58,11 @@ exports.SCREEN_CAPTURE_AGENT_CONFIG = {
                     windowTitle: { type: 'string', description: 'Window title substring to match' },
                     windowId: { type: 'number', description: 'Window ID (alternative to title)' },
                     format: { type: 'string', enum: ['png', 'jpg', 'bmp'], default: 'png' },
-                    includeDecorations: { type: 'boolean', default: true, description: 'Include window frame/decorations' },
+                    includeDecorations: {
+                        type: 'boolean',
+                        default: true,
+                        description: 'Include window frame/decorations',
+                    },
                 },
             },
             outputSchema: {
@@ -102,7 +114,11 @@ exports.SCREEN_CAPTURE_AGENT_CONFIG = {
                     fps: { type: 'number', default: 30, description: 'Frames per second' },
                     format: { type: 'string', enum: ['mp4', 'webm', 'gif'], default: 'mp4' },
                     region: { type: 'object', description: 'Optional region { x, y, width, height }' },
-                    maxDuration: { type: 'number', default: 300, description: 'Max recording duration in seconds' },
+                    maxDuration: {
+                        type: 'number',
+                        default: 300,
+                        description: 'Max recording duration in seconds',
+                    },
                 },
             },
             outputSchema: {
@@ -163,8 +179,9 @@ const SIMULATED_WINDOWS = [
     { id: 5, title: 'System Monitor', width: 640, height: 480, x: 300, y: 120 },
 ];
 let ScreenCaptureAgentService = class ScreenCaptureAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.captures = new Map();
         this.recordings = new Map();
         this.captureCounter = 0;
@@ -205,13 +222,30 @@ let ScreenCaptureAgentService = class ScreenCaptureAgentService extends base_age
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BrowserCapability.SCREENSHOT, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'captureScreen', 'captureWindow', 'captureRegion',
-            'startRecording', 'stopRecording',
+            'captureScreen',
+            'captureWindow',
+            'captureRegion',
+            'startRecording',
+            'stopRecording',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown screen capture action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -250,7 +284,7 @@ let ScreenCaptureAgentService = class ScreenCaptureAgentService extends base_age
         const height = this.displayResolution.height;
         const baseSize = width * height;
         const formatMultiplier = format === 'png' ? 2.5 : format === 'jpg' ? 0.3 : 3.0;
-        const qualityMultiplier = format === 'jpg' ? (quality / 100) : 1;
+        const qualityMultiplier = format === 'jpg' ? quality / 100 : 1;
         const sizeBytes = Math.round(baseSize * formatMultiplier * qualityMultiplier);
         const capture = {
             id: captureId,
@@ -284,7 +318,9 @@ let ScreenCaptureAgentService = class ScreenCaptureAgentService extends base_age
         }
         else if (windowTitle) {
             const lowerTitle = windowTitle.toLowerCase();
-            targetWindow = SIMULATED_WINDOWS.find((w) => w.title.toLowerCase().includes(lowerTitle)) ?? SIMULATED_WINDOWS[0];
+            targetWindow =
+                SIMULATED_WINDOWS.find((w) => w.title.toLowerCase().includes(lowerTitle)) ??
+                    SIMULATED_WINDOWS[0];
             if (!targetWindow) {
                 throw new Error(`Window not found matching title: "${windowTitle}". Available: ${SIMULATED_WINDOWS.map((w) => w.title).join(', ')}`);
             }
@@ -428,6 +464,8 @@ let ScreenCaptureAgentService = class ScreenCaptureAgentService extends base_age
 };
 exports.ScreenCaptureAgentService = ScreenCaptureAgentService;
 exports.ScreenCaptureAgentService = ScreenCaptureAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ScreenCaptureAgentService);
 //# sourceMappingURL=screen-capture-agent.service.js.map

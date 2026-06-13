@@ -78,9 +78,18 @@ class BatchRunner {
                 return Object.values(interfaces_1.DevCapability);
             case 'BROWSER':
                 return [
-                    'browser.login', 'browser.navigation', 'browser.search', 'browser.form',
-                    'browser.upload', 'browser.download', 'browser.screenshot', 'browser.vision',
-                    'browser.session', 'browser.cookie', 'browser.popup', 'browser.ocr',
+                    'browser.login',
+                    'browser.navigation',
+                    'browser.search',
+                    'browser.form',
+                    'browser.upload',
+                    'browser.download',
+                    'browser.screenshot',
+                    'browser.vision',
+                    'browser.session',
+                    'browser.cookie',
+                    'browser.popup',
+                    'browser.ocr',
                 ];
             case 'CERTIFICATION':
                 return Object.values(interfaces_1.CertCapability);
@@ -88,21 +97,34 @@ class BatchRunner {
                 return Object.values(interfaces_1.DeliveryCapability);
             case 'OFFICE':
                 return [
-                    'office.pdf', 'office.docx', 'office.excel', 'office.powerpoint',
-                    'office.ocr', 'office.signature', 'office.email', 'office.calendar',
+                    'office.pdf',
+                    'office.docx',
+                    'office.excel',
+                    'office.powerpoint',
+                    'office.ocr',
+                    'office.signature',
+                    'office.email',
+                    'office.calendar',
                 ];
             case 'BUSINESS':
                 return [
-                    'business.seo', 'business.marketing', 'business.copywriting', 'business.branding',
-                    'business.crm', 'business.analytics', 'business.finance', 'business.sales',
-                    'business.legal', 'business.partnership',
+                    'business.seo',
+                    'business.marketing',
+                    'business.copywriting',
+                    'business.branding',
+                    'business.crm',
+                    'business.analytics',
+                    'business.finance',
+                    'business.sales',
+                    'business.legal',
+                    'business.partnership',
                 ];
             default:
                 return [];
         }
     }
     delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
     async rateLimitDelay() {
         const delayMs = this.connectorCallCount > 5 ? 3000 : 1500;
@@ -134,7 +156,7 @@ class BatchRunner {
         };
     }
     convertArtifacts(connectorArtifacts) {
-        return connectorArtifacts.map(a => ({
+        return connectorArtifacts.map((a) => ({
             name: a.name,
             type: a.type,
             path: a.path,
@@ -147,7 +169,7 @@ class BatchRunner {
         const delayMs = options.delayMs || 3000;
         let missions;
         if (options.missionIds && options.missionIds.length > 0) {
-            missions = reference_missions_1.ReferenceMissions.ALL.filter(m => options.missionIds.includes(m.id));
+            missions = reference_missions_1.ReferenceMissions.ALL.filter((m) => options.missionIds.includes(m.id));
         }
         else if (options.difficulty) {
             missions = reference_missions_1.ReferenceMissions.getByDifficulty(options.difficulty);
@@ -186,11 +208,15 @@ class BatchRunner {
                 timestamp: new Date().toISOString(),
             };
             this.metrics.push(metric);
-            const status = result.certified ? '✅ CERTIFIED' : result.success ? '⚠️ SUCCESS (uncertified)' : '❌ FAILED';
+            const status = result.certified
+                ? '✅ CERTIFIED'
+                : result.success
+                    ? '⚠️ SUCCESS (uncertified)'
+                    : '❌ FAILED';
             console.log(`  → ${status} | Score: ${result.qualityScore}/100 | ${(result.totalDurationMs / 1000).toFixed(1)}s | $${result.totalCostUsd.toFixed(3)}`);
             console.log(`  → ${result.artifacts.length} artifacts | ${result.errors.length} errors`);
-            const runningMsr = this.metrics.filter(m => m.success).length / this.metrics.length;
-            console.log(`  → Running MSR: ${(runningMsr * 100).toFixed(1)}% (${this.metrics.filter(m => m.success).length}/${this.metrics.length})`);
+            const runningMsr = this.metrics.filter((m) => m.success).length / this.metrics.length;
+            console.log(`  → Running MSR: ${(runningMsr * 100).toFixed(1)}% (${this.metrics.filter((m) => m.success).length}/${this.metrics.length})`);
             if (i < missions.length - 1) {
                 console.log(`  ⏳ Waiting ${delayMs / 1000}s before next mission...`);
                 await this.delay(delayMs);
@@ -225,7 +251,8 @@ class BatchRunner {
                     const jsonMatch = archResult.output.architecture.match(/\{[\s\S]*\}/);
                     analysisPlan = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
                 }
-                catch { }
+                catch {
+                }
             }
             artifacts.push(...this.convertArtifacts(archResult.artifacts));
         }
@@ -310,7 +337,7 @@ class BatchRunner {
         }
         let auditPassed = true;
         const auditFindings = [];
-        if (artifacts.filter(a => a.type === 'source').length === 0) {
+        if (artifacts.filter((a) => a.type === 'source').length === 0) {
             auditFindings.push('No source files');
             auditPassed = false;
         }
@@ -327,7 +354,7 @@ class BatchRunner {
             totalCost += docResult.costUsd;
             previousResults.set(interfaces_1.DevCapability.DOCUMENTATION, docResult);
             if (docResult.success) {
-                const existingNames = new Set(artifacts.map(a => a.name));
+                const existingNames = new Set(artifacts.map((a) => a.name));
                 for (const art of this.convertArtifacts(docResult.artifacts)) {
                     if (!existingNames.has(art.name)) {
                         artifacts.push(art);
@@ -390,7 +417,7 @@ class BatchRunner {
             finalCertified = reCert.certified;
         }
         const totalDuration = Date.now() - startTime;
-        const success = errors.length === 0 || artifacts.filter(a => a.type === 'source').length > 0;
+        const success = errors.length === 0 || artifacts.filter((a) => a.type === 'source').length > 0;
         return {
             missionId,
             success,
@@ -410,23 +437,23 @@ class BatchRunner {
             score -= 30;
             reasons.push('Tests failed');
         }
-        if (auditFindings.some(f => f.includes('No source'))) {
+        if (auditFindings.some((f) => f.includes('No source'))) {
             score -= 40;
             reasons.push('No source code');
         }
-        if (auditFindings.some(f => f.includes('too small'))) {
+        if (auditFindings.some((f) => f.includes('too small'))) {
             score -= 10;
             reasons.push('Small files');
         }
-        if (!artifacts.some(a => a.type === 'test')) {
+        if (!artifacts.some((a) => a.type === 'test')) {
             score -= 10;
             reasons.push('No tests');
         }
-        if (!artifacts.some(a => a.type === 'document')) {
+        if (!artifacts.some((a) => a.type === 'document')) {
             score -= 5;
             reasons.push('No documentation');
         }
-        if (!artifacts.some(a => a.type === 'config')) {
+        if (!artifacts.some((a) => a.type === 'config')) {
             score -= 5;
             reasons.push('No config files');
         }
@@ -440,10 +467,34 @@ class BatchRunner {
             objective: instruction,
             techStack: isWebApp ? ['HTML', 'CSS', 'JavaScript', 'Node.js'] : ['JavaScript'],
             phases: [
-                { name: 'Architecture', tasks: ['Define structure'], capabilities: ['dev.architecture'], estimatedMinutes: 10 },
-                { name: 'Frontend', tasks: ['Build UI'], capabilities: ['dev.frontend'], estimatedMinutes: 30 },
-                ...(hasBackend ? [{ name: 'Backend', tasks: ['Build API'], capabilities: ['dev.backend'], estimatedMinutes: 45 }] : []),
-                { name: 'Testing', tasks: ['Write tests'], capabilities: ['dev.test'], estimatedMinutes: 15 },
+                {
+                    name: 'Architecture',
+                    tasks: ['Define structure'],
+                    capabilities: ['dev.architecture'],
+                    estimatedMinutes: 10,
+                },
+                {
+                    name: 'Frontend',
+                    tasks: ['Build UI'],
+                    capabilities: ['dev.frontend'],
+                    estimatedMinutes: 30,
+                },
+                ...(hasBackend
+                    ? [
+                        {
+                            name: 'Backend',
+                            tasks: ['Build API'],
+                            capabilities: ['dev.backend'],
+                            estimatedMinutes: 45,
+                        },
+                    ]
+                    : []),
+                {
+                    name: 'Testing',
+                    tasks: ['Write tests'],
+                    capabilities: ['dev.test'],
+                    estimatedMinutes: 15,
+                },
             ],
             requiredCapabilities: hasBackend
                 ? ['dev.architecture', 'dev.frontend', 'dev.backend', 'dev.test']
@@ -454,14 +505,14 @@ class BatchRunner {
     }
     printReport(totalBatchDurationMs) {
         const total = this.metrics.length;
-        const successes = this.metrics.filter(m => m.success).length;
-        const certified = this.metrics.filter(m => m.certified).length;
+        const successes = this.metrics.filter((m) => m.success).length;
+        const certified = this.metrics.filter((m) => m.certified).length;
         const msr = total > 0 ? successes / total : 0;
         const certRate = total > 0 ? certified / total : 0;
         const avgDuration = total > 0 ? Math.round(this.metrics.reduce((s, m) => s + m.durationMs, 0) / total) : 0;
         const avgCost = total > 0 ? this.metrics.reduce((s, m) => s + m.costUsd, 0) / total : 0;
         const avgQuality = total > 0 ? this.metrics.reduce((s, m) => s + m.qualityScore, 0) / total : 0;
-        const currentTarget = mission_metrics_service_1.MSR_TARGETS.find(t => msr < t.target) || mission_metrics_service_1.MSR_TARGETS[mission_metrics_service_1.MSR_TARGETS.length - 1];
+        const currentTarget = mission_metrics_service_1.MSR_TARGETS.find((t) => msr < t.target) || mission_metrics_service_1.MSR_TARGETS[mission_metrics_service_1.MSR_TARGETS.length - 1];
         console.log(`\n${'═'.repeat(80)}`);
         console.log(`  AENEWS SOFTWARE FACTORY — BATCH RUN RESULTS`);
         console.log(`${'═'.repeat(80)}`);
@@ -507,7 +558,7 @@ class BatchRunner {
         else if (msr >= 0.85) {
             console.log(`  🥈 BETA LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 85%`);
         }
-        else if (msr >= 0.70) {
+        else if (msr >= 0.7) {
             console.log(`  🥉 MVP LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 70%`);
         }
         else {
@@ -524,8 +575,8 @@ class BatchRunner {
     }
     computeAggregate() {
         const total = this.metrics.length;
-        const successes = this.metrics.filter(m => m.success).length;
-        const certified = this.metrics.filter(m => m.certified).length;
+        const successes = this.metrics.filter((m) => m.success).length;
+        const certified = this.metrics.filter((m) => m.certified).length;
         return {
             totalMissions: total,
             successes,
@@ -536,11 +587,13 @@ class BatchRunner {
             avgCostUsd: total > 0 ? this.metrics.reduce((s, m) => s + m.costUsd, 0) / total : 0,
             avgQualityScore: total > 0 ? this.metrics.reduce((s, m) => s + m.qualityScore, 0) / total : 0,
             totalRetries: this.metrics.reduce((s, m) => s + m.retries, 0),
-            p50DurationMs: 0, p95DurationMs: 0, p99DurationMs: 0,
+            p50DurationMs: 0,
+            p95DurationMs: 0,
+            p99DurationMs: 0,
             byCategory: {},
             recentTrend: { last10Msr: 0, last25Msr: 0, last50Msr: 0, improving: false },
-            targetMsr: 0.70,
-            msrGap: 0.70 - (total > 0 ? successes / total : 0),
+            targetMsr: 0.7,
+            msrGap: 0.7 - (total > 0 ? successes / total : 0),
         };
     }
 }
@@ -548,7 +601,7 @@ exports.BatchRunner = BatchRunner;
 async function main() {
     const args = process.argv.slice(2);
     let count = 5;
-    let missionIds = [];
+    const missionIds = [];
     let difficulty;
     let pack;
     let delayMs = 3000;
@@ -595,7 +648,7 @@ async function main() {
     }
 }
 if (require.main === module) {
-    main().catch(err => {
+    main().catch((err) => {
         console.error(err);
         process.exit(1);
     });

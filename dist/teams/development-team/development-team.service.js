@@ -71,7 +71,13 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
         }
         catch (error) {
             const durationMs = Date.now() - start;
-            const result = { taskId: task.id, success: false, artifacts: [], error: error.message, durationMs };
+            const result = {
+                taskId: task.id,
+                success: false,
+                artifacts: [],
+                error: error.message,
+                durationMs,
+            };
             this.metrics.totalTasks++;
             this.metrics.failedTasks++;
             this.metrics.totalDurationMs += durationMs;
@@ -136,7 +142,9 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
         const projectId = missionId || 'default';
         const dbName = schema.name || 'app_db';
         const dbType = schema.type || 'postgresql';
-        const tables = schema.tables || [{ name: 'users', columns: ['id', 'email', 'name', 'created_at'] }];
+        const tables = schema.tables || [
+            { name: 'users', columns: ['id', 'email', 'name', 'created_at'] },
+        ];
         this.logger.log(`Setting up database: ${dbName} (${dbType}) with ${tables.length} tables`);
         await this.sleep(500 + tables.length * 150);
         const timestamp = Date.now();
@@ -146,7 +154,9 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
             `prisma/schema.prisma`,
             `src/config/database.config.ts`,
         ];
-        const code = tables.map((t) => `CREATE TABLE ${t.name} (\n  ${t.columns.map((c) => `  ${c} TEXT`).join(',\n')}\n);`).join('\n\n');
+        const code = tables
+            .map((t) => `CREATE TABLE ${t.name} (\n  ${t.columns.map((c) => `  ${c} TEXT`).join(',\n')}\n);`)
+            .join('\n\n');
         const project = this.projects.get(projectId);
         if (project) {
             project.dbMigrations.push(...artifacts);
@@ -178,7 +188,9 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
             taskId: '',
             success,
             artifacts,
-            code: success ? `# Deployment Manifest\nenvironment: ${env}\nprovider: ${provider}\nregion: ${region}\nservices:\n${services.map((s) => `  - ${s}`).join('\n')}\nstatus: ${deploymentStatus}\nversion: ${this.generateVersion()}` : undefined,
+            code: success
+                ? `# Deployment Manifest\nenvironment: ${env}\nprovider: ${provider}\nregion: ${region}\nservices:\n${services.map((s) => `  - ${s}`).join('\n')}\nstatus: ${deploymentStatus}\nversion: ${this.generateVersion()}`
+                : undefined,
             error: success ? undefined : `Deployment to ${env} failed: health check timeout`,
             durationMs: Date.now() - start,
         };
@@ -198,7 +210,10 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
             project.testRuns.push({ passed: testsPassed, failed: testsFailed, timestamp: new Date() });
             project.lastActivity = new Date();
         }
-        const artifacts = [`test-results/${Date.now()}-junit.xml`, `test-results/${Date.now()}-coverage.json`];
+        const artifacts = [
+            `test-results/${Date.now()}-junit.xml`,
+            `test-results/${Date.now()}-coverage.json`,
+        ];
         return {
             taskId: '',
             success: testsFailed === 0,
@@ -214,7 +229,12 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
         const projectId = missionId || 'default';
         this.logger.log(`Generating documentation for mission ${projectId}`);
         await this.sleep(400 + Math.min(code?.length || 0, 5000) / 50);
-        const artifacts = ['docs/API.md', 'docs/ARCHITECTURE.md', 'docs/README.md', 'docs/CHANGELOG.md'];
+        const artifacts = [
+            'docs/API.md',
+            'docs/ARCHITECTURE.md',
+            'docs/README.md',
+            'docs/CHANGELOG.md',
+        ];
         const doc = `# API Documentation\n\n## Overview\n\nThis documentation covers the auto-generated API endpoints.\n\n## Endpoints\n\n### GET /api/v1/status\nReturns the current system status.\n\n**Response:**\n\`\`\`json\n{ "status": "ok", "version": "${this.generateVersion()}" }\n\`\`\`\n\n### POST /api/v1/execute\nExecute a task on the development pipeline.\n\n**Request Body:**\n\`\`\`json\n{ "capability": "frontend", "params": {} }\n\`\`\`\n`;
         return { taskId: '', success: true, artifacts, code: doc, durationMs: Date.now() - start };
     }
@@ -223,10 +243,21 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
         const projectId = missionId || 'default';
         this.logger.log(`Reviewing code for mission ${projectId}`);
         await this.sleep(600 + Math.min(code?.length || 0, 5000) / 30);
-        const issues = { critical: Math.random() > 0.8 ? 1 : 0, major: Math.floor(Math.random() * 3), minor: Math.floor(Math.random() * 5) + 1, suggestions: Math.floor(Math.random() * 4) + 2 };
+        const issues = {
+            critical: Math.random() > 0.8 ? 1 : 0,
+            major: Math.floor(Math.random() * 3),
+            minor: Math.floor(Math.random() * 5) + 1,
+            suggestions: Math.floor(Math.random() * 4) + 2,
+        };
         const artifacts = [`reviews/${Date.now()}-code-review.json`];
         const reviewCode = `# Code Review Report\n\n## Summary\n- Critical: ${issues.critical}\n- Major: ${issues.major}\n- Minor: ${issues.minor}\n- Suggestions: ${issues.suggestions}\n\n## Verdict: ${issues.critical > 0 ? 'CHANGES REQUIRED' : issues.major > 2 ? 'NEEDS IMPROVEMENT' : 'APPROVED'}\n`;
-        return { taskId: '', success: issues.critical === 0, artifacts, code: reviewCode, durationMs: Date.now() - start };
+        return {
+            taskId: '',
+            success: issues.critical === 0,
+            artifacts,
+            code: reviewCode,
+            durationMs: Date.now() - start,
+        };
     }
     async debug(issue, missionId) {
         const start = Date.now();
@@ -242,9 +273,18 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
         ];
         const selectedCause = rootCauses[Math.floor(Math.random() * rootCauses.length)];
         const confidence = Math.round((70 + Math.random() * 30) * 100) / 100;
-        const artifacts = [`debug/${Date.now()}-root-cause-analysis.md`, `debug/${Date.now()}-proposed-fix.patch`];
+        const artifacts = [
+            `debug/${Date.now()}-root-cause-analysis.md`,
+            `debug/${Date.now()}-proposed-fix.patch`,
+        ];
         const debugCode = `# Root Cause Analysis\n\n## Issue\n${issue.description || issue.error || 'Unspecified error'}\n\n## Root Cause\n${selectedCause}\n\n## Confidence\n${confidence}%\n\n## Suggested Fix\n1. Add defensive null check before accessing the property\n2. Add unit test covering the edge case\n3. Add integration test for the failure scenario\n`;
-        return { taskId: '', success: true, artifacts, code: debugCode, durationMs: Date.now() - start };
+        return {
+            taskId: '',
+            success: true,
+            artifacts,
+            code: debugCode,
+            durationMs: Date.now() - start,
+        };
     }
     getStatus() {
         const projectSummaries = Array.from(this.projects.entries()).map(([missionId, project]) => ({
@@ -263,14 +303,24 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
             tasksFailed: this.metrics.failedTasks,
             totalTestsPassed: this.metrics.totalTestsPassed,
             totalTestsFailed: this.metrics.totalTestsFailed,
-            avgDurationMs: this.metrics.totalTasks > 0 ? Math.round(this.metrics.totalDurationMs / this.metrics.totalTasks) : 0,
+            avgDurationMs: this.metrics.totalTasks > 0
+                ? Math.round(this.metrics.totalDurationMs / this.metrics.totalTasks)
+                : 0,
             projects: projectSummaries,
         };
     }
     ensureProject(missionId) {
         let project = this.projects.get(missionId);
         if (!project) {
-            project = { missionId, frontendFiles: [], backendFiles: [], dbMigrations: [], deployments: [], testRuns: [], lastActivity: new Date() };
+            project = {
+                missionId,
+                frontendFiles: [],
+                backendFiles: [],
+                dbMigrations: [],
+                deployments: [],
+                testRuns: [],
+                lastActivity: new Date(),
+            };
             this.projects.set(missionId, project);
             this.logger.log(`Created dev project for mission ${missionId}`);
         }
@@ -286,18 +336,25 @@ let DevelopmentTeamService = DevelopmentTeamService_1 = class DevelopmentTeamSer
     generateBackendTemplate(name, endpoints) {
         const pascal = this.toPascalCase(name);
         const kebab = this.toKebabCase(name);
-        const methods = endpoints.map((ep) => {
+        const methods = endpoints
+            .map((ep) => {
             const method = ep.toUpperCase();
             const handler = ep.toLowerCase();
             return `\n  @${method === 'GET' ? 'Get' : method === 'POST' ? 'Post' : method === 'PUT' ? 'Put' : 'Delete'}()\n  async ${handler}() {\n    return this.service.${handler}();\n  }`;
-        }).join('\n');
+        })
+            .join('\n');
         return `import { Controller, Get, Post, Put, Delete } from '@nestjs/common';\nimport { ${pascal}Service } from './${kebab}.service';\n\n@Controller('${kebab}')\nexport class ${pascal}Controller {\n  constructor(private readonly service: ${pascal}Service) {}\n${methods}\n}\n`;
     }
     toKebabCase(str) {
-        return str.replace(/([a-z])([A-Z])/g, '$1-$2').replace(/[\s_]+/g, '-').toLowerCase();
+        return str
+            .replace(/([a-z])([A-Z])/g, '$1-$2')
+            .replace(/[\s_]+/g, '-')
+            .toLowerCase();
     }
     toPascalCase(str) {
-        return str.replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : '')).replace(/^./, (c) => c.toUpperCase());
+        return str
+            .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''))
+            .replace(/^./, (c) => c.toUpperCase());
     }
     generateVersion() {
         return `${Math.floor(Math.random() * 3) + 1}.${Math.floor(Math.random() * 20)}.${Math.floor(Math.random() * 50)}`;

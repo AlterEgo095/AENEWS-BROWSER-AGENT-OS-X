@@ -21,9 +21,9 @@ var ResourceType;
     ResourceType["STORAGE"] = "storage";
 })(ResourceType || (exports.ResourceType = ResourceType = {}));
 const WEIGHT_PROFILES = {
-    cost: { cost: 0.50, latency: 0.20, quality: 0.20, availability: 0.10 },
-    latency: { cost: 0.20, latency: 0.50, quality: 0.20, availability: 0.10 },
-    quality: { cost: 0.20, latency: 0.20, quality: 0.50, availability: 0.10 },
+    cost: { cost: 0.5, latency: 0.2, quality: 0.2, availability: 0.1 },
+    latency: { cost: 0.2, latency: 0.5, quality: 0.2, availability: 0.1 },
+    quality: { cost: 0.2, latency: 0.2, quality: 0.5, availability: 0.1 },
     balanced: { cost: 0.25, latency: 0.25, quality: 0.25, availability: 0.25 },
 };
 let ResourceOptimizerService = ResourceOptimizerService_1 = class ResourceOptimizerService {
@@ -401,7 +401,7 @@ let ResourceOptimizerService = ResourceOptimizerService_1 = class ResourceOptimi
         };
     }
     getCostReport(from, to) {
-        let entries = [];
+        const entries = [];
         for (const allocation of this.allocations.values()) {
             if (from && allocation.allocatedAt < from)
                 continue;
@@ -426,8 +426,7 @@ let ResourceOptimizerService = ResourceOptimizerService_1 = class ResourceOptimi
         for (const entry of entries) {
             costByResourceType[entry.resourceType] =
                 (costByResourceType[entry.resourceType] ?? 0) + entry.costEstimate;
-            costByProvider[entry.provider] =
-                (costByProvider[entry.provider] ?? 0) + entry.costEstimate;
+            costByProvider[entry.provider] = (costByProvider[entry.provider] ?? 0) + entry.costEstimate;
         }
         return {
             totalCost,
@@ -477,8 +476,7 @@ let ResourceOptimizerService = ResourceOptimizerService_1 = class ResourceOptimi
         const { candidates } = pool;
         pool.totalCapacity = candidates.reduce((sum, c) => sum + c.maxConcurrency, 0);
         const currentLoad = candidates.reduce((sum, c) => sum + c.currentLoad * c.maxConcurrency, 0);
-        pool.currentUtilization =
-            pool.totalCapacity > 0 ? currentLoad / pool.totalCapacity : 0;
+        pool.currentUtilization = pool.totalCapacity > 0 ? currentLoad / pool.totalCapacity : 0;
     }
     nextAllocationId() {
         this.allocationCounter++;

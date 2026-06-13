@@ -5,10 +5,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var TaskCriticService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskCriticService = exports.CritiqueCategory = void 0;
 const common_1 = require("@nestjs/common");
+const bridge_1 = require("../bridge");
 var CritiqueCategory;
 (function (CritiqueCategory) {
     CritiqueCategory["COMPLETENESS"] = "completeness";
@@ -28,13 +35,27 @@ const DEFAULT_CRITIQUE_CONFIG = {
     enableDataQualityCheck: true,
 };
 let TaskCriticService = TaskCriticService_1 = class TaskCriticService {
-    constructor() {
+    constructor(bridge) {
+        this.bridge = bridge;
         this.logger = new common_1.Logger(TaskCriticService_1.name);
         this.config = { ...DEFAULT_CRITIQUE_CONFIG };
     }
     async critique(results, request) {
         const startTime = Date.now();
         this.logger.log(`Critiquing ${results.length} execution results`);
+        if (this.bridge) {
+            try {
+                const llmResult = await this.llmCritique(results, request);
+                if (llmResult) {
+                    this.logger.log(`LLM critique completed: ${llmResult.passed ? 'PASSED' : 'FAILED'} (score: ${llmResult.score}) ` +
+                        `in ${Date.now() - startTime}ms`);
+                    return llmResult;
+                }
+            }
+            catch (error) {
+                this.logger.warn(`LLM critique failed, falling back to rule-based: ${error.message}`);
+            }
+        }
         const issues = [];
         let totalScore = 0;
         const maxScore = results.length * 100;
@@ -53,8 +74,8 @@ let TaskCriticService = TaskCriticService_1 = class TaskCriticService {
         }
         const score = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
         const hasCriticalIssues = issues.some((i) => i.severity === 'critical');
-        const passed = score >= this.config.passingScoreThreshold
-            && !(this.config.criticalSeverityBlocks && hasCriticalIssues);
+        const passed = score >= this.config.passingScoreThreshold &&
+            !(this.config.criticalSeverityBlocks && hasCriticalIssues);
         const recommendations = this.generateRecommendations(issues);
         const critiqueResult = {
             passed,
@@ -66,6 +87,45 @@ let TaskCriticService = TaskCriticService_1 = class TaskCriticService {
         this.logger.log(`Critique completed: ${passed ? 'PASSED' : 'FAILED'} (score: ${score}) ` +
             `with ${issues.length} issues in ${Date.now() - startTime}ms`);
         return critiqueResult;
+    }
+    async llmCritique(results, request) {
+        if (!this.bridge) {
+            return null;
+        }
+        const userPrompt = JSON.stringify({
+            results: results.map((r) => ({
+                stepId: r.stepId,
+                success: r.success,
+                executionTimeMs: r.executionTimeMs,
+                retryCount: r.retryCount,
+                timedOut: r.timedOut,
+                result: r.output.result,
+                error: r.output.error,
+            })),
+            requestPayload: request.payload,
+            requestContext: request.context,
+        });
+        const result = await this.bridge.callLLM({
+            systemPrompt: 'You are an expert quality critic. Analyze the execution results for correctness, completeness, efficiency. ' +
+                'Output JSON: {passed: boolean, score: 0-100, issues: [{stepId, severity, category, message, autoRepairable}], recommendations: []}',
+            userPrompt,
+            temperature: 0.2,
+            maxTokens: 4096,
+        });
+        const parsed = JSON.parse(result.content);
+        return {
+            passed: parsed.passed ?? false,
+            score: parsed.score ?? 0,
+            issues: (parsed.issues || []).map((issue) => ({
+                stepId: issue.stepId || 'unknown',
+                severity: issue.severity || 'warning',
+                category: issue.category || CritiqueCategory.ACCURACY,
+                message: issue.message || 'No message provided',
+                autoRepairable: issue.autoRepairable ?? false,
+            })),
+            summary: `LLM critique: score ${parsed.score}/100`,
+            recommendations: parsed.recommendations || [],
+        };
     }
     evaluateStepResult(result, request, issues) {
         let score = 100;
@@ -202,10 +262,7 @@ let TaskCriticService = TaskCriticService_1 = class TaskCriticService {
             for (let j = i + 1; j < successResults.length; j++) {
                 const a = successResults[i].output.result;
                 const b = successResults[j].output.result;
-                if (typeof a === 'object' &&
-                    typeof b === 'object' &&
-                    a !== null &&
-                    b !== null) {
+                if (typeof a === 'object' && typeof b === 'object' && a !== null && b !== null) {
                     const conflicting = this.findConflicts(a, b);
                     if (conflicting.length > 0) {
                         issues.push({
@@ -376,6 +433,9 @@ let TaskCriticService = TaskCriticService_1 = class TaskCriticService {
 };
 exports.TaskCriticService = TaskCriticService;
 exports.TaskCriticService = TaskCriticService = TaskCriticService_1 = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], TaskCriticService);
 //# sourceMappingURL=task-critic.service.js.map

@@ -204,7 +204,12 @@ let WorkerFactoryService = WorkerFactoryService_1 = class WorkerFactoryService {
                     worker.results.push(capResult);
                     const connectorOutput = {
                         success: capResult.success,
-                        artifacts: capResult.artifacts.map(p => ({ name: p, path: p, type: 'source', size: 0 })),
+                        artifacts: capResult.artifacts.map((p) => ({
+                            name: p,
+                            path: p,
+                            type: 'source',
+                            size: 0,
+                        })),
                         output: capResult.output,
                         costUsd: capResult.costUsd,
                         durationMs: capResult.durationMs,
@@ -228,19 +233,23 @@ let WorkerFactoryService = WorkerFactoryService_1 = class WorkerFactoryService {
             worker.status = interfaces_1.WorkerStatus.READY;
             if (worker.tasksCompleted + worker.tasksFailed >= worker.maxTasks) {
                 this.logger.log(`Worker ${execRequest.workerId} reached task limit, auto-terminating`);
-                this.terminate({ workerId: execRequest.workerId, reason: 'mission_complete', archiveResults: true });
+                this.terminate({
+                    workerId: execRequest.workerId,
+                    reason: 'mission_complete',
+                    archiveResults: true,
+                });
             }
-            const allArtifacts = results.flatMap(r => r.artifacts);
-            const anyFailed = results.some(r => !r.success);
+            const allArtifacts = results.flatMap((r) => r.artifacts);
+            const anyFailed = results.some((r) => !r.success);
             return {
                 workerId: execRequest.workerId,
                 nodeId: execRequest.nodeId,
                 success: !anyFailed,
-                output: results.map(r => r.output),
+                output: results.map((r) => r.output),
                 artifacts: allArtifacts,
                 durationMs: totalDuration,
                 costUsd: totalCost,
-                error: anyFailed ? results.find(r => !r.success)?.error : undefined,
+                error: anyFailed ? results.find((r) => !r.success)?.error : undefined,
             };
         }
         catch (error) {
@@ -280,7 +289,7 @@ let WorkerFactoryService = WorkerFactoryService_1 = class WorkerFactoryService {
         }
         const allWorkers = [...this.archive];
         const totalLifetime = allWorkers.reduce((sum, w) => sum + w.totalDurationMs, 0);
-        const missionIds = new Set(allWorkers.map(w => w.missionId));
+        const missionIds = new Set(allWorkers.map((w) => w.missionId));
         return {
             totalSpawned: this.archive.length + active.length,
             totalTerminated: this.archive.length,
@@ -345,8 +354,8 @@ let WorkerFactoryService = WorkerFactoryService_1 = class WorkerFactoryService {
                     capabilityId: capId,
                     success: connectorOutput.success,
                     output: connectorOutput.output,
-                    artifacts: connectorOutput.artifacts.map(a => a.path),
-                    durationMs: connectorOutput.durationMs || (Date.now() - startTime),
+                    artifacts: connectorOutput.artifacts.map((a) => a.path),
+                    durationMs: connectorOutput.durationMs || Date.now() - startTime,
                     costUsd: connectorOutput.costUsd,
                     error: connectorOutput.error,
                     metadata: {
@@ -405,26 +414,72 @@ let WorkerFactoryService = WorkerFactoryService_1 = class WorkerFactoryService {
     }
     groupCapabilities(capabilities) {
         const DEPENDENT_CAPABILITIES = new Set([
-            'dev.frontend', 'dev.backend', 'dev.database', 'dev.api',
-            'dev.test', 'dev.documentation', 'dev.debug',
-            'cert.architecture_review', 'cert.security_audit', 'cert.test_coverage',
-            'cert.regression', 'cert.performance', 'cert.doc_review',
-            'cert.integration', 'cert.compliance', 'cert.accessibility', 'cert.data_privacy',
-            'delivery.zip', 'delivery.github', 'delivery.docker_registry',
-            'delivery.vps', 'delivery.deployment', 'delivery.pdf_report',
+            'dev.frontend',
+            'dev.backend',
+            'dev.database',
+            'dev.api',
+            'dev.test',
+            'dev.documentation',
+            'dev.debug',
+            'cert.architecture_review',
+            'cert.security_audit',
+            'cert.test_coverage',
+            'cert.regression',
+            'cert.performance',
+            'cert.doc_review',
+            'cert.integration',
+            'cert.compliance',
+            'cert.accessibility',
+            'cert.data_privacy',
+            'delivery.zip',
+            'delivery.github',
+            'delivery.docker_registry',
+            'delivery.vps',
+            'delivery.deployment',
+            'delivery.pdf_report',
         ]);
         const INDEPENDENT_CAPABILITIES = new Set([
-            'dev.architecture', 'dev.devops', 'dev.docker', 'dev.kubernetes', 'dev.qa',
-            'browser.login', 'browser.navigation', 'browser.search', 'browser.form',
-            'browser.upload', 'browser.download', 'browser.screenshot', 'browser.vision',
-            'browser.session', 'browser.cookie', 'browser.popup', 'browser.ocr',
-            'office.pdf', 'office.docx', 'office.excel', 'office.powerpoint',
-            'office.ocr', 'office.signature', 'office.email', 'office.calendar',
-            'business.seo', 'business.marketing', 'business.copywriting', 'business.branding',
-            'business.crm', 'business.analytics', 'business.finance', 'business.sales',
-            'business.legal', 'business.partnership',
-            'delivery.cloud', 'delivery.cdn', 'delivery.backup',
-            'delivery.monitoring_setup', 'delivery.load_balancer', 'delivery.notification',
+            'dev.architecture',
+            'dev.devops',
+            'dev.docker',
+            'dev.kubernetes',
+            'dev.qa',
+            'browser.login',
+            'browser.navigation',
+            'browser.search',
+            'browser.form',
+            'browser.upload',
+            'browser.download',
+            'browser.screenshot',
+            'browser.vision',
+            'browser.session',
+            'browser.cookie',
+            'browser.popup',
+            'browser.ocr',
+            'office.pdf',
+            'office.docx',
+            'office.excel',
+            'office.powerpoint',
+            'office.ocr',
+            'office.signature',
+            'office.email',
+            'office.calendar',
+            'business.seo',
+            'business.marketing',
+            'business.copywriting',
+            'business.branding',
+            'business.crm',
+            'business.analytics',
+            'business.finance',
+            'business.sales',
+            'business.legal',
+            'business.partnership',
+            'delivery.cloud',
+            'delivery.cdn',
+            'delivery.backup',
+            'delivery.monitoring_setup',
+            'delivery.load_balancer',
+            'delivery.notification',
         ]);
         const parallel = [];
         const sequential = [];

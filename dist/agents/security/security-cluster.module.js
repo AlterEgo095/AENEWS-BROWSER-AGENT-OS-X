@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SecurityClusterModule = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_module_1 = require("../base/base-agent.module");
+const bridge_1 = require("../bridge");
 const threat_detection_agent_service_1 = require("./threat-detection/threat-detection-agent.service");
 const authentication_agent_service_1 = require("./authentication/authentication-agent.service");
 const encryption_agent_service_1 = require("./encryption/encryption-agent.service");
@@ -20,7 +21,7 @@ let SecurityClusterModule = class SecurityClusterModule {
 exports.SecurityClusterModule = SecurityClusterModule;
 exports.SecurityClusterModule = SecurityClusterModule = __decorate([
     (0, common_1.Module)({
-        imports: [base_agent_module_1.BaseAgentModule],
+        imports: [base_agent_module_1.BaseAgentModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             threat_detection_agent_service_1.ThreatDetectionAgentService,
             authentication_agent_service_1.AuthenticationAgentService,

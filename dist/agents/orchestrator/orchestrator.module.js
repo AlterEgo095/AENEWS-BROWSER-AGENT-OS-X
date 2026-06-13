@@ -19,12 +19,13 @@ const task_delivery_service_1 = require("./task-delivery.service");
 const events_module_1 = require("../events/events.module");
 const memory_module_1 = require("../memory/memory.module");
 const agent_registry_module_1 = require("../registry/agent-registry.module");
+const bridge_1 = require("../bridge");
 let OrchestratorModule = class OrchestratorModule {
 };
 exports.OrchestratorModule = OrchestratorModule;
 exports.OrchestratorModule = OrchestratorModule = __decorate([
     (0, common_1.Module)({
-        imports: [events_module_1.EventsModule, memory_module_1.MemoryModule, agent_registry_module_1.AgentRegistryModule],
+        imports: [events_module_1.EventsModule, memory_module_1.MemoryModule, agent_registry_module_1.AgentRegistryModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             orchestrator_service_1.OrchestratorService,
             task_decomposer_service_1.TaskDecomposerService,

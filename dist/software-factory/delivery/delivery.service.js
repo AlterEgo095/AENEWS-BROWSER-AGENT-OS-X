@@ -82,8 +82,8 @@ let DeliveryService = DeliveryService_1 = class DeliveryService {
             validated: true,
         });
         if (contract) {
-            for (const required of contract.deliverables.filter(d => d.required)) {
-                const delivered = deliverables.find(d => d.type === required.type);
+            for (const required of contract.deliverables.filter((d) => d.required)) {
+                const delivered = deliverables.find((d) => d.type === required.type);
                 if (delivered) {
                     delivered.validated = true;
                 }

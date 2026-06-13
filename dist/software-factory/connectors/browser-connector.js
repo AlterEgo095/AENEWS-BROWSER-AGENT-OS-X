@@ -137,7 +137,9 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             this.logger.log(`Screenshot saved: ${screenshotPath} (${sizeBytes} bytes)`);
             return {
                 success: true,
-                artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, sizeBytes)],
+                artifacts: [
+                    this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, sizeBytes),
+                ],
                 output: { url, screenshotPath, sizeBytes },
                 costUsd: 0.01,
                 durationMs: 0,
@@ -202,8 +204,18 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
         try {
             return await BrowserConnector_1.browserPool.withPage(async (page) => {
                 await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
-                const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
-                const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
+                const usernameSelectors = [
+                    'input[type="email"]',
+                    'input[name="username"]',
+                    'input[name="email"]',
+                    'input[id="username"]',
+                    'input[id="email"]',
+                ];
+                const passwordSelectors = [
+                    'input[type="password"]',
+                    'input[name="password"]',
+                    'input[id="password"]',
+                ];
                 let filledUsername = false;
                 for (const selector of usernameSelectors) {
                     try {
@@ -214,7 +226,8 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
                             break;
                         }
                     }
-                    catch { }
+                    catch {
+                    }
                 }
                 let filledPassword = false;
                 for (const selector of passwordSelectors) {
@@ -226,7 +239,8 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
                             break;
                         }
                     }
-                    catch { }
+                    catch {
+                    }
                 }
                 if (filledUsername && filledPassword) {
                     await page.keyboard.press('Enter');
@@ -240,8 +254,16 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
                 await page.screenshot({ path: screenshotPath }).catch(() => { });
                 return {
                     success: filledUsername && filledPassword,
-                    artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
-                    output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
+                    artifacts: [
+                        this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
+                    ],
+                    output: {
+                        url,
+                        resultUrl,
+                        resultTitle,
+                        usernameFilled: filledUsername,
+                        passwordFilled: filledPassword,
+                    },
                     costUsd: 0.02,
                     durationMs: 0,
                 };
@@ -323,7 +345,8 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
                             await page.fill(`[name="${selector}"]`, value);
                             filledFields.push(`[name="${selector}"]`);
                         }
-                        catch { }
+                        catch {
+                        }
                     }
                 }
                 if (input.parameters.submit !== false) {
@@ -502,7 +525,9 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
                 fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
                 return {
                     success: true,
-                    artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
+                    artifacts: [
+                        this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies)),
+                    ],
                     output: { url, cookieCount: cookies.length },
                     costUsd: 0.01,
                     durationMs: 0,

@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MarketResearchAgentService = exports.MARKET_RESEARCH_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.MARKET_RESEARCH_AGENT_CONFIG = {
     id: 'business-market-research',
     name: 'MarketResearch',
@@ -26,7 +34,11 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
                     market: { type: 'string', description: 'Market or industry to analyze' },
                     region: { type: 'string', description: 'Geographic region (e.g., "global", "US", "EU")' },
                     period: { type: 'string', description: 'Analysis period (e.g., "2020-2024")' },
-                    segments: { type: 'array', items: { type: 'string' }, description: 'Market segments to analyze' },
+                    segments: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Market segments to analyze',
+                    },
                 },
                 required: ['market'],
             },
@@ -51,7 +63,11 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
                 properties: {
                     competitorName: { type: 'string', description: 'Name of the competitor' },
                     industry: { type: 'string', description: 'Industry context' },
-                    aspects: { type: 'array', items: { type: 'string' }, description: 'Aspects to research (e.g., "products", "pricing", "strategy")' },
+                    aspects: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Aspects to research (e.g., "products", "pricing", "strategy")',
+                    },
                 },
                 required: ['competitorName'],
             },
@@ -75,8 +91,15 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     industry: { type: 'string', description: 'Industry to analyze trends for' },
-                    timeframe: { type: 'string', enum: ['short-term', 'medium-term', 'long-term'], description: 'Trend timeframe' },
-                    category: { type: 'string', description: 'Trend category (e.g., "technology", "consumer", "regulatory")' },
+                    timeframe: {
+                        type: 'string',
+                        enum: ['short-term', 'medium-term', 'long-term'],
+                        description: 'Trend timeframe',
+                    },
+                    category: {
+                        type: 'string',
+                        description: 'Trend category (e.g., "technology", "consumer", "regulatory")',
+                    },
                     region: { type: 'string', description: 'Geographic region' },
                 },
                 required: ['industry'],
@@ -101,7 +124,11 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
                     product: { type: 'string', description: 'Product or service name' },
                     market: { type: 'string', description: 'Target market' },
                     period: { type: 'string', description: 'Analysis period' },
-                    demographics: { type: 'array', items: { type: 'string' }, description: 'Target demographics' },
+                    demographics: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Target demographics',
+                    },
                 },
                 required: ['product'],
             },
@@ -125,7 +152,11 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     market: { type: 'string', description: 'Market to report on' },
-                    reportType: { type: 'string', enum: ['executive', 'detailed', 'competitive', 'trend'], description: 'Type of report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['executive', 'detailed', 'competitive', 'trend'],
+                        description: 'Type of report',
+                    },
                     includeForecasts: { type: 'boolean', description: 'Whether to include forecasts' },
                     region: { type: 'string', description: 'Geographic region' },
                 },
@@ -151,7 +182,11 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
                 properties: {
                     market: { type: 'string', description: 'Market to assess' },
                     region: { type: 'string', description: 'Geographic region' },
-                    methodology: { type: 'string', enum: ['top-down', 'bottom-up', 'value-chain'], description: 'Sizing methodology' },
+                    methodology: {
+                        type: 'string',
+                        enum: ['top-down', 'bottom-up', 'value-chain'],
+                        description: 'Sizing methodology',
+                    },
                     product: { type: 'string', description: 'Specific product or service' },
                 },
                 required: ['market'],
@@ -170,13 +205,7 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:business',
-        'write:business',
-        'read:market',
-        'write:market',
-    ],
+    permissions: ['execute:task', 'read:business', 'write:business', 'read:market', 'write:market'],
     maxConcurrentTasks: 5,
     timeout: 45000,
     retryPolicy: {
@@ -186,8 +215,9 @@ exports.MARKET_RESEARCH_AGENT_CONFIG = {
     },
 };
 let MarketResearchAgentService = class MarketResearchAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.marketAnalyses = new Map();
         this.competitors = new Map();
         this.trendReports = new Map();
@@ -232,6 +262,20 @@ let MarketResearchAgentService = class MarketResearchAgentService extends base_a
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.ANALYTICS, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -302,7 +346,11 @@ let MarketResearchAgentService = class MarketResearchAgentService extends base_a
             growthRate,
             segments: segmentData.map((s) => ({ name: s.name, share: s.share, growth: s.growth })),
             dynamics: {
-                drivers: ['Digital transformation', 'Increasing demand for automation', 'Regulatory changes'],
+                drivers: [
+                    'Digital transformation',
+                    'Increasing demand for automation',
+                    'Regulatory changes',
+                ],
                 challenges: ['Market saturation', 'Price competition', 'Supply chain disruptions'],
                 opportunities: ['Emerging markets', 'New technology adoption', 'Strategic partnerships'],
             },
@@ -392,7 +440,14 @@ let MarketResearchAgentService = class MarketResearchAgentService extends base_a
             name: competitorName,
             profile: {
                 founded: `${1970 + Math.floor(Math.random() * 50)}`,
-                headquarters: this.pickRandom(['San Francisco, CA', 'New York, NY', 'London, UK', 'Berlin, Germany', 'Tokyo, Japan', 'Shanghai, China'], 1)[0],
+                headquarters: this.pickRandom([
+                    'San Francisco, CA',
+                    'New York, NY',
+                    'London, UK',
+                    'Berlin, Germany',
+                    'Tokyo, Japan',
+                    'Shanghai, China',
+                ], 1)[0],
                 employees: employeeCount,
                 revenue,
             },
@@ -403,7 +458,7 @@ let MarketResearchAgentService = class MarketResearchAgentService extends base_a
         };
     }
     async identifyTrends(params) {
-        const { industry, timeframe = 'medium-term', category = 'technology', region = 'global' } = params;
+        const { industry, timeframe = 'medium-term', category = 'technology', region = 'global', } = params;
         if (!industry || typeof industry !== 'string') {
             throw new Error('A valid industry name is required');
         }
@@ -415,24 +470,94 @@ let MarketResearchAgentService = class MarketResearchAgentService extends base_a
         const trendId = `trend-${Date.now()}-${this.analysisCounter}`;
         const trendTemplates = {
             technology: [
-                { name: 'AI/ML Adoption', impact: 'high', direction: 'rising', description: 'Accelerating adoption of artificial intelligence and machine learning across industry verticals' },
-                { name: 'Cloud Migration', impact: 'high', direction: 'rising', description: 'Continued shift from on-premise to cloud-based infrastructure and services' },
-                { name: 'Edge Computing', impact: 'medium', direction: 'rising', description: 'Growing demand for edge computing capabilities for real-time processing' },
-                { name: 'IoT Integration', impact: 'medium', direction: 'rising', description: 'Increasing integration of Internet of Things devices in business operations' },
-                { name: 'Cybersecurity Focus', impact: 'high', direction: 'rising', description: 'Heightened focus on cybersecurity measures and zero-trust architectures' },
+                {
+                    name: 'AI/ML Adoption',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Accelerating adoption of artificial intelligence and machine learning across industry verticals',
+                },
+                {
+                    name: 'Cloud Migration',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Continued shift from on-premise to cloud-based infrastructure and services',
+                },
+                {
+                    name: 'Edge Computing',
+                    impact: 'medium',
+                    direction: 'rising',
+                    description: 'Growing demand for edge computing capabilities for real-time processing',
+                },
+                {
+                    name: 'IoT Integration',
+                    impact: 'medium',
+                    direction: 'rising',
+                    description: 'Increasing integration of Internet of Things devices in business operations',
+                },
+                {
+                    name: 'Cybersecurity Focus',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Heightened focus on cybersecurity measures and zero-trust architectures',
+                },
             ],
             consumer: [
-                { name: 'Personalization Demand', impact: 'high', direction: 'rising', description: 'Consumers increasingly expect personalized experiences and products' },
-                { name: 'Sustainability Awareness', impact: 'high', direction: 'rising', description: 'Growing consumer preference for sustainable and eco-friendly products' },
-                { name: 'Digital-First Behavior', impact: 'high', direction: 'rising', description: 'Continued shift toward digital-first purchasing and engagement behaviors' },
-                { name: 'Health & Wellness Focus', impact: 'medium', direction: 'rising', description: 'Increasing consumer focus on health, wellness, and preventative care' },
-                { name: 'Experience Economy', impact: 'medium', direction: 'stable', description: 'Shift from product ownership to experience-based consumption' },
+                {
+                    name: 'Personalization Demand',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Consumers increasingly expect personalized experiences and products',
+                },
+                {
+                    name: 'Sustainability Awareness',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Growing consumer preference for sustainable and eco-friendly products',
+                },
+                {
+                    name: 'Digital-First Behavior',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Continued shift toward digital-first purchasing and engagement behaviors',
+                },
+                {
+                    name: 'Health & Wellness Focus',
+                    impact: 'medium',
+                    direction: 'rising',
+                    description: 'Increasing consumer focus on health, wellness, and preventative care',
+                },
+                {
+                    name: 'Experience Economy',
+                    impact: 'medium',
+                    direction: 'stable',
+                    description: 'Shift from product ownership to experience-based consumption',
+                },
             ],
             regulatory: [
-                { name: 'Data Privacy Regulations', impact: 'high', direction: 'rising', description: 'Tightening data privacy regulations globally (GDPR, CCPA, etc.)' },
-                { name: 'ESG Reporting Mandates', impact: 'medium', direction: 'rising', description: 'Growing mandates for environmental, social, and governance reporting' },
-                { name: 'Antitrust Scrutiny', impact: 'medium', direction: 'stable', description: 'Increased antitrust enforcement on large technology companies' },
-                { name: 'AI Regulation', impact: 'high', direction: 'rising', description: 'Emerging regulatory frameworks for AI governance and accountability' },
+                {
+                    name: 'Data Privacy Regulations',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Tightening data privacy regulations globally (GDPR, CCPA, etc.)',
+                },
+                {
+                    name: 'ESG Reporting Mandates',
+                    impact: 'medium',
+                    direction: 'rising',
+                    description: 'Growing mandates for environmental, social, and governance reporting',
+                },
+                {
+                    name: 'Antitrust Scrutiny',
+                    impact: 'medium',
+                    direction: 'stable',
+                    description: 'Increased antitrust enforcement on large technology companies',
+                },
+                {
+                    name: 'AI Regulation',
+                    impact: 'high',
+                    direction: 'rising',
+                    description: 'Emerging regulatory frameworks for AI governance and accountability',
+                },
             ],
         };
         const selectedTemplates = trendTemplates[category] || trendTemplates['technology'];
@@ -554,7 +679,7 @@ let MarketResearchAgentService = class MarketResearchAgentService extends base_a
                     content: `Detailed breakdown of the ${market} market across key segments.`,
                     keyFindings: [
                         `Enterprise segment: $${(marketSize * 0.45).toFixed(2)}B (45%)`,
-                        `SMB segment: $${(marketSize * 0.30).toFixed(2)}B (30%)`,
+                        `SMB segment: $${(marketSize * 0.3).toFixed(2)}B (30%)`,
                         `Consumer segment: $${(marketSize * 0.25).toFixed(2)}B (25%)`,
                     ],
                 }, {
@@ -682,6 +807,8 @@ let MarketResearchAgentService = class MarketResearchAgentService extends base_a
 };
 exports.MarketResearchAgentService = MarketResearchAgentService;
 exports.MarketResearchAgentService = MarketResearchAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], MarketResearchAgentService);
 //# sourceMappingURL=market-research-agent.service.js.map

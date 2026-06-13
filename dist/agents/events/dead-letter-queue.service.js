@@ -70,9 +70,7 @@ let DeadLetterQueueService = DeadLetterQueueService_1 = class DeadLetterQueueSer
         const now = new Date();
         const pending = [];
         for (const entry of this.queue.values()) {
-            if (entry.canRetry &&
-                entry.nextRetryAt &&
-                now >= entry.nextRetryAt) {
+            if (entry.canRetry && entry.nextRetryAt && now >= entry.nextRetryAt) {
                 pending.push(entry);
             }
         }

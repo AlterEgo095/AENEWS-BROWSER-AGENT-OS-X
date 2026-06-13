@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcessManagerAgentService = exports.PROCESS_MANAGER_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.PROCESS_MANAGER_AGENT_CONFIG = {
     id: 'computer-process',
     name: 'ProcessManager',
@@ -49,7 +57,11 @@ exports.PROCESS_MANAGER_AGENT_CONFIG = {
                 properties: {
                     pid: { type: 'number', description: 'Process ID to stop' },
                     signal: { type: 'string', default: 'SIGTERM', description: 'Signal to send' },
-                    timeout: { type: 'number', default: 5000, description: 'Grace period in ms before SIGKILL' },
+                    timeout: {
+                        type: 'number',
+                        default: 5000,
+                        description: 'Grace period in ms before SIGKILL',
+                    },
                 },
                 required: ['pid'],
             },
@@ -167,8 +179,9 @@ exports.PROCESS_MANAGER_AGENT_CONFIG = {
     },
 };
 let ProcessManagerAgentService = class ProcessManagerAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.processes = new Map();
         this.nextPid = 1000;
         this.monitorResults = new Map();
@@ -213,13 +226,31 @@ let ProcessManagerAgentService = class ProcessManagerAgentService extends base_a
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DOCKER, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'startProcess', 'stopProcess', 'listProcesses',
-            'getProcessInfo', 'monitorProcess', 'killProcess',
+            'startProcess',
+            'stopProcess',
+            'listProcesses',
+            'getProcessInfo',
+            'monitorProcess',
+            'killProcess',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown process action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -333,8 +364,7 @@ let ProcessManagerAgentService = class ProcessManagerAgentService extends base_a
         }));
         if (filter) {
             const filterLower = filter.toLowerCase();
-            processList = processList.filter((p) => p.command.toLowerCase().includes(filterLower) ||
-                p.pid.toString().includes(filterLower));
+            processList = processList.filter((p) => p.command.toLowerCase().includes(filterLower) || p.pid.toString().includes(filterLower));
         }
         switch (sortBy) {
             case 'name':
@@ -470,6 +500,8 @@ let ProcessManagerAgentService = class ProcessManagerAgentService extends base_a
 };
 exports.ProcessManagerAgentService = ProcessManagerAgentService;
 exports.ProcessManagerAgentService = ProcessManagerAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ProcessManagerAgentService);
 //# sourceMappingURL=process-manager-agent.service.js.map

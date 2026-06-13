@@ -17,9 +17,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Web browsing, navigation, scraping, and automation capabilities. ' +
             'Agents can navigate the web, extract content, fill forms, and interact with web applications.',
         capabilities: [
-            { name: 'web.navigation', description: 'Navigate to URLs and follow links', inputSchema: { url: 'string' }, outputSchema: { page: 'object' } },
-            { name: 'web.scraping', description: 'Extract structured data from web pages', inputSchema: { selector: 'string' }, outputSchema: { data: 'object' } },
-            { name: 'web.automation', description: 'Automate browser interactions and form submissions', inputSchema: { actions: 'array' }, outputSchema: { result: 'object' } },
+            {
+                name: 'web.navigation',
+                description: 'Navigate to URLs and follow links',
+                inputSchema: { url: 'string' },
+                outputSchema: { page: 'object' },
+            },
+            {
+                name: 'web.scraping',
+                description: 'Extract structured data from web pages',
+                inputSchema: { selector: 'string' },
+                outputSchema: { data: 'object' },
+            },
+            {
+                name: 'web.automation',
+                description: 'Automate browser interactions and form submissions',
+                inputSchema: { actions: 'array' },
+                outputSchema: { result: 'object' },
+            },
         ],
         size: '24.5 MB',
         tags: ['web', 'browser', 'scraping', 'automation'],
@@ -30,10 +45,30 @@ const BUILT_IN_CLUSTERS = [
         description: 'Document creation, editing, and management. Supports Word, Excel, ' +
             'PowerPoint, and PDF operations for comprehensive office automation.',
         capabilities: [
-            { name: 'doc.create', description: 'Create new documents in various formats', inputSchema: { format: 'string', template: 'string' }, outputSchema: { document: 'object' } },
-            { name: 'doc.edit', description: 'Edit existing documents with tracked changes', inputSchema: { documentId: 'string', changes: 'array' }, outputSchema: { document: 'object' } },
-            { name: 'doc.convert', description: 'Convert between document formats', inputSchema: { source: 'string', targetFormat: 'string' }, outputSchema: { converted: 'object' } },
-            { name: 'spreadsheet.analyze', description: 'Analyze and process spreadsheet data', inputSchema: { range: 'string', operation: 'string' }, outputSchema: { result: 'object' } },
+            {
+                name: 'doc.create',
+                description: 'Create new documents in various formats',
+                inputSchema: { format: 'string', template: 'string' },
+                outputSchema: { document: 'object' },
+            },
+            {
+                name: 'doc.edit',
+                description: 'Edit existing documents with tracked changes',
+                inputSchema: { documentId: 'string', changes: 'array' },
+                outputSchema: { document: 'object' },
+            },
+            {
+                name: 'doc.convert',
+                description: 'Convert between document formats',
+                inputSchema: { source: 'string', targetFormat: 'string' },
+                outputSchema: { converted: 'object' },
+            },
+            {
+                name: 'spreadsheet.analyze',
+                description: 'Analyze and process spreadsheet data',
+                inputSchema: { range: 'string', operation: 'string' },
+                outputSchema: { result: 'object' },
+            },
         ],
         size: '18.2 MB',
         tags: ['office', 'documents', 'spreadsheets', 'pdf'],
@@ -44,9 +79,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'SEO analysis, content strategy, social media management, and campaign ' +
             'automation. Enables data-driven marketing operations.',
         capabilities: [
-            { name: 'seo.analyze', description: 'Analyze SEO metrics and provide recommendations', inputSchema: { url: 'string' }, outputSchema: { report: 'object' } },
-            { name: 'content.strategy', description: 'Generate content strategy and calendars', inputSchema: { audience: 'string', goals: 'array' }, outputSchema: { strategy: 'object' } },
-            { name: 'social.manage', description: 'Manage social media posts and engagement', inputSchema: { platform: 'string', content: 'object' }, outputSchema: { result: 'object' } },
+            {
+                name: 'seo.analyze',
+                description: 'Analyze SEO metrics and provide recommendations',
+                inputSchema: { url: 'string' },
+                outputSchema: { report: 'object' },
+            },
+            {
+                name: 'content.strategy',
+                description: 'Generate content strategy and calendars',
+                inputSchema: { audience: 'string', goals: 'array' },
+                outputSchema: { strategy: 'object' },
+            },
+            {
+                name: 'social.manage',
+                description: 'Manage social media posts and engagement',
+                inputSchema: { platform: 'string', content: 'object' },
+                outputSchema: { result: 'object' },
+            },
         ],
         size: '12.8 MB',
         tags: ['marketing', 'seo', 'social-media', 'content'],
@@ -57,9 +107,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Financial analysis, reporting, risk assessment, and portfolio management. ' +
             'Provides quantitative tools for financial decision-making.',
         capabilities: [
-            { name: 'finance.analyze', description: 'Perform financial analysis on datasets', inputSchema: { data: 'object', metrics: 'array' }, outputSchema: { analysis: 'object' } },
-            { name: 'finance.report', description: 'Generate financial reports and summaries', inputSchema: { period: 'string', type: 'string' }, outputSchema: { report: 'object' } },
-            { name: 'finance.risk', description: 'Assess financial risk and exposure', inputSchema: { portfolio: 'object' }, outputSchema: { riskAssessment: 'object' } },
+            {
+                name: 'finance.analyze',
+                description: 'Perform financial analysis on datasets',
+                inputSchema: { data: 'object', metrics: 'array' },
+                outputSchema: { analysis: 'object' },
+            },
+            {
+                name: 'finance.report',
+                description: 'Generate financial reports and summaries',
+                inputSchema: { period: 'string', type: 'string' },
+                outputSchema: { report: 'object' },
+            },
+            {
+                name: 'finance.risk',
+                description: 'Assess financial risk and exposure',
+                inputSchema: { portfolio: 'object' },
+                outputSchema: { riskAssessment: 'object' },
+            },
         ],
         size: '15.6 MB',
         tags: ['finance', 'accounting', 'risk', 'reporting'],
@@ -70,9 +135,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Clinical decision support, medical record analysis, diagnostic assistance, ' +
             'and healthcare workflow automation with HIPAA-aware data handling.',
         capabilities: [
-            { name: 'clinical.decision-support', description: 'Provide clinical decision support based on patient data', inputSchema: { patientData: 'object' }, outputSchema: { recommendations: 'array' } },
-            { name: 'medical.record-analysis', description: 'Analyze medical records and extract key findings', inputSchema: { records: 'array' }, outputSchema: { findings: 'array' } },
-            { name: 'diagnostic.assist', description: 'Assist with differential diagnosis', inputSchema: { symptoms: 'array', history: 'object' }, outputSchema: { differentials: 'array' } },
+            {
+                name: 'clinical.decision-support',
+                description: 'Provide clinical decision support based on patient data',
+                inputSchema: { patientData: 'object' },
+                outputSchema: { recommendations: 'array' },
+            },
+            {
+                name: 'medical.record-analysis',
+                description: 'Analyze medical records and extract key findings',
+                inputSchema: { records: 'array' },
+                outputSchema: { findings: 'array' },
+            },
+            {
+                name: 'diagnostic.assist',
+                description: 'Assist with differential diagnosis',
+                inputSchema: { symptoms: 'array', history: 'object' },
+                outputSchema: { differentials: 'array' },
+            },
         ],
         size: '21.3 MB',
         tags: ['medical', 'healthcare', 'clinical', 'diagnostics'],
@@ -83,9 +163,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Legal document analysis, contract review, compliance checking, and ' +
             'regulatory research. Streamlines legal operations with AI assistance.',
         capabilities: [
-            { name: 'legal.document-analysis', description: 'Analyze legal documents for key clauses and risks', inputSchema: { document: 'object' }, outputSchema: { analysis: 'object' } },
-            { name: 'legal.contract-review', description: 'Review contracts and flag issues', inputSchema: { contract: 'object' }, outputSchema: { review: 'object' } },
-            { name: 'legal.compliance', description: 'Check compliance with regulations and standards', inputSchema: { context: 'object', regulation: 'string' }, outputSchema: { compliance: 'object' } },
+            {
+                name: 'legal.document-analysis',
+                description: 'Analyze legal documents for key clauses and risks',
+                inputSchema: { document: 'object' },
+                outputSchema: { analysis: 'object' },
+            },
+            {
+                name: 'legal.contract-review',
+                description: 'Review contracts and flag issues',
+                inputSchema: { contract: 'object' },
+                outputSchema: { review: 'object' },
+            },
+            {
+                name: 'legal.compliance',
+                description: 'Check compliance with regulations and standards',
+                inputSchema: { context: 'object', regulation: 'string' },
+                outputSchema: { compliance: 'object' },
+            },
         ],
         size: '14.7 MB',
         tags: ['legal', 'compliance', 'contracts', 'regulatory'],
@@ -96,9 +191,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Robot control, path planning, sensor fusion, and physical world ' +
             'interaction. Bridges AI agents with robotic systems.',
         capabilities: [
-            { name: 'robot.control', description: 'Control robot movements and actions', inputSchema: { commands: 'array' }, outputSchema: { status: 'object' } },
-            { name: 'robot.path-planning', description: 'Plan optimal paths for robot navigation', inputSchema: { map: 'object', start: 'object', end: 'object' }, outputSchema: { path: 'array' } },
-            { name: 'robot.sensor-fusion', description: 'Fuse data from multiple robot sensors', inputSchema: { sensorData: 'object' }, outputSchema: { fusedState: 'object' } },
+            {
+                name: 'robot.control',
+                description: 'Control robot movements and actions',
+                inputSchema: { commands: 'array' },
+                outputSchema: { status: 'object' },
+            },
+            {
+                name: 'robot.path-planning',
+                description: 'Plan optimal paths for robot navigation',
+                inputSchema: { map: 'object', start: 'object', end: 'object' },
+                outputSchema: { path: 'array' },
+            },
+            {
+                name: 'robot.sensor-fusion',
+                description: 'Fuse data from multiple robot sensors',
+                inputSchema: { sensorData: 'object' },
+                outputSchema: { fusedState: 'object' },
+            },
         ],
         size: '28.9 MB',
         tags: ['robotics', 'automation', 'path-planning', 'sensors'],
@@ -109,10 +219,30 @@ const BUILT_IN_CLUSTERS = [
         description: 'Image recognition, object detection, OCR, video analysis, and visual ' +
             'understanding. Enables agents to perceive and interpret visual data.',
         capabilities: [
-            { name: 'vision.recognize', description: 'Recognize objects and scenes in images', inputSchema: { image: 'object' }, outputSchema: { labels: 'array' } },
-            { name: 'vision.detect', description: 'Detect and localize objects in images', inputSchema: { image: 'object', target: 'string' }, outputSchema: { detections: 'array' } },
-            { name: 'vision.ocr', description: 'Extract text from images via OCR', inputSchema: { image: 'object' }, outputSchema: { text: 'string' } },
-            { name: 'vision.video-analysis', description: 'Analyze video content and extract key frames', inputSchema: { video: 'object' }, outputSchema: { analysis: 'object' } },
+            {
+                name: 'vision.recognize',
+                description: 'Recognize objects and scenes in images',
+                inputSchema: { image: 'object' },
+                outputSchema: { labels: 'array' },
+            },
+            {
+                name: 'vision.detect',
+                description: 'Detect and localize objects in images',
+                inputSchema: { image: 'object', target: 'string' },
+                outputSchema: { detections: 'array' },
+            },
+            {
+                name: 'vision.ocr',
+                description: 'Extract text from images via OCR',
+                inputSchema: { image: 'object' },
+                outputSchema: { text: 'string' },
+            },
+            {
+                name: 'vision.video-analysis',
+                description: 'Analyze video content and extract key frames',
+                inputSchema: { video: 'object' },
+                outputSchema: { analysis: 'object' },
+            },
         ],
         size: '32.1 MB',
         tags: ['vision', 'image', 'ocr', 'video', 'detection'],
@@ -123,9 +253,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Data pipeline orchestration, ETL operations, database management, and ' +
             'data quality monitoring. The backbone for data-driven agent workflows.',
         capabilities: [
-            { name: 'data.etl', description: 'Extract, transform, and load data pipelines', inputSchema: { source: 'object', transform: 'object', target: 'object' }, outputSchema: { result: 'object' } },
-            { name: 'data.quality', description: 'Monitor and validate data quality', inputSchema: { dataset: 'object', rules: 'array' }, outputSchema: { qualityReport: 'object' } },
-            { name: 'data.orchestrate', description: 'Orchestrate multi-step data workflows', inputSchema: { workflow: 'object' }, outputSchema: { execution: 'object' } },
+            {
+                name: 'data.etl',
+                description: 'Extract, transform, and load data pipelines',
+                inputSchema: { source: 'object', transform: 'object', target: 'object' },
+                outputSchema: { result: 'object' },
+            },
+            {
+                name: 'data.quality',
+                description: 'Monitor and validate data quality',
+                inputSchema: { dataset: 'object', rules: 'array' },
+                outputSchema: { qualityReport: 'object' },
+            },
+            {
+                name: 'data.orchestrate',
+                description: 'Orchestrate multi-step data workflows',
+                inputSchema: { workflow: 'object' },
+                outputSchema: { execution: 'object' },
+            },
         ],
         size: '19.4 MB',
         tags: ['data', 'etl', 'pipeline', 'quality'],
@@ -136,9 +281,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Vulnerability scanning, threat detection, incident response, and security ' +
             'auditing. Protects agent operations and infrastructure.',
         capabilities: [
-            { name: 'security.scan', description: 'Scan for vulnerabilities and misconfigurations', inputSchema: { target: 'string', type: 'string' }, outputSchema: { findings: 'array' } },
-            { name: 'security.threat-detect', description: 'Detect threats and anomalies in real-time', inputSchema: { telemetry: 'object' }, outputSchema: { threats: 'array' } },
-            { name: 'security.incident-response', description: 'Automate incident response playbooks', inputSchema: { incident: 'object' }, outputSchema: { actions: 'array' } },
+            {
+                name: 'security.scan',
+                description: 'Scan for vulnerabilities and misconfigurations',
+                inputSchema: { target: 'string', type: 'string' },
+                outputSchema: { findings: 'array' },
+            },
+            {
+                name: 'security.threat-detect',
+                description: 'Detect threats and anomalies in real-time',
+                inputSchema: { telemetry: 'object' },
+                outputSchema: { threats: 'array' },
+            },
+            {
+                name: 'security.incident-response',
+                description: 'Automate incident response playbooks',
+                inputSchema: { incident: 'object' },
+                outputSchema: { actions: 'array' },
+            },
         ],
         size: '16.8 MB',
         tags: ['security', 'vulnerability', 'threat', 'incident-response'],
@@ -149,9 +309,24 @@ const BUILT_IN_CLUSTERS = [
         description: 'Email, messaging, notification, and multi-channel communication. ' +
             'Enables agents to interact with humans and other systems via various channels.',
         capabilities: [
-            { name: 'comm.email', description: 'Send and manage email communications', inputSchema: { to: 'string', subject: 'string', body: 'string' }, outputSchema: { status: 'object' } },
-            { name: 'comm.message', description: 'Send messages across platforms', inputSchema: { platform: 'string', message: 'object' }, outputSchema: { result: 'object' } },
-            { name: 'comm.notify', description: 'Send notifications and alerts', inputSchema: { channel: 'string', alert: 'object' }, outputSchema: { delivery: 'object' } },
+            {
+                name: 'comm.email',
+                description: 'Send and manage email communications',
+                inputSchema: { to: 'string', subject: 'string', body: 'string' },
+                outputSchema: { status: 'object' },
+            },
+            {
+                name: 'comm.message',
+                description: 'Send messages across platforms',
+                inputSchema: { platform: 'string', message: 'object' },
+                outputSchema: { result: 'object' },
+            },
+            {
+                name: 'comm.notify',
+                description: 'Send notifications and alerts',
+                inputSchema: { channel: 'string', alert: 'object' },
+                outputSchema: { delivery: 'object' },
+            },
         ],
         size: '11.5 MB',
         tags: ['communication', 'email', 'messaging', 'notifications'],
@@ -955,8 +1130,7 @@ let MarketplaceService = MarketplaceService_1 = class MarketplaceService {
         }
     }
     isVersionCompatible(version, minVersion, maxVersion) {
-        return (this.compareSemver(version, minVersion) >= 0 &&
-            this.compareSemver(version, maxVersion) <= 0);
+        return (this.compareSemver(version, minVersion) >= 0 && this.compareSemver(version, maxVersion) <= 0);
     }
     isVersionInRange(version, versionRange) {
         const trimmed = versionRange.trim();

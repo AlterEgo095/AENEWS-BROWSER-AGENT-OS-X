@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InfluencerAgentService = exports.INFLUENCER_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.INFLUENCER_AGENT_CONFIG = {
     id: 'marketing-influencer',
     name: 'Influencer',
@@ -50,7 +58,11 @@ exports.INFLUENCER_AGENT_CONFIG = {
                 properties: {
                     influencerId: { type: 'string', description: 'Influencer ID or handle' },
                     platform: { type: 'string', description: 'Platform to analyze' },
-                    analysisDepth: { type: 'string', enum: ['basic', 'standard', 'comprehensive'], description: 'Depth of analysis' },
+                    analysisDepth: {
+                        type: 'string',
+                        enum: ['basic', 'standard', 'comprehensive'],
+                        description: 'Depth of analysis',
+                    },
                 },
                 required: ['influencerId'],
             },
@@ -71,7 +83,11 @@ exports.INFLUENCER_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    influencerIds: { type: 'array', items: { type: 'string' }, description: 'Influencer IDs to contact' },
+                    influencerIds: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Influencer IDs to contact',
+                    },
                     campaignName: { type: 'string', description: 'Outreach campaign name' },
                     messageTemplate: { type: 'string', description: 'Outreach message template' },
                     offer: { type: 'object', description: 'Collaboration offer details' },
@@ -96,7 +112,11 @@ exports.INFLUENCER_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     collaborationId: { type: 'string', description: 'Collaboration ID' },
-                    action: { type: 'string', enum: ['create', 'update', 'deliverable', 'approve', 'complete'], description: 'Action to perform' },
+                    action: {
+                        type: 'string',
+                        enum: ['create', 'update', 'deliverable', 'approve', 'complete'],
+                        description: 'Action to perform',
+                    },
                     data: { type: 'object', description: 'Action data' },
                 },
                 required: ['collaborationId', 'action'],
@@ -153,8 +173,9 @@ exports.INFLUENCER_AGENT_CONFIG = {
     },
 };
 let InfluencerAgentService = class InfluencerAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.influencers = new Map();
         this.outreachCampaigns = new Map();
         this.collaborations = new Map();
@@ -195,6 +216,20 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.MARKETING, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -273,8 +308,16 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
         const audience = {
             totalFollowers: influencer?.followers || 50000 + Math.floor(Math.random() * 500000),
             demographics: {
-                ageGroups: { '18-24': 25 + Math.floor(Math.random() * 15), '25-34': 30 + Math.floor(Math.random() * 20), '35-44': 15 + Math.floor(Math.random() * 15), '45+': 5 + Math.floor(Math.random() * 10) },
-                genderSplit: { male: 40 + Math.floor(Math.random() * 20), female: 40 + Math.floor(Math.random() * 20) },
+                ageGroups: {
+                    '18-24': 25 + Math.floor(Math.random() * 15),
+                    '25-34': 30 + Math.floor(Math.random() * 20),
+                    '35-44': 15 + Math.floor(Math.random() * 15),
+                    '45+': 5 + Math.floor(Math.random() * 10),
+                },
+                genderSplit: {
+                    male: 40 + Math.floor(Math.random() * 20),
+                    female: 40 + Math.floor(Math.random() * 20),
+                },
                 topLocations: ['United States', 'United Kingdom', 'Canada', 'Australia'],
             },
             engagementRate: influencer?.engagementRate || +(2 + Math.random() * 5).toFixed(2),
@@ -304,9 +347,9 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
             toneMatch: +(70 + Math.random() * 25).toFixed(0),
             previousPartnerships: Math.floor(Math.random() * 10),
         };
-        const score = +((authenticity.score * 0.3) +
-            (brandFit.score * 0.4) +
-            (audience.engagementRate * 5)).toFixed(0);
+        const score = +(authenticity.score * 0.3 +
+            brandFit.score * 0.4 +
+            audience.engagementRate * 5).toFixed(0);
         this.logger.log(`Analyzed influencer: ${influencerId}, score=${score}, authenticity=${authenticity.score}`);
         return {
             influencerId,
@@ -375,13 +418,17 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
                     id: `del-${i + 1}`,
                     type: d.type || 'post',
                     description: d.description || '',
-                    dueDate: d.dueDate ? new Date(d.dueDate) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+                    dueDate: d.dueDate
+                        ? new Date(d.dueDate)
+                        : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
                     status: 'pending',
                     content: '',
                 })) || [],
                 fee: data.fee || 0,
                 startDate: new Date(),
-                endDate: data.endDate ? new Date(data.endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                endDate: data.endDate
+                    ? new Date(data.endDate)
+                    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             };
             this.collaborations.set(collabId, collaboration);
         }
@@ -435,8 +482,7 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
         if (!campaignId || typeof campaignId !== 'string') {
             throw new Error('A valid campaignId is required');
         }
-        const campaignCollabs = Array.from(this.collaborations.values())
-            .filter((c) => c.campaignId === campaignId);
+        const campaignCollabs = Array.from(this.collaborations.values()).filter((c) => c.campaignId === campaignId);
         const influencerCount = Math.max(campaignCollabs.length, 3);
         const totalSpend = campaignCollabs.length > 0
             ? campaignCollabs.reduce((sum, c) => sum + c.fee, 0)
@@ -474,12 +520,102 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
     }
     seedInfluencerData() {
         const seedInfluencers = [
-            { id: 'inf-tech-001', handle: '@techsarah', name: 'Sarah Chen', platform: 'instagram', niche: 'technology', followers: 250000, engagementRate: 4.2, location: 'San Francisco, CA', avgLikes: 8500, avgComments: 420, authenticityScore: 88, brandFitScore: 82, rate: 2500, tags: ['tech', 'gadgets', 'software', 'AI'] },
-            { id: 'inf-lifestyle-001', handle: '@markwithmark', name: 'Mark Johnson', platform: 'youtube', niche: 'lifestyle', followers: 500000, engagementRate: 3.5, location: 'New York, NY', avgLikes: 12000, avgComments: 800, authenticityScore: 91, brandFitScore: 75, rate: 4000, tags: ['lifestyle', 'fashion', 'travel', 'fitness'] },
-            { id: 'inf-fitness-001', handle: '@fitjessica', name: 'Jessica Park', platform: 'instagram', niche: 'fitness', followers: 180000, engagementRate: 5.8, location: 'Los Angeles, CA', avgLikes: 9200, avgComments: 580, authenticityScore: 93, brandFitScore: 88, rate: 1800, tags: ['fitness', 'health', 'wellness', 'nutrition'] },
-            { id: 'inf-food-001', handle: '@chefmike', name: 'Mike Torres', platform: 'tiktok', niche: 'food', followers: 750000, engagementRate: 6.2, location: 'Austin, TX', avgLikes: 35000, avgComments: 1500, authenticityScore: 87, brandFitScore: 80, rate: 3500, tags: ['food', 'cooking', 'recipes', 'restaurant'] },
-            { id: 'inf-beauty-001', handle: '@beautybyemma', name: 'Emma Wilson', platform: 'instagram', niche: 'beauty', followers: 420000, engagementRate: 4.8, location: 'London, UK', avgLikes: 18000, avgComments: 900, authenticityScore: 85, brandFitScore: 90, rate: 3000, tags: ['beauty', 'skincare', 'makeup', 'selfcare'] },
-            { id: 'inf-business-001', handle: '@bizleader', name: 'David Kim', platform: 'linkedin', niche: 'business', followers: 120000, engagementRate: 3.2, location: 'Seattle, WA', avgLikes: 3200, avgComments: 280, authenticityScore: 95, brandFitScore: 85, rate: 2000, tags: ['business', 'leadership', 'startup', 'SaaS'] },
+            {
+                id: 'inf-tech-001',
+                handle: '@techsarah',
+                name: 'Sarah Chen',
+                platform: 'instagram',
+                niche: 'technology',
+                followers: 250000,
+                engagementRate: 4.2,
+                location: 'San Francisco, CA',
+                avgLikes: 8500,
+                avgComments: 420,
+                authenticityScore: 88,
+                brandFitScore: 82,
+                rate: 2500,
+                tags: ['tech', 'gadgets', 'software', 'AI'],
+            },
+            {
+                id: 'inf-lifestyle-001',
+                handle: '@markwithmark',
+                name: 'Mark Johnson',
+                platform: 'youtube',
+                niche: 'lifestyle',
+                followers: 500000,
+                engagementRate: 3.5,
+                location: 'New York, NY',
+                avgLikes: 12000,
+                avgComments: 800,
+                authenticityScore: 91,
+                brandFitScore: 75,
+                rate: 4000,
+                tags: ['lifestyle', 'fashion', 'travel', 'fitness'],
+            },
+            {
+                id: 'inf-fitness-001',
+                handle: '@fitjessica',
+                name: 'Jessica Park',
+                platform: 'instagram',
+                niche: 'fitness',
+                followers: 180000,
+                engagementRate: 5.8,
+                location: 'Los Angeles, CA',
+                avgLikes: 9200,
+                avgComments: 580,
+                authenticityScore: 93,
+                brandFitScore: 88,
+                rate: 1800,
+                tags: ['fitness', 'health', 'wellness', 'nutrition'],
+            },
+            {
+                id: 'inf-food-001',
+                handle: '@chefmike',
+                name: 'Mike Torres',
+                platform: 'tiktok',
+                niche: 'food',
+                followers: 750000,
+                engagementRate: 6.2,
+                location: 'Austin, TX',
+                avgLikes: 35000,
+                avgComments: 1500,
+                authenticityScore: 87,
+                brandFitScore: 80,
+                rate: 3500,
+                tags: ['food', 'cooking', 'recipes', 'restaurant'],
+            },
+            {
+                id: 'inf-beauty-001',
+                handle: '@beautybyemma',
+                name: 'Emma Wilson',
+                platform: 'instagram',
+                niche: 'beauty',
+                followers: 420000,
+                engagementRate: 4.8,
+                location: 'London, UK',
+                avgLikes: 18000,
+                avgComments: 900,
+                authenticityScore: 85,
+                brandFitScore: 90,
+                rate: 3000,
+                tags: ['beauty', 'skincare', 'makeup', 'selfcare'],
+            },
+            {
+                id: 'inf-business-001',
+                handle: '@bizleader',
+                name: 'David Kim',
+                platform: 'linkedin',
+                niche: 'business',
+                followers: 120000,
+                engagementRate: 3.2,
+                location: 'Seattle, WA',
+                avgLikes: 3200,
+                avgComments: 280,
+                authenticityScore: 95,
+                brandFitScore: 85,
+                rate: 2000,
+                tags: ['business', 'leadership', 'startup', 'SaaS'],
+            },
         ];
         for (const inf of seedInfluencers) {
             this.influencers.set(inf.id, inf);
@@ -503,8 +639,8 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
                 followers,
                 engagementRate: engRate,
                 location: locations[Math.floor(Math.random() * locations.length)],
-                avgLikes: Math.floor(followers * engRate / 100),
-                avgComments: Math.floor(followers * engRate / 100 * 0.05),
+                avgLikes: Math.floor((followers * engRate) / 100),
+                avgComments: Math.floor(((followers * engRate) / 100) * 0.05),
                 authenticityScore: 65 + Math.floor(Math.random() * 30),
                 brandFitScore: 60 + Math.floor(Math.random() * 35),
                 rate: Math.floor(followers * 0.01),
@@ -543,6 +679,8 @@ let InfluencerAgentService = class InfluencerAgentService extends base_agent_ser
 };
 exports.InfluencerAgentService = InfluencerAgentService;
 exports.InfluencerAgentService = InfluencerAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], InfluencerAgentService);
 //# sourceMappingURL=influencer-agent.service.js.map

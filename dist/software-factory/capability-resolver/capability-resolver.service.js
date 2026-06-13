@@ -39,7 +39,7 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
         }
         const inferred = this.inferFromMissionText(requirements.instruction);
         for (const cap of inferred) {
-            if (!resolved.find(r => r.capabilityId === cap.id)) {
+            if (!resolved.find((r) => r.capabilityId === cap.id)) {
                 resolved.push({
                     capabilityId: cap.id,
                     definition: cap,
@@ -50,9 +50,9 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
                 packsNeeded.add(cap.pack);
             }
         }
-        const implied = this.resolveImpliedCapabilities(resolved.map(r => r.capabilityId));
+        const implied = this.resolveImpliedCapabilities(resolved.map((r) => r.capabilityId));
         for (const capId of implied) {
-            if (!resolved.find(r => r.capabilityId === capId)) {
+            if (!resolved.find((r) => r.capabilityId === capId)) {
                 const definition = this.registry.getCapability(capId);
                 if (definition) {
                     resolved.push({
@@ -72,7 +72,7 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
         }
         resolved.sort((a, b) => a.priority - b.priority);
         const totalCost = resolved.reduce((sum, r) => sum + r.definition.cost.estimatedUsdPerExecution, 0);
-        const maxLatency = Math.max(...resolved.map(r => r.definition.latency.estimatedMs));
+        const maxLatency = Math.max(...resolved.map((r) => r.definition.latency.estimatedMs));
         const confidence = this.calculateConfidence(resolved, requirements.instruction);
         const resolution = {
             missionId: requirements.missionId,
@@ -87,14 +87,14 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
     }
     resolveIds(requirements) {
         const resolution = this.resolve(requirements);
-        return resolution.requiredCapabilities.map(r => r.capabilityId);
+        return resolution.requiredCapabilities.map((r) => r.capabilityId);
     }
     inferFromMissionText(text) {
         return this.registry.findCapabilitiesForMission(text);
     }
     getMatchingKeyword(cap, text) {
         const lower = text.toLowerCase();
-        const match = cap.keywords.find(k => lower.includes(k));
+        const match = cap.keywords.find((k) => lower.includes(k));
         return match || cap.name;
     }
     resolveDependencies(capabilityId) {
@@ -115,11 +115,12 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
     }
     resolveImpliedCapabilities(current) {
         const implied = [];
-        const hasDevCap = current.some(c => c.startsWith('dev.'));
+        const hasDevCap = current.some((c) => c.startsWith('dev.'));
         if (hasDevCap && !current.includes('dev.architecture')) {
             implied.push('dev.architecture');
         }
-        if (current.includes('dev.frontend') && current.includes('dev.backend')) {
+        if (current.includes('dev.frontend') &&
+            current.includes('dev.backend')) {
             if (!current.includes('dev.api')) {
                 implied.push('dev.api');
             }
@@ -139,7 +140,7 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
             defaultCertCaps.push('cert.compliance', 'cert.architecture_review');
         }
         for (const capId of defaultCertCaps) {
-            if (!resolved.find(r => r.capabilityId === capId)) {
+            if (!resolved.find((r) => r.capabilityId === capId)) {
                 const definition = this.registry.getCapability(capId);
                 if (definition) {
                     resolved.push({
@@ -171,7 +172,7 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
         }
         defaultDeliverCaps.push('delivery.pdf_report');
         for (const capId of defaultDeliverCaps) {
-            if (!resolved.find(r => r.capabilityId === capId)) {
+            if (!resolved.find((r) => r.capabilityId === capId)) {
                 const definition = this.registry.getCapability(capId);
                 if (definition) {
                     resolved.push({
@@ -191,7 +192,7 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
         const cap = this.registry.getCapability(capId);
         if (!cap)
             return 5;
-        const matchCount = cap.keywords.filter(k => lower.includes(k)).length;
+        const matchCount = cap.keywords.filter((k) => lower.includes(k)).length;
         if (matchCount >= 3)
             return 1;
         if (matchCount >= 2)
@@ -201,7 +202,7 @@ let CapabilityResolverService = CapabilityResolverService_1 = class CapabilityRe
     calculateConfidence(resolved, instruction) {
         if (resolved.length === 0)
             return 0;
-        const explicitCount = resolved.filter(r => r.priority <= 3).length;
+        const explicitCount = resolved.filter((r) => r.priority <= 3).length;
         const total = resolved.length;
         const explicitRatio = explicitCount / total;
         const coverageBonus = Math.min(total / 5, 1) * 0.1;

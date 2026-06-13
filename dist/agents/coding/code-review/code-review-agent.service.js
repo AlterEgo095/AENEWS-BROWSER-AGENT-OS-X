@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodeReviewAgentService = exports.CODE_REVIEW_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.CODE_REVIEW_AGENT_CONFIG = {
     id: 'coding-code-review',
     name: 'CodeReview',
@@ -126,13 +134,7 @@ exports.CODE_REVIEW_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:code',
-        'read:repository',
-        'write:review',
-        'read:security',
-    ],
+    permissions: ['execute:task', 'read:code', 'read:repository', 'write:review', 'read:security'],
     maxConcurrentTasks: 6,
     timeout: 45000,
     retryPolicy: {
@@ -142,8 +144,9 @@ exports.CODE_REVIEW_AGENT_CONFIG = {
     },
 };
 let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.reviewHistory = [];
     }
     defineConfig() {
@@ -180,6 +183,20 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DEBUG, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback to local: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -266,7 +283,7 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
             suggestion: 'Consider splitting large functions into smaller, focused ones',
         });
         practices.push({
-            name: 'DRY (Don\'t Repeat Yourself)',
+            name: "DRY (Don't Repeat Yourself)",
             followed: this.checkDRY(lines),
             details: 'Avoid code duplication',
             suggestion: 'Extract repeated code into reusable functions or utilities',
@@ -292,7 +309,9 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
         if (language === 'typescript' || language === 'javascript') {
             practices.push({
                 name: 'Use Strict Mode',
-                followed: code.includes('"use strict"') || code.includes("'use strict'") || language === 'typescript',
+                followed: code.includes('"use strict"') ||
+                    code.includes("'use strict'") ||
+                    language === 'typescript',
                 details: 'Enable strict mode for better error detection',
                 suggestion: 'Add "use strict" directive or use TypeScript strict mode',
             });
@@ -575,7 +594,9 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
                         break;
                 }
             }
-            if ((language === 'typescript' || language === 'javascript') && line.includes('.then(') && !line.includes('.catch(')) {
+            if ((language === 'typescript' || language === 'javascript') &&
+                line.includes('.then(') &&
+                !line.includes('.catch(')) {
                 const remainingCode = lines.slice(i).join('\n');
                 if (!remainingCode.substring(0, 200).includes('.catch(')) {
                     issues.push({
@@ -625,7 +646,9 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
             if (line.match(/for\s*\(|while\s*\(|\.forEach\(/)) {
                 for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
                     const innerMatch = lines[j].match(/^(\s*)/);
-                    if (innerMatch && innerMatch[1].length > indentLevel && lines[j].match(/for\s*\(|while\s*\(|\.forEach\(/)) {
+                    if (innerMatch &&
+                        innerMatch[1].length > indentLevel &&
+                        lines[j].match(/for\s*\(|while\s*\(|\.forEach\(/)) {
                         issues.push({
                             severity: 'medium',
                             category: 'performance',
@@ -658,7 +681,10 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
     detectNullReferenceRisks(lines, bugs, language) {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            if (line.match(/\w+\.\w+\.\w+/) && !line.includes('?.') && !line.includes('null') && !line.includes('undefined')) {
+            if (line.match(/\w+\.\w+\.\w+/) &&
+                !line.includes('?.') &&
+                !line.includes('null') &&
+                !line.includes('undefined')) {
                 bugs.push({
                     type: 'warning',
                     severity: 'medium',
@@ -674,9 +700,13 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
         if (language === 'typescript' || language === 'javascript') {
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                if (line.includes('open(') || line.includes('createConnection(') || line.includes('connect(')) {
+                if (line.includes('open(') ||
+                    line.includes('createConnection(') ||
+                    line.includes('connect(')) {
                     const remainingCode = lines.slice(i + 1).join('\n');
-                    if (!remainingCode.includes('.close(') && !remainingCode.includes('.end(') && !remainingCode.includes('finally')) {
+                    if (!remainingCode.includes('.close(') &&
+                        !remainingCode.includes('.end(') &&
+                        !remainingCode.includes('finally')) {
                         bugs.push({
                             type: 'bug',
                             severity: 'high',
@@ -695,7 +725,9 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
             const line = lines[i];
             if (line.includes('await ') && i > 0) {
                 for (let j = Math.max(0, i - 3); j < i; j++) {
-                    if (lines[j].match(/\w+\[\w+\]\s*=/) && !lines[j].includes('const ') && !lines[j].includes('let ')) {
+                    if (lines[j].match(/\w+\[\w+\]\s*=/) &&
+                        !lines[j].includes('const ') &&
+                        !lines[j].includes('let ')) {
                         bugs.push({
                             type: 'warning',
                             severity: 'high',
@@ -717,7 +749,10 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
                 const floatingPromise = line.match(/^(\s*)(\w+)\(/);
                 if (floatingPromise) {
                     const indent = floatingPromise[1];
-                    if (!line.includes('await ') && !line.includes('.then(') && !line.includes('.catch(') && !line.includes('//')) {
+                    if (!line.includes('await ') &&
+                        !line.includes('.then(') &&
+                        !line.includes('.catch(') &&
+                        !line.includes('//')) {
                         const surroundingContext = lines.slice(Math.max(0, i - 2), i).join('\n');
                         if (surroundingContext.includes('async ')) {
                             bugs.push({
@@ -793,7 +828,10 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
             const line = lines[i].trim();
             if (line.match(/^(return|throw|break|continue)/)) {
                 const nextLine = lines[i + 1].trim();
-                if (nextLine && !nextLine.startsWith('//') && !nextLine.startsWith('}') && !nextLine.startsWith('case')) {
+                if (nextLine &&
+                    !nextLine.startsWith('//') &&
+                    !nextLine.startsWith('}') &&
+                    !nextLine.startsWith('case')) {
                     warnings.push({
                         type: 'warning',
                         severity: 'medium',
@@ -917,7 +955,10 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             for (const { pattern, name } of secretPatterns) {
-                if (pattern.test(line) && !line.includes('process.env') && !line.includes('ENV') && !line.includes('config.')) {
+                if (pattern.test(line) &&
+                    !line.includes('process.env') &&
+                    !line.includes('ENV') &&
+                    !line.includes('config.')) {
                     vulns.push({
                         id: `SECRET-${i + 1}`,
                         category: 'Sensitive Data Exposure',
@@ -949,7 +990,11 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
                     remediation: 'Use SHA-256 or stronger algorithms for hashing',
                 });
             }
-            if (line.includes('Math.random()') && (line.includes('token') || line.includes('key') || line.includes('password') || line.includes('secret'))) {
+            if (line.includes('Math.random()') &&
+                (line.includes('token') ||
+                    line.includes('key') ||
+                    line.includes('password') ||
+                    line.includes('secret'))) {
                 vulns.push({
                     id: `CRYPTO-RNG-${i + 1}`,
                     category: 'Cryptographic Failure',
@@ -967,8 +1012,12 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
     detectPathTraversal(lines, vulns, language) {
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            if ((line.includes('readFile') || line.includes('readFileSync') || line.includes('writeFile')) &&
-                line.includes('req.') && !line.includes('path.normalize') && !line.includes('path.resolve')) {
+            if ((line.includes('readFile') ||
+                line.includes('readFileSync') ||
+                line.includes('writeFile')) &&
+                line.includes('req.') &&
+                !line.includes('path.normalize') &&
+                !line.includes('path.resolve')) {
                 vulns.push({
                     id: `PATH-${i + 1}`,
                     category: 'Path Traversal',
@@ -1021,7 +1070,9 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
                 issues.push(`OWASP compliance issue: ${category} - vulnerabilities detected`);
             }
         }
-        if (!code.includes('helmet') && !code.includes('cors') && (code.includes('express') || code.includes('app.use'))) {
+        if (!code.includes('helmet') &&
+            !code.includes('cors') &&
+            (code.includes('express') || code.includes('app.use'))) {
             issues.push('OWASP A05: Security Misconfiguration - Missing security middleware (helmet, cors)');
         }
         if (!code.includes('rate') && !code.includes('throttle') && code.includes('app.post')) {
@@ -1031,8 +1082,15 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
     calculateCyclomaticComplexity(lines, language) {
         let complexity = 1;
         const branchKeywords = [
-            /\bif\b/, /\belse\s+if\b/, /\bfor\b/, /\bwhile\b/, /\bcase\b/,
-            /\bcatch\b/, /\?.*:/, /\&\&/, /\|\|/,
+            /\bif\b/,
+            /\belse\s+if\b/,
+            /\bfor\b/,
+            /\bwhile\b/,
+            /\bcase\b/,
+            /\bcatch\b/,
+            /\?.*:/,
+            /\&\&/,
+            /\|\|/,
         ];
         for (const line of lines) {
             for (const keyword of branchKeywords) {
@@ -1051,8 +1109,12 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
             const trimmed = line.trim();
             if (trimmed.includes('{'))
                 nestingLevel += (trimmed.match(/{/g) || []).length;
-            if (trimmed.match(/\bif\b/) || trimmed.match(/\belse\b/) || trimmed.match(/\bfor\b/) ||
-                trimmed.match(/\bwhile\b/) || trimmed.match(/\bcatch\b/) || trimmed.match(/\bswitch\b/)) {
+            if (trimmed.match(/\bif\b/) ||
+                trimmed.match(/\belse\b/) ||
+                trimmed.match(/\bfor\b/) ||
+                trimmed.match(/\bwhile\b/) ||
+                trimmed.match(/\bcatch\b/) ||
+                trimmed.match(/\bswitch\b/)) {
                 complexity += 1 + Math.max(0, nestingLevel - 1);
             }
             complexity += (trimmed.match(/&&/g) || []).length;
@@ -1077,7 +1139,10 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
     calculateMaintainabilityIndex(linesOfCode, cyclomaticComplexity) {
         const avgLineLength = 40;
         const halsteadVolume = linesOfCode * avgLineLength;
-        const mi = Math.max(0, 171 - 5.2 * Math.log(halsteadVolume + 1) - 0.23 * cyclomaticComplexity - 16.2 * Math.log(linesOfCode + 1));
+        const mi = Math.max(0, 171 -
+            5.2 * Math.log(halsteadVolume + 1) -
+            0.23 * cyclomaticComplexity -
+            16.2 * Math.log(linesOfCode + 1));
         return Math.round(Math.min(100, Math.max(0, mi)));
     }
     findComplexityHotspots(lines, language, thresholds) {
@@ -1101,7 +1166,9 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
                     const cyclomatic = this.calculateCyclomaticComplexity(funcLines, language);
                     const cognitive = this.calculateCognitiveComplexity(funcLines, language);
                     const nesting = this.calculateMaxNesting(funcLines, language);
-                    if (cyclomatic > thresholds.maxCyclomatic || cognitive > thresholds.maxCognitive || nesting > thresholds.maxNesting) {
+                    if (cyclomatic > thresholds.maxCyclomatic ||
+                        cognitive > thresholds.maxCognitive ||
+                        nesting > thresholds.maxNesting) {
                         hotspots.push({
                             functionName: funcName,
                             startLine: funcStart + 1,
@@ -1209,6 +1276,8 @@ let CodeReviewAgentService = class CodeReviewAgentService extends base_agent_ser
 };
 exports.CodeReviewAgentService = CodeReviewAgentService;
 exports.CodeReviewAgentService = CodeReviewAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], CodeReviewAgentService);
 //# sourceMappingURL=code-review-agent.service.js.map

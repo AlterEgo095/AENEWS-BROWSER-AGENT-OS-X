@@ -68,7 +68,7 @@ let MissionControlService = MissionControlService_1 = class MissionControlServic
             deadline: contract.deadline.deadline,
         });
         const execution = this.createExecution(missionId, contract.id, interfaces_1.MissionState.DRAFT, negotiation.warnings);
-        this.executePipeline(missionId).catch(err => {
+        this.executePipeline(missionId).catch((err) => {
             this.logger.error(`Pipeline failed for mission ${missionId}: ${err.message}`);
             execution.errors.push(err.message);
         });
@@ -267,7 +267,7 @@ let MissionControlService = MissionControlService_1 = class MissionControlServic
         return execution;
     }
     getActiveMissions() {
-        return Array.from(this.executions.values()).filter(e => e.status !== interfaces_1.MissionState.ARCHIVED && e.status !== interfaces_1.MissionState.COMPLETED);
+        return Array.from(this.executions.values()).filter((e) => e.status !== interfaces_1.MissionState.ARCHIVED && e.status !== interfaces_1.MissionState.COMPLETED);
     }
     async cancelMission(missionId) {
         const execution = this.executions.get(missionId);
@@ -342,7 +342,12 @@ let MissionControlService = MissionControlService_1 = class MissionControlServic
             [interfaces_2.AgentRole.ARCHITECT]: ['system_design', 'technology_selection'],
             [interfaces_2.AgentRole.BUSINESS_ANALYST]: ['requirements_analysis', 'cost_estimation'],
             [interfaces_2.AgentRole.MARKETING_STRATEGIST]: ['seo', 'content_strategy', 'campaign_planning'],
-            [interfaces_2.AgentRole.BROWSER_OPERATOR]: ['navigation', 'form_filling', 'data_extraction', 'screenshots'],
+            [interfaces_2.AgentRole.BROWSER_OPERATOR]: [
+                'navigation',
+                'form_filling',
+                'data_extraction',
+                'screenshots',
+            ],
             [interfaces_2.AgentRole.CODER]: ['code_generation', 'debugging', 'testing', 'refactoring'],
             [interfaces_2.AgentRole.OFFICE_OPERATOR]: ['document_generation', 'pdf_creation', 'spreadsheet'],
             [interfaces_2.AgentRole.DEPLOYER]: ['docker', 'cicd', 'cloud_deployment', 'monitoring'],

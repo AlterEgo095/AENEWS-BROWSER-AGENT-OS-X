@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AIQualityAuditorAgent = exports.AI_QUALITY_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.AI_QUALITY_AUDITOR_CONFIG = {
     id: 'certification-ai-quality-auditor',
     name: 'AIQualityAuditor',
@@ -23,7 +31,11 @@ exports.AI_QUALITY_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'AI model or system to audit quality' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -61,7 +73,11 @@ exports.AI_QUALITY_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     model: { type: 'string', description: 'Model to assess for bias' },
-                    biasTypes: { type: 'array', items: { type: 'string' }, description: 'Bias types to check' },
+                    biasTypes: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Bias types to check',
+                    },
                 },
             },
             outputSchema: {
@@ -113,8 +129,9 @@ exports.AI_QUALITY_AUDITOR_CONFIG = {
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.aiQualityAuditLog = [];
     }
     defineConfig() {
@@ -149,8 +166,22 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
         this.logger.log('AIQualityAuditor agent initialized with 5 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.DATA_PRIVACY, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -186,7 +217,13 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
         const { target = 'all', depth = 'deep' } = payload || {};
         const issues = [];
         const recommendations = [];
-        const categories = ['hallucination', 'bias', 'prompt_injection', 'reliability', 'safety'];
+        const categories = [
+            'hallucination',
+            'bias',
+            'prompt_injection',
+            'reliability',
+            'safety',
+        ];
         const auditDepth = depth === 'exhaustive' ? 10 : depth === 'deep' ? 6 : 3;
         for (let i = 0; i < auditDepth; i++) {
             const issue = {
@@ -199,10 +236,17 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
             issues.push(issue);
             this.aiQualityAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 25
+                    : issue.severity === 'high'
+                        ? 15
+                        : issue.severity === 'medium'
+                            ? 8
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'hallucination')) {
             recommendations.push('Implement RAG-based grounding and factual verification for model outputs');
         }
@@ -220,8 +264,11 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
     }
     async detectHallucination(model, sampleSize = 50) {
         const hallucinationTypes = [
-            'factual_error', 'fabricated_reference', 'temporal_inconsistency',
-            'logical_contradiction', 'unsupported_claim',
+            'factual_error',
+            'fabricated_reference',
+            'temporal_inconsistency',
+            'logical_contradiction',
+            'unsupported_claim',
         ];
         const flaggedOutputs = [];
         const hallucinationCount = Math.floor(sampleSize * (Math.random() * 0.2 + 0.02));
@@ -265,9 +312,14 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
     async checkPromptInjection(target) {
         const vulnerabilities = [];
         const attackVectors = [
-            'direct_injection', 'indirect_injection', 'role_manipulation',
-            'output_leaking', 'system_prompt_extraction', 'jailbreak',
-            'data_exfiltration', 'encoding_bypass',
+            'direct_injection',
+            'indirect_injection',
+            'role_manipulation',
+            'output_leaking',
+            'system_prompt_extraction',
+            'jailbreak',
+            'data_exfiltration',
+            'encoding_bypass',
         ];
         for (const vector of attackVectors) {
             const isVulnerable = Math.random() > 0.6;
@@ -275,7 +327,9 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
                 vulnerabilities.push({
                     vector,
                     target: target || 'default-agent',
-                    severity: ['system_prompt_extraction', 'jailbreak', 'data_exfiltration'].includes(vector) ? 'critical' : 'high',
+                    severity: ['system_prompt_extraction', 'jailbreak', 'data_exfiltration'].includes(vector)
+                        ? 'critical'
+                        : 'high',
                     description: `Prompt injection vulnerability: ${vector.replace('_', ' ')}`,
                     examplePayload: `Test payload for ${vector}`,
                     mitigations: this.getMitigations(vector),
@@ -289,9 +343,14 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
     async auditOutputReliability(model) {
         const consistencyIssues = [];
         const checks = [
-            'determinism', 'format_consistency', 'factual_consistency',
-            'length_variance', 'sentiment_variance', 'repetition_rate',
-            'coherence_score', 'completeness',
+            'determinism',
+            'format_consistency',
+            'factual_consistency',
+            'length_variance',
+            'sentiment_variance',
+            'repetition_rate',
+            'coherence_score',
+            'completeness',
         ];
         for (const check of checks) {
             if (Math.random() > 0.5) {
@@ -329,13 +388,20 @@ let AIQualityAuditorAgent = class AIQualityAuditorAgent extends base_agent_servi
             system_prompt_extraction: ['Prompt obfuscation', 'Access controls', 'Response filtering'],
             jailbreak: ['Safety layers', 'Content policy enforcement', 'Input validation'],
             data_exfiltration: ['Network isolation', 'Output monitoring', 'Data loss prevention'],
-            encoding_bypass: ['Encoding normalization', 'Input canonicalization', 'Multi-layer validation'],
+            encoding_bypass: [
+                'Encoding normalization',
+                'Input canonicalization',
+                'Multi-layer validation',
+            ],
         };
         return mitigations[vector] || ['Review and implement appropriate safeguards'];
     }
 };
 exports.AIQualityAuditorAgent = AIQualityAuditorAgent;
 exports.AIQualityAuditorAgent = AIQualityAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], AIQualityAuditorAgent);
 //# sourceMappingURL=ai-quality-auditor-agent.service.js.map

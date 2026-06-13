@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SocialMediaAgentService = exports.SOCIAL_MEDIA_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.SOCIAL_MEDIA_AGENT_CONFIG = {
     id: 'marketing-social-media',
     name: 'SocialMedia',
@@ -25,8 +33,16 @@ exports.SOCIAL_MEDIA_AGENT_CONFIG = {
                 properties: {
                     platform: { type: 'string', description: 'Target platform' },
                     content: { type: 'string', description: 'Post text content' },
-                    mediaUrls: { type: 'array', items: { type: 'string' }, description: 'Media attachment URLs' },
-                    hashtags: { type: 'array', items: { type: 'string' }, description: 'Hashtags to include' },
+                    mediaUrls: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Media attachment URLs',
+                    },
+                    hashtags: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Hashtags to include',
+                    },
                     mentions: { type: 'array', items: { type: 'string' }, description: 'User mentions' },
                     linkUrl: { type: 'string', description: 'Link to include' },
                 },
@@ -97,7 +113,11 @@ exports.SOCIAL_MEDIA_AGENT_CONFIG = {
                     metrics: { type: 'array', items: { type: 'string' }, description: 'Metrics to retrieve' },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
                     dateTo: { type: 'string', description: 'End date (ISO string)' },
-                    granularity: { type: 'string', enum: ['hourly', 'daily', 'weekly', 'monthly'], description: 'Data granularity' },
+                    granularity: {
+                        type: 'string',
+                        enum: ['hourly', 'daily', 'weekly', 'monthly'],
+                        description: 'Data granularity',
+                    },
                 },
                 required: ['platform'],
             },
@@ -117,8 +137,16 @@ exports.SOCIAL_MEDIA_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    action: { type: 'string', enum: ['analyze', 'suggest', 'track'], description: 'Hashtag action' },
-                    hashtags: { type: 'array', items: { type: 'string' }, description: 'Hashtags to process' },
+                    action: {
+                        type: 'string',
+                        enum: ['analyze', 'suggest', 'track'],
+                        description: 'Hashtag action',
+                    },
+                    hashtags: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Hashtags to process',
+                    },
                     platform: { type: 'string', description: 'Target platform' },
                     niche: { type: 'string', description: 'Industry or niche for suggestions' },
                 },
@@ -155,13 +183,7 @@ exports.SOCIAL_MEDIA_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:social',
-        'write:social',
-        'read:analytics',
-        'publish:social',
-    ],
+    permissions: ['execute:task', 'read:social', 'write:social', 'read:analytics', 'publish:social'],
     maxConcurrentTasks: 5,
     timeout: 45000,
     retryPolicy: {
@@ -171,8 +193,9 @@ exports.SOCIAL_MEDIA_AGENT_CONFIG = {
     },
 };
 let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.posts = new Map();
         this.hashtagIndex = new Map();
         this.postCounter = 0;
@@ -217,6 +240,20 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.MARKETING, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -254,14 +291,22 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
         this.logger.log('SocialMedia agent destroyed, posts and hashtag data cleared');
     }
     async createPost(params) {
-        const { platform, content, mediaUrls = [], hashtags = [], mentions = [], linkUrl = '' } = params;
+        const { platform, content, mediaUrls = [], hashtags = [], mentions = [], linkUrl = '', } = params;
         if (!platform || typeof platform !== 'string') {
             throw new Error('A valid platform is required');
         }
         if (!content || typeof content !== 'string') {
             throw new Error('Post content is required');
         }
-        const validPlatforms = ['twitter', 'facebook', 'instagram', 'linkedin', 'tiktok', 'threads', 'youtube'];
+        const validPlatforms = [
+            'twitter',
+            'facebook',
+            'instagram',
+            'linkedin',
+            'tiktok',
+            'threads',
+            'youtube',
+        ];
         if (!validPlatforms.includes(platform)) {
             throw new Error(`Invalid platform: ${platform}. Valid: ${validPlatforms.join(', ')}`);
         }
@@ -358,9 +403,7 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
             totalClicks: posts.reduce((sum, p) => sum + p.engagement.clicks, 0),
         };
         const totalEngagement = metrics.totalLikes + metrics.totalComments + metrics.totalShares;
-        const engagementRate = metrics.totalImpressions > 0
-            ? (totalEngagement / metrics.totalImpressions) * 100
-            : 0;
+        const engagementRate = metrics.totalImpressions > 0 ? (totalEngagement / metrics.totalImpressions) * 100 : 0;
         const topPost = posts.reduce((best, p) => {
             const score = p.engagement.likes + p.engagement.comments + p.engagement.shares;
             const bestScore = best.engagement.likes + best.engagement.comments + best.engagement.shares;
@@ -377,20 +420,23 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
         };
     }
     async getAnalytics(params) {
-        const { platform, metrics: requestedMetrics = [], dateFrom, dateTo, granularity = 'daily' } = params;
+        const { platform, metrics: requestedMetrics = [], dateFrom, dateTo, granularity = 'daily', } = params;
         if (!platform || typeof platform !== 'string') {
             throw new Error('A valid platform is required');
         }
-        const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const fromDate = dateFrom
+            ? new Date(dateFrom)
+            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const toDate = dateTo ? new Date(dateTo) : new Date();
-        const platformPosts = Array.from(this.posts.values())
-            .filter((p) => p.platform === platform);
+        const platformPosts = Array.from(this.posts.values()).filter((p) => p.platform === platform);
         const allMetrics = {
             followers: 1000 + Math.floor(Math.random() * 5000),
             following: 200 + Math.floor(Math.random() * 500),
             posts: platformPosts.length,
-            totalImpressions: platformPosts.reduce((sum, p) => sum + p.engagement.impressions, 0) || Math.floor(Math.random() * 50000),
-            totalReach: platformPosts.reduce((sum, p) => sum + p.engagement.reach, 0) || Math.floor(Math.random() * 30000),
+            totalImpressions: platformPosts.reduce((sum, p) => sum + p.engagement.impressions, 0) ||
+                Math.floor(Math.random() * 50000),
+            totalReach: platformPosts.reduce((sum, p) => sum + p.engagement.reach, 0) ||
+                Math.floor(Math.random() * 30000),
             totalEngagement: platformPosts.reduce((sum, p) => sum + p.engagement.likes + p.engagement.comments + p.engagement.shares, 0) || Math.floor(Math.random() * 5000),
             avgEngagementRate: +(2 + Math.random() * 5).toFixed(2),
         };
@@ -422,13 +468,13 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
                 resultHashtags = hashtags.map((tag) => {
                     const cleanTag = tag.startsWith('#') ? tag : `#${tag}`;
                     const cached = this.hashtagIndex.get(cleanTag);
-                    return cached || {
+                    return (cached || {
                         tag: cleanTag,
                         volume: 1000 + Math.floor(Math.random() * 50000),
                         reach: 5000 + Math.floor(Math.random() * 100000),
                         engagement: +(1 + Math.random() * 8).toFixed(2),
                         competition: Math.floor(Math.random() * 100),
-                    };
+                    });
                 });
                 const avgEngagement = resultHashtags.reduce((sum, h) => sum + h.engagement, 0) / resultHashtags.length;
                 const highCompetition = resultHashtags.filter((h) => h.competition > 60).length;
@@ -445,9 +491,27 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
             case 'suggest': {
                 const nicheKeywords = niche ? niche.split(/\s+/) : ['marketing', 'business', 'growth'];
                 const suggested = nicheKeywords.flatMap((kw) => [
-                    { tag: `#${kw.toLowerCase()}`, volume: 5000 + Math.floor(Math.random() * 30000), reach: 10000 + Math.floor(Math.random() * 80000), engagement: +(2 + Math.random() * 6).toFixed(2), competition: 20 + Math.floor(Math.random() * 60) },
-                    { tag: `#${kw.toLowerCase()}tips`, volume: 2000 + Math.floor(Math.random() * 15000), reach: 5000 + Math.floor(Math.random() * 40000), engagement: +(3 + Math.random() * 5).toFixed(2), competition: 15 + Math.floor(Math.random() * 40) },
-                    { tag: `#${kw.toLowerCase()}strategy`, volume: 1000 + Math.floor(Math.random() * 10000), reach: 3000 + Math.floor(Math.random() * 25000), engagement: +(2 + Math.random() * 7).toFixed(2), competition: 10 + Math.floor(Math.random() * 50) },
+                    {
+                        tag: `#${kw.toLowerCase()}`,
+                        volume: 5000 + Math.floor(Math.random() * 30000),
+                        reach: 10000 + Math.floor(Math.random() * 80000),
+                        engagement: +(2 + Math.random() * 6).toFixed(2),
+                        competition: 20 + Math.floor(Math.random() * 60),
+                    },
+                    {
+                        tag: `#${kw.toLowerCase()}tips`,
+                        volume: 2000 + Math.floor(Math.random() * 15000),
+                        reach: 5000 + Math.floor(Math.random() * 40000),
+                        engagement: +(3 + Math.random() * 5).toFixed(2),
+                        competition: 15 + Math.floor(Math.random() * 40),
+                    },
+                    {
+                        tag: `#${kw.toLowerCase()}strategy`,
+                        volume: 1000 + Math.floor(Math.random() * 10000),
+                        reach: 3000 + Math.floor(Math.random() * 25000),
+                        engagement: +(2 + Math.random() * 7).toFixed(2),
+                        competition: 10 + Math.floor(Math.random() * 50),
+                    },
                 ]);
                 resultHashtags = suggested.slice(0, 15);
                 result = {
@@ -580,18 +644,88 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
     }
     generateTrendingTopics(platform, category, region, limit) {
         const generalTrends = [
-            { topic: 'AI in Marketing', platform, volume: 120000, growth: 45, category: 'technology', relatedHashtags: ['#AI', '#MarketingTech', '#Automation'] },
-            { topic: 'Sustainable Business', platform, volume: 85000, growth: 32, category: 'business', relatedHashtags: ['#Sustainability', '#GreenBusiness', '#ESG'] },
-            { topic: 'Short-Form Video', platform, volume: 95000, growth: 28, category: 'content', relatedHashtags: ['#ShortForm', '#VideoMarketing', '#TikTok'] },
-            { topic: 'Personal Branding', platform, volume: 78000, growth: 22, category: 'branding', relatedHashtags: ['#PersonalBrand', '#ThoughtLeader', '#LinkedIn'] },
-            { topic: 'Community Building', platform, volume: 62000, growth: 38, category: 'engagement', relatedHashtags: ['#Community', '#Engagement', '#Audience'] },
-            { topic: 'Data Privacy', platform, volume: 55000, growth: 18, category: 'technology', relatedHashtags: ['#Privacy', '#DataSecurity', '#Compliance'] },
-            { topic: 'Remote Work Culture', platform, volume: 48000, growth: 15, category: 'business', relatedHashtags: ['#RemoteWork', '#WFH', '#FutureOfWork'] },
-            { topic: 'Influencer Marketing', platform, volume: 72000, growth: 25, category: 'marketing', relatedHashtags: ['#Influencer', '#Collab', '#Sponsored'] },
-            { topic: 'Voice Search Optimization', platform, volume: 35000, growth: 42, category: 'seo', relatedHashtags: ['#VoiceSearch', '#SEO', '#SmartSpeakers'] },
-            { topic: 'Micro-Content Strategy', platform, volume: 42000, growth: 30, category: 'content', relatedHashtags: ['#MicroContent', '#Snackable', '#ContentStrategy'] },
+            {
+                topic: 'AI in Marketing',
+                platform,
+                volume: 120000,
+                growth: 45,
+                category: 'technology',
+                relatedHashtags: ['#AI', '#MarketingTech', '#Automation'],
+            },
+            {
+                topic: 'Sustainable Business',
+                platform,
+                volume: 85000,
+                growth: 32,
+                category: 'business',
+                relatedHashtags: ['#Sustainability', '#GreenBusiness', '#ESG'],
+            },
+            {
+                topic: 'Short-Form Video',
+                platform,
+                volume: 95000,
+                growth: 28,
+                category: 'content',
+                relatedHashtags: ['#ShortForm', '#VideoMarketing', '#TikTok'],
+            },
+            {
+                topic: 'Personal Branding',
+                platform,
+                volume: 78000,
+                growth: 22,
+                category: 'branding',
+                relatedHashtags: ['#PersonalBrand', '#ThoughtLeader', '#LinkedIn'],
+            },
+            {
+                topic: 'Community Building',
+                platform,
+                volume: 62000,
+                growth: 38,
+                category: 'engagement',
+                relatedHashtags: ['#Community', '#Engagement', '#Audience'],
+            },
+            {
+                topic: 'Data Privacy',
+                platform,
+                volume: 55000,
+                growth: 18,
+                category: 'technology',
+                relatedHashtags: ['#Privacy', '#DataSecurity', '#Compliance'],
+            },
+            {
+                topic: 'Remote Work Culture',
+                platform,
+                volume: 48000,
+                growth: 15,
+                category: 'business',
+                relatedHashtags: ['#RemoteWork', '#WFH', '#FutureOfWork'],
+            },
+            {
+                topic: 'Influencer Marketing',
+                platform,
+                volume: 72000,
+                growth: 25,
+                category: 'marketing',
+                relatedHashtags: ['#Influencer', '#Collab', '#Sponsored'],
+            },
+            {
+                topic: 'Voice Search Optimization',
+                platform,
+                volume: 35000,
+                growth: 42,
+                category: 'seo',
+                relatedHashtags: ['#VoiceSearch', '#SEO', '#SmartSpeakers'],
+            },
+            {
+                topic: 'Micro-Content Strategy',
+                platform,
+                volume: 42000,
+                growth: 30,
+                category: 'content',
+                relatedHashtags: ['#MicroContent', '#Snackable', '#ContentStrategy'],
+            },
         ];
-        let filtered = category
+        const filtered = category
             ? generalTrends.filter((t) => t.category === category)
             : generalTrends;
         return filtered.slice(0, limit);
@@ -599,6 +733,8 @@ let SocialMediaAgentService = class SocialMediaAgentService extends base_agent_s
 };
 exports.SocialMediaAgentService = SocialMediaAgentService;
 exports.SocialMediaAgentService = SocialMediaAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], SocialMediaAgentService);
 //# sourceMappingURL=social-media-agent.service.js.map

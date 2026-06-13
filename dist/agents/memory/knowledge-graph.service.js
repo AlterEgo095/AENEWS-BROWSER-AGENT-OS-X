@@ -294,8 +294,7 @@ let KnowledgeGraphService = KnowledgeGraphService_1 = class KnowledgeGraphServic
         const resultRels = [];
         for (const relId of matchedRelIds) {
             const rel = this.relationships.get(relId);
-            if (rel &&
-                (matchedNodeIds.has(rel.sourceId) || matchedNodeIds.has(rel.targetId))) {
+            if (rel && (matchedNodeIds.has(rel.sourceId) || matchedNodeIds.has(rel.targetId))) {
                 resultRels.push({ ...rel, properties: { ...rel.properties } });
             }
         }

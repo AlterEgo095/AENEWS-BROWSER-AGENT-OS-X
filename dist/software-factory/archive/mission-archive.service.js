@@ -65,7 +65,7 @@ let MissionArchiveService = MissionArchiveService_1 = class MissionArchiveServic
         return Array.from(this.archives.values());
     }
     searchArchives(criteria) {
-        return Array.from(this.archives.values()).filter(archive => {
+        return Array.from(this.archives.values()).filter((archive) => {
             if (criteria.result && archive.summary.result !== criteria.result)
                 return false;
             if (criteria.minQuality && archive.summary.qualityScore < criteria.minQuality)
@@ -80,9 +80,15 @@ let MissionArchiveService = MissionArchiveService_1 = class MissionArchiveServic
     getStatistics() {
         const archives = Array.from(this.archives.values());
         if (archives.length === 0) {
-            return { totalMissions: 0, successRate: 0, averageQualityScore: 0, averageCost: 0, averageDurationMs: 0 };
+            return {
+                totalMissions: 0,
+                successRate: 0,
+                averageQualityScore: 0,
+                averageCost: 0,
+                averageDurationMs: 0,
+            };
         }
-        const successCount = archives.filter(a => a.summary.result === 'success').length;
+        const successCount = archives.filter((a) => a.summary.result === 'success').length;
         const totalQuality = archives.reduce((sum, a) => sum + a.summary.qualityScore, 0);
         const totalCost = archives.reduce((sum, a) => sum + a.summary.totalCostUsd, 0);
         const totalDuration = archives.reduce((sum, a) => sum + a.summary.totalDurationMs, 0);

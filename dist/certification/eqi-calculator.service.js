@@ -17,11 +17,11 @@ let EqiCalculatorService = EqiCalculatorService_1 = class EqiCalculatorService {
             architecture: 0.08,
             agents: 0.12,
             orchestration: 0.15,
-            browser: 0.10,
+            browser: 0.1,
             memory: 0.12,
             security: 0.15,
             performance: 0.08,
-            tests: 0.10,
+            tests: 0.1,
             documentation: 0.05,
             observability: 0.05,
         };

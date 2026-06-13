@@ -140,7 +140,8 @@ let AgentPoolService = AgentPoolService_1 = class AgentPoolService {
         }
         agent.totalCostUsd += costUsd;
         agent.status = interfaces_1.AgentStatus.READY;
-        if (agent.tasksCompleted + agent.tasksFailed >= (agent.config.maxTasks || this.constraints.defaultMaxTasksPerAgent)) {
+        if (agent.tasksCompleted + agent.tasksFailed >=
+            (agent.config.maxTasks || this.constraints.defaultMaxTasksPerAgent)) {
             this.logger.log(`Agent ${agentId} reached task limit, auto-terminating`);
             this.terminate({ agentId, reason: 'mission_complete', archiveResults: true });
             return true;
@@ -207,7 +208,9 @@ let AgentPoolService = AgentPoolService_1 = class AgentPoolService {
     getActiveCountByRole(role) {
         let count = 0;
         for (const agent of this.agents.values()) {
-            if (agent.role === role && agent.status !== interfaces_1.AgentStatus.TERMINATED && agent.status !== interfaces_1.AgentStatus.FAILED) {
+            if (agent.role === role &&
+                agent.status !== interfaces_1.AgentStatus.TERMINATED &&
+                agent.status !== interfaces_1.AgentStatus.FAILED) {
                 count++;
             }
         }

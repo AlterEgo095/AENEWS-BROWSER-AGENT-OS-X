@@ -128,9 +128,7 @@ let RAGService = RAGService_1 = class RAGService {
         this.logger.log(`Indexed document ${docId} for agent ${agentId}: ${chunks.length} chunks`);
     }
     async indexMemoryEntry(entry) {
-        const text = typeof entry.value === 'string'
-            ? entry.value
-            : JSON.stringify(entry.value);
+        const text = typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value);
         const vector = this.vectorSearch.generateSimpleEmbedding(text);
         await this.vectorSearch.upsert(entry.id, vector, {
             agentId: entry.agentId,
@@ -414,9 +412,7 @@ let RAGService = RAGService_1 = class RAGService {
         parts.push(`Based on ${sources.length} source(s) of information:`);
         for (let i = 0; i < sources.length; i++) {
             const source = sources[i];
-            const valueStr = typeof source.value === 'string'
-                ? source.value
-                : JSON.stringify(source.value, null, 2);
+            const valueStr = typeof source.value === 'string' ? source.value : JSON.stringify(source.value, null, 2);
             parts.push(`\n[Source ${i + 1} - ${source.tier}] ${source.key}: ${valueStr.substring(0, 500)}`);
         }
         if (context) {

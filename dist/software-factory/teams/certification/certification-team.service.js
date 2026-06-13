@@ -102,16 +102,16 @@ let CertificationTeamService = CertificationTeamService_1 = class CertificationT
                 details: 'Multi-stage build, non-root user, health check',
             },
         ];
-        const failedChecks = complianceChecks.filter(c => !c.passed);
-        const findings = failedChecks.map(c => `${c.category}: ${c.name} — ${c.details}`);
+        const failedChecks = complianceChecks.filter((c) => !c.passed);
+        const findings = failedChecks.map((c) => `${c.category}: ${c.name} — ${c.details}`);
         const score = Math.max(0, 100 - failedChecks.length * 15);
         const results = {
             missionId,
             passed: failedChecks.length === 0,
             score,
             findings,
-            criticalIssues: failedChecks.filter(c => c.category === 'security').length,
-            warnings: failedChecks.filter(c => c.category === 'quality').length,
+            criticalIssues: failedChecks.filter((c) => c.category === 'security').length,
+            warnings: failedChecks.filter((c) => c.category === 'quality').length,
             info: 0,
             complianceChecks,
             durationMs: Date.now() - startTime,
@@ -134,14 +134,14 @@ let CertificationTeamService = CertificationTeamService_1 = class CertificationT
             },
             {
                 domain: 'Test Success Rate',
-                passed: (testResults?.success || false),
+                passed: testResults?.success || false,
                 score: testResults ? (testResults.passed / testResults.totalTests) * 100 : 0,
                 details: `${testResults?.passed || 0}/${testResults?.totalTests || 0} tests passed`,
                 artifacts: ['test-results.json'],
             },
             {
                 domain: 'Security Audit',
-                passed: (auditResults?.passed || false),
+                passed: auditResults?.passed || false,
                 score: auditResults?.score || 0,
                 details: `Audit score: ${auditResults?.score || 0}/100`,
                 artifacts: ['security-audit.json'],
@@ -168,14 +168,14 @@ let CertificationTeamService = CertificationTeamService_1 = class CertificationT
                 artifacts: ['docker-compose.yml', 'Dockerfile'],
             },
         ];
-        const failedChecks = checks.filter(c => !c.passed);
+        const failedChecks = checks.filter((c) => !c.passed);
         const overallScore = checks.reduce((sum, c) => sum + c.score, 0) / checks.length;
         const certified = failedChecks.length === 0 && overallScore >= 70;
         const result = {
             missionId,
             certified,
             qualityScore: Math.round(overallScore),
-            reasons: failedChecks.map(c => `${c.domain}: ${c.details}`),
+            reasons: failedChecks.map((c) => `${c.domain}: ${c.details}`),
             checks,
             issuedAt: new Date(),
             validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

@@ -32,20 +32,56 @@ let SecurityGatewayService = SecurityGatewayService_1 = class SecurityGatewaySer
         this.auditLog = [];
         this.rateCounters = new Map();
         this.injectionPatterns = [
-            { pattern: /ignore\s+(previous|all|above)\s+(instructions|prompts|rules)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'critical' },
+            {
+                pattern: /ignore\s+(previous|all|above)\s+(instructions|prompts|rules)/i,
+                type: SecurityThreatType.PROMPT_INJECTION,
+                severity: 'critical',
+            },
             { pattern: /you\s+are\s+now\s+/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
             { pattern: /system\s*:\s*/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
-            { pattern: /forget\s+(everything|all|previous)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
-            { pattern: /new\s+instructions?\s*:/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'medium' },
-            { pattern: /disregard\s+(your|the)\s+(training|rules|guidelines)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'critical' },
-            { pattern: /act\s+as\s+(if\s+you\s+(are|were)|a\s+different)/i, type: SecurityThreatType.PROMPT_INJECTION, severity: 'high' },
-            { pattern: /;\s*(rm|del|format|shutdown|reboot|kill|sudo)\b/i, type: SecurityThreatType.COMMAND_INJECTION, severity: 'critical' },
+            {
+                pattern: /forget\s+(everything|all|previous)/i,
+                type: SecurityThreatType.PROMPT_INJECTION,
+                severity: 'high',
+            },
+            {
+                pattern: /new\s+instructions?\s*:/i,
+                type: SecurityThreatType.PROMPT_INJECTION,
+                severity: 'medium',
+            },
+            {
+                pattern: /disregard\s+(your|the)\s+(training|rules|guidelines)/i,
+                type: SecurityThreatType.PROMPT_INJECTION,
+                severity: 'critical',
+            },
+            {
+                pattern: /act\s+as\s+(if\s+you\s+(are|were)|a\s+different)/i,
+                type: SecurityThreatType.PROMPT_INJECTION,
+                severity: 'high',
+            },
+            {
+                pattern: /;\s*(rm|del|format|shutdown|reboot|kill|sudo)\b/i,
+                type: SecurityThreatType.COMMAND_INJECTION,
+                severity: 'critical',
+            },
             { pattern: /\$\{.*\}/, type: SecurityThreatType.COMMAND_INJECTION, severity: 'high' },
-            { pattern: /\|\s*(bash|sh|cmd|powershell)\b/i, type: SecurityThreatType.COMMAND_INJECTION, severity: 'critical' },
+            {
+                pattern: /\|\s*(bash|sh|cmd|powershell)\b/i,
+                type: SecurityThreatType.COMMAND_INJECTION,
+                severity: 'critical',
+            },
             { pattern: /`[^`]*`/, type: SecurityThreatType.COMMAND_INJECTION, severity: 'medium' },
             { pattern: /\bexec\s*\(/i, type: SecurityThreatType.COMMAND_INJECTION, severity: 'high' },
-            { pattern: /(\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b.*\b(FROM|INTO|TABLE|WHERE)\b)/i, type: SecurityThreatType.SQL_INJECTION, severity: 'critical' },
-            { pattern: /'\s*(OR|AND)\s+'[^']*'\s*=\s*'/i, type: SecurityThreatType.SQL_INJECTION, severity: 'critical' },
+            {
+                pattern: /(\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\b.*\b(FROM|INTO|TABLE|WHERE)\b)/i,
+                type: SecurityThreatType.SQL_INJECTION,
+                severity: 'critical',
+            },
+            {
+                pattern: /'\s*(OR|AND)\s+'[^']*'\s*=\s*'/i,
+                type: SecurityThreatType.SQL_INJECTION,
+                severity: 'critical',
+            },
             { pattern: /;\s*DROP\s+TABLE/i, type: SecurityThreatType.SQL_INJECTION, severity: 'critical' },
             { pattern: /--\s*$/m, type: SecurityThreatType.SQL_INJECTION, severity: 'medium' },
             { pattern: /<script[^>]*>/i, type: SecurityThreatType.XSS, severity: 'critical' },
@@ -56,9 +92,21 @@ let SecurityGatewayService = SecurityGatewayService_1 = class SecurityGatewaySer
             { pattern: /[\/\\]\.\.[\/\\]/, type: SecurityThreatType.PATH_TRAVERSAL, severity: 'critical' },
             { pattern: /%2e%2e%2f/i, type: SecurityThreatType.PATH_TRAVERSAL, severity: 'high' },
             { pattern: /%252e/i, type: SecurityThreatType.PATH_TRAVERSAL, severity: 'medium' },
-            { pattern: /\b(password|secret|token|api[_-]?key|private[_-]?key)\s*[:=]\s*['"][^'"]{8,}/i, type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE, severity: 'critical' },
-            { pattern: /\bAKIA[0-9A-Z]{16}\b/, type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE, severity: 'critical' },
-            { pattern: /\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b/, type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE, severity: 'high' },
+            {
+                pattern: /\b(password|secret|token|api[_-]?key|private[_-]?key)\s*[:=]\s*['"][^'"]{8,}/i,
+                type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE,
+                severity: 'critical',
+            },
+            {
+                pattern: /\bAKIA[0-9A-Z]{16}\b/,
+                type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE,
+                severity: 'critical',
+            },
+            {
+                pattern: /\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b/,
+                type: SecurityThreatType.SENSITIVE_DATA_EXPOSURE,
+                severity: 'high',
+            },
         ];
         this.initializeDefaultPolicies();
     }

@@ -44,11 +44,21 @@ let MemoryTeamService = MemoryTeamService_1 = class MemoryTeamService {
                     result = await this.getContext(task.missionId);
                     break;
                 case 'project':
-                    result = { taskId: '', success: true, data: await this.getProject(task.params.projectId), durationMs: 0 };
+                    result = {
+                        taskId: '',
+                        success: true,
+                        data: await this.getProject(task.params.projectId),
+                        durationMs: 0,
+                    };
                     result.durationMs = Date.now() - start;
                     break;
                 case 'preferences':
-                    result = { taskId: '', success: true, data: await this.getPreferences(task.params.userId), durationMs: 0 };
+                    result = {
+                        taskId: '',
+                        success: true,
+                        data: await this.getPreferences(task.params.userId),
+                        durationMs: 0,
+                    };
                     result.durationMs = Date.now() - start;
                     break;
                 case 'summarize':

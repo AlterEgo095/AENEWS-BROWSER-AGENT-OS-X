@@ -224,12 +224,8 @@ let EventStoreService = EventStoreService_1 = class EventStoreService {
             totalPayloadSize += JSON.stringify(record.event.payload).length;
         }
         const uptimeMs = Date.now() - this.initializedAt.getTime();
-        const eventsPerMinute = uptimeMs > 0
-            ? Math.round((this.records.size / uptimeMs) * 60000 * 100) / 100
-            : 0;
-        const avgProcessingTimeMs = this.processedCount > 0
-            ? Math.round(this.totalProcessingTimeMs / this.processedCount)
-            : 0;
+        const eventsPerMinute = uptimeMs > 0 ? Math.round((this.records.size / uptimeMs) * 60000 * 100) / 100 : 0;
+        const avgProcessingTimeMs = this.processedCount > 0 ? Math.round(this.totalProcessingTimeMs / this.processedCount) : 0;
         return {
             totalEvents: this.records.size,
             byStatus: byStatus,

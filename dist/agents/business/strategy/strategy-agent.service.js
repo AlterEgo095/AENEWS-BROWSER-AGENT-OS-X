@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StrategyAgentService = exports.STRATEGY_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.STRATEGY_AGENT_CONFIG = {
     id: 'business-strategy',
     name: 'Strategy',
@@ -24,8 +32,16 @@ exports.STRATEGY_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     organization: { type: 'string', description: 'Organization name' },
-                    timeHorizon: { type: 'string', enum: ['1-year', '3-year', '5-year'], description: 'Planning horizon' },
-                    focusAreas: { type: 'array', items: { type: 'string' }, description: 'Strategic focus areas' },
+                    timeHorizon: {
+                        type: 'string',
+                        enum: ['1-year', '3-year', '5-year'],
+                        description: 'Planning horizon',
+                    },
+                    focusAreas: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Strategic focus areas',
+                    },
                     mission: { type: 'string', description: 'Organization mission statement' },
                     vision: { type: 'string', description: 'Organization vision statement' },
                 },
@@ -52,7 +68,11 @@ exports.STRATEGY_AGENT_CONFIG = {
                 properties: {
                     subject: { type: 'string', description: 'Subject of the SWOT analysis' },
                     industry: { type: 'string', description: 'Industry context' },
-                    depth: { type: 'string', enum: ['high-level', 'detailed', 'comprehensive'], description: 'Analysis depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['high-level', 'detailed', 'comprehensive'],
+                        description: 'Analysis depth',
+                    },
                 },
                 required: ['subject'],
             },
@@ -77,7 +97,11 @@ exports.STRATEGY_AGENT_CONFIG = {
                 properties: {
                     team: { type: 'string', description: 'Team or department name' },
                     period: { type: 'string', description: 'OKR period (e.g., "Q1-2024")' },
-                    objectives: { type: 'array', items: { type: 'object' }, description: 'Objective definitions' },
+                    objectives: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Objective definitions',
+                    },
                     alignment: { type: 'string', description: 'Parent OKR or strategic alignment reference' },
                 },
                 required: ['team', 'period'],
@@ -102,8 +126,16 @@ exports.STRATEGY_AGENT_CONFIG = {
                 properties: {
                     organization: { type: 'string', description: 'Organization name' },
                     market: { type: 'string', description: 'Market or industry' },
-                    competitors: { type: 'array', items: { type: 'string' }, description: 'Key competitors to analyze against' },
-                    dimensions: { type: 'array', items: { type: 'string' }, description: 'Competitive dimensions to evaluate' },
+                    competitors: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Key competitors to analyze against',
+                    },
+                    dimensions: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Competitive dimensions to evaluate',
+                    },
                 },
                 required: ['organization', 'market'],
             },
@@ -128,8 +160,16 @@ exports.STRATEGY_AGENT_CONFIG = {
                 properties: {
                     industry: { type: 'string', description: 'Industry to scan for opportunities' },
                     organization: { type: 'string', description: 'Organization context' },
-                    types: { type: 'array', items: { type: 'string' }, description: 'Types of opportunities to look for' },
-                    riskTolerance: { type: 'string', enum: ['conservative', 'moderate', 'aggressive'], description: 'Risk tolerance level' },
+                    types: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Types of opportunities to look for',
+                    },
+                    riskTolerance: {
+                        type: 'string',
+                        enum: ['conservative', 'moderate', 'aggressive'],
+                        description: 'Risk tolerance level',
+                    },
                 },
                 required: ['industry'],
             },
@@ -150,8 +190,16 @@ exports.STRATEGY_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     organization: { type: 'string', description: 'Organization name' },
-                    categories: { type: 'array', items: { type: 'string' }, description: 'Risk categories to assess' },
-                    timeHorizon: { type: 'string', enum: ['short-term', 'medium-term', 'long-term'], description: 'Assessment time horizon' },
+                    categories: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Risk categories to assess',
+                    },
+                    timeHorizon: {
+                        type: 'string',
+                        enum: ['short-term', 'medium-term', 'long-term'],
+                        description: 'Assessment time horizon',
+                    },
                 },
                 required: ['organization'],
             },
@@ -184,8 +232,9 @@ exports.STRATEGY_AGENT_CONFIG = {
     },
 };
 let StrategyAgentService = class StrategyAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.strategicPlans = new Map();
         this.swotAnalyses = new Map();
         this.okrSets = new Map();
@@ -230,6 +279,20 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.PARTNERSHIP, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -268,7 +331,7 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
         this.logger.log('Strategy agent destroyed, all data cleared');
     }
     async createStrategicPlan(params) {
-        const { organization, timeHorizon = '3-year', focusAreas = [], mission, vision, } = params;
+        const { organization, timeHorizon = '3-year', focusAreas = [], mission, vision } = params;
         if (!organization || typeof organization !== 'string') {
             throw new Error('A valid organization name is required');
         }
@@ -280,7 +343,12 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
         const planId = `strat-plan-${Date.now()}-${this.analysisCounter}`;
         const defaultVision = vision || `To be the leading provider in ${organization}'s core market`;
         const defaultMission = mission || `To deliver exceptional value to customers through innovation and excellence`;
-        const defaultPillars = ['Growth & Expansion', 'Operational Excellence', 'Innovation & Technology', 'People & Culture'];
+        const defaultPillars = [
+            'Growth & Expansion',
+            'Operational Excellence',
+            'Innovation & Technology',
+            'People & Culture',
+        ];
         const pillarNames = focusAreas.length > 0 ? focusAreas : defaultPillars;
         const strategicPillars = pillarNames.map((name, i) => ({
             name,
@@ -288,10 +356,30 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
             priority: i === 0 ? 'critical' : i < 2 ? 'high' : 'medium',
         }));
         const initiatives = [
-            { name: 'Market Expansion Initiative', pillar: pillarNames[0], timeline: `${timeHorizon.split('-')[0]} year(s)`, status: 'planned' },
-            { name: 'Digital Transformation Program', pillar: pillarNames[Math.min(2, pillarNames.length - 1)], timeline: `${timeHorizon.split('-')[0]} year(s)`, status: 'planned' },
-            { name: 'Talent Development Plan', pillar: pillarNames[Math.min(3, pillarNames.length - 1)], timeline: '1 year', status: 'planned' },
-            { name: 'Process Optimization Project', pillar: pillarNames[Math.min(1, pillarNames.length - 1)], timeline: '6 months', status: 'planned' },
+            {
+                name: 'Market Expansion Initiative',
+                pillar: pillarNames[0],
+                timeline: `${timeHorizon.split('-')[0]} year(s)`,
+                status: 'planned',
+            },
+            {
+                name: 'Digital Transformation Program',
+                pillar: pillarNames[Math.min(2, pillarNames.length - 1)],
+                timeline: `${timeHorizon.split('-')[0]} year(s)`,
+                status: 'planned',
+            },
+            {
+                name: 'Talent Development Plan',
+                pillar: pillarNames[Math.min(3, pillarNames.length - 1)],
+                timeline: '1 year',
+                status: 'planned',
+            },
+            {
+                name: 'Process Optimization Project',
+                pillar: pillarNames[Math.min(1, pillarNames.length - 1)],
+                timeline: '6 months',
+                status: 'planned',
+            },
         ];
         const plan = {
             id: planId,
@@ -436,7 +524,9 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
             })),
         }));
         const totalKeyResults = mappedObjectives.reduce((sum, obj) => sum + obj.keyResults.length, 0);
-        const alignmentScore = alignment ? +(0.7 + Math.random() * 0.25).toFixed(2) : +(0.5 + Math.random() * 0.3).toFixed(2);
+        const alignmentScore = alignment
+            ? +(0.7 + Math.random() * 0.25).toFixed(2)
+            : +(0.5 + Math.random() * 0.3).toFixed(2);
         const okrSet = {
             id: okrId,
             team,
@@ -465,7 +555,14 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
         }
         this.analysisCounter++;
         const analysisId = `comp-pos-${Date.now()}-${this.analysisCounter}`;
-        const defaultDimensions = ['Market Share', 'Innovation', 'Brand Strength', 'Operational Efficiency', 'Customer Satisfaction', 'Financial Health'];
+        const defaultDimensions = [
+            'Market Share',
+            'Innovation',
+            'Brand Strength',
+            'Operational Efficiency',
+            'Customer Satisfaction',
+            'Financial Health',
+        ];
         const evalDimensions = dimensions.length > 0 ? dimensions : defaultDimensions;
         const dimensionScores = evalDimensions.map((name) => {
             const score = +(3 + Math.random() * 7).toFixed(1);
@@ -522,14 +619,78 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
         this.analysisCounter++;
         const scanId = `opp-scan-${Date.now()}-${this.analysisCounter}`;
         const opportunityTemplates = [
-            { name: 'Geographic Market Expansion', type: 'market', potential: 'high', effort: 'high', riskLevel: 'medium', expectedImpact: '$10M-50M', timeToCapture: '12-24 months' },
-            { name: 'Product Line Extension', type: 'product', potential: 'medium', effort: 'medium', riskLevel: 'low', expectedImpact: '$5M-20M', timeToCapture: '6-12 months' },
-            { name: 'Digital Transformation Initiative', type: 'technology', potential: 'high', effort: 'high', riskLevel: 'medium', expectedImpact: '$15M-60M', timeToCapture: '12-36 months' },
-            { name: 'Strategic Partnership/Alliance', type: 'partnership', potential: 'medium', effort: 'low', riskLevel: 'low', expectedImpact: '$3M-15M', timeToCapture: '3-9 months' },
-            { name: 'Customer Segment Penetration', type: 'market', potential: 'medium', effort: 'medium', riskLevel: 'low', expectedImpact: '$5M-25M', timeToCapture: '6-18 months' },
-            { name: 'M&A Opportunity', type: 'acquisition', potential: 'high', effort: 'high', riskLevel: 'high', expectedImpact: '$20M-100M', timeToCapture: '6-18 months' },
-            { name: 'Sustainability/ESG Initiative', type: 'sustainability', potential: 'medium', effort: 'medium', riskLevel: 'low', expectedImpact: '$2M-10M', timeToCapture: '12-24 months' },
-            { name: 'Automation/AI Integration', type: 'technology', potential: 'high', effort: 'medium', riskLevel: 'medium', expectedImpact: '$8M-30M', timeToCapture: '6-18 months' },
+            {
+                name: 'Geographic Market Expansion',
+                type: 'market',
+                potential: 'high',
+                effort: 'high',
+                riskLevel: 'medium',
+                expectedImpact: '$10M-50M',
+                timeToCapture: '12-24 months',
+            },
+            {
+                name: 'Product Line Extension',
+                type: 'product',
+                potential: 'medium',
+                effort: 'medium',
+                riskLevel: 'low',
+                expectedImpact: '$5M-20M',
+                timeToCapture: '6-12 months',
+            },
+            {
+                name: 'Digital Transformation Initiative',
+                type: 'technology',
+                potential: 'high',
+                effort: 'high',
+                riskLevel: 'medium',
+                expectedImpact: '$15M-60M',
+                timeToCapture: '12-36 months',
+            },
+            {
+                name: 'Strategic Partnership/Alliance',
+                type: 'partnership',
+                potential: 'medium',
+                effort: 'low',
+                riskLevel: 'low',
+                expectedImpact: '$3M-15M',
+                timeToCapture: '3-9 months',
+            },
+            {
+                name: 'Customer Segment Penetration',
+                type: 'market',
+                potential: 'medium',
+                effort: 'medium',
+                riskLevel: 'low',
+                expectedImpact: '$5M-25M',
+                timeToCapture: '6-18 months',
+            },
+            {
+                name: 'M&A Opportunity',
+                type: 'acquisition',
+                potential: 'high',
+                effort: 'high',
+                riskLevel: 'high',
+                expectedImpact: '$20M-100M',
+                timeToCapture: '6-18 months',
+            },
+            {
+                name: 'Sustainability/ESG Initiative',
+                type: 'sustainability',
+                potential: 'medium',
+                effort: 'medium',
+                riskLevel: 'low',
+                expectedImpact: '$2M-10M',
+                timeToCapture: '12-24 months',
+            },
+            {
+                name: 'Automation/AI Integration',
+                type: 'technology',
+                potential: 'high',
+                effort: 'medium',
+                riskLevel: 'medium',
+                expectedImpact: '$8M-30M',
+                timeToCapture: '6-18 months',
+            },
         ];
         const filteredOpportunities = types.length > 0
             ? opportunityTemplates.filter((o) => types.includes(o.type))
@@ -545,7 +706,9 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
             .sort((a, b) => {
             const potentialOrder = { high: 3, medium: 2, low: 1 };
             const effortOrder = { low: 3, medium: 2, high: 1 };
-            return (potentialOrder[b.potential] + effortOrder[b.effort]) - (potentialOrder[a.potential] + effortOrder[a.effort]);
+            return (potentialOrder[b.potential] +
+                effortOrder[b.effort] -
+                (potentialOrder[a.potential] + effortOrder[a.effort]));
         })
             .slice(0, 3)
             .map((o) => `Priority: ${o.name} — ${o.expectedImpact} impact, ${o.timeToCapture} to capture`);
@@ -564,43 +727,130 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
         }
         this.analysisCounter++;
         const assessmentId = `risk-${Date.now()}-${this.analysisCounter}`;
-        const defaultCategories = ['financial', 'operational', 'strategic', 'compliance', 'technology', 'reputational'];
+        const defaultCategories = [
+            'financial',
+            'operational',
+            'strategic',
+            'compliance',
+            'technology',
+            'reputational',
+        ];
         const riskCategories = categories.length > 0 ? categories : defaultCategories;
         const riskTemplates = {
             financial: [
-                { name: 'Revenue concentration risk', baseProb: 0.4, baseImpact: 8, mitigation: 'Diversify revenue streams and customer base' },
-                { name: 'Currency fluctuation exposure', baseProb: 0.5, baseImpact: 5, mitigation: 'Implement hedging strategies and natural hedging' },
-                { name: 'Credit default risk', baseProb: 0.2, baseImpact: 7, mitigation: 'Strengthen credit assessment and monitoring processes' },
+                {
+                    name: 'Revenue concentration risk',
+                    baseProb: 0.4,
+                    baseImpact: 8,
+                    mitigation: 'Diversify revenue streams and customer base',
+                },
+                {
+                    name: 'Currency fluctuation exposure',
+                    baseProb: 0.5,
+                    baseImpact: 5,
+                    mitigation: 'Implement hedging strategies and natural hedging',
+                },
+                {
+                    name: 'Credit default risk',
+                    baseProb: 0.2,
+                    baseImpact: 7,
+                    mitigation: 'Strengthen credit assessment and monitoring processes',
+                },
             ],
             operational: [
-                { name: 'Supply chain disruption', baseProb: 0.3, baseImpact: 8, mitigation: 'Develop alternative supplier relationships and safety stock' },
-                { name: 'Key person dependency', baseProb: 0.5, baseImpact: 6, mitigation: 'Implement succession planning and knowledge transfer' },
-                { name: 'Process failure risk', baseProb: 0.3, baseImpact: 5, mitigation: 'Strengthen process controls and redundancy measures' },
+                {
+                    name: 'Supply chain disruption',
+                    baseProb: 0.3,
+                    baseImpact: 8,
+                    mitigation: 'Develop alternative supplier relationships and safety stock',
+                },
+                {
+                    name: 'Key person dependency',
+                    baseProb: 0.5,
+                    baseImpact: 6,
+                    mitigation: 'Implement succession planning and knowledge transfer',
+                },
+                {
+                    name: 'Process failure risk',
+                    baseProb: 0.3,
+                    baseImpact: 5,
+                    mitigation: 'Strengthen process controls and redundancy measures',
+                },
             ],
             strategic: [
-                { name: 'Market disruption by competitors', baseProb: 0.4, baseImpact: 9, mitigation: 'Invest in innovation and maintain market intelligence' },
-                { name: 'Failed strategic initiative', baseProb: 0.35, baseImpact: 7, mitigation: 'Apply rigorous evaluation and staged investment approach' },
-                { name: 'Regulatory change impact', baseProb: 0.45, baseImpact: 6, mitigation: 'Maintain regulatory monitoring and adaptive compliance' },
+                {
+                    name: 'Market disruption by competitors',
+                    baseProb: 0.4,
+                    baseImpact: 9,
+                    mitigation: 'Invest in innovation and maintain market intelligence',
+                },
+                {
+                    name: 'Failed strategic initiative',
+                    baseProb: 0.35,
+                    baseImpact: 7,
+                    mitigation: 'Apply rigorous evaluation and staged investment approach',
+                },
+                {
+                    name: 'Regulatory change impact',
+                    baseProb: 0.45,
+                    baseImpact: 6,
+                    mitigation: 'Maintain regulatory monitoring and adaptive compliance',
+                },
             ],
             compliance: [
-                { name: 'Data privacy non-compliance', baseProb: 0.3, baseImpact: 8, mitigation: 'Implement comprehensive data governance framework' },
-                { name: 'Industry regulation violation', baseProb: 0.25, baseImpact: 9, mitigation: 'Establish proactive compliance monitoring and audits' },
+                {
+                    name: 'Data privacy non-compliance',
+                    baseProb: 0.3,
+                    baseImpact: 8,
+                    mitigation: 'Implement comprehensive data governance framework',
+                },
+                {
+                    name: 'Industry regulation violation',
+                    baseProb: 0.25,
+                    baseImpact: 9,
+                    mitigation: 'Establish proactive compliance monitoring and audits',
+                },
             ],
             technology: [
-                { name: 'Cybersecurity breach', baseProb: 0.35, baseImpact: 9, mitigation: 'Implement zero-trust architecture and regular penetration testing' },
-                { name: 'Technology obsolescence', baseProb: 0.4, baseImpact: 6, mitigation: 'Maintain technology roadmap and continuous modernization' },
-                { name: 'System availability risk', baseProb: 0.25, baseImpact: 7, mitigation: 'Implement high-availability architecture and disaster recovery' },
+                {
+                    name: 'Cybersecurity breach',
+                    baseProb: 0.35,
+                    baseImpact: 9,
+                    mitigation: 'Implement zero-trust architecture and regular penetration testing',
+                },
+                {
+                    name: 'Technology obsolescence',
+                    baseProb: 0.4,
+                    baseImpact: 6,
+                    mitigation: 'Maintain technology roadmap and continuous modernization',
+                },
+                {
+                    name: 'System availability risk',
+                    baseProb: 0.25,
+                    baseImpact: 7,
+                    mitigation: 'Implement high-availability architecture and disaster recovery',
+                },
             ],
             reputational: [
-                { name: 'Brand reputation damage', baseProb: 0.2, baseImpact: 8, mitigation: 'Develop crisis communication plan and brand monitoring' },
-                { name: 'Customer trust erosion', baseProb: 0.3, baseImpact: 7, mitigation: 'Enhance transparency and customer communication' },
+                {
+                    name: 'Brand reputation damage',
+                    baseProb: 0.2,
+                    baseImpact: 8,
+                    mitigation: 'Develop crisis communication plan and brand monitoring',
+                },
+                {
+                    name: 'Customer trust erosion',
+                    baseProb: 0.3,
+                    baseImpact: 7,
+                    mitigation: 'Enhance transparency and customer communication',
+                },
             ],
         };
         const risks = [];
         for (const category of riskCategories) {
             const templates = riskTemplates[category] || [];
             for (const template of templates) {
-                const probability = +((template.baseProb + (Math.random() - 0.5) * 0.2)).toFixed(2);
+                const probability = +(template.baseProb + (Math.random() - 0.5) * 0.2).toFixed(2);
                 const impact = +(template.baseImpact + (Math.random() - 0.5) * 2).toFixed(1);
                 const riskScore = +(probability * impact).toFixed(2);
                 risks.push({
@@ -622,7 +872,9 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
             medium: risks.filter((r) => r.riskScore >= 1.5 && r.riskScore < 3).length,
             low: risks.filter((r) => r.riskScore < 1.5).length,
         };
-        const mitigations = risks.slice(0, 5).map((r) => `Mitigate "${r.name}" (${r.category}): ${r.mitigation}`);
+        const mitigations = risks
+            .slice(0, 5)
+            .map((r) => `Mitigate "${r.name}" (${r.category}): ${r.mitigation}`);
         this.logger.log(`Risk assessment: ${organization}, total=${risks.length}, high=${riskMatrix.high}, medium=${riskMatrix.medium}, low=${riskMatrix.low}`);
         return {
             assessmentId,
@@ -636,6 +888,8 @@ let StrategyAgentService = class StrategyAgentService extends base_agent_service
 };
 exports.StrategyAgentService = StrategyAgentService;
 exports.StrategyAgentService = StrategyAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], StrategyAgentService);
 //# sourceMappingURL=strategy-agent.service.js.map

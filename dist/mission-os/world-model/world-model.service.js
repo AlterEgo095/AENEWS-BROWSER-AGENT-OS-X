@@ -239,9 +239,7 @@ let WorldModelService = WorldModelService_1 = class WorldModelService {
         return results;
     }
     getActiveConstraints() {
-        return this.state.constraints
-            .filter((c) => c.enforced)
-            .map((c) => ({ ...c }));
+        return this.state.constraints.filter((c) => c.enforced).map((c) => ({ ...c }));
     }
     evaluateConstraints(action) {
         const violations = [];
@@ -250,7 +248,9 @@ let WorldModelService = WorldModelService_1 = class WorldModelService {
             switch (constraint.type) {
                 case 'budget': {
                     const cost = action.cost ?? action.budget ?? action.price;
-                    if (cost !== undefined && typeof constraint.value === 'number' && cost > constraint.value) {
+                    if (cost !== undefined &&
+                        typeof constraint.value === 'number' &&
+                        cost > constraint.value) {
                         violations.push(`Budget constraint "${constraint.description}" exceeded: ${cost} > ${constraint.value}`);
                     }
                     break;
@@ -266,7 +266,9 @@ let WorldModelService = WorldModelService_1 = class WorldModelService {
                 }
                 case 'resource': {
                     const resourceName = action.resource ?? action.resourceName;
-                    const blockedResources = Array.isArray(constraint.value) ? constraint.value : [constraint.value];
+                    const blockedResources = Array.isArray(constraint.value)
+                        ? constraint.value
+                        : [constraint.value];
                     if (resourceName !== undefined &&
                         blockedResources.some((r) => (typeof r === 'string' && r === resourceName) ||
                             (typeof r === 'object' && r?.name === resourceName))) {
@@ -287,7 +289,9 @@ let WorldModelService = WorldModelService_1 = class WorldModelService {
                     if (typeof constraint.value === 'object' && constraint.value !== null) {
                         const cv = constraint.value;
                         for (const [metric, limit] of Object.entries(cv)) {
-                            if (action[metric] !== undefined && typeof limit === 'number' && action[metric] > limit) {
+                            if (action[metric] !== undefined &&
+                                typeof limit === 'number' &&
+                                action[metric] > limit) {
                                 violations.push(`Technical constraint "${constraint.description}" violated: ${metric}=${action[metric]} exceeds limit ${limit}`);
                             }
                         }

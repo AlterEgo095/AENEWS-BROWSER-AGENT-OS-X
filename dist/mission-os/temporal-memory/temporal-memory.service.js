@@ -321,8 +321,7 @@ let TemporalMemoryService = TemporalMemoryService_1 = class TemporalMemoryServic
             byGranularity[g] = 0;
         }
         for (const entry of allEntries) {
-            byGranularity[entry.timeGranularity] =
-                (byGranularity[entry.timeGranularity] ?? 0) + 1;
+            byGranularity[entry.timeGranularity] = (byGranularity[entry.timeGranularity] ?? 0) + 1;
         }
         const byAgent = {};
         for (const entry of allEntries) {
@@ -334,13 +333,9 @@ let TemporalMemoryService = TemporalMemoryService_1 = class TemporalMemoryServic
                 byProject[entry.project] = (byProject[entry.project] ?? 0) + 1;
             }
         }
-        const averageImportance = total > 0
-            ? allEntries.reduce((sum, e) => sum + e.importance, 0) / total
-            : 0;
+        const averageImportance = total > 0 ? allEntries.reduce((sum, e) => sum + e.importance, 0) / total : 0;
         const totalAccessCount = allEntries.reduce((sum, e) => sum + e.accessCount, 0);
-        const mostAccessedEntry = total > 0
-            ? allEntries.reduce((a, b) => a.accessCount >= b.accessCount ? a : b)
-            : null;
+        const mostAccessedEntry = total > 0 ? allEntries.reduce((a, b) => (a.accessCount >= b.accessCount ? a : b)) : null;
         const sortedByTime = [...allEntries].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
         const oldestEntry = sortedByTime[0] ?? null;
         const newestEntry = sortedByTime[sortedByTime.length - 1] ?? null;
@@ -519,33 +514,41 @@ let TemporalMemoryService = TemporalMemoryService_1 = class TemporalMemoryServic
             if (content.length > 500)
                 score += 0.15;
             else if (content.length > 200)
-                score += 0.10;
+                score += 0.1;
             else if (content.length > 50)
                 score += 0.05;
         }
         else if (typeof content === 'object' && content !== null) {
             const keys = Object.keys(content);
             if (keys.length > 10)
-                score += 0.20;
+                score += 0.2;
             else if (keys.length > 5)
                 score += 0.15;
             else if (keys.length > 2)
-                score += 0.10;
+                score += 0.1;
         }
         if (tags.length >= 5)
             score += 0.15;
         else if (tags.length >= 3)
-            score += 0.10;
+            score += 0.1;
         else if (tags.length >= 1)
             score += 0.05;
         const criticalKeywords = [
-            'critical', 'urgent', 'important', 'blocker', 'failure',
-            'error', 'deadline', 'release', 'production', 'security',
-            'decision', 'milestone', 'breaking',
+            'critical',
+            'urgent',
+            'important',
+            'blocker',
+            'failure',
+            'error',
+            'deadline',
+            'release',
+            'production',
+            'security',
+            'decision',
+            'milestone',
+            'breaking',
         ];
-        const contentStr = typeof content === 'string'
-            ? content.toLowerCase()
-            : JSON.stringify(content).toLowerCase();
+        const contentStr = typeof content === 'string' ? content.toLowerCase() : JSON.stringify(content).toLowerCase();
         const tagStr = tags.join(' ').toLowerCase();
         const combined = `${contentStr} ${tagStr}`;
         const keywordHits = criticalKeywords.filter((kw) => combined.includes(kw));
@@ -622,8 +625,7 @@ let TemporalMemoryService = TemporalMemoryService_1 = class TemporalMemoryServic
         const keysToRemove = [];
         for (const [key, bucket] of this.buckets) {
             const entryTime = entry.timestamp.getTime();
-            if (entryTime >= bucket.startDate.getTime() &&
-                entryTime <= bucket.endDate.getTime()) {
+            if (entryTime >= bucket.startDate.getTime() && entryTime <= bucket.endDate.getTime()) {
                 keysToRemove.push(key);
             }
         }

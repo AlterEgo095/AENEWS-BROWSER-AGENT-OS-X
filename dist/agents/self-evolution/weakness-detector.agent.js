@@ -5,10 +5,17 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WeaknessDetectorAgent = exports.SELF_EVOLUTION_WEAKNESS_DETECTOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../base/base-agent.service");
+const bridge_1 = require("../bridge");
 exports.SELF_EVOLUTION_WEAKNESS_DETECTOR_CONFIG = {
     id: 'self-evolution-weakness-detector',
     name: 'WeaknessDetector',
@@ -97,8 +104,9 @@ exports.SELF_EVOLUTION_WEAKNESS_DETECTOR_CONFIG = {
     retryPolicy: { maxRetries: 3, backoffMs: 2000, exponentialBackoff: true },
 };
 let WeaknessDetectorAgent = class WeaknessDetectorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.weaknesses = new Map();
         this.eqiHistory = [];
         this.bottlenecks = new Map();
@@ -126,8 +134,23 @@ let WeaknessDetectorAgent = class WeaknessDetectorAgent extends base_agent_servi
         this.logger.log('WeaknessDetector agent initialized with 3 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'execute';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const llmResult = await this.bridge.callLLM({
+                    systemPrompt: `You are the ${this.config.name} agent in the Self-Evolution cluster. Analyze the following task and provide detailed weakness detection, EQI trend analysis, and bottleneck identification.`,
+                    userPrompt: JSON.stringify(input.payload),
+                    temperature: 0.3,
+                    maxTokens: 2048,
+                });
+                const analysis = llmResult.content;
+                return this.createAgentOutput(input.taskId, true, { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount }, undefined, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge LLM failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'execute';
         try {
             let result;
             switch (action) {
@@ -159,7 +182,7 @@ let WeaknessDetectorAgent = class WeaknessDetectorAgent extends base_agent_servi
         this.logger.log('WeaknessDetector agent destroyed, state cleared');
     }
     async detectWeakness(params) {
-        const { scope = 'all', includeCertificationData = true, severityThreshold = 'medium', } = params;
+        const { scope = 'all', includeCertificationData = true, severityThreshold = 'medium' } = params;
         const possibleWeaknesses = [
             {
                 id: this.generateId(),
@@ -277,7 +300,7 @@ let WeaknessDetectorAgent = class WeaknessDetectorAgent extends base_agent_servi
         this.eqiHistory = [];
         for (let i = dataPoints; i >= 0; i--) {
             const delta = (Math.random() - 0.45) * 4;
-            const eqi = Math.max(0, Math.min(100, baseEQI + delta * (dataPoints - i) / 10));
+            const eqi = Math.max(0, Math.min(100, baseEQI + (delta * (dataPoints - i)) / 10));
             this.eqiHistory.push({
                 timestamp: new Date(Date.now() - i * 86400000).toISOString(),
                 eqi: Math.round(eqi * 100) / 100,
@@ -409,6 +432,9 @@ let WeaknessDetectorAgent = class WeaknessDetectorAgent extends base_agent_servi
 };
 exports.WeaknessDetectorAgent = WeaknessDetectorAgent;
 exports.WeaknessDetectorAgent = WeaknessDetectorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], WeaknessDetectorAgent);
 //# sourceMappingURL=weakness-detector.agent.js.map

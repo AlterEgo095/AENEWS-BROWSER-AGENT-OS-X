@@ -16,16 +16,8 @@ let GatewayModule = class GatewayModule {
 exports.GatewayModule = GatewayModule;
 exports.GatewayModule = GatewayModule = __decorate([
     (0, common_1.Module)({
-        providers: [
-            memory_gateway_service_1.MemoryGatewayService,
-            security_gateway_service_1.SecurityGatewayService,
-            documentation_generator_service_1.DocumentationGeneratorService,
-        ],
-        exports: [
-            memory_gateway_service_1.MemoryGatewayService,
-            security_gateway_service_1.SecurityGatewayService,
-            documentation_generator_service_1.DocumentationGeneratorService,
-        ],
+        providers: [memory_gateway_service_1.MemoryGatewayService, security_gateway_service_1.SecurityGatewayService, documentation_generator_service_1.DocumentationGeneratorService],
+        exports: [memory_gateway_service_1.MemoryGatewayService, security_gateway_service_1.SecurityGatewayService, documentation_generator_service_1.DocumentationGeneratorService],
     })
 ], GatewayModule);
 //# sourceMappingURL=gateway.module.js.map

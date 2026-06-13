@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OrchestratorAuditorAgent = exports.ORCHESTRATOR_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.ORCHESTRATOR_AUDITOR_CONFIG = {
     id: 'certification-orchestrator-auditor',
     name: 'OrchestratorAuditor',
@@ -23,7 +31,11 @@ exports.ORCHESTRATOR_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'Pipeline or orchestrator to audit' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -88,14 +100,20 @@ exports.ORCHESTRATOR_AUDITOR_CONFIG = {
             },
         },
     ],
-    permissions: ['certification:audit', 'certification:orchestrator', 'read:orchestrator', 'read:pipeline'],
+    permissions: [
+        'certification:audit',
+        'certification:orchestrator',
+        'read:orchestrator',
+        'read:pipeline',
+    ],
     maxConcurrentTasks: 5,
     timeout: 60000,
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let OrchestratorAuditorAgent = class OrchestratorAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.orchestratorAuditLog = [];
     }
     defineConfig() {
@@ -125,8 +143,22 @@ let OrchestratorAuditorAgent = class OrchestratorAuditorAgent extends base_agent
         this.logger.log('OrchestratorAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.INTEGRATION, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -174,10 +206,17 @@ let OrchestratorAuditorAgent = class OrchestratorAuditorAgent extends base_agent
             issues.push(issue);
             this.orchestratorAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 25
+                    : issue.severity === 'high'
+                        ? 15
+                        : issue.severity === 'medium'
+                            ? 8
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => ['decompose', 'plan'].includes(i.category))) {
             recommendations.push('Improve task decomposition heuristics and planning accuracy');
         }
@@ -226,7 +265,12 @@ let OrchestratorAuditorAgent = class OrchestratorAuditorAgent extends base_agent
     async auditResilience(simulateFailures = true) {
         const failureRecoveries = [];
         if (simulateFailures) {
-            const failureTypes = ['agent_timeout', 'agent_error', 'network_failure', 'resource_exhaustion'];
+            const failureTypes = [
+                'agent_timeout',
+                'agent_error',
+                'network_failure',
+                'resource_exhaustion',
+            ];
             for (const failureType of failureTypes) {
                 const recovered = Math.random() > 0.3;
                 failureRecoveries.push({
@@ -234,11 +278,15 @@ let OrchestratorAuditorAgent = class OrchestratorAuditorAgent extends base_agent
                     detected: true,
                     recovered,
                     recoveryTimeMs: recovered ? Math.floor(Math.random() * 5000 + 500) : null,
-                    recoveryStrategy: recovered ? ['retry', 'fallback', 'circuit_breaker'][Math.floor(Math.random() * 3)] : null,
+                    recoveryStrategy: recovered
+                        ? ['retry', 'fallback', 'circuit_breaker'][Math.floor(Math.random() * 3)]
+                        : null,
                 });
             }
         }
-        const resilienceScore = Math.round((failureRecoveries.filter((f) => f.recovered).length / Math.max(failureRecoveries.length, 1)) * 100);
+        const resilienceScore = Math.round((failureRecoveries.filter((f) => f.recovered).length /
+            Math.max(failureRecoveries.length, 1)) *
+            100);
         this.logger.log(`Resilience audit: score ${resilienceScore}%, ${failureRecoveries.filter((f) => f.recovered).length}/${failureRecoveries.length} recovered`);
         return { resilienceScore, failureRecoveries };
     }
@@ -258,6 +306,9 @@ let OrchestratorAuditorAgent = class OrchestratorAuditorAgent extends base_agent
 };
 exports.OrchestratorAuditorAgent = OrchestratorAuditorAgent;
 exports.OrchestratorAuditorAgent = OrchestratorAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], OrchestratorAuditorAgent);
 //# sourceMappingURL=orchestrator-auditor-agent.service.js.map

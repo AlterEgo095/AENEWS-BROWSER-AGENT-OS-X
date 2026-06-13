@@ -153,7 +153,8 @@ class BrowserPool {
             try {
                 await managed.context.close();
             }
-            catch { }
+            catch {
+            }
         }
         this.contexts.clear();
         if (this.browser) {
@@ -161,7 +162,8 @@ class BrowserPool {
                 await this.browser.close();
                 this.logger.log('Shared Playwright browser closed');
             }
-            catch { }
+            catch {
+            }
             this.browser = null;
             this.initPromise = null;
         }

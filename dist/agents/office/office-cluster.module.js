@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OfficeClusterModule = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_module_1 = require("../base/base-agent.module");
+const bridge_1 = require("../bridge");
 const email_agent_service_1 = require("./email/email-agent.service");
 const calendar_agent_service_1 = require("./calendar/calendar-agent.service");
 const document_agent_service_1 = require("./document/document-agent.service");
@@ -20,7 +21,7 @@ let OfficeClusterModule = class OfficeClusterModule {
 exports.OfficeClusterModule = OfficeClusterModule;
 exports.OfficeClusterModule = OfficeClusterModule = __decorate([
     (0, common_1.Module)({
-        imports: [base_agent_module_1.BaseAgentModule],
+        imports: [base_agent_module_1.BaseAgentModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             email_agent_service_1.EmailAgentService,
             calendar_agent_service_1.CalendarAgentService,

@@ -67,7 +67,10 @@ let AgentMetricsService = AgentMetricsService_1 = class AgentMetricsService {
                 cpuUsage.shift();
             this.agentCpuUsage.set(agentId, cpuUsage);
         }
-        this.addTimeSeriesPoint(`agent:${agentId}:execution_time`, executionTimeMs, { agentId, status: success ? 'success' : 'failure' });
+        this.addTimeSeriesPoint(`agent:${agentId}:execution_time`, executionTimeMs, {
+            agentId,
+            status: success ? 'success' : 'failure',
+        });
         if (metrics?.memoryUsedMb) {
             this.addTimeSeriesPoint(`agent:${agentId}:memory_usage`, metrics.memoryUsedMb, { agentId });
         }
@@ -89,12 +92,8 @@ let AgentMetricsService = AgentMetricsService_1 = class AgentMetricsService {
             ? executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length
             : 0;
         const sortedTimes = [...executionTimes].sort((a, b) => a - b);
-        const totalCpuUsage = cpuUsage.length > 0
-            ? cpuUsage.reduce((a, b) => a + b, 0)
-            : 0;
-        const errorRate = totalExecutions > 0
-            ? failedExecutions / totalExecutions
-            : 0;
+        const totalCpuUsage = cpuUsage.length > 0 ? cpuUsage.reduce((a, b) => a + b, 0) : 0;
+        const errorRate = totalExecutions > 0 ? failedExecutions / totalExecutions : 0;
         return {
             agentId,
             cluster: config?.cluster || 'unknown',
@@ -142,9 +141,7 @@ let AgentMetricsService = AgentMetricsService_1 = class AgentMetricsService {
                 activeAgents++;
             }
         }
-        const errorRate = totalExecutions > 0
-            ? failedExecutions / totalExecutions
-            : 0;
+        const errorRate = totalExecutions > 0 ? failedExecutions / totalExecutions : 0;
         return {
             cluster,
             totalAgents: agents.length,
@@ -292,14 +289,21 @@ let AgentMetricsService = AgentMetricsService_1 = class AgentMetricsService {
                 [agent_interface_1.AgentStatus.STOPPED]: 5,
                 [agent_interface_1.AgentStatus.MAINTENANCE]: 6,
             }[state.status] ?? -1;
-            this.setGauge(`agent:${config.id}:status`, statusValue, { agentId: config.id, cluster: config.cluster });
-            this.setGauge(`agent:${config.id}:current_tasks`, state.currentTasks.length, { agentId: config.id });
+            this.setGauge(`agent:${config.id}:status`, statusValue, {
+                agentId: config.id,
+                cluster: config.cluster,
+            });
+            this.setGauge(`agent:${config.id}:current_tasks`, state.currentTasks.length, {
+                agentId: config.id,
+            });
             this.setGauge(`agent:${config.id}:uptime_ms`, state.health.uptimeMs, { agentId: config.id });
             const processMemory = process.memoryUsage();
             this.setGauge(`agent:${config.id}:process_memory_mb`, Math.round((processMemory.heapUsed / 1024 / 1024) * 100) / 100, { agentId: config.id });
             const processCpu = process.cpuUsage();
             const cpuPercent = (processCpu.user + processCpu.system) / 1000;
-            this.setGauge(`agent:${config.id}:cpu_estimate_ms`, Math.round(cpuPercent * 100) / 100, { agentId: config.id });
+            this.setGauge(`agent:${config.id}:cpu_estimate_ms`, Math.round(cpuPercent * 100) / 100, {
+                agentId: config.id,
+            });
         }
     }
     startMetricsCollection() {

@@ -76,7 +76,7 @@ let ConnectorRegistry = ConnectorRegistry_1 = class ConnectorRegistry {
         }
     }
     getCapabilityIdsForPack(pack) {
-        const { BrowserCapability, DevCapability, OfficeCapability, BusinessCapability, CertCapability, DeliveryCapability } = require('../interfaces');
+        const { BrowserCapability, DevCapability, OfficeCapability, BusinessCapability, CertCapability, DeliveryCapability, } = require('../interfaces');
         const packMap = {
             [interfaces_1.CapabilityPack.BROWSER]: BrowserCapability,
             [interfaces_1.CapabilityPack.DEVELOPMENT]: DevCapability,

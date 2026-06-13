@@ -17,11 +17,11 @@ const DEFAULT_SYNC_INTERVAL_MS = 30_000;
 const MAX_CHANGES_HISTORY = 10_000;
 const HEALTH_WEIGHTS = {
     vps: 0.25,
-    containers: 0.20,
-    databases: 0.20,
+    containers: 0.2,
+    databases: 0.2,
     apis: 0.15,
     gitRepos: 0.05,
-    cloudServices: 0.10,
+    cloudServices: 0.1,
     browsers: 0.05,
 };
 let DigitalTwinService = DigitalTwinService_1 = class DigitalTwinService {
@@ -91,9 +91,7 @@ let DigitalTwinService = DigitalTwinService_1 = class DigitalTwinService {
     }
     syncVPS(vpsId) {
         const changes = [];
-        const targets = vpsId
-            ? this.state.vps.filter((v) => v.id === vpsId)
-            : this.state.vps;
+        const targets = vpsId ? this.state.vps.filter((v) => v.id === vpsId) : this.state.vps;
         if (vpsId && targets.length === 0) {
             this.logger.warn(`VPS with id "${vpsId}" not found`);
             return changes;
@@ -487,7 +485,7 @@ let DigitalTwinService = DigitalTwinService_1 = class DigitalTwinService {
                     });
                 }
             }
-            const typeScore = count > 0 ? ((healthy * 100 + degraded * 60 + unhealthy * 20) / count) : 100;
+            const typeScore = count > 0 ? (healthy * 100 + degraded * 60 + unhealthy * 20) / count : 100;
             breakdown[type] = {
                 score: parseFloat(typeScore.toFixed(1)),
                 count,
@@ -561,8 +559,14 @@ let DigitalTwinService = DigitalTwinService_1 = class DigitalTwinService {
             dailyTotal: round(dailyTotal),
             monthlyTotal: round(monthlyTotal),
             monthlyProjected: round(dailyTotal * 30),
-            byProvider: Object.fromEntries(Object.entries(byProvider).map(([k, v]) => [k, { daily: round(v.daily), monthly: round(v.monthly) }])),
-            byService: Object.fromEntries(Object.entries(byService).map(([k, v]) => [k, { daily: round(v.daily), monthly: round(v.monthly) }])),
+            byProvider: Object.fromEntries(Object.entries(byProvider).map(([k, v]) => [
+                k,
+                { daily: round(v.daily), monthly: round(v.monthly) },
+            ])),
+            byService: Object.fromEntries(Object.entries(byService).map(([k, v]) => [
+                k,
+                { daily: round(v.daily), monthly: round(v.monthly) },
+            ])),
         };
     }
     registerComponent(componentType, component) {
@@ -704,16 +708,13 @@ let DigitalTwinService = DigitalTwinService_1 = class DigitalTwinService {
         return path.split('.').reduce((current, key) => current?.[key], obj);
     }
     classifyDriftSeverity(componentType, field, expected, actual) {
-        if (typeof actual === 'string' &&
-            ['down', 'error', 'disconnected', 'dead'].includes(actual)) {
+        if (typeof actual === 'string' && ['down', 'error', 'disconnected', 'dead'].includes(actual)) {
             return 'critical';
         }
-        if ((componentType === 'databases' || componentType === 'vps') &&
-            field === 'status') {
+        if ((componentType === 'databases' || componentType === 'vps') && field === 'status') {
             return 'high';
         }
-        if (typeof actual === 'string' &&
-            ['degraded', 'unhealthy', 'restarting'].includes(actual)) {
+        if (typeof actual === 'string' && ['degraded', 'unhealthy', 'restarting'].includes(actual)) {
             return 'medium';
         }
         if (field.includes('lagMs') && typeof actual === 'number' && actual > 1000) {
@@ -780,7 +781,10 @@ let DigitalTwinService = DigitalTwinService_1 = class DigitalTwinService {
                 if (component.status === 'error')
                     return { score: 10, reason: `Database ${component.type}@${component.host} is in error` };
                 if (component.status === 'disconnected')
-                    return { score: 20, reason: `Database ${component.type}@${component.host} is disconnected` };
+                    return {
+                        score: 20,
+                        reason: `Database ${component.type}@${component.host} is disconnected`,
+                    };
                 let score = 100;
                 const connRatio = component.connections.active / component.connections.max;
                 if (connRatio > 0.9)
@@ -823,18 +827,30 @@ let DigitalTwinService = DigitalTwinService_1 = class DigitalTwinService {
                 if (component.status === 'dirty')
                     return { score: 60, reason: `Repo ${component.name} has uncommitted changes` };
                 if (component.status === 'behind')
-                    return { score: 70, reason: `Repo ${component.name} is behind remote by ${component.behindBy} commits` };
+                    return {
+                        score: 70,
+                        reason: `Repo ${component.name} is behind remote by ${component.behindBy} commits`,
+                    };
                 if (component.status === 'ahead')
                     return { score: 80, reason: `Repo ${component.name} has unpushed commits` };
                 return { score: 100, reason: '' };
             }
             case 'cloudServices': {
                 if (component.status === 'down')
-                    return { score: 10, reason: `Cloud service ${component.service} (${component.provider}) is down` };
+                    return {
+                        score: 10,
+                        reason: `Cloud service ${component.service} (${component.provider}) is down`,
+                    };
                 if (component.status === 'maintenance')
-                    return { score: 40, reason: `Cloud service ${component.service} (${component.provider}) is in maintenance` };
+                    return {
+                        score: 40,
+                        reason: `Cloud service ${component.service} (${component.provider}) is in maintenance`,
+                    };
                 if (component.status === 'degraded')
-                    return { score: 60, reason: `Cloud service ${component.service} (${component.provider}) is degraded` };
+                    return {
+                        score: 60,
+                        reason: `Cloud service ${component.service} (${component.provider}) is degraded`,
+                    };
                 return { score: 100, reason: '' };
             }
             case 'browsers': {

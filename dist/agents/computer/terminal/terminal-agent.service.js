@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TerminalAgentService = exports.TERMINAL_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.TERMINAL_AGENT_CONFIG = {
     id: 'computer-terminal',
     name: 'Terminal',
@@ -142,20 +150,38 @@ exports.TERMINAL_AGENT_CONFIG = {
     },
 };
 const SIMULATED_COMMANDS = {
-    'ls': { stdout: 'documents  downloads  pictures  music  videos  .bashrc  .profile', exitCode: 0 },
-    'ls -la': { stdout: 'total 48\ndrwxr-xr-x  8 user user 4096 Jan 15 10:30 .\ndrwxr-xr-x  3 root root 4096 Jan 10 08:00 ..\n-rw-r--r--  1 user user  220 Jan 10 08:00 .bash_logout\n-rw-r--r--  1 user user 3771 Jan 10 08:00 .bashrc\ndrwxr-xr-x  2 user user 4096 Jan 15 10:30 documents\ndrwxr-xr-x  2 user user 4096 Jan 15 10:30 downloads', exitCode: 0 },
-    'pwd': { stdout: '/home/user', exitCode: 0 },
-    'whoami': { stdout: 'user', exitCode: 0 },
-    'hostname': { stdout: 'aenews-agent-os', exitCode: 0 },
-    'date': { stdout: '', exitCode: 0 },
-    'uname': { stdout: 'Linux', exitCode: 0 },
-    'uname -a': { stdout: 'Linux aenews-agent-os 5.15.0-generic #1 SMP x86_64 GNU/Linux', exitCode: 0 },
-    'uptime': { stdout: '', exitCode: 0 },
-    'df': { stdout: 'Filesystem     1K-blocks    Used Available Use% Mounted on\n/dev/sda1       51475068 8234012  40606456  17% /\ntmpfs            4096000       0   4096000   0% /dev/shm', exitCode: 0 },
-    'free': { stdout: '              total        used        free      shared  buff/cache   available\nMem:        8192000     3276800     2457600      256000     2457600     4608000\nSwap:       2097152      102400     1994752', exitCode: 0 },
+    ls: { stdout: 'documents  downloads  pictures  music  videos  .bashrc  .profile', exitCode: 0 },
+    'ls -la': {
+        stdout: 'total 48\ndrwxr-xr-x  8 user user 4096 Jan 15 10:30 .\ndrwxr-xr-x  3 root root 4096 Jan 10 08:00 ..\n-rw-r--r--  1 user user  220 Jan 10 08:00 .bash_logout\n-rw-r--r--  1 user user 3771 Jan 10 08:00 .bashrc\ndrwxr-xr-x  2 user user 4096 Jan 15 10:30 documents\ndrwxr-xr-x  2 user user 4096 Jan 15 10:30 downloads',
+        exitCode: 0,
+    },
+    pwd: { stdout: '/home/user', exitCode: 0 },
+    whoami: { stdout: 'user', exitCode: 0 },
+    hostname: { stdout: 'aenews-agent-os', exitCode: 0 },
+    date: { stdout: '', exitCode: 0 },
+    uname: { stdout: 'Linux', exitCode: 0 },
+    'uname -a': {
+        stdout: 'Linux aenews-agent-os 5.15.0-generic #1 SMP x86_64 GNU/Linux',
+        exitCode: 0,
+    },
+    uptime: { stdout: '', exitCode: 0 },
+    df: {
+        stdout: 'Filesystem     1K-blocks    Used Available Use% Mounted on\n/dev/sda1       51475068 8234012  40606456  17% /\ntmpfs            4096000       0   4096000   0% /dev/shm',
+        exitCode: 0,
+    },
+    free: {
+        stdout: '              total        used        free      shared  buff/cache   available\nMem:        8192000     3276800     2457600      256000     2457600     4608000\nSwap:       2097152      102400     1994752',
+        exitCode: 0,
+    },
     'echo hello': { stdout: 'hello', exitCode: 0 },
-    'cat /etc/os-release': { stdout: 'NAME="AENEWS Agent OS"\nVERSION="1.0"\nID=aenews\nPRETTY_NAME="AENEWS Agent OS 1.0"', exitCode: 0 },
-    'env': { stdout: 'HOME=/home/user\nPATH=/usr/local/bin:/usr/bin:/bin\nSHELL=/bin/bash\nUSER=user\nLANG=en_US.UTF-8', exitCode: 0 },
+    'cat /etc/os-release': {
+        stdout: 'NAME="AENEWS Agent OS"\nVERSION="1.0"\nID=aenews\nPRETTY_NAME="AENEWS Agent OS 1.0"',
+        exitCode: 0,
+    },
+    env: {
+        stdout: 'HOME=/home/user\nPATH=/usr/local/bin:/usr/bin:/bin\nSHELL=/bin/bash\nUSER=user\nLANG=en_US.UTF-8',
+        exitCode: 0,
+    },
     'which node': { stdout: '/usr/local/bin/node', exitCode: 0 },
     'node --version': { stdout: 'v20.11.0', exitCode: 0 },
     'npm --version': { stdout: '10.2.4', exitCode: 0 },
@@ -163,8 +189,9 @@ const SIMULATED_COMMANDS = {
     'python3 --version': { stdout: 'Python 3.12.1', exitCode: 0 },
 };
 let TerminalAgentService = class TerminalAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.commandHistory = [];
         this.historyIdCounter = 0;
         this.currentCwd = '/home/user';
@@ -211,13 +238,30 @@ let TerminalAgentService = class TerminalAgentService extends base_agent_service
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DEVOPS, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'executeCommand', 'executeScript', 'getCommandHistory',
-            'clearHistory', 'pipeCommands',
+            'executeCommand',
+            'executeScript',
+            'getCommandHistory',
+            'clearHistory',
+            'pipeCommands',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown terminal action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -302,7 +346,9 @@ let TerminalAgentService = class TerminalAgentService extends base_agent_service
         if (!script || typeof script !== 'string') {
             throw new Error('A valid script string is required');
         }
-        const lines = script.split('\n').filter((line) => line.trim().length > 0 && !line.trim().startsWith('#'));
+        const lines = script
+            .split('\n')
+            .filter((line) => line.trim().length > 0 && !line.trim().startsWith('#'));
         if (lines.length === 0) {
             throw new Error('Script contains no executable lines');
         }
@@ -415,7 +461,10 @@ let TerminalAgentService = class TerminalAgentService extends base_agent_service
         this.logger.log(`Executed pipeline: ${commands.length} stages (${executionTime}ms)`);
         return {
             stdout: previousOutput,
-            stderr: pipeline.filter((s) => s.stderr).map((s) => s.stderr).join('\n'),
+            stderr: pipeline
+                .filter((s) => s.stderr)
+                .map((s) => s.stderr)
+                .join('\n'),
             exitCode: overallExitCode,
             pipeline,
             executionTime,
@@ -447,7 +496,10 @@ let TerminalAgentService = class TerminalAgentService extends base_agent_service
             return { stdout: 'match found on line 1', exitCode: 0 };
         }
         if (cmdBase === 'find') {
-            return { stdout: '/home/user/documents\n/home/user/documents/report.txt\n/home/user/downloads', exitCode: 0 };
+            return {
+                stdout: '/home/user/documents\n/home/user/documents/report.txt\n/home/user/downloads',
+                exitCode: 0,
+            };
         }
         if (cmdBase === 'wc') {
             return { stdout: '  42  128  1024', exitCode: 0 };
@@ -462,13 +514,19 @@ let TerminalAgentService = class TerminalAgentService extends base_agent_service
             return { stdout: 'HTTP request completed (simulated)', exitCode: 0 };
         }
         if (cmdBase === 'ping') {
-            return { stdout: 'PING 127.0.0.1 (127.0.0.1): 56 data bytes\n64 bytes: icmp_seq=0 ttl=64 time=0.1 ms\n--- 127.0.0.1 ping statistics ---\n1 packets transmitted, 1 received, 0% packet loss', exitCode: 0 };
+            return {
+                stdout: 'PING 127.0.0.1 (127.0.0.1): 56 data bytes\n64 bytes: icmp_seq=0 ttl=64 time=0.1 ms\n--- 127.0.0.1 ping statistics ---\n1 packets transmitted, 1 received, 0% packet loss',
+                exitCode: 0,
+            };
         }
         if (cmdBase === 'docker') {
             return { stdout: 'Docker command simulated', exitCode: 0 };
         }
         if (cmdBase === 'echo') {
-            const text = command.substring(5).trim().replace(/^["']|["']$/g, '');
+            const text = command
+                .substring(5)
+                .trim()
+                .replace(/^["']|["']$/g, '');
             return { stdout: text, exitCode: 0 };
         }
         return {
@@ -479,6 +537,8 @@ let TerminalAgentService = class TerminalAgentService extends base_agent_service
 };
 exports.TerminalAgentService = TerminalAgentService;
 exports.TerminalAgentService = TerminalAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], TerminalAgentService);
 //# sourceMappingURL=terminal-agent.service.js.map

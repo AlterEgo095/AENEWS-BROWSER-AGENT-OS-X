@@ -231,7 +231,10 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
                 passed: analysis.cycles.length === 0,
                 score: analysis.cycles.length === 0 ? 100 : Math.max(0, 100 - analysis.cycles.length * 20),
                 durationMs: Date.now() - startTime,
-                details: { cycleCount: analysis.cycles.length, cycles: analysis.cycles.map((c) => c.description) },
+                details: {
+                    cycleCount: analysis.cycles.length,
+                    cycles: analysis.cycles.map((c) => c.description),
+                },
             });
             tests.push({
                 name: 'Coupling score',
@@ -243,7 +246,9 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
             tests.push({
                 name: 'Cross-cluster import validation',
                 passed: analysis.crossClusterImports.length === 0,
-                score: analysis.crossClusterImports.length === 0 ? 100 : Math.max(0, 100 - analysis.crossClusterImports.length * 15),
+                score: analysis.crossClusterImports.length === 0
+                    ? 100
+                    : Math.max(0, 100 - analysis.crossClusterImports.length * 15),
                 durationMs: Date.now() - startTime,
                 details: { crossClusterImports: analysis.crossClusterImports.length },
             });
@@ -260,7 +265,10 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
                 error: error.message,
             });
         }
-        const allTests = [...archResult.tests, ...tests.filter((t) => !archResult.tests.some((at) => at.name === t.name))];
+        const allTests = [
+            ...archResult.tests,
+            ...tests.filter((t) => !archResult.tests.some((at) => at.name === t.name)),
+        ];
         const totalScore = allTests.reduce((sum, t) => sum + t.score, 0);
         const score = allTests.length > 0 ? Math.round(totalScore / allTests.length) : 0;
         const allCriticals = [...archResult.criticalFailures, ...criticalFailures];
@@ -290,14 +298,25 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
         });
         if (fs.existsSync(gatewayPath)) {
             const content = fs.readFileSync(gatewayPath, 'utf-8');
-            const requiredMethods = ['store(', 'retrieve(', 'search(', 'summarize(', 'promote(', 'archive(', 'crossTierRetrieve('];
+            const requiredMethods = [
+                'store(',
+                'retrieve(',
+                'search(',
+                'summarize(',
+                'promote(',
+                'archive(',
+                'crossTierRetrieve(',
+            ];
             const foundMethods = requiredMethods.filter((m) => content.includes(m));
             tests.push({
                 name: 'Memory Gateway unified API',
                 passed: foundMethods.length === requiredMethods.length,
                 score: Math.round((foundMethods.length / requiredMethods.length) * 100),
                 durationMs: 0,
-                details: { foundMethods, missingMethods: requiredMethods.filter((m) => !foundMethods.includes(m)) },
+                details: {
+                    foundMethods,
+                    missingMethods: requiredMethods.filter((m) => !foundMethods.includes(m)),
+                },
             });
             const hasCrossTier = content.includes('crossTierRetrieve');
             tests.push({
@@ -334,7 +353,9 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
         });
         if (fs.existsSync(gatewayPath)) {
             const content = fs.readFileSync(gatewayPath, 'utf-8');
-            const hasInjectionDetection = content.includes('PROMPT_INJECTION') && content.includes('COMMAND_INJECTION') && content.includes('SQL_INJECTION');
+            const hasInjectionDetection = content.includes('PROMPT_INJECTION') &&
+                content.includes('COMMAND_INJECTION') &&
+                content.includes('SQL_INJECTION');
             tests.push({
                 name: 'Injection prevention patterns',
                 passed: hasInjectionDetection,
@@ -406,7 +427,19 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
             score: hasJestConfig ? 100 : 0,
             durationMs: 0,
         });
-        const clusters = ['browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence', 'certification', 'self-evolution'];
+        const clusters = [
+            'browser',
+            'computer',
+            'coding',
+            'office',
+            'marketing',
+            'business',
+            'infrastructure',
+            'security',
+            'meta-intelligence',
+            'certification',
+            'self-evolution',
+        ];
         const clustersWithTests = [];
         for (const c of clusters) {
             const clusterDir = path.join(srcDir, 'agents', c);
@@ -462,7 +495,8 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
                     filesWithJSDoc++;
                 }
             }
-            catch { }
+            catch {
+            }
         }
         const jsdocCoverage = totalFiles > 0 ? Math.round((filesWithJSDoc / totalFiles) * 100) : 0;
         tests.push({
@@ -603,7 +637,8 @@ let CertificationRunnerService = CertificationRunnerService_1 = class Certificat
                 }
             }
         }
-        catch { }
+        catch {
+        }
         return files;
     }
 };

@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var TaskPlannerService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskPlannerService = void 0;
@@ -15,9 +18,11 @@ const common_1 = require("@nestjs/common");
 const uuid_1 = require("uuid");
 const agent_interface_1 = require("../interfaces/agent.interface");
 const agent_registry_service_1 = require("../registry/agent-registry.service");
+const bridge_1 = require("../bridge");
 let TaskPlannerService = TaskPlannerService_1 = class TaskPlannerService {
-    constructor(agentRegistry) {
+    constructor(agentRegistry, bridge) {
         this.agentRegistry = agentRegistry;
+        this.bridge = bridge;
         this.logger = new common_1.Logger(TaskPlannerService_1.name);
     }
     async createPlan(subtasks, request) {
@@ -64,6 +69,41 @@ let TaskPlannerService = TaskPlannerService_1 = class TaskPlannerService {
             `estimated ${estimatedDurationMs}ms, ` +
             `took ${Date.now() - startTime}ms to plan`);
         return plan;
+    }
+    async llmPlan(input, subtasks) {
+        if (!this.bridge) {
+            return null;
+        }
+        const userPrompt = JSON.stringify({
+            taskId: input.taskId,
+            payload: input.payload,
+            subtasks: subtasks.map((s) => ({
+                id: s.id,
+                cluster: s.cluster,
+                priority: s.priority,
+                dependencies: s.metadata?.dependencies || [],
+                description: s.metadata?.stepDescription || s.input?.context?.stepDescription,
+            })),
+        });
+        const result = await this.bridge.callLLM({
+            systemPrompt: 'You are an expert execution planner. Given subtasks and their dependencies, create an optimal execution plan. ' +
+                'Output JSON: {steps: [{taskId, agentId, dependsOn[], estimatedDurationMs, retryCount}], totalEstimatedDurationMs, parallelizable: boolean}',
+            userPrompt,
+            temperature: 0.2,
+            maxTokens: 4096,
+        });
+        const parsed = JSON.parse(result.content);
+        return {
+            steps: (parsed.steps || []).map((step) => ({
+                taskId: step.taskId,
+                agentId: step.agentId || '',
+                dependsOn: step.dependsOn || [],
+                estimatedDurationMs: step.estimatedDurationMs || 5000,
+                retryCount: step.retryCount || 0,
+            })),
+            totalEstimatedDurationMs: parsed.totalEstimatedDurationMs || 0,
+            parallelizable: parsed.parallelizable ?? false,
+        };
     }
     buildSteps(subtasks, request) {
         return subtasks.map((subtask, index) => ({
@@ -251,8 +291,7 @@ let TaskPlannerService = TaskPlannerService_1 = class TaskPlannerService {
                     `limit (${constraints.maxCpuPerStepPercent}%)`);
             }
         }
-        const totalEstimatedDuration = Array.from(estimations.values())
-            .reduce((sum, est) => sum + est.estimatedDurationMs, 0);
+        const totalEstimatedDuration = Array.from(estimations.values()).reduce((sum, est) => sum + est.estimatedDurationMs, 0);
         if (totalEstimatedDuration > constraints.maxTotalDurationMs) {
             warnings.push(`Total estimated duration (${totalEstimatedDuration}ms) exceeds ` +
                 `limit (${constraints.maxTotalDurationMs}ms)`);
@@ -295,6 +334,9 @@ let TaskPlannerService = TaskPlannerService_1 = class TaskPlannerService {
 exports.TaskPlannerService = TaskPlannerService;
 exports.TaskPlannerService = TaskPlannerService = TaskPlannerService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [agent_registry_service_1.AgentRegistryService])
+    __param(1, (0, common_1.Optional)()),
+    __param(1, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [agent_registry_service_1.AgentRegistryService,
+        bridge_1.AgentConnectorBridge])
 ], TaskPlannerService);
 //# sourceMappingURL=task-planner.service.js.map

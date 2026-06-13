@@ -273,14 +273,22 @@ let OfficeConnector = OfficeConnector_1 = class OfficeConnector {
         fs.writeFileSync(docPath, llmResult.content, 'utf-8');
         return {
             success: true,
-            artifacts: [this.makeArtifact(`${capId.replace('office.', '')}.md`, 'document', docPath, llmResult.content)],
+            artifacts: [
+                this.makeArtifact(`${capId.replace('office.', '')}.md`, 'document', docPath, llmResult.content),
+            ],
             output: { content: llmResult.content.substring(0, 500) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
     }
     makeArtifact(name, type, fullPath, content) {
-        return { name, type, path: fullPath, size: Buffer.byteLength(content), content: content.substring(0, 500) };
+        return {
+            name,
+            type,
+            path: fullPath,
+            size: Buffer.byteLength(content),
+            content: content.substring(0, 500),
+        };
     }
     generateICS(event) {
         const dtStart = event.date.replace(/-/g, '') + 'T' + event.time.replace(':', '') + '00';

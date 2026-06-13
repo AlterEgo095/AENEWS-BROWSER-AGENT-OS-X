@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ArchitectureAuditorAgent = exports.ARCHITECTURE_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.ARCHITECTURE_AUDITOR_CONFIG = {
     id: 'certification-architecture-auditor',
     name: 'ArchitectureAuditor',
@@ -23,7 +31,11 @@ exports.ARCHITECTURE_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'Module or system to audit' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -43,7 +55,11 @@ exports.ARCHITECTURE_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     rootPath: { type: 'string', description: 'Root path to scan for circular deps' },
-                    excludePatterns: { type: 'array', items: { type: 'string' }, description: 'Paths to exclude' },
+                    excludePatterns: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Paths to exclude',
+                    },
                 },
                 required: ['rootPath'],
             },
@@ -63,7 +79,11 @@ exports.ARCHITECTURE_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     modules: { type: 'array', items: { type: 'string' }, description: 'Modules to analyze' },
-                    couplingType: { type: 'string', enum: ['afferent', 'efferent', 'both'], description: 'Coupling direction' },
+                    couplingType: {
+                        type: 'string',
+                        enum: ['afferent', 'efferent', 'both'],
+                        description: 'Coupling direction',
+                    },
                 },
             },
             outputSchema: {
@@ -81,8 +101,14 @@ exports.ARCHITECTURE_AUDITOR_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    architecture: { type: 'string', description: 'Architecture pattern (hexagonal, layered, clean)' },
-                    enforceRules: { type: 'boolean', description: 'Whether to enforce boundary rules strictly' },
+                    architecture: {
+                        type: 'string',
+                        description: 'Architecture pattern (hexagonal, layered, clean)',
+                    },
+                    enforceRules: {
+                        type: 'boolean',
+                        description: 'Whether to enforce boundary rules strictly',
+                    },
                 },
             },
             outputSchema: {
@@ -94,14 +120,20 @@ exports.ARCHITECTURE_AUDITOR_CONFIG = {
             },
         },
     ],
-    permissions: ['certification:audit', 'certification:architecture', 'read:module', 'read:dependency'],
+    permissions: [
+        'certification:audit',
+        'certification:architecture',
+        'read:module',
+        'read:dependency',
+    ],
     maxConcurrentTasks: 5,
     timeout: 60000,
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let ArchitectureAuditorAgent = class ArchitectureAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.auditLog = [];
         this.detectedCycles = [];
     }
@@ -132,8 +164,22 @@ let ArchitectureAuditorAgent = class ArchitectureAuditorAgent extends base_agent
         this.logger.log('ArchitectureAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.ARCHITECTURE_REVIEW, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -180,10 +226,17 @@ let ArchitectureAuditorAgent = class ArchitectureAuditorAgent extends base_agent
             issues.push(issue);
             this.auditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 25
+                    : issue.severity === 'high'
+                        ? 15
+                        : issue.severity === 'medium'
+                            ? 8
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'circular_dependency')) {
             recommendations.push('Resolve circular dependencies by introducing dependency injection or event-driven communication');
         }
@@ -256,7 +309,8 @@ let ArchitectureAuditorAgent = class ArchitectureAuditorAgent extends base_agent
                 }
             }
             const efferent = Object.values(couplingMatrix[mod]).reduce((s, v) => s + v, 0);
-            instabilityScores[mod] = Math.round((efferent / (efferent + targetModules.length)) * 100) / 100;
+            instabilityScores[mod] =
+                Math.round((efferent / (efferent + targetModules.length)) * 100) / 100;
         }
         this.logger.log(`Coupling analysis completed: ${highCouplingPairs.length} high-coupling pairs detected`);
         return { couplingMatrix, highCouplingPairs, instabilityScores };
@@ -282,6 +336,9 @@ let ArchitectureAuditorAgent = class ArchitectureAuditorAgent extends base_agent
 };
 exports.ArchitectureAuditorAgent = ArchitectureAuditorAgent;
 exports.ArchitectureAuditorAgent = ArchitectureAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], ArchitectureAuditorAgent);
 //# sourceMappingURL=architecture-auditor-agent.service.js.map

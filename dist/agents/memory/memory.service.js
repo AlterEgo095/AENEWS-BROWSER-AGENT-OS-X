@@ -89,11 +89,7 @@ let MemoryService = MemoryService_1 = class MemoryService {
         if (tier) {
             return this.retrieveFromTier(agentId, key, tier);
         }
-        const tierOrder = [
-            agent_memory_interface_1.MemoryTier.WORKING,
-            agent_memory_interface_1.MemoryTier.SESSION,
-            agent_memory_interface_1.MemoryTier.LONG_TERM,
-        ];
+        const tierOrder = [agent_memory_interface_1.MemoryTier.WORKING, agent_memory_interface_1.MemoryTier.SESSION, agent_memory_interface_1.MemoryTier.LONG_TERM];
         for (const searchTier of tierOrder) {
             const entry = await this.retrieveFromTier(agentId, key, searchTier);
             if (entry)
@@ -161,11 +157,7 @@ let MemoryService = MemoryService_1 = class MemoryService {
         };
     }
     async delete(agentId, key, tier) {
-        const tiers = tier ? [tier] : [
-            agent_memory_interface_1.MemoryTier.WORKING,
-            agent_memory_interface_1.MemoryTier.SESSION,
-            agent_memory_interface_1.MemoryTier.LONG_TERM,
-        ];
+        const tiers = tier ? [tier] : [agent_memory_interface_1.MemoryTier.WORKING, agent_memory_interface_1.MemoryTier.SESSION, agent_memory_interface_1.MemoryTier.LONG_TERM];
         let deleted = false;
         for (const deleteTier of tiers) {
             switch (deleteTier) {
@@ -193,11 +185,7 @@ let MemoryService = MemoryService_1 = class MemoryService {
     }
     async clear(agentId, tier) {
         let totalCleared = 0;
-        const tiers = tier ? [tier] : [
-            agent_memory_interface_1.MemoryTier.WORKING,
-            agent_memory_interface_1.MemoryTier.SESSION,
-            agent_memory_interface_1.MemoryTier.LONG_TERM,
-        ];
+        const tiers = tier ? [tier] : [agent_memory_interface_1.MemoryTier.WORKING, agent_memory_interface_1.MemoryTier.SESSION, agent_memory_interface_1.MemoryTier.LONG_TERM];
         for (const clearTier of tiers) {
             switch (clearTier) {
                 case agent_memory_interface_1.MemoryTier.WORKING:

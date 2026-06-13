@@ -19,7 +19,9 @@ let OfficeTeamService = OfficeTeamService_1 = class OfficeTeamService {
         this.registry = registry;
         this.logger = new common_1.Logger(OfficeTeamService_1.name);
     }
-    getTeamAgents() { return this.registry.getByLevel(interfaces_1.AgentLevel.OFFICE); }
+    getTeamAgents() {
+        return this.registry.getByLevel(interfaces_1.AgentLevel.OFFICE);
+    }
     selectAgents(taskDescription) {
         const desc = taskDescription.toLowerCase();
         const agents = [];
@@ -43,15 +45,27 @@ let OfficeTeamService = OfficeTeamService_1 = class OfficeTeamService {
         const selectedAgents = this.selectAgents(task);
         this.logger.log(`Office team executing: "${task}" with ${selectedAgents.length} agents`);
         return {
-            agentId: interfaces_1.OfficeAgent.PDF, missionId, success: true,
+            agentId: interfaces_1.OfficeAgent.PDF,
+            missionId,
+            success: true,
             output: { task, agentsUsed: selectedAgents, result: 'Office task completed', data: input },
-            artifacts: [], cost: selectedAgents.length * 0.1, durationMs: selectedAgents.length * 1000,
-            logs: selectedAgents.map(a => `Agent ${a} executed`), errors: [],
+            artifacts: [],
+            cost: selectedAgents.length * 0.1,
+            durationMs: selectedAgents.length * 1000,
+            logs: selectedAgents.map((a) => `Agent ${a} executed`),
+            errors: [],
         };
     }
     getStats() {
-        return { level: interfaces_1.AgentLevel.OFFICE, totalAgents: 6,
-            availableAgents: this.getTeamAgents().map(a => ({ id: a.id, name: a.name, skills: a.skills, costPerTask: a.estimatedCostPerTask })),
+        return {
+            level: interfaces_1.AgentLevel.OFFICE,
+            totalAgents: 6,
+            availableAgents: this.getTeamAgents().map((a) => ({
+                id: a.id,
+                name: a.name,
+                skills: a.skills,
+                costPerTask: a.estimatedCostPerTask,
+            })),
         };
     }
 };

@@ -20,11 +20,11 @@ const CERTIFICATION_DOMAINS = [
 ];
 const DOMAIN_WEIGHTS = {
     functionality: 0.25,
-    reliability: 0.20,
+    reliability: 0.2,
     performance: 0.15,
-    security: 0.20,
-    maintainability: 0.10,
-    documentation: 0.10,
+    security: 0.2,
+    maintainability: 0.1,
+    documentation: 0.1,
 };
 let CertificationTeamService = CertificationTeamService_1 = class CertificationTeamService {
     constructor() {
@@ -82,10 +82,10 @@ let CertificationTeamService = CertificationTeamService_1 = class CertificationT
                 else {
                     this.metrics.certificationsFailed++;
                 }
-                this.metrics.averageScore =
-                    Math.round(((this.metrics.averageScore * (this.metrics.certificationsPassed + this.metrics.certificationsFailed - 1)) +
-                        result.score) /
-                        (this.metrics.certificationsPassed + this.metrics.certificationsFailed));
+                this.metrics.averageScore = Math.round((this.metrics.averageScore *
+                    (this.metrics.certificationsPassed + this.metrics.certificationsFailed - 1) +
+                    result.score) /
+                    (this.metrics.certificationsPassed + this.metrics.certificationsFailed));
             }
             this.taskLog.set(task.id, { task, result });
             this.logger.log(`Certification task [${task.capability}] completed: score=${result.score}, passed=${result.passed} (${result.durationMs}ms)`);
@@ -137,7 +137,10 @@ let CertificationTeamService = CertificationTeamService_1 = class CertificationT
                 passed: reliabilityScore >= PASSING_THRESHOLD,
                 details: `Flaky test rate: ${(Math.random() * 5).toFixed(1)}%, retry success rate: ${(95 + Math.random() * 5).toFixed(1)}%`,
                 issues: reliabilityScore < 90
-                    ? ['2 tests exhibit flaky behavior under load', 'Timeout threshold too aggressive for CI']
+                    ? [
+                        '2 tests exhibit flaky behavior under load',
+                        'Timeout threshold too aggressive for CI',
+                    ]
                     : [],
             },
         ];
@@ -409,7 +412,7 @@ let CertificationTeamService = CertificationTeamService_1 = class CertificationT
     async fullCertification(missionId) {
         const start = Date.now();
         this.logger.log(`Running FULL certification for mission ${missionId}`);
-        const [testResult, auditResult, perfResult, secResult, docResult,] = await Promise.all([
+        const [testResult, auditResult, perfResult, secResult, docResult] = await Promise.all([
             this.runTests('full-suite', missionId),
             this.auditCode('// full-codebase', missionId),
             this.benchmarkPerformance('full-stack', missionId),

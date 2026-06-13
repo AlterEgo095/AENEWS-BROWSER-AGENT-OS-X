@@ -5,12 +5,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var TaskValidatorService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskValidatorService = void 0;
 const common_1 = require("@nestjs/common");
+const bridge_1 = require("../bridge");
 let TaskValidatorService = TaskValidatorService_1 = class TaskValidatorService {
-    constructor() {
+    constructor(bridge) {
+        this.bridge = bridge;
         this.logger = new common_1.Logger(TaskValidatorService_1.name);
     }
     async validate(results, request) {
@@ -28,8 +36,8 @@ let TaskValidatorService = TaskValidatorService_1 = class TaskValidatorService {
         const integrityScore = this.validateIntegrity(results, errors, warnings);
         const schemaValidationScore = this.validateAgainstSchema(results, request, errors, warnings);
         const score = Math.round(completenessScore * 0.25 +
-            qualityScore * 0.20 +
-            performanceScore * 0.10 +
+            qualityScore * 0.2 +
+            performanceScore * 0.1 +
             complianceScore * 0.15 +
             integrityScore * 0.15 +
             schemaValidationScore * 0.15);
@@ -54,6 +62,44 @@ let TaskValidatorService = TaskValidatorService_1 = class TaskValidatorService {
         this.logger.log(`Validation ${isValid ? 'PASSED' : 'FAILED'} (score: ${score}): ` +
             `${errors.length} errors, ${warnings.length} warnings in ${Date.now() - startTime}ms`);
         return result;
+    }
+    async llmValidate(results, requirements) {
+        if (!this.bridge) {
+            return null;
+        }
+        const userPrompt = JSON.stringify({
+            results,
+            requirements,
+        });
+        const result = await this.bridge.callLLM({
+            systemPrompt: 'You are an expert deliverable validator. Validate the results against the requirements. ' +
+                'Output JSON: {isValid, errors: [], warnings: []}',
+            userPrompt,
+            temperature: 0.2,
+            maxTokens: 4096,
+        });
+        const parsed = JSON.parse(result.content);
+        const totalSteps = Array.isArray(results) ? results.length : 0;
+        const successfulSteps = Array.isArray(results)
+            ? results.filter((r) => r.success).length
+            : 0;
+        return {
+            isValid: parsed.isValid ?? false,
+            score: parsed.isValid ? 100 : 0,
+            errors: parsed.errors || [],
+            warnings: parsed.warnings || [],
+            details: {
+                totalSteps,
+                successfulSteps,
+                failedSteps: totalSteps - successfulSteps,
+                completenessScore: parsed.isValid ? 100 : 50,
+                qualityScore: parsed.isValid ? 100 : 50,
+                performanceScore: 100,
+                complianceScore: parsed.isValid ? 100 : 50,
+                integrityScore: parsed.isValid ? 100 : 50,
+                schemaValidationScore: parsed.isValid ? 100 : 50,
+            },
+        };
     }
     validateCompleteness(results, request, errors, warnings) {
         let score = 100;
@@ -296,10 +342,14 @@ let TaskValidatorService = TaskValidatorService_1 = class TaskValidatorService {
                     if (prop.type && typeof value[key] !== prop.type) {
                         errors.push(`Field ${key}: expected ${prop.type}, got ${typeof value[key]}`);
                     }
-                    if (prop.minLength && typeof value[key] === 'string' && value[key].length < prop.minLength) {
+                    if (prop.minLength &&
+                        typeof value[key] === 'string' &&
+                        value[key].length < prop.minLength) {
                         errors.push(`Field ${key}: minimum length ${prop.minLength} not met`);
                     }
-                    if (prop.maxLength && typeof value[key] === 'string' && value[key].length > prop.maxLength) {
+                    if (prop.maxLength &&
+                        typeof value[key] === 'string' &&
+                        value[key].length > prop.maxLength) {
                         warnings.push(`Field ${key}: exceeds maximum length ${prop.maxLength}`);
                     }
                     if (prop.minimum && typeof value[key] === 'number' && value[key] < prop.minimum) {
@@ -350,6 +400,9 @@ let TaskValidatorService = TaskValidatorService_1 = class TaskValidatorService {
 };
 exports.TaskValidatorService = TaskValidatorService;
 exports.TaskValidatorService = TaskValidatorService = TaskValidatorService_1 = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], TaskValidatorService);
 //# sourceMappingURL=task-validator.service.js.map

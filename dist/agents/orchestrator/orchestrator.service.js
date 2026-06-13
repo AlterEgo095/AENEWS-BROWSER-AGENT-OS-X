@@ -101,7 +101,8 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
                 durationMs: Date.now() - planStart,
                 success: true,
             });
-            this.eventBusService.publish({
+            this.eventBusService
+                .publish({
                 type: agent_event_interface_1.AgentEventType.ORCHESTRATION_PLANNED,
                 sourceAgentId: 'orchestrator',
                 cluster: request.cluster,
@@ -113,7 +114,8 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
                 priority: 1,
                 correlationId,
                 metadata: {},
-            }).catch(() => { });
+            })
+                .catch(() => { });
             if (this.isCancelled(taskId)) {
                 return this.cancelResult(result, taskId, startTime);
             }
@@ -141,7 +143,13 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
                 });
             }
             else {
-                critiqueResult = { passed: true, score: 100, issues: [], summary: 'Skipped', recommendations: [] };
+                critiqueResult = {
+                    passed: true,
+                    score: 100,
+                    issues: [],
+                    summary: 'Skipped',
+                    recommendations: [],
+                };
                 result.critiqueScore = 100;
             }
             let repairAttempts = 0;
@@ -187,14 +195,16 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
                     result.error = `Validation failed: ${validationResult.errors.join('; ')}`;
                     result.failedSteps = executionResults.filter((r) => !r.success).length;
                     result.successfulSteps = executionResults.filter((r) => r.success).length;
-                    this.eventBusService.publish({
+                    this.eventBusService
+                        .publish({
                         type: agent_event_interface_1.AgentEventType.ORCHESTRATION_FAILED,
                         sourceAgentId: 'orchestrator',
                         payload: { taskId, error: result.error },
                         priority: 2,
                         correlationId,
                         metadata: {},
-                    }).catch(() => { });
+                    })
+                        .catch(() => { });
                     return this.finalize(result, startTime, taskId);
                 }
             }
@@ -231,7 +241,8 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
             result.successfulSteps = executionResults.filter((r) => r.success).length;
             result.failedSteps = executionResults.filter((r) => !r.success).length;
             await this.storeOrchestrationResult(taskId, result);
-            this.eventBusService.publish({
+            this.eventBusService
+                .publish({
                 type: agent_event_interface_1.AgentEventType.ORCHESTRATION_COMPLETED,
                 sourceAgentId: 'orchestrator',
                 cluster: request.cluster,
@@ -246,7 +257,8 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
                 priority: 1,
                 correlationId,
                 metadata: {},
-            }).catch(() => { });
+            })
+                .catch(() => { });
             this.logger.log(`Orchestration completed for task ${taskId}: ` +
                 `${result.successfulSteps}/${result.totalSteps} steps succeeded`);
             return this.finalize(result, startTime, taskId);
@@ -255,14 +267,16 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
             result.success = false;
             result.error = error.message;
             this.logger.error(`Orchestration failed for task ${taskId}: ${error.message}`, error.stack);
-            this.eventBusService.publish({
+            this.eventBusService
+                .publish({
                 type: agent_event_interface_1.AgentEventType.ORCHESTRATION_FAILED,
                 sourceAgentId: 'orchestrator',
                 payload: { taskId, error: result.error },
                 priority: 2,
                 correlationId,
                 metadata: {},
-            }).catch(() => { });
+            })
+                .catch(() => { });
             return this.finalize(result, startTime, taskId);
         }
     }
@@ -274,14 +288,16 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
         if (!result)
             return false;
         this.cancelledTasks.add(taskId);
-        this.eventBusService.publish({
+        this.eventBusService
+            .publish({
             type: agent_event_interface_1.AgentEventType.TASK_CANCELLED,
             sourceAgentId: 'orchestrator',
             payload: { taskId, reason: 'Manual cancellation' },
             priority: 2,
             correlationId: (0, uuid_1.v4)(),
             metadata: {},
-        }).catch(() => { });
+        })
+            .catch(() => { });
         return true;
     }
     getActiveOrchestrations() {
@@ -306,7 +322,8 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
         const payloadSummary = typeof request.payload === 'string'
             ? request.payload.substring(0, 200)
             : JSON.stringify(request.payload).substring(0, 200);
-        this.eventBusService.publish({
+        this.eventBusService
+            .publish({
             type: agent_event_interface_1.AgentEventType.ORCHESTRATION_STARTED,
             sourceAgentId: 'orchestrator',
             cluster: request.cluster,
@@ -318,7 +335,8 @@ let OrchestratorService = OrchestratorService_1 = class OrchestratorService {
             priority: 1,
             correlationId,
             metadata: {},
-        }).catch(() => { });
+        })
+            .catch(() => { });
     }
     finalize(result, startTime, taskId) {
         result.totalExecutionTimeMs = Date.now() - startTime;

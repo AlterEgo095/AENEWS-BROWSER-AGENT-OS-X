@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProjectManagementAgentService = exports.PROJECT_MANAGEMENT_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.PROJECT_MANAGEMENT_AGENT_CONFIG = {
     id: 'business-project-management',
     name: 'ProjectManagement',
@@ -27,7 +35,11 @@ exports.PROJECT_MANAGEMENT_AGENT_CONFIG = {
                     description: { type: 'string', description: 'Project description' },
                     startDate: { type: 'string', description: 'Project start date (ISO string)' },
                     endDate: { type: 'string', description: 'Target end date (ISO string)' },
-                    priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'Project priority' },
+                    priority: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high', 'critical'],
+                        description: 'Project priority',
+                    },
                     team: { type: 'array', items: { type: 'object' }, description: 'Team members' },
                     budget: { type: 'number', description: 'Project budget' },
                 },
@@ -80,8 +92,15 @@ exports.PROJECT_MANAGEMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     projectId: { type: 'string', description: 'Project ID' },
-                    resources: { type: 'array', items: { type: 'object' }, description: 'Resource allocations' },
-                    optimize: { type: 'boolean', description: 'Whether to optimize allocation automatically' },
+                    resources: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Resource allocations',
+                    },
+                    optimize: {
+                        type: 'boolean',
+                        description: 'Whether to optimize allocation automatically',
+                    },
                 },
                 required: ['projectId'],
             },
@@ -103,7 +122,11 @@ exports.PROJECT_MANAGEMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     projectId: { type: 'string', description: 'Project ID' },
-                    action: { type: 'string', enum: ['list', 'update', 'add'], description: 'Milestone action' },
+                    action: {
+                        type: 'string',
+                        enum: ['list', 'update', 'add'],
+                        description: 'Milestone action',
+                    },
                     milestoneId: { type: 'string', description: 'Milestone ID (for update)' },
                     name: { type: 'string', description: 'Milestone name (for add)' },
                     targetDate: { type: 'string', description: 'Target date (for add)' },
@@ -129,7 +152,11 @@ exports.PROJECT_MANAGEMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     projectId: { type: 'string', description: 'Project ID' },
-                    action: { type: 'string', enum: ['identify', 'assess', 'mitigate', 'list'], description: 'Risk management action' },
+                    action: {
+                        type: 'string',
+                        enum: ['identify', 'assess', 'mitigate', 'list'],
+                        description: 'Risk management action',
+                    },
                     riskId: { type: 'string', description: 'Risk ID' },
                     description: { type: 'string', description: 'Risk description' },
                     category: { type: 'string', description: 'Risk category' },
@@ -153,7 +180,11 @@ exports.PROJECT_MANAGEMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     projectId: { type: 'string', description: 'Project ID' },
-                    reportType: { type: 'string', enum: ['status', 'progress', 'burndown', 'risks', 'resources'], description: 'Type of report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['status', 'progress', 'burndown', 'risks', 'resources'],
+                        description: 'Type of report',
+                    },
                     period: { type: 'string', description: 'Report period' },
                 },
                 required: ['projectId', 'reportType'],
@@ -188,8 +219,9 @@ exports.PROJECT_MANAGEMENT_AGENT_CONFIG = {
     },
 };
 let ProjectManagementAgentService = class ProjectManagementAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.projects = new Map();
         this.counter = 0;
     }
@@ -232,6 +264,20 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.SALES, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -279,24 +325,64 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
         this.counter++;
         const projectId = `proj-${Date.now()}-${this.counter}`;
         const startDateObj = startDate ? new Date(startDate) : new Date();
-        const endDateObj = endDate ? new Date(endDate) : new Date(startDateObj.getTime() + 90 * 24 * 60 * 60 * 1000);
+        const endDateObj = endDate
+            ? new Date(endDate)
+            : new Date(startDateObj.getTime() + 90 * 24 * 60 * 60 * 1000);
         if (endDateObj <= startDateObj) {
             throw new Error('End date must be after start date');
         }
-        const defaultTeam = team.length > 0 ? team : [
-            { name: 'Project Lead', role: 'lead', allocation: 100 },
-            { name: 'Developer 1', role: 'developer', allocation: 100 },
-            { name: 'Developer 2', role: 'developer', allocation: 80 },
-            { name: 'Designer', role: 'designer', allocation: 60 },
-        ];
+        const defaultTeam = team.length > 0
+            ? team
+            : [
+                { name: 'Project Lead', role: 'lead', allocation: 100 },
+                { name: 'Developer 1', role: 'developer', allocation: 100 },
+                { name: 'Developer 2', role: 'developer', allocation: 80 },
+                { name: 'Designer', role: 'designer', allocation: 60 },
+            ];
         const durationMs = endDateObj.getTime() - startDateObj.getTime();
         const defaultMilestones = [
-            { id: `ms-${projectId}-1`, name: 'Project Kickoff', targetDate: startDateObj, status: 'on_track', completedAt: null },
-            { id: `ms-${projectId}-2`, name: 'Requirements Complete', targetDate: new Date(startDateObj.getTime() + durationMs * 0.2), status: 'on_track', completedAt: null },
-            { id: `ms-${projectId}-3`, name: 'Design Approved', targetDate: new Date(startDateObj.getTime() + durationMs * 0.35), status: 'on_track', completedAt: null },
-            { id: `ms-${projectId}-4`, name: 'Development Complete', targetDate: new Date(startDateObj.getTime() + durationMs * 0.75), status: 'on_track', completedAt: null },
-            { id: `ms-${projectId}-5`, name: 'Testing Complete', targetDate: new Date(startDateObj.getTime() + durationMs * 0.9), status: 'on_track', completedAt: null },
-            { id: `ms-${projectId}-6`, name: 'Project Launch', targetDate: endDateObj, status: 'on_track', completedAt: null },
+            {
+                id: `ms-${projectId}-1`,
+                name: 'Project Kickoff',
+                targetDate: startDateObj,
+                status: 'on_track',
+                completedAt: null,
+            },
+            {
+                id: `ms-${projectId}-2`,
+                name: 'Requirements Complete',
+                targetDate: new Date(startDateObj.getTime() + durationMs * 0.2),
+                status: 'on_track',
+                completedAt: null,
+            },
+            {
+                id: `ms-${projectId}-3`,
+                name: 'Design Approved',
+                targetDate: new Date(startDateObj.getTime() + durationMs * 0.35),
+                status: 'on_track',
+                completedAt: null,
+            },
+            {
+                id: `ms-${projectId}-4`,
+                name: 'Development Complete',
+                targetDate: new Date(startDateObj.getTime() + durationMs * 0.75),
+                status: 'on_track',
+                completedAt: null,
+            },
+            {
+                id: `ms-${projectId}-5`,
+                name: 'Testing Complete',
+                targetDate: new Date(startDateObj.getTime() + durationMs * 0.9),
+                status: 'on_track',
+                completedAt: null,
+            },
+            {
+                id: `ms-${projectId}-6`,
+                name: 'Project Launch',
+                targetDate: endDateObj,
+                status: 'on_track',
+                completedAt: null,
+            },
         ];
         const project = {
             id: projectId,
@@ -344,18 +430,22 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
         const sprintNumber = project.sprints.length + 1;
         const sprintId = `sprint-${Date.now()}-${this.counter}`;
         const name = sprintName || `Sprint ${sprintNumber}`;
-        const defaultGoals = goals.length > 0 ? goals : [
-            `Deliver sprint ${sprintNumber} features`,
-            'Maintain code quality standards',
-            'Complete assigned user stories',
-        ];
-        const sprintTasks = tasks.length > 0 ? tasks : [
-            { name: 'Setup and planning', storyPoints: 2, assignee: 'Project Lead' },
-            { name: 'Core feature development', storyPoints: 8, assignee: 'Developer 1' },
-            { name: 'Secondary features', storyPoints: 5, assignee: 'Developer 2' },
-            { name: 'UI/UX implementation', storyPoints: 3, assignee: 'Designer' },
-            { name: 'Testing and QA', storyPoints: 3, assignee: 'Developer 1' },
-        ];
+        const defaultGoals = goals.length > 0
+            ? goals
+            : [
+                `Deliver sprint ${sprintNumber} features`,
+                'Maintain code quality standards',
+                'Complete assigned user stories',
+            ];
+        const sprintTasks = tasks.length > 0
+            ? tasks
+            : [
+                { name: 'Setup and planning', storyPoints: 2, assignee: 'Project Lead' },
+                { name: 'Core feature development', storyPoints: 8, assignee: 'Developer 1' },
+                { name: 'Secondary features', storyPoints: 5, assignee: 'Developer 2' },
+                { name: 'UI/UX implementation', storyPoints: 3, assignee: 'Designer' },
+                { name: 'Testing and QA', storyPoints: 3, assignee: 'Developer 1' },
+            ];
         const totalStoryPoints = sprintTasks.reduce((s, t) => s + (t.storyPoints || 0), 0);
         const sprintStartDate = project.sprints.length > 0
             ? new Date(project.sprints[project.sprints.length - 1].endDate.getTime() + 1 * 24 * 60 * 60 * 1000)
@@ -401,7 +491,12 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
         const allocationId = `alloc-${Date.now()}-${this.counter}`;
         const resourceList = resources.length > 0
             ? resources
-            : project.team.map((t) => ({ name: t.name, role: t.role, allocation: t.allocation, task: 'General' }));
+            : project.team.map((t) => ({
+                name: t.name,
+                role: t.role,
+                allocation: t.allocation,
+                task: 'General',
+            }));
         const allocations = [];
         const conflicts = [];
         const tasksByResource = {};
@@ -436,9 +531,7 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
             this.logger.log('Resource allocation optimized for balance');
         }
         const totalAllocated = allocations.reduce((s, a) => s + a.allocation, 0);
-        const utilizationRate = allocations.length > 0
-            ? +(totalAllocated / allocations.length).toFixed(1)
-            : 0;
+        const utilizationRate = allocations.length > 0 ? +(totalAllocated / allocations.length).toFixed(1) : 0;
         for (const alloc of allocations) {
             const existingMember = project.team.find((t) => t.name === alloc.name);
             if (existingMember) {
@@ -475,7 +568,9 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
                 if (!name)
                     throw new Error('Milestone name is required for add');
                 const msId = `ms-${Date.now()}-${++this.counter}`;
-                const msDate = targetDate ? new Date(targetDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                const msDate = targetDate
+                    ? new Date(targetDate)
+                    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
                 project.milestones.push({
                     id: msId,
                     name,
@@ -557,7 +652,15 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
                     throw new Error('Risk description is required for identification');
                 this.counter++;
                 const riskIdNew = `risk-${Date.now()}-${this.counter}`;
-                const riskCategories = ['technical', 'schedule', 'budget', 'resource', 'scope', 'external', 'quality'];
+                const riskCategories = [
+                    'technical',
+                    'schedule',
+                    'budget',
+                    'resource',
+                    'scope',
+                    'external',
+                    'quality',
+                ];
                 const riskCategory = riskCategories.includes(category) ? category : 'general';
                 const probability = +(0.2 + Math.random() * 0.6).toFixed(2);
                 const impact = +(3 + Math.random() * 7).toFixed(1);
@@ -674,9 +777,10 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
         this.counter++;
         const reportId = `proj-rpt-${Date.now()}-${this.counter}`;
         const completedMilestones = project.milestones.filter((m) => m.status === 'completed').length;
-        project.progress = project.milestones.length > 0
-            ? Math.round((completedMilestones / project.milestones.length) * 100)
-            : 0;
+        project.progress =
+            project.milestones.length > 0
+                ? Math.round((completedMilestones / project.milestones.length) * 100)
+                : 0;
         let summary = {};
         let data = {};
         switch (reportType) {
@@ -736,7 +840,7 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
             }
             case 'burndown': {
                 const totalPoints = project.sprints.reduce((s, sp) => s + sp.storyPoints, 0) || 100;
-                const completedPoints = Math.round(totalPoints * project.progress / 100);
+                const completedPoints = Math.round((totalPoints * project.progress) / 100);
                 const remainingPoints = totalPoints - completedPoints;
                 summary = {
                     totalStoryPoints: totalPoints,
@@ -775,7 +879,12 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
                     topRisks: openRisks
                         .sort((a, b) => b.riskScore - a.riskScore)
                         .slice(0, 5)
-                        .map((r) => ({ description: r.description, category: r.category, riskScore: r.riskScore, mitigation: r.mitigation })),
+                        .map((r) => ({
+                        description: r.description,
+                        category: r.category,
+                        riskScore: r.riskScore,
+                        mitigation: r.mitigation,
+                    })),
                 };
                 break;
             }
@@ -786,7 +895,8 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
                     teamSize: project.team.length,
                     avgUtilization,
                     fullyAllocated: project.team.filter((t) => t.allocation >= 90).length,
-                    partiallyAllocated: project.team.filter((t) => t.allocation >= 30 && t.allocation < 90).length,
+                    partiallyAllocated: project.team.filter((t) => t.allocation >= 30 && t.allocation < 90)
+                        .length,
                     underAllocated: project.team.filter((t) => t.allocation < 30).length,
                     budget: project.budget,
                     spentBudget: project.spentBudget,
@@ -797,7 +907,11 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
                         name: t.name,
                         role: t.role,
                         allocation: t.allocation,
-                        status: t.allocation >= 90 ? 'fully_allocated' : t.allocation >= 30 ? 'partially_allocated' : 'available',
+                        status: t.allocation >= 90
+                            ? 'fully_allocated'
+                            : t.allocation >= 30
+                                ? 'partially_allocated'
+                                : 'available',
                     })),
                 };
                 break;
@@ -817,6 +931,8 @@ let ProjectManagementAgentService = class ProjectManagementAgentService extends 
 };
 exports.ProjectManagementAgentService = ProjectManagementAgentService;
 exports.ProjectManagementAgentService = ProjectManagementAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ProjectManagementAgentService);
 //# sourceMappingURL=project-management-agent.service.js.map

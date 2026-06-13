@@ -346,11 +346,8 @@ let MessageBrokerService = MessageBrokerService_1 = class MessageBrokerService {
             }
         }
         const queue = this.inMemoryQueues.get(queueName);
-        const consumerCount = Array.from(this.consumers.values())
-            .filter((c) => c.queueName === queueName).length;
-        return queue
-            ? { messageCount: queue.length, consumerCount }
-            : null;
+        const consumerCount = Array.from(this.consumers.values()).filter((c) => c.queueName === queueName).length;
+        return queue ? { messageCount: queue.length, consumerCount } : null;
     }
     async purgeQueue(queueName) {
         if (this.channelWrapper && this.connectionState === ConnectionState.CONNECTED) {
@@ -411,8 +408,7 @@ let MessageBrokerService = MessageBrokerService_1 = class MessageBrokerService {
             const message = messages.shift();
             if (!message)
                 continue;
-            const queueConsumers = Array.from(this.consumers.values())
-                .filter((c) => c.queueName === queueName);
+            const queueConsumers = Array.from(this.consumers.values()).filter((c) => c.queueName === queueName);
             for (const { consumer } of queueConsumers) {
                 try {
                     const success = await consumer(message);

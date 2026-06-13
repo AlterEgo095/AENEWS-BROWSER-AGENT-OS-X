@@ -122,7 +122,13 @@ let ConstitutionalAiService = ConstitutionalAiService_1 = class ConstitutionalAi
                     {
                         field: 'actionType',
                         operator: 'in',
-                        value: ['permission.bypass', 'privilege.escalation', 'role.escalation', 'sudo', 'admin.override'],
+                        value: [
+                            'permission.bypass',
+                            'privilege.escalation',
+                            'role.escalation',
+                            'sudo',
+                            'admin.override',
+                        ],
                     },
                 ],
                 isActive: true,
@@ -247,7 +253,14 @@ let ConstitutionalAiService = ConstitutionalAiService_1 = class ConstitutionalAi
                     {
                         field: 'actionType',
                         operator: 'in',
-                        value: ['delete', 'deploy', 'permission.change', 'security.change', 'config.change', 'data.export'],
+                        value: [
+                            'delete',
+                            'deploy',
+                            'permission.change',
+                            'security.change',
+                            'config.change',
+                            'data.export',
+                        ],
                     },
                     { field: 'payload.auditRef', operator: 'eq', value: null },
                 ],

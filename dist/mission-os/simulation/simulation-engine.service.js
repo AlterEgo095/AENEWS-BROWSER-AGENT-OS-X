@@ -41,9 +41,7 @@ let SimulationEngineService = SimulationEngineService_1 = class SimulationEngine
         const successCount = iterationResults.filter((r) => r.success).length;
         const overallSuccessProbability = successCount / iterations;
         const costs = iterationResults.map((r) => r.totalCost).sort((a, b) => a - b);
-        const durations = iterationResults
-            .map((r) => r.totalDurationMs)
-            .sort((a, b) => a - b);
+        const durations = iterationResults.map((r) => r.totalDurationMs).sort((a, b) => a - b);
         const costEstimate = this.computeCostEstimate(costs, iterations);
         const durationEstimate = this.computeDurationEstimate(durations, iterations);
         const riskFactors = this.computeRiskFactors(taskGraph, nodeMap, iterationResults, historicalData);
@@ -429,7 +427,8 @@ let SimulationEngineService = SimulationEngineService_1 = class SimulationEngine
             recommendations.push(`Failure scenario has ${(result.scenarioBreakdown.failure.probability * 100).toFixed(1)}% probability. ` +
                 `Primary failure reason: ${result.scenarioBreakdown.failure.reason}. Address this before execution.`);
         }
-        if (result.criticalPathAnalysis.slackTimeMs > result.criticalPathAnalysis.totalDurationMs * 0.3) {
+        if (result.criticalPathAnalysis.slackTimeMs >
+            result.criticalPathAnalysis.totalDurationMs * 0.3) {
             recommendations.push(`Significant slack time detected (${result.criticalPathAnalysis.slackTimeMs.toFixed(0)}ms avg). ` +
                 `Non-critical tasks can be delayed or resources can be reallocated to critical path tasks.`);
         }
@@ -699,9 +698,7 @@ let SimulationEngineService = SimulationEngineService_1 = class SimulationEngine
             };
         }
         const successCosts = successful.map((r) => r.totalCost).sort((a, b) => a - b);
-        const successDurations = successful
-            .map((r) => r.totalDurationMs)
-            .sort((a, b) => a - b);
+        const successDurations = successful.map((r) => r.totalDurationMs).sort((a, b) => a - b);
         const optimisticIdx = Math.floor(successful.length * 0.25);
         const expectedIdx = Math.floor(successful.length * 0.5);
         const pessimisticIdx = Math.floor(successful.length * 0.75);
@@ -746,9 +743,7 @@ let SimulationEngineService = SimulationEngineService_1 = class SimulationEngine
     determineRiskLevel(successProbability, riskFactors, resourceConflicts) {
         let riskScore = 0;
         riskScore += (1 - successProbability) * 0.4;
-        const maxRiskScore = riskFactors.length > 0
-            ? Math.max(...riskFactors.map((r) => r.riskScore))
-            : 0;
+        const maxRiskScore = riskFactors.length > 0 ? Math.max(...riskFactors.map((r) => r.riskScore)) : 0;
         riskScore += maxRiskScore * 0.3;
         const conflictScore = Math.min(1, resourceConflicts.length / 5);
         riskScore += conflictScore * 0.3;
@@ -791,7 +786,7 @@ let SimulationEngineService = SimulationEngineService_1 = class SimulationEngine
             }
         }
         const levels = [];
-        let remaining = new Set(nodeIds);
+        const remaining = new Set(nodeIds);
         while (remaining.size > 0) {
             const readyNodes = [];
             for (const nodeId of remaining) {
@@ -945,14 +940,22 @@ let SimulationEngineService = SimulationEngineService_1 = class SimulationEngine
             const { result } = variations[i];
             const successWeight = result.overallSuccessProbability * 0.4;
             const costEfficiency = variations[0].result.estimatedCost.expected > 0
-                ? (1 - result.estimatedCost.expected / (variations[0].result.estimatedCost.expected * 3)) * 0.25
+                ? (1 -
+                    result.estimatedCost.expected / (variations[0].result.estimatedCost.expected * 3)) *
+                    0.25
                 : 0.25;
-            const riskScore = result.riskLevel === RiskLevel.LOW ? 0.25
-                : result.riskLevel === RiskLevel.MEDIUM ? 0.15
-                    : result.riskLevel === RiskLevel.HIGH ? 0.05
+            const riskScore = result.riskLevel === RiskLevel.LOW
+                ? 0.25
+                : result.riskLevel === RiskLevel.MEDIUM
+                    ? 0.15
+                    : result.riskLevel === RiskLevel.HIGH
+                        ? 0.05
                         : 0;
             const durationEfficiency = variations[0].result.estimatedDuration.expectedMs > 0
-                ? (1 - result.estimatedDuration.expectedMs / (variations[0].result.estimatedDuration.expectedMs * 3)) * 0.1
+                ? (1 -
+                    result.estimatedDuration.expectedMs /
+                        (variations[0].result.estimatedDuration.expectedMs * 3)) *
+                    0.1
                 : 0.1;
             const score = successWeight + costEfficiency + riskScore + durationEfficiency;
             if (score > bestScore) {

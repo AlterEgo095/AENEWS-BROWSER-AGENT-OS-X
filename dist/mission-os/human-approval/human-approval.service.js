@@ -288,7 +288,7 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
         return request ? { ...request } : null;
     }
     getPendingRequests(agentId) {
-        let results = [];
+        const results = [];
         for (const request of this.requests.values()) {
             if (request.status === ApprovalStatus.PENDING) {
                 if (!agentId || request.agentId === agentId) {
@@ -371,13 +371,15 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     reversibility = 'irreversible';
                     factors.push('Deletion targets production environment');
                     factors.push('Production data loss is irreversible');
-                    impactDescription = 'Irreversible deletion in production — data will be permanently lost with no recovery path.';
+                    impactDescription =
+                        'Irreversible deletion in production — data will be permanently lost with no recovery path.';
                 }
                 else if (target.includes('database') || target.includes('db')) {
                     riskLevel = 'critical';
                     reversibility = 'irreversible';
                     factors.push('Database deletion is irreversible without backup');
-                    impactDescription = 'Database deletion — data will be permanently lost unless a backup exists.';
+                    impactDescription =
+                        'Database deletion — data will be permanently lost unless a backup exists.';
                 }
                 else if (target.includes('user') || target.includes('account')) {
                     riskLevel = 'high';
@@ -389,13 +391,15 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     riskLevel = 'low';
                     reversibility = 'reversible';
                     factors.push('Deletion in non-production environment');
-                    impactDescription = 'Deletion in test/staging — limited blast radius, usually recoverable.';
+                    impactDescription =
+                        'Deletion in test/staging — limited blast radius, usually recoverable.';
                 }
                 else {
                     riskLevel = 'medium';
                     reversibility = 'partially_reversible';
                     factors.push('Generic deletion operation');
-                    impactDescription = 'Deletion of a resource — may be partially recoverable depending on backup state.';
+                    impactDescription =
+                        'Deletion of a resource — may be partially recoverable depending on backup state.';
                 }
                 break;
             }
@@ -424,9 +428,10 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     factors.push('Standard production deployment with tests and review');
                 }
                 reversibility = rollbackPlan ? 'partially_reversible' : 'irreversible';
-                impactDescription = hasTests && hasReview && rollbackPlan
-                    ? 'Production deployment with proper safeguards — reversible via rollback.'
-                    : 'Production deployment with incomplete safeguards — potential for prolonged outage or data issues.';
+                impactDescription =
+                    hasTests && hasReview && rollbackPlan
+                        ? 'Production deployment with proper safeguards — reversible via rollback.'
+                        : 'Production deployment with incomplete safeguards — potential for prolonged outage or data issues.';
                 break;
             }
             case ApprovalActionType.PAYMENT: {
@@ -524,7 +529,8 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     factors.push('Post is scheduled — may need time-sensitive review');
                 }
                 reversibility = 'partially_reversible';
-                impactDescription = 'Social media post is public-facing and may be screenshotted or shared before deletion is possible.';
+                impactDescription =
+                    'Social media post is public-facing and may be screenshotted or shared before deletion is possible.';
                 break;
             }
             case ApprovalActionType.SSH_ACCESS: {
@@ -566,7 +572,8 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     factors.push('DNS change in production — all users affected');
                 }
                 reversibility = 'partially_reversible';
-                impactDescription = 'DNS changes propagate globally with TTL delays — even after reverting, users may experience prolonged outage due to DNS caching.';
+                impactDescription =
+                    'DNS changes propagate globally with TTL delays — even after reverting, users may experience prolonged outage due to DNS caching.';
                 break;
             }
             case ApprovalActionType.DATABASE_MIGRATION: {
@@ -615,7 +622,8 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     factors.push('Emergency rotation — possible security breach');
                 }
                 reversibility = 'reversible';
-                impactDescription = 'API key rotation is generally reversible (old key can be restored), but there may be a brief service interruption during propagation.';
+                impactDescription =
+                    'API key rotation is generally reversible (old key can be restored), but there may be a brief service interruption during propagation.';
                 break;
             }
             case ApprovalActionType.CONFIGURATION_CHANGE: {
@@ -665,7 +673,8 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     factors.push('Data export to external/third-party destination');
                 }
                 reversibility = 'irreversible';
-                impactDescription = 'Once user data is exported, it cannot be "un-exported" — the data exists outside the system and may be distributed further.';
+                impactDescription =
+                    'Once user data is exported, it cannot be "un-exported" — the data exists outside the system and may be distributed further.';
                 break;
             }
             case ApprovalActionType.SCALE_UP: {
@@ -690,7 +699,8 @@ let HumanApprovalService = HumanApprovalService_1 = class HumanApprovalService {
                     factors.push('Scale-up in production environment');
                 }
                 reversibility = 'reversible';
-                impactDescription = 'Scaling operations are generally reversible (scale back down), though there may be brief performance impact during the transition.';
+                impactDescription =
+                    'Scaling operations are generally reversible (scale back down), though there may be brief performance impact during the transition.';
                 break;
             }
             default: {

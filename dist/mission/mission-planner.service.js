@@ -36,41 +36,152 @@ var TaskStatus;
     TaskStatus["SKIPPED"] = "SKIPPED";
 })(TaskStatus || (exports.TaskStatus = TaskStatus = {}));
 const BROWSER_KEYWORDS = [
-    'analyse', 'audit', 'scrape', 'recherche', 'search', 'browse',
-    'navigate', 'extract', 'crawl', 'visit', 'fetch', 'monitor',
-    'surveiller', 'inspecter', 'parcourir', 'extraire', 'lire',
-    'read', 'check', 'verify', 'vérifier', 'comparer', 'compare',
-    'tester site', 'test website', 'review', 'évaluer',
+    'analyse',
+    'audit',
+    'scrape',
+    'recherche',
+    'search',
+    'browse',
+    'navigate',
+    'extract',
+    'crawl',
+    'visit',
+    'fetch',
+    'monitor',
+    'surveiller',
+    'inspecter',
+    'parcourir',
+    'extraire',
+    'lire',
+    'read',
+    'check',
+    'verify',
+    'vérifier',
+    'comparer',
+    'compare',
+    'tester site',
+    'test website',
+    'review',
+    'évaluer',
 ];
 const DEVELOPMENT_KEYWORDS = [
-    'crée', 'créer', 'build', 'développe', 'développer', 'construis',
-    'construire', 'implement', 'code', 'program', 'develop', 'write',
-    'écrire', 'installer', 'install', 'deploy', 'déployer', 'setup',
-    'configure', 'configurer', 'refactor', 'fix', 'corriger', 'patch',
-    'api', 'backend', 'frontend', 'database', 'base de données',
-    'application', 'app', 'service', 'module', 'component', 'feature',
-    'fonctionnalité', 'integration', 'intégration', 'test', 'tester',
+    'crée',
+    'créer',
+    'build',
+    'développe',
+    'développer',
+    'construis',
+    'construire',
+    'implement',
+    'code',
+    'program',
+    'develop',
+    'write',
+    'écrire',
+    'installer',
+    'install',
+    'deploy',
+    'déployer',
+    'setup',
+    'configure',
+    'configurer',
+    'refactor',
+    'fix',
+    'corriger',
+    'patch',
+    'api',
+    'backend',
+    'frontend',
+    'database',
+    'base de données',
+    'application',
+    'app',
+    'service',
+    'module',
+    'component',
+    'feature',
+    'fonctionnalité',
+    'integration',
+    'intégration',
+    'test',
+    'tester',
 ];
 const BUSINESS_KEYWORDS = [
-    'marketing', 'seo', 'rapport', 'report', 'strategy', 'stratégie',
-    'business', 'roi', 'kpi', 'analytics', 'campagne', 'campaign',
-    'brand', 'marque', 'social media', 'email', 'content', 'contenu',
-    'conversion', 'landing page', 'funnel', 'growth', 'croissance',
-    'revenue', 'pricing', 'competitive', 'concurrence', 'market',
-    'marché', 'customer', 'client', 'user research', 'étude',
+    'marketing',
+    'seo',
+    'rapport',
+    'report',
+    'strategy',
+    'stratégie',
+    'business',
+    'roi',
+    'kpi',
+    'analytics',
+    'campagne',
+    'campaign',
+    'brand',
+    'marque',
+    'social media',
+    'email',
+    'content',
+    'contenu',
+    'conversion',
+    'landing page',
+    'funnel',
+    'growth',
+    'croissance',
+    'revenue',
+    'pricing',
+    'competitive',
+    'concurrence',
+    'market',
+    'marché',
+    'customer',
+    'client',
+    'user research',
+    'étude',
 ];
 const RESEARCH_BEFORE_DEV_KEYWORDS = [
-    'best practice', 'meilleure pratique', 'trend', 'tendance',
-    'benchmark', 'compare', 'comparer', 'before building',
-    'avant de construire', 'look at', 'regarder', 'study',
-    'étudier', 'research first', 'recherche d\'abord',
+    'best practice',
+    'meilleure pratique',
+    'trend',
+    'tendance',
+    'benchmark',
+    'compare',
+    'comparer',
+    'before building',
+    'avant de construire',
+    'look at',
+    'regarder',
+    'study',
+    'étudier',
+    'research first',
+    "recherche d'abord",
 ];
 const COMPLEXITY_MULTIPLIERS = [
-    'microservices', 'distributed', 'distributed', 'real-time', 'temps réel',
-    'scale', 'scalabilité', 'multi-tenant', 'sécurité', 'security',
-    'compliance', 'conformité', 'migration', 'integration multiple',
-    'ai', 'ml', 'machine learning', 'deep learning', 'nlp',
-    'infrastructure', 'devops', 'ci/cd', 'pipeline',
+    'microservices',
+    'distributed',
+    'distributed',
+    'real-time',
+    'temps réel',
+    'scale',
+    'scalabilité',
+    'multi-tenant',
+    'sécurité',
+    'security',
+    'compliance',
+    'conformité',
+    'migration',
+    'integration multiple',
+    'ai',
+    'ml',
+    'machine learning',
+    'deep learning',
+    'nlp',
+    'infrastructure',
+    'devops',
+    'ci/cd',
+    'pipeline',
 ];
 let MissionPlannerService = MissionPlannerService_1 = class MissionPlannerService {
     constructor() {
@@ -211,7 +322,17 @@ let MissionPlannerService = MissionPlannerService_1 = class MissionPlannerServic
             score += 8;
             reasons.push('medium-length instruction');
         }
-        const stepCues = [' puis ', ' then ', ' ensuite ', ' after ', ' après ', ' and ', ' et ', ';', ','];
+        const stepCues = [
+            ' puis ',
+            ' then ',
+            ' ensuite ',
+            ' after ',
+            ' après ',
+            ' and ',
+            ' et ',
+            ';',
+            ',',
+        ];
         const stepCount = stepCues.filter((c) => lower.includes(c)).length;
         score += Math.min(stepCount * 3, 15);
         if (stepCount > 0) {
@@ -260,7 +381,7 @@ let MissionPlannerService = MissionPlannerService_1 = class MissionPlannerServic
         const tasks = [];
         switch (team) {
             case mission_orchestrator_service_1.TeamType.BROWSER:
-                tasks.push(this.createTask('research', 'Recherche et collecte d\'informations', PhaseType.BROWSER, team, TaskPriority.HIGH));
+                tasks.push(this.createTask('research', "Recherche et collecte d'informations", PhaseType.BROWSER, team, TaskPriority.HIGH));
                 if (lower.includes('scrape') || lower.includes('extract') || lower.includes('extraire')) {
                     tasks.push(this.createTask('scrape', 'Extraction de données web', PhaseType.BROWSER, team, TaskPriority.HIGH));
                 }
@@ -272,7 +393,7 @@ let MissionPlannerService = MissionPlannerService_1 = class MissionPlannerServic
                 }
                 break;
             case mission_orchestrator_service_1.TeamType.DEVELOPMENT:
-                tasks.push(this.createTask('setup', 'Configuration de l\'environnement', PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
+                tasks.push(this.createTask('setup', "Configuration de l'environnement", PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
                 if (lower.includes('api') || lower.includes('backend')) {
                     tasks.push(this.createTask('api', 'Développement API / Backend', PhaseType.DEVELOPMENT, team, TaskPriority.HIGH));
                 }
@@ -296,7 +417,9 @@ let MissionPlannerService = MissionPlannerService_1 = class MissionPlannerServic
                 if (lower.includes('seo') || lower.includes('référencement')) {
                     tasks.push(this.createTask('seo', 'Audit et optimisation SEO', PhaseType.BUSINESS, team, TaskPriority.HIGH));
                 }
-                if (lower.includes('marketing') || lower.includes('campagne') || lower.includes('campaign')) {
+                if (lower.includes('marketing') ||
+                    lower.includes('campagne') ||
+                    lower.includes('campaign')) {
                     tasks.push(this.createTask('marketing', 'Élaboration de la stratégie marketing', PhaseType.BUSINESS, team, TaskPriority.HIGH));
                 }
                 if (lower.includes('rapport') || lower.includes('report')) {

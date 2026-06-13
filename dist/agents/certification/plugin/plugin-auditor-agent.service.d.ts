@@ -1,7 +1,10 @@
 import { BaseAgentService } from '../../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 export declare const PLUGIN_AUDITOR_CONFIG: AgentConfig;
 export declare class PluginAuditorAgent extends BaseAgentService {
+    private readonly bridge?;
+    constructor(bridge?: AgentConnectorBridge | undefined);
     private pluginAuditLog;
     protected defineConfig(): AgentConfig;
     protected onInitialize(): Promise<void>;

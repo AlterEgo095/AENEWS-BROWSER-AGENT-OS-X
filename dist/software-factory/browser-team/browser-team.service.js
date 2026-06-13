@@ -68,7 +68,7 @@ let BrowserTeamService = BrowserTeamService_1 = class BrowserTeamService {
             artifacts: [],
             cost: selectedAgents.length * 0.15,
             durationMs: selectedAgents.length * 500,
-            logs: selectedAgents.map(a => `Agent ${a} executed`),
+            logs: selectedAgents.map((a) => `Agent ${a} executed`),
             errors: [],
         };
     }
@@ -76,7 +76,7 @@ let BrowserTeamService = BrowserTeamService_1 = class BrowserTeamService {
         return {
             level: interfaces_1.AgentLevel.BROWSER,
             totalAgents: 12,
-            availableAgents: this.getTeamAgents().map(a => ({
+            availableAgents: this.getTeamAgents().map((a) => ({
                 id: a.id,
                 name: a.name,
                 skills: a.skills,

@@ -1,8 +1,11 @@
 import { BaseAgentService } from '../../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 export declare const SCREEN_CAPTURE_AGENT_CONFIG: AgentConfig;
 export declare class ScreenCaptureAgentService extends BaseAgentService {
+    private readonly bridge?;
     private captures;
+    constructor(eventBusService?: any, memoryService?: any, permissionEvaluator?: any, bridge?: AgentConnectorBridge | undefined);
     private recordings;
     private captureCounter;
     private recordingCounter;

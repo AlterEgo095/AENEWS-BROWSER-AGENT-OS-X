@@ -1,7 +1,10 @@
 import { BaseAgentService } from '../../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 export declare const META_TASK_ROUTER_AGENT_CONFIG: AgentConfig;
 export declare class TaskRouterAgentService extends BaseAgentService {
+    private readonly bridge?;
+    constructor(bridge?: AgentConnectorBridge | undefined);
     private agentProfiles;
     private routingHistory;
     protected defineConfig(): AgentConfig;

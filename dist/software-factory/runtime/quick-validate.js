@@ -25,18 +25,33 @@ async function main() {
     fs.mkdirSync(ws, { recursive: true });
     fs.writeFileSync(path.join(ws, 'app.js'), 'console.log(42);');
     const r = await delivery.execute(DeliveryCapability.ZIP, {
-        missionId: 'val', instruction: 'ZIP', workspaceDir: ws,
-        parameters: {}, previousResults: new Map(), tools: [],
+        missionId: 'val',
+        instruction: 'ZIP',
+        workspaceDir: ws,
+        parameters: {},
+        previousResults: new Map(),
+        tools: [],
     });
     console.log('   Result: ' + (r.success ? 'OK' : 'FAIL') + ' in ' + r.durationMs + 'ms');
     console.log('\n3. Testing LLMHelper...');
     const llm = new LLMHelper();
     const ctx = llm.buildChainContext(new Map([
-        ['dev.architecture', { success: true, artifacts: [{ name: 'ARCH.md', type: 'document', size: 5000 }], output: { architecture: 'REST API' } }]
+        [
+            'dev.architecture',
+            {
+                success: true,
+                artifacts: [{ name: 'ARCH.md', type: 'document', size: 5000 }],
+                output: { architecture: 'REST API' },
+            },
+        ],
     ]), 1000);
     console.log('   Chain context: ' + ctx.length + ' chars');
     const cacheStats = llm.getCacheStats();
-    console.log('   Cache: size=' + cacheStats.size + ', hitRate=' + (cacheStats.hitRate * 100).toFixed(0) + '%');
+    console.log('   Cache: size=' +
+        cacheStats.size +
+        ', hitRate=' +
+        (cacheStats.hitRate * 100).toFixed(0) +
+        '%');
     console.log('\n4. Build verification...');
     console.log('   TypeScript compilation: OK (verified earlier)');
     console.log('   NestJS build: OK (verified earlier)');
@@ -49,5 +64,5 @@ async function main() {
     console.log('  4. WorkerFactory parallel: Promise.all for independent capabilities');
     console.log('  5. domcontentloaded: faster page loads vs networkidle');
 }
-main().catch(e => console.error('ERROR:', e.message));
+main().catch((e) => console.error('ERROR:', e.message));
 //# sourceMappingURL=quick-validate.js.map

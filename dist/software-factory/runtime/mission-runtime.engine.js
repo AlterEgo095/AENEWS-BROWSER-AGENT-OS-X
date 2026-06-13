@@ -288,7 +288,13 @@ let MissionRuntimeEngine = MissionRuntimeEngine_1 = class MissionRuntimeEngine {
             return {
                 success: true,
                 artifacts: [],
-                output: { score: 70, passed: true, findings: [], fallback: true, originalError: originalError.message },
+                output: {
+                    score: 70,
+                    passed: true,
+                    findings: [],
+                    fallback: true,
+                    originalError: originalError.message,
+                },
                 costUsd: 0,
                 durationMs: 0,
             };
@@ -402,40 +408,52 @@ let MissionRuntimeEngine = MissionRuntimeEngine_1 = class MissionRuntimeEngine {
         }
         const secFindings = auditOutput?.securityAudit?.findings || [];
         const archFindings = auditOutput?.architectureReview?.findings || [];
-        const allFindings = [...(Array.isArray(secFindings) ? secFindings : []), ...(Array.isArray(archFindings) ? archFindings : [])];
+        const allFindings = [
+            ...(Array.isArray(secFindings) ? secFindings : []),
+            ...(Array.isArray(archFindings) ? archFindings : []),
+        ];
         const criticalFindings = allFindings.filter((f) => {
             const str = typeof f === 'string' ? f.toLowerCase() : JSON.stringify(f).toLowerCase();
-            return str.includes('no source') || str.includes('injection') || str.includes('execute') || str.includes('malicious');
+            return (str.includes('no source') ||
+                str.includes('injection') ||
+                str.includes('execute') ||
+                str.includes('malicious'));
         });
         const minorFindings = allFindings.filter((f) => !criticalFindings.includes(f));
         if (criticalFindings.length > 0) {
             score -= 20;
-            reasons.push(...criticalFindings.slice(0, 3).map((f) => typeof f === 'string' ? f : JSON.stringify(f)));
+            reasons.push(...criticalFindings
+                .slice(0, 3)
+                .map((f) => (typeof f === 'string' ? f : JSON.stringify(f))));
         }
         if (minorFindings.length > 0) {
             score -= Math.min(10, minorFindings.length * 3);
             if (minorFindings.length <= 3)
-                reasons.push(...minorFindings.map((f) => typeof f === 'string' ? f : JSON.stringify(f)));
+                reasons.push(...minorFindings.map((f) => (typeof f === 'string' ? f : JSON.stringify(f))));
             else
                 reasons.push(`${minorFindings.length} minor findings`);
         }
-        if (mission.artifacts.filter(a => a.type === 'source').length === 0) {
+        if (mission.artifacts.filter((a) => a.type === 'source').length === 0) {
             score -= 40;
             reasons.push('No source code');
         }
-        if (!mission.artifacts.find(a => a.name === 'README.md')) {
+        if (!mission.artifacts.find((a) => a.name === 'README.md')) {
             score -= 10;
             reasons.push('No README');
         }
-        if (!mission.artifacts.find(a => a.name === 'Dockerfile')) {
+        if (!mission.artifacts.find((a) => a.name === 'Dockerfile')) {
             score -= 10;
             reasons.push('No Dockerfile');
         }
-        if (!mission.artifacts.some(a => a.type === 'test')) {
+        if (!mission.artifacts.some((a) => a.type === 'test')) {
             score -= 10;
             reasons.push('No test files');
         }
-        return { certified: score >= this.QUALITY_GATE_THRESHOLD, qualityScore: Math.max(0, score), reasons };
+        return {
+            certified: score >= this.QUALITY_GATE_THRESHOLD,
+            qualityScore: Math.max(0, score),
+            reasons,
+        };
     }
     async applyQualityGate(missionId, instruction, workspaceDir, mission, initialCert, previousResults) {
         let currentCert = initialCert;
@@ -511,19 +529,41 @@ let MissionRuntimeEngine = MissionRuntimeEngine_1 = class MissionRuntimeEngine {
     }
     heuristicPlan(instruction) {
         const lower = instruction.toLowerCase();
-        const hasBackend = lower.includes('api') || lower.includes('backend') || lower.includes('server')
-            || lower.includes('database') || lower.includes('erp') || lower.includes('crm') || lower.includes('todo');
+        const hasBackend = lower.includes('api') ||
+            lower.includes('backend') ||
+            lower.includes('server') ||
+            lower.includes('database') ||
+            lower.includes('erp') ||
+            lower.includes('crm') ||
+            lower.includes('todo');
         return {
             objective: instruction,
-            techStack: hasBackend ? ['HTML', 'CSS', 'JavaScript', 'Node.js'] : ['HTML', 'CSS', 'JavaScript'],
+            techStack: hasBackend
+                ? ['HTML', 'CSS', 'JavaScript', 'Node.js']
+                : ['HTML', 'CSS', 'JavaScript'],
             phases: [
                 { name: 'Frontend', capabilities: ['dev.frontend'], estimatedMinutes: 30 },
-                ...(hasBackend ? [{ name: 'Backend', capabilities: ['dev.backend', 'dev.database'], estimatedMinutes: 45 }] : []),
+                ...(hasBackend
+                    ? [
+                        {
+                            name: 'Backend',
+                            capabilities: ['dev.backend', 'dev.database'],
+                            estimatedMinutes: 45,
+                        },
+                    ]
+                    : []),
                 { name: 'Docker', capabilities: ['dev.docker'], estimatedMinutes: 5 },
                 { name: 'Testing', capabilities: ['dev.test', 'dev.qa'], estimatedMinutes: 15 },
             ],
             requiredCapabilities: hasBackend
-                ? ['dev.frontend', 'dev.backend', 'dev.database', 'dev.docker', 'dev.test', 'dev.documentation']
+                ? [
+                    'dev.frontend',
+                    'dev.backend',
+                    'dev.database',
+                    'dev.docker',
+                    'dev.test',
+                    'dev.documentation',
+                ]
                 : ['dev.frontend', 'dev.docker', 'dev.test', 'dev.documentation'],
             deliverables: ['index.html', 'style.css', 'app.js', 'tests/', 'README.md', 'Dockerfile'],
             complexity: hasBackend ? 'medium' : 'low',
@@ -532,7 +572,7 @@ let MissionRuntimeEngine = MissionRuntimeEngine_1 = class MissionRuntimeEngine {
     mergeArtifacts(connectorResult, mission) {
         if (!connectorResult.artifacts?.length)
             return;
-        const existingNames = new Set(mission.artifacts.map(a => a.name));
+        const existingNames = new Set(mission.artifacts.map((a) => a.name));
         for (const ga of connectorResult.artifacts) {
             const runtimeArtifact = {
                 name: ga.name,
@@ -563,10 +603,10 @@ ${mission.instruction}
 - **Repair Attempts**: ${certResult.repairAttempts}
 
 ## Artifacts
-${mission.artifacts.map(a => `- **${a.name}** (${a.type}, ${a.size} bytes)`).join('\n')}
+${mission.artifacts.map((a) => `- **${a.name}** (${a.type}, ${a.size} bytes)`).join('\n')}
 
 ## Certification Details
-${certResult.reasons.length > 0 ? certResult.reasons.map(r => `- ⚠️ ${r}`).join('\n') : 'All checks passed.'}
+${certResult.reasons.length > 0 ? certResult.reasons.map((r) => `- ⚠️ ${r}`).join('\n') : 'All checks passed.'}
 
 ## Duration
 Started: ${mission.startedAt.toISOString()}
@@ -594,12 +634,15 @@ Generated by AENEWS Software Factory — powered by ConnectorRegistry`;
             };
             const trigger = triggerMap[state];
             if (trigger) {
-                this.stateMachine.transition({
+                this.stateMachine
+                    .transition({
                     missionId,
                     contractId: mission?.contractId || '',
                     currentState,
                     trigger,
-                }).catch(() => { });
+                })
+                    .catch(() => {
+                });
             }
         }
         this.logger.log(`[${missionId}] State: ${state} — ${phase}`);
@@ -622,12 +665,10 @@ Generated by AENEWS Software Factory — powered by ConnectorRegistry`;
         return this.missions.get(missionId);
     }
     getActiveMissions() {
-        return Array.from(this.missions.values())
-            .filter(m => m.status !== interfaces_1.MissionState.COMPLETED && m.status !== interfaces_1.MissionState.ARCHIVED);
+        return Array.from(this.missions.values()).filter((m) => m.status !== interfaces_1.MissionState.COMPLETED && m.status !== interfaces_1.MissionState.ARCHIVED);
     }
     getCompletedMissions() {
-        return Array.from(this.missions.values())
-            .filter(m => m.status === interfaces_1.MissionState.COMPLETED);
+        return Array.from(this.missions.values()).filter((m) => m.status === interfaces_1.MissionState.COMPLETED);
     }
     getWorkspaceDir(missionId) {
         return this.missions.get(missionId)?.workspaceDir;

@@ -168,7 +168,10 @@ let VectorSearchService = VectorSearchService_1 = class VectorSearchService {
             this.store.set(entry.id, {
                 id: entry.id,
                 vector: entry.vector,
-                payload: { ...entry.payload, _collection: entry.payload._collection || this.defaultCollection },
+                payload: {
+                    ...entry.payload,
+                    _collection: entry.payload._collection || this.defaultCollection,
+                },
                 createdAt: new Date(),
             });
         }

@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ObservabilityAuditorAgent = exports.OBSERVABILITY_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.OBSERVABILITY_AUDITOR_CONFIG = {
     id: 'certification-observability-auditor',
     name: 'ObservabilityAuditor',
@@ -23,7 +31,11 @@ exports.OBSERVABILITY_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'System or service to audit observability' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -105,14 +117,21 @@ exports.OBSERVABILITY_AUDITOR_CONFIG = {
             },
         },
     ],
-    permissions: ['certification:audit', 'certification:observability', 'read:metrics', 'read:logs', 'read:traces'],
+    permissions: [
+        'certification:audit',
+        'certification:observability',
+        'read:metrics',
+        'read:logs',
+        'read:traces',
+    ],
     maxConcurrentTasks: 5,
     timeout: 60000,
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.observabilityAuditLog = [];
     }
     defineConfig() {
@@ -147,8 +166,22 @@ let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_age
         this.logger.log('ObservabilityAuditor agent initialized with 5 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.PERFORMANCE, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -197,10 +230,17 @@ let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_age
             issues.push(issue);
             this.observabilityAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 20 : issue.severity === 'high' ? 12 : issue.severity === 'medium' ? 6 : 2;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 20
+                    : issue.severity === 'high'
+                        ? 12
+                        : issue.severity === 'medium'
+                            ? 6
+                            : 2;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'metrics')) {
             recommendations.push('Implement RED metrics (Rate, Errors, Duration) for all critical services');
         }
@@ -218,9 +258,16 @@ let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_age
     }
     async auditMetrics(service) {
         const requiredMetrics = [
-            'request_rate', 'error_rate', 'latency_p50', 'latency_p99',
-            'cpu_usage', 'memory_usage', 'active_connections',
-            'queue_depth', 'throughput', 'saturation',
+            'request_rate',
+            'error_rate',
+            'latency_p50',
+            'latency_p99',
+            'cpu_usage',
+            'memory_usage',
+            'active_connections',
+            'queue_depth',
+            'throughput',
+            'saturation',
         ];
         const missingMetrics = requiredMetrics.filter(() => Math.random() > 0.6);
         const metricsScore = Math.round(((requiredMetrics.length - missingMetrics.length) / requiredMetrics.length) * 100);
@@ -229,8 +276,12 @@ let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_age
     }
     async auditTracing(service) {
         const criticalPaths = [
-            'agent_execution', 'task_orchestration', 'memory_operations',
-            'event_bus_publish', 'security_validation', 'plugin_lifecycle',
+            'agent_execution',
+            'task_orchestration',
+            'memory_operations',
+            'event_bus_publish',
+            'security_validation',
+            'plugin_lifecycle',
         ];
         const coverageGaps = criticalPaths
             .filter(() => Math.random() > 0.5)
@@ -247,9 +298,14 @@ let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_age
     async auditLogging(service) {
         const logIssues = [];
         const checks = [
-            'structured_format', 'correlation_id', 'log_level_consistency',
-            'pii_redaction', 'log_rotation', 'centralized_collection',
-            'error_context', 'request_response_logging',
+            'structured_format',
+            'correlation_id',
+            'log_level_consistency',
+            'pii_redaction',
+            'log_rotation',
+            'centralized_collection',
+            'error_context',
+            'request_response_logging',
         ];
         for (const check of checks) {
             if (Math.random() > 0.5) {
@@ -267,9 +323,15 @@ let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_age
     }
     async auditAlerting(service) {
         const requiredAlerts = [
-            'high_error_rate', 'elevated_latency', 'service_down',
-            'disk_space_low', 'memory_pressure', 'queue_backlog',
-            'certificate_expiry', 'anomalous_traffic', 'circuit_breaker_open',
+            'high_error_rate',
+            'elevated_latency',
+            'service_down',
+            'disk_space_low',
+            'memory_pressure',
+            'queue_backlog',
+            'certificate_expiry',
+            'anomalous_traffic',
+            'circuit_breaker_open',
         ];
         const missingAlerts = requiredAlerts.filter(() => Math.random() > 0.5);
         const alertingScore = Math.round(((requiredAlerts.length - missingAlerts.length) / requiredAlerts.length) * 100);
@@ -289,6 +351,9 @@ let ObservabilityAuditorAgent = class ObservabilityAuditorAgent extends base_age
 };
 exports.ObservabilityAuditorAgent = ObservabilityAuditorAgent;
 exports.ObservabilityAuditorAgent = ObservabilityAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], ObservabilityAuditorAgent);
 //# sourceMappingURL=observability-auditor-agent.service.js.map

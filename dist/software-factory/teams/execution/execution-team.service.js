@@ -44,7 +44,10 @@ let ExecutionTeamService = ExecutionTeamService_1 = class ExecutionTeamService {
                     type: 'source_code',
                     path: `/missions/${missionId}/code/`,
                     createdAt: new Date(),
-                    metadata: { filesCreated: codeArtifacts.filesCreated, linesOfCode: codeArtifacts.linesOfCode },
+                    metadata: {
+                        filesCreated: codeArtifacts.filesCreated,
+                        linesOfCode: codeArtifacts.linesOfCode,
+                    },
                 });
             }
             if (plan?.requiresDocuments || plan?.requiresReports) {

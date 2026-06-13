@@ -937,7 +937,11 @@ let ArchitectCertificationService = ArchitectCertificationService_1 = class Arch
                             cycles.push({
                                 nodes: cyclePath,
                                 length: cyclePath.length - 1,
-                                severity: cyclePath.length <= 2 ? 'critical' : cyclePath.length <= 4 ? 'warning' : 'info',
+                                severity: cyclePath.length <= 2
+                                    ? 'critical'
+                                    : cyclePath.length <= 4
+                                        ? 'warning'
+                                        : 'info',
                                 description: `Circular dependency: ${cyclePath.join(' → ')}`,
                             });
                         }

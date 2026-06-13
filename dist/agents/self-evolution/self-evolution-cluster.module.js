@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SelfEvolutionClusterModule = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_module_1 = require("../base/base-agent.module");
+const bridge_1 = require("../bridge");
 const metric_analyzer_agent_1 = require("./metric-analyzer.agent");
 const weakness_detector_agent_1 = require("./weakness-detector.agent");
 const refactor_proposer_agent_1 = require("./refactor-proposer.agent");
@@ -19,7 +20,7 @@ let SelfEvolutionClusterModule = class SelfEvolutionClusterModule {
 exports.SelfEvolutionClusterModule = SelfEvolutionClusterModule;
 exports.SelfEvolutionClusterModule = SelfEvolutionClusterModule = __decorate([
     (0, common_1.Module)({
-        imports: [base_agent_module_1.BaseAgentModule],
+        imports: [base_agent_module_1.BaseAgentModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             metric_analyzer_agent_1.MetricAnalyzerAgent,
             weakness_detector_agent_1.WeaknessDetectorAgent,

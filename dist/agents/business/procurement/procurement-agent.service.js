@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcurementAgentService = exports.PROCUREMENT_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.PROCUREMENT_AGENT_CONFIG = {
     id: 'business-procurement',
     name: 'Procurement',
@@ -26,7 +34,11 @@ exports.PROCUREMENT_AGENT_CONFIG = {
                     vendorId: { type: 'string', description: 'Vendor ID' },
                     items: { type: 'array', items: { type: 'object' }, description: 'Line items' },
                     deliveryDate: { type: 'string', description: 'Expected delivery date' },
-                    priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Order priority' },
+                    priority: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high', 'urgent'],
+                        description: 'Order priority',
+                    },
                     notes: { type: 'string', description: 'Order notes' },
                 },
                 required: ['vendorId', 'items'],
@@ -48,7 +60,11 @@ exports.PROCUREMENT_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    action: { type: 'string', enum: ['create', 'update', 'evaluate', 'list'], description: 'Vendor management action' },
+                    action: {
+                        type: 'string',
+                        enum: ['create', 'update', 'evaluate', 'list'],
+                        description: 'Vendor management action',
+                    },
                     vendorId: { type: 'string', description: 'Vendor ID' },
                     name: { type: 'string', description: 'Vendor name' },
                     category: { type: 'string', description: 'Vendor category' },
@@ -99,8 +115,16 @@ exports.PROCUREMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     category: { type: 'string', description: 'Product/service category' },
-                    criteria: { type: 'array', items: { type: 'string' }, description: 'Comparison criteria' },
-                    supplierIds: { type: 'array', items: { type: 'string' }, description: 'Specific supplier IDs to compare' },
+                    criteria: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Comparison criteria',
+                    },
+                    supplierIds: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Specific supplier IDs to compare',
+                    },
                 },
                 required: ['category'],
             },
@@ -121,7 +145,11 @@ exports.PROCUREMENT_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     vendorId: { type: 'string', description: 'Vendor ID' },
-                    contractType: { type: 'string', enum: ['annual', 'multi-year', 'spot', 'framework'], description: 'Contract type' },
+                    contractType: {
+                        type: 'string',
+                        enum: ['annual', 'multi-year', 'spot', 'framework'],
+                        description: 'Contract type',
+                    },
                     terms: { type: 'object', description: 'Proposed contract terms' },
                     targetDiscount: { type: 'number', description: 'Target discount percentage' },
                 },
@@ -145,7 +173,11 @@ exports.PROCUREMENT_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    reportType: { type: 'string', enum: ['spend', 'vendor', 'efficiency', 'savings'], description: 'Type of procurement report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['spend', 'vendor', 'efficiency', 'savings'],
+                        description: 'Type of procurement report',
+                    },
                     period: { type: 'string', description: 'Report period' },
                     category: { type: 'string', description: 'Procurement category filter' },
                 },
@@ -180,8 +212,9 @@ exports.PROCUREMENT_AGENT_CONFIG = {
     },
 };
 let ProcurementAgentService = class ProcurementAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.vendors = new Map();
         this.purchaseOrders = new Map();
         this.shipments = new Map();
@@ -227,6 +260,20 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.SALES, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -322,7 +369,7 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
         };
     }
     async manageVendor(params) {
-        const { action: vendorAction, vendorId, name, category = 'general', contactEmail = '', rating } = params;
+        const { action: vendorAction, vendorId, name, category = 'general', contactEmail = '', rating, } = params;
         const validActions = ['create', 'update', 'evaluate', 'list'];
         if (!validActions.includes(vendorAction)) {
             throw new Error(`Invalid vendor action: ${vendorAction}. Supported: ${validActions.join(', ')}`);
@@ -465,7 +512,14 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
         }
         this.counter++;
         const trackingId = trackingNumber || `track-${Date.now()}-${this.counter}`;
-        const statuses = ['order_placed', 'processing', 'picked_up', 'in_transit', 'out_for_delivery', 'delivered'];
+        const statuses = [
+            'order_placed',
+            'processing',
+            'picked_up',
+            'in_transit',
+            'out_for_delivery',
+            'delivered',
+        ];
         const currentStatusIdx = Math.min(2, Math.floor(Math.random() * 4));
         const estimatedDelivery = order.deliveryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         const locations = ['Warehouse A', 'Distribution Center B', 'Sorting Facility C', 'Local Hub D'];
@@ -521,14 +575,46 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
                 .filter((v) => v !== undefined);
         }
         else {
-            vendorsToCompare = Array.from(this.vendors.values())
-                .filter((v) => v.category === category || v.category === 'general');
+            vendorsToCompare = Array.from(this.vendors.values()).filter((v) => v.category === category || v.category === 'general');
         }
         if (vendorsToCompare.length === 0) {
             vendorsToCompare = [
-                { id: 'sim-1', name: 'Supplier Alpha', category, rating: 4.2, status: 'active', totalOrders: 25, totalSpend: 150000, contactEmail: '', createdAt: new Date(), updatedAt: new Date() },
-                { id: 'sim-2', name: 'Supplier Beta', category, rating: 3.8, status: 'active', totalOrders: 18, totalSpend: 120000, contactEmail: '', createdAt: new Date(), updatedAt: new Date() },
-                { id: 'sim-3', name: 'Supplier Gamma', category, rating: 4.5, status: 'active', totalOrders: 30, totalSpend: 200000, contactEmail: '', createdAt: new Date(), updatedAt: new Date() },
+                {
+                    id: 'sim-1',
+                    name: 'Supplier Alpha',
+                    category,
+                    rating: 4.2,
+                    status: 'active',
+                    totalOrders: 25,
+                    totalSpend: 150000,
+                    contactEmail: '',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                },
+                {
+                    id: 'sim-2',
+                    name: 'Supplier Beta',
+                    category,
+                    rating: 3.8,
+                    status: 'active',
+                    totalOrders: 18,
+                    totalSpend: 120000,
+                    contactEmail: '',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                },
+                {
+                    id: 'sim-3',
+                    name: 'Supplier Gamma',
+                    category,
+                    rating: 4.5,
+                    status: 'active',
+                    totalOrders: 30,
+                    totalSpend: 200000,
+                    contactEmail: '',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                },
             ];
         }
         const suppliers = vendorsToCompare.map((vendor) => {
@@ -558,7 +644,9 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
             return { id: vendor.id, name: vendor.name, scores, overallScore, rank: 0 };
         });
         suppliers.sort((a, b) => b.overallScore - a.overallScore);
-        suppliers.forEach((s, i) => { s.rank = i + 1; });
+        suppliers.forEach((s, i) => {
+            s.rank = i + 1;
+        });
         const topSupplier = suppliers[0];
         const recommendation = topSupplier
             ? `Recommended supplier: ${topSupplier.name} (overall score: ${topSupplier.overallScore}/100, rank #1)`
@@ -587,10 +675,16 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
         this.counter++;
         const negotiationId = `neg-${Date.now()}-${this.counter}`;
         const achievableDiscount = Math.min(targetDiscount, +(5 + Math.random() * (targetDiscount - 3)).toFixed(1));
-        const estimatedSavings = Math.round(vendor.totalSpend * achievableDiscount / 100);
+        const estimatedSavings = Math.round((vendor.totalSpend * achievableDiscount) / 100);
         const proposedTerms = {
             contractType,
-            duration: contractType === 'annual' ? '12 months' : contractType === 'multi-year' ? '36 months' : contractType === 'spot' ? 'one-time' : '24 months',
+            duration: contractType === 'annual'
+                ? '12 months'
+                : contractType === 'multi-year'
+                    ? '36 months'
+                    : contractType === 'spot'
+                        ? 'one-time'
+                        : '24 months',
             paymentTerms: terms.paymentTerms || 'Net 30',
             discount: achievableDiscount,
             minimumOrderValue: terms.minimumOrderValue || Math.round(5000 + Math.random() * 15000),
@@ -626,7 +720,8 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
         }
         this.counter++;
         const reportId = `proc-rpt-${Date.now()}-${this.counter}`;
-        const totalSpend = Array.from(this.purchaseOrders.values()).reduce((s, o) => s + o.totalAmount, 0) || 500000 + Math.floor(Math.random() * 500000);
+        const totalSpend = Array.from(this.purchaseOrders.values()).reduce((s, o) => s + o.totalAmount, 0) ||
+            500000 + Math.floor(Math.random() * 500000);
         const totalOrders = this.purchaseOrders.size || 50 + Math.floor(Math.random() * 50);
         let summary = {};
         let data = {};
@@ -645,8 +740,11 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
                 };
                 data = {
                     monthlySpend: Array.from({ length: 6 }, (_, i) => ({
-                        month: new Date(Date.now() - i * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0].substring(0, 7),
-                        amount: Math.round(totalSpend / 6 * (0.8 + Math.random() * 0.4)),
+                        month: new Date(Date.now() - i * 30 * 24 * 60 * 60 * 1000)
+                            .toISOString()
+                            .split('T')[0]
+                            .substring(0, 7),
+                        amount: Math.round((totalSpend / 6) * (0.8 + Math.random() * 0.4)),
                     })),
                     topVendorsBySpend: Array.from(this.vendors.values())
                         .sort((a, b) => b.totalSpend - a.totalSpend)
@@ -685,7 +783,11 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
                 data = {
                     processingTimeTrend: 'improving',
                     bottleneckStages: ['approval', 'vendor_confirmation'],
-                    automationOpportunities: ['auto-approval for < $5K', 'recurring order templates', 'vendor portal integration'],
+                    automationOpportunities: [
+                        'auto-approval for < $5K',
+                        'recurring order templates',
+                        'vendor portal integration',
+                    ],
                 };
                 break;
             }
@@ -739,7 +841,10 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
                 id,
                 name: v.name,
                 category: v.category,
-                contactEmail: `contact@${v.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`,
+                contactEmail: `contact@${v.name
+                    .toLowerCase()
+                    .replace(/\s+/g, '')
+                    .replace(/[^a-z0-9]/g, '')}.com`,
                 rating: v.rating,
                 status: 'active',
                 totalOrders: 5 + Math.floor(Math.random() * 20),
@@ -760,6 +865,8 @@ let ProcurementAgentService = class ProcurementAgentService extends base_agent_s
 };
 exports.ProcurementAgentService = ProcurementAgentService;
 exports.ProcurementAgentService = ProcurementAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ProcurementAgentService);
 //# sourceMappingURL=procurement-agent.service.js.map

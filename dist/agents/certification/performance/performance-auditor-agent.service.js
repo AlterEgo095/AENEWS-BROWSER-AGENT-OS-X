@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PerformanceAuditorAgent = exports.PERFORMANCE_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.PERFORMANCE_AUDITOR_CONFIG = {
     id: 'certification-performance-auditor',
     name: 'PerformanceAuditor',
@@ -99,14 +107,20 @@ exports.PERFORMANCE_AUDITOR_CONFIG = {
             },
         },
     ],
-    permissions: ['certification:audit', 'certification:performance', 'read:metrics', 'read:resources'],
+    permissions: [
+        'certification:audit',
+        'certification:performance',
+        'read:metrics',
+        'read:resources',
+    ],
     maxConcurrentTasks: 5,
     timeout: 60000,
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let PerformanceAuditorAgent = class PerformanceAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.performanceLog = [];
     }
     defineConfig() {
@@ -136,8 +150,22 @@ let PerformanceAuditorAgent = class PerformanceAuditorAgent extends base_agent_s
         this.logger.log('PerformanceAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.PERFORMANCE, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -196,10 +224,17 @@ let PerformanceAuditorAgent = class PerformanceAuditorAgent extends base_agent_s
                 this.performanceLog.push(issue);
             }
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 25
+                    : issue.severity === 'high'
+                        ? 15
+                        : issue.severity === 'medium'
+                            ? 8
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'latency')) {
             recommendations.push('Optimize hot paths and implement caching strategies to reduce latency');
         }
@@ -240,13 +275,25 @@ let PerformanceAuditorAgent = class PerformanceAuditorAgent extends base_agent_s
         const ioWait = Math.round(Math.random() * 30 * 100) / 100;
         const bottlenecks = [];
         if (cpuUsage > 80) {
-            bottlenecks.push({ resource: 'cpu', usage: cpuUsage, recommendation: 'Scale vertically or optimize CPU-intensive operations' });
+            bottlenecks.push({
+                resource: 'cpu',
+                usage: cpuUsage,
+                recommendation: 'Scale vertically or optimize CPU-intensive operations',
+            });
         }
         if (memoryUsage > 800) {
-            bottlenecks.push({ resource: 'memory', usage: memoryUsage, recommendation: 'Investigate memory leaks and optimize data retention' });
+            bottlenecks.push({
+                resource: 'memory',
+                usage: memoryUsage,
+                recommendation: 'Investigate memory leaks and optimize data retention',
+            });
         }
         if (ioWait > 20) {
-            bottlenecks.push({ resource: 'io', usage: ioWait, recommendation: 'Optimize I/O operations with batching and async patterns' });
+            bottlenecks.push({
+                resource: 'io',
+                usage: ioWait,
+                recommendation: 'Optimize I/O operations with batching and async patterns',
+            });
         }
         this.logger.log(`Resource profile for ${target}: CPU ${cpuUsage}%, Memory ${memoryUsage}MB, I/O wait ${ioWait}%`);
         return { cpuUsage, memoryUsage, ioWait, bottlenecks };
@@ -254,6 +301,9 @@ let PerformanceAuditorAgent = class PerformanceAuditorAgent extends base_agent_s
 };
 exports.PerformanceAuditorAgent = PerformanceAuditorAgent;
 exports.PerformanceAuditorAgent = PerformanceAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], PerformanceAuditorAgent);
 //# sourceMappingURL=performance-auditor-agent.service.js.map

@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationAgentService = exports.NOTIFICATION_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.NOTIFICATION_AGENT_CONFIG = {
     id: 'computer-notification',
     name: 'Notification',
@@ -25,10 +33,21 @@ exports.NOTIFICATION_AGENT_CONFIG = {
                 properties: {
                     title: { type: 'string', description: 'Notification title' },
                     body: { type: 'string', description: 'Notification body text' },
-                    priority: { type: 'string', enum: ['low', 'normal', 'high', 'critical'], default: 'normal' },
-                    category: { type: 'string', description: 'Notification category (e.g., system, task, alert)' },
+                    priority: {
+                        type: 'string',
+                        enum: ['low', 'normal', 'high', 'critical'],
+                        default: 'normal',
+                    },
+                    category: {
+                        type: 'string',
+                        description: 'Notification category (e.g., system, task, alert)',
+                    },
                     icon: { type: 'string', description: 'Icon path or name' },
-                    actions: { type: 'array', items: { type: 'string' }, description: 'Action button labels' },
+                    actions: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Action button labels',
+                    },
                     silent: { type: 'boolean', default: false, description: 'Suppress sound' },
                     scheduleAt: { type: 'string', description: 'ISO timestamp for scheduled delivery' },
                 },
@@ -73,7 +92,11 @@ exports.NOTIFICATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     clearAll: { type: 'boolean', default: false, description: 'Clear all notifications' },
-                    notificationIds: { type: 'array', items: { type: 'string' }, description: 'Specific IDs to clear' },
+                    notificationIds: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Specific IDs to clear',
+                    },
                     olderThan: { type: 'string', description: 'ISO timestamp - clear older than this' },
                     category: { type: 'string', description: 'Clear by category' },
                 },
@@ -102,7 +125,11 @@ exports.NOTIFICATION_AGENT_CONFIG = {
                         default: 'none',
                         description: 'Recurrence pattern',
                     },
-                    priority: { type: 'string', enum: ['low', 'normal', 'high', 'critical'], default: 'normal' },
+                    priority: {
+                        type: 'string',
+                        enum: ['low', 'normal', 'high', 'critical'],
+                        default: 'normal',
+                    },
                     category: { type: 'string', default: 'reminder' },
                 },
                 required: ['title', 'triggerAt'],
@@ -135,8 +162,9 @@ exports.NOTIFICATION_AGENT_CONFIG = {
     },
 };
 let NotificationAgentService = class NotificationAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.notifications = new Map();
         this.reminders = new Map();
         this.notificationCounter = 0;
@@ -173,12 +201,29 @@ let NotificationAgentService = class NotificationAgentService extends base_agent
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DeliveryCapability.NOTIFICATION, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'sendNotification', 'listNotifications', 'clearNotifications', 'setReminder',
+            'sendNotification',
+            'listNotifications',
+            'clearNotifications',
+            'setReminder',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown notification action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -436,6 +481,8 @@ let NotificationAgentService = class NotificationAgentService extends base_agent
 };
 exports.NotificationAgentService = NotificationAgentService;
 exports.NotificationAgentService = NotificationAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], NotificationAgentService);
 //# sourceMappingURL=notification-agent.service.js.map

@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DependencyAgentService = exports.DEPENDENCY_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.DEPENDENCY_AGENT_CONFIG = {
     id: 'coding-dependency',
     name: 'Dependency',
@@ -25,7 +33,11 @@ exports.DEPENDENCY_AGENT_CONFIG = {
                 properties: {
                     packageJson: { type: 'object', description: 'Parsed package.json contents' },
                     includeDev: { type: 'boolean', default: true, description: 'Include devDependencies' },
-                    includeTransitive: { type: 'boolean', default: false, description: 'Include transitive dependencies' },
+                    includeTransitive: {
+                        type: 'boolean',
+                        default: false,
+                        description: 'Include transitive dependencies',
+                    },
                     filter: { type: 'string', description: 'Filter pattern for dependency names' },
                 },
                 required: ['packageJson'],
@@ -46,7 +58,11 @@ exports.DEPENDENCY_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     packageJson: { type: 'object', description: 'Parsed package.json contents' },
-                    severityThreshold: { type: 'string', enum: ['low', 'moderate', 'high', 'critical'], default: 'low' },
+                    severityThreshold: {
+                        type: 'string',
+                        enum: ['low', 'moderate', 'high', 'critical'],
+                        default: 'low',
+                    },
                     includeDev: { type: 'boolean', default: true },
                 },
                 required: ['packageJson'],
@@ -115,9 +131,16 @@ exports.DEPENDENCY_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    conflicts: { type: 'array', items: { type: 'object', description: 'Version conflict descriptions' } },
+                    conflicts: {
+                        type: 'array',
+                        items: { type: 'object', description: 'Version conflict descriptions' },
+                    },
                     packageJson: { type: 'object', description: 'Current package.json' },
-                    strategy: { type: 'string', enum: ['newest', 'oldest', 'semver-compatible', 'manual'], default: 'semver-compatible' },
+                    strategy: {
+                        type: 'string',
+                        enum: ['newest', 'oldest', 'semver-compatible', 'manual'],
+                        default: 'semver-compatible',
+                    },
                 },
                 required: ['conflicts', 'packageJson'],
             },
@@ -147,18 +170,75 @@ exports.DEPENDENCY_AGENT_CONFIG = {
     },
 };
 const KNOWN_VULNERABILITIES = [
-    { package: 'lodash', versions: '<4.17.21', severity: 'high', title: 'Prototype Pollution', cve: 'CVE-2020-8203', patched: '>=4.17.21' },
-    { package: 'express', versions: '<4.17.3', severity: 'moderate', title: 'Open Redirect', cve: 'CVE-2021-44906', patched: '>=4.17.3' },
-    { package: 'axios', versions: '<0.21.1', severity: 'high', title: 'Server-Side Request Forgery', cve: 'CVE-2021-3749', patched: '>=0.21.1' },
-    { package: 'node-fetch', versions: '<2.6.7', severity: 'high', title: 'ReDoS via Content-Length Header', cve: 'CVE-2022-0235', patched: '>=2.6.7' },
-    { package: 'jsonwebtoken', versions: '<9.0.0', severity: 'moderate', title: 'Insecure default algorithm', cve: 'CVE-2022-23529', patched: '>=9.0.0' },
-    { package: 'debug', versions: '<2.6.9', severity: 'moderate', title: 'Regular Expression Denial of Service', cve: 'CVE-2017-16119', patched: '>=2.6.9' },
-    { package: 'minimist', versions: '<0.2.1', severity: 'low', title: 'Prototype Pollution', cve: 'CVE-2020-7598', patched: '>=0.2.1' },
-    { package: 'yargs-parser', versions: '<5.0.1', severity: 'low', title: 'Prototype Pollution', cve: 'CVE-2020-7608', patched: '>=5.0.1' },
+    {
+        package: 'lodash',
+        versions: '<4.17.21',
+        severity: 'high',
+        title: 'Prototype Pollution',
+        cve: 'CVE-2020-8203',
+        patched: '>=4.17.21',
+    },
+    {
+        package: 'express',
+        versions: '<4.17.3',
+        severity: 'moderate',
+        title: 'Open Redirect',
+        cve: 'CVE-2021-44906',
+        patched: '>=4.17.3',
+    },
+    {
+        package: 'axios',
+        versions: '<0.21.1',
+        severity: 'high',
+        title: 'Server-Side Request Forgery',
+        cve: 'CVE-2021-3749',
+        patched: '>=0.21.1',
+    },
+    {
+        package: 'node-fetch',
+        versions: '<2.6.7',
+        severity: 'high',
+        title: 'ReDoS via Content-Length Header',
+        cve: 'CVE-2022-0235',
+        patched: '>=2.6.7',
+    },
+    {
+        package: 'jsonwebtoken',
+        versions: '<9.0.0',
+        severity: 'moderate',
+        title: 'Insecure default algorithm',
+        cve: 'CVE-2022-23529',
+        patched: '>=9.0.0',
+    },
+    {
+        package: 'debug',
+        versions: '<2.6.9',
+        severity: 'moderate',
+        title: 'Regular Expression Denial of Service',
+        cve: 'CVE-2017-16119',
+        patched: '>=2.6.9',
+    },
+    {
+        package: 'minimist',
+        versions: '<0.2.1',
+        severity: 'low',
+        title: 'Prototype Pollution',
+        cve: 'CVE-2020-7598',
+        patched: '>=0.2.1',
+    },
+    {
+        package: 'yargs-parser',
+        versions: '<5.0.1',
+        severity: 'low',
+        title: 'Prototype Pollution',
+        cve: 'CVE-2020-7608',
+        patched: '>=5.0.1',
+    },
 ];
 let DependencyAgentService = class DependencyAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.auditHistory = [];
     }
     defineConfig() {
@@ -195,6 +275,20 @@ let DependencyAgentService = class DependencyAgentService extends base_agent_ser
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DEBUG, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback to local: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -310,7 +404,7 @@ let DependencyAgentService = class DependencyAgentService extends base_agent_ser
         return { vulnerabilities, totalVulnerabilities: vulnerabilities.length, riskScore, summary };
     }
     async updateDependency(params) {
-        const { packageName, targetVersion, packageJson, currentVersion, isDevDependency = false } = params;
+        const { packageName, targetVersion, packageJson, currentVersion, isDevDependency = false, } = params;
         if (!packageName || typeof packageName !== 'string') {
             throw new Error('Package name is required');
         }
@@ -326,9 +420,7 @@ let DependencyAgentService = class DependencyAgentService extends base_agent_ser
         if (!resolvedCurrentVersion) {
             throw new Error(`Package "${packageName}" not found in dependencies`);
         }
-        const resolvedTarget = targetVersion === 'latest'
-            ? this.simulateLatestVersion(packageName)
-            : targetVersion;
+        const resolvedTarget = targetVersion === 'latest' ? this.simulateLatestVersion(packageName) : targetVersion;
         const updatedPackageJson = { ...packageJson };
         if (isDevDependency || packageJson.devDependencies?.[packageName]) {
             if (!updatedPackageJson.devDependencies)
@@ -427,7 +519,8 @@ let DependencyAgentService = class DependencyAgentService extends base_agent_ser
                 recommendations.push(`Found ${licenseIssues.length} license issue(s). Review and ensure compliance with your project's license policy.`);
             }
         }
-        const healthScore = this.calculateDependencyHealthScore(unusedDependencies.length, outdatedDependencies.length, licenseIssues.length, Object.keys({ ...(packageJson.dependencies || {}), ...(packageJson.devDependencies || {}) }).length);
+        const healthScore = this.calculateDependencyHealthScore(unusedDependencies.length, outdatedDependencies.length, licenseIssues.length, Object.keys({ ...(packageJson.dependencies || {}), ...(packageJson.devDependencies || {}) })
+            .length);
         if (Object.keys(packageJson.dependencies || {}).length > 30) {
             recommendations.push('Project has many production dependencies. Consider reducing dependency count for better maintainability.');
         }
@@ -523,43 +616,52 @@ let DependencyAgentService = class DependencyAgentService extends base_agent_ser
     }
     simulateLatestVersion(packageName) {
         const knownLatest = {
-            'express': '4.18.2',
-            'lodash': '4.17.21',
-            'axios': '1.6.0',
-            'react': '18.2.0',
-            'next': '14.0.0',
-            'typescript': '5.3.3',
+            express: '4.18.2',
+            lodash: '4.17.21',
+            axios: '1.6.0',
+            react: '18.2.0',
+            next: '14.0.0',
+            typescript: '5.3.3',
             '@nestjs/common': '10.3.0',
             '@nestjs/core': '10.3.0',
-            'jest': '29.7.0',
-            'eslint': '8.56.0',
-            'prettier': '3.2.0',
+            jest: '29.7.0',
+            eslint: '8.56.0',
+            prettier: '3.2.0',
             'node-fetch': '2.7.0',
-            'jsonwebtoken': '9.0.2',
-            'debug': '4.3.4',
-            'minimist': '1.2.8',
+            jsonwebtoken: '9.0.2',
+            debug: '4.3.4',
+            minimist: '1.2.8',
         };
         if (knownLatest[packageName])
             return knownLatest[packageName];
         const hash = packageName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-        return `${(hash % 10) + 1}.${(hash % 20)}.${(hash % 30)}`;
+        return `${(hash % 10) + 1}.${hash % 20}.${hash % 30}`;
     }
     simulateMinorVersion() {
         return String(Math.floor(Math.random() * 20) + 1);
     }
     simulateLicense(packageName) {
         const knownLicenses = {
-            'express': 'MIT',
-            'lodash': 'MIT',
-            'axios': 'MIT',
-            'react': 'MIT',
-            'typescript': 'Apache-2.0',
+            express: 'MIT',
+            lodash: 'MIT',
+            axios: 'MIT',
+            react: 'MIT',
+            typescript: 'Apache-2.0',
             '@nestjs/common': 'MIT',
-            'jest': 'MIT',
+            jest: 'MIT',
         };
         if (knownLicenses[packageName])
             return knownLicenses[packageName];
-        const licenses = ['MIT', 'MIT', 'MIT', 'Apache-2.0', 'BSD-3-Clause', 'ISC', 'GPL-3.0', 'UNLICENSED'];
+        const licenses = [
+            'MIT',
+            'MIT',
+            'MIT',
+            'Apache-2.0',
+            'BSD-3-Clause',
+            'ISC',
+            'GPL-3.0',
+            'UNLICENSED',
+        ];
         const hash = packageName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
         return licenses[hash % licenses.length];
     }
@@ -728,6 +830,8 @@ let DependencyAgentService = class DependencyAgentService extends base_agent_ser
 };
 exports.DependencyAgentService = DependencyAgentService;
 exports.DependencyAgentService = DependencyAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], DependencyAgentService);
 //# sourceMappingURL=dependency-agent.service.js.map

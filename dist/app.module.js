@@ -17,6 +17,11 @@ const app_service_1 = require("./app.service");
 const health_module_1 = require("./health/health.module");
 const agents_module_1 = require("./agents/agents.module");
 const software_factory_module_1 = require("./software-factory/software-factory.module");
+const mission_os_module_1 = require("./mission-os/mission-os.module");
+const gateway_module_1 = require("./gateway/gateway.module");
+const realtime_module_1 = require("./realtime/realtime.module");
+const queues_module_1 = require("./queues/queues.module");
+const integration_module_1 = require("./integration/integration.module");
 const config_2 = require("./config");
 let AppModule = class AppModule {
 };
@@ -90,6 +95,11 @@ exports.AppModule = AppModule = __decorate([
             health_module_1.HealthModule,
             agents_module_1.AgentsModule,
             software_factory_module_1.SoftwareFactoryModule,
+            mission_os_module_1.MissionOsModule,
+            gateway_module_1.GatewayModule,
+            realtime_module_1.RealtimeModule,
+            queues_module_1.QueuesModule,
+            integration_module_1.IntegrationModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

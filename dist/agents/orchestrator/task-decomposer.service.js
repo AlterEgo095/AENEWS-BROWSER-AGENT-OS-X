@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 var TaskDecomposerService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskDecomposerService = exports.TaskComplexity = exports.DecompositionStrategy = void 0;
@@ -15,6 +18,7 @@ const common_1 = require("@nestjs/common");
 const uuid_1 = require("uuid");
 const agent_interface_1 = require("../interfaces/agent.interface");
 const memory_service_1 = require("../memory/memory.service");
+const bridge_1 = require("../bridge");
 var DecompositionStrategy;
 (function (DecompositionStrategy) {
     DecompositionStrategy["SEQUENTIAL"] = "sequential";
@@ -38,8 +42,9 @@ const DEFAULT_DECOMPOSITION_CONFIG = {
     enableHistoricalLookup: true,
 };
 let TaskDecomposerService = TaskDecomposerService_1 = class TaskDecomposerService {
-    constructor(memoryService) {
+    constructor(memoryService, bridge) {
         this.memoryService = memoryService;
+        this.bridge = bridge;
         this.logger = new common_1.Logger(TaskDecomposerService_1.name);
         this.config = { ...DEFAULT_DECOMPOSITION_CONFIG };
     }
@@ -47,23 +52,37 @@ let TaskDecomposerService = TaskDecomposerService_1 = class TaskDecomposerServic
         const startTime = Date.now();
         this.logger.log(`Decomposing task ${input.taskId}`);
         try {
-            let subtasks;
-            if (this.config.enableHistoricalLookup) {
-                const historicalDecomposition = await this.findHistoricalDecomposition(input);
-                if (historicalDecomposition) {
-                    this.logger.log(`Found historical decomposition for task similar to ${input.taskId}`);
-                    subtasks = this.adaptHistoricalDecomposition(input, historicalDecomposition);
+            let subtasks = null;
+            if (this.bridge) {
+                try {
+                    subtasks = await this.llmDecompose(input);
+                    if (subtasks && subtasks.length > 0) {
+                        this.logger.log(`LLM decomposition succeeded for task ${input.taskId}`);
+                    }
+                }
+                catch (error) {
+                    this.logger.warn(`LLM decomposition failed for task ${input.taskId}, falling back to rule-based: ${error.message}`);
+                    subtasks = null;
+                }
+            }
+            if (!subtasks || subtasks.length === 0) {
+                if (this.config.enableHistoricalLookup) {
+                    const historicalDecomposition = await this.findHistoricalDecomposition(input);
+                    if (historicalDecomposition) {
+                        this.logger.log(`Found historical decomposition for task similar to ${input.taskId}`);
+                        subtasks = this.adaptHistoricalDecomposition(input, historicalDecomposition);
+                    }
+                    else {
+                        const complexity = this.assessComplexity(input);
+                        const strategy = this.selectStrategy(complexity, input);
+                        subtasks = this.performDecomposition(input, strategy, complexity);
+                    }
                 }
                 else {
                     const complexity = this.assessComplexity(input);
                     const strategy = this.selectStrategy(complexity, input);
                     subtasks = this.performDecomposition(input, strategy, complexity);
                 }
-            }
-            else {
-                const complexity = this.assessComplexity(input);
-                const strategy = this.selectStrategy(complexity, input);
-                subtasks = this.performDecomposition(input, strategy, complexity);
             }
             if (this.config.enableRecursiveDecomposition) {
                 subtasks = await this.recursiveDecompose(subtasks, 1);
@@ -97,7 +116,8 @@ let TaskDecomposerService = TaskDecomposerService_1 = class TaskDecomposerServic
             priority: subtask.priority,
         };
         const complexity = this.assessComplexity(input);
-        if (this.getComplexityScore(complexity) < this.getComplexityScore(this.config.minSubtaskComplexity)) {
+        if (this.getComplexityScore(complexity) <
+            this.getComplexityScore(this.config.minSubtaskComplexity)) {
             return [subtask];
         }
         const strategy = this.selectStrategy(complexity, input);
@@ -215,6 +235,60 @@ let TaskDecomposerService = TaskDecomposerService_1 = class TaskDecomposerServic
         }
         return order;
     }
+    async llmDecompose(input) {
+        if (!this.bridge) {
+            return [];
+        }
+        const userPrompt = JSON.stringify({
+            taskId: input.taskId,
+            payload: input.payload,
+            context: input.context,
+            priority: input.priority,
+            parentTaskId: input.parentTaskId,
+        });
+        const result = await this.bridge.callLLM({
+            systemPrompt: 'You are an expert task decomposer for an AI agent platform. Break down the mission into atomic subtasks. ' +
+                'Available clusters: browser, computer, coding, office, marketing, business, infrastructure, security, meta_intelligence. ' +
+                'Available capabilities: dev.*, browser.*, office.*, business.*, cert.*, delivery.*. ' +
+                'Output JSON: {subtasks: [{id, description, cluster, capability, parameters, dependencies[], priority}], executionGroups: [[subtask ids that can run in parallel]]}',
+            userPrompt,
+            temperature: 0.3,
+            maxTokens: 4096,
+        });
+        const parsed = JSON.parse(result.content);
+        const rawSubtasks = parsed.subtasks || [];
+        return rawSubtasks.map((raw, index) => ({
+            id: raw.id || (0, uuid_1.v4)(),
+            parentId: input.taskId,
+            cluster: raw.cluster,
+            status: agent_interface_1.TaskStatus.PENDING,
+            priority: raw.priority || input.priority || agent_interface_1.TaskPriority.NORMAL,
+            input: {
+                taskId: raw.id || (0, uuid_1.v4)(),
+                payload: raw.parameters || { description: raw.description },
+                context: {
+                    ...input.context,
+                    stepIndex: index,
+                    stepDescription: raw.description,
+                },
+                parentTaskId: input.taskId,
+                priority: raw.priority || input.priority || agent_interface_1.TaskPriority.NORMAL,
+            },
+            subtasks: [],
+            retryCount: 0,
+            maxRetries: 3,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            correlationId: input.context?.correlationId || (0, uuid_1.v4)(),
+            metadata: {
+                stepIndex: index,
+                stepDescription: raw.description,
+                dependencies: raw.dependencies || [],
+                capability: raw.capability,
+                llmGenerated: true,
+            },
+        }));
+    }
     async recursiveDecompose(subtasks, depth) {
         if (depth > this.config.maxRecursionDepth) {
             return subtasks;
@@ -222,7 +296,8 @@ let TaskDecomposerService = TaskDecomposerService_1 = class TaskDecomposerServic
         const result = [];
         for (const subtask of subtasks) {
             const complexity = this.assessComplexity(subtask.input);
-            if (this.getComplexityScore(complexity) >= this.getComplexityScore(this.config.minSubtaskComplexity)) {
+            if (this.getComplexityScore(complexity) >=
+                this.getComplexityScore(this.config.minSubtaskComplexity)) {
                 const childSubtasks = await this.decomposeSubtask(subtask, depth);
                 result.push(...childSubtasks);
             }
@@ -234,12 +309,18 @@ let TaskDecomposerService = TaskDecomposerService_1 = class TaskDecomposerServic
     }
     getComplexityScore(complexity) {
         switch (complexity) {
-            case TaskComplexity.TRIVIAL: return 0;
-            case TaskComplexity.SIMPLE: return 1;
-            case TaskComplexity.MODERATE: return 2;
-            case TaskComplexity.COMPLEX: return 3;
-            case TaskComplexity.HIGHLY_COMPLEX: return 4;
-            default: return 0;
+            case TaskComplexity.TRIVIAL:
+                return 0;
+            case TaskComplexity.SIMPLE:
+                return 1;
+            case TaskComplexity.MODERATE:
+                return 2;
+            case TaskComplexity.COMPLEX:
+                return 3;
+            case TaskComplexity.HIGHLY_COMPLEX:
+                return 4;
+            default:
+                return 0;
         }
     }
     performDecomposition(input, strategy, complexity) {
@@ -539,6 +620,9 @@ let TaskDecomposerService = TaskDecomposerService_1 = class TaskDecomposerServic
 exports.TaskDecomposerService = TaskDecomposerService;
 exports.TaskDecomposerService = TaskDecomposerService = TaskDecomposerService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [memory_service_1.MemoryService])
+    __param(1, (0, common_1.Optional)()),
+    __param(1, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [memory_service_1.MemoryService,
+        bridge_1.AgentConnectorBridge])
 ], TaskDecomposerService);
 //# sourceMappingURL=task-decomposer.service.js.map

@@ -19,7 +19,9 @@ let DeliveryTeamService = DeliveryTeamService_1 = class DeliveryTeamService {
         this.registry = registry;
         this.logger = new common_1.Logger(DeliveryTeamService_1.name);
     }
-    getTeamAgents() { return this.registry.getByLevel(interfaces_1.AgentLevel.DELIVERY); }
+    getTeamAgents() {
+        return this.registry.getByLevel(interfaces_1.AgentLevel.DELIVERY);
+    }
     selectAgents(taskDescription) {
         const desc = taskDescription.toLowerCase();
         const agents = [];
@@ -47,15 +49,27 @@ let DeliveryTeamService = DeliveryTeamService_1 = class DeliveryTeamService {
         const selectedAgents = this.selectAgents(task);
         this.logger.log(`Delivery team executing: "${task}" with ${selectedAgents.length} agents`);
         return {
-            agentId: interfaces_1.DeliveryAgent.DEPLOYMENT, missionId, success: true,
+            agentId: interfaces_1.DeliveryAgent.DEPLOYMENT,
+            missionId,
+            success: true,
             output: { task, agentsUsed: selectedAgents, result: 'Delivery task completed', data: input },
-            artifacts: [], cost: selectedAgents.length * 0.1, durationMs: selectedAgents.length * 1500,
-            logs: selectedAgents.map(a => `Agent ${a} executed`), errors: [],
+            artifacts: [],
+            cost: selectedAgents.length * 0.1,
+            durationMs: selectedAgents.length * 1500,
+            logs: selectedAgents.map((a) => `Agent ${a} executed`),
+            errors: [],
         };
     }
     getStats() {
-        return { level: interfaces_1.AgentLevel.DELIVERY, totalAgents: 8,
-            availableAgents: this.getTeamAgents().map(a => ({ id: a.id, name: a.name, skills: a.skills, costPerTask: a.estimatedCostPerTask })),
+        return {
+            level: interfaces_1.AgentLevel.DELIVERY,
+            totalAgents: 8,
+            availableAgents: this.getTeamAgents().map((a) => ({
+                id: a.id,
+                name: a.name,
+                skills: a.skills,
+                costPerTask: a.estimatedCostPerTask,
+            })),
         };
     }
 };

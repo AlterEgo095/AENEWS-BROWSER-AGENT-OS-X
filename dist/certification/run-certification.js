@@ -61,13 +61,22 @@ async function runCertification() {
     logger.log(`  ✓ Architecture: ${archResult.score}/100 (${archResult.passed ? 'PASS' : 'FAIL'})`);
     logger.log('▶ [2/9] Running Tests certification...');
     const testScore = await runSimpleCheck('tests', [
-        { name: 'Jest config exists', check: () => fs.existsSync(path.resolve(__dirname, '..', '..', 'jest.config.js')) },
-        { name: 'Test directory exists', check: () => fs.existsSync(path.resolve(__dirname, '..', '..', '..', 'test')) },
-        { name: 'E2E test config exists', check: () => fs.existsSync(path.resolve(__dirname, '..', '..', '..', 'test', 'jest-e2e.json')) },
+        {
+            name: 'Jest config exists',
+            check: () => fs.existsSync(path.resolve(__dirname, '..', '..', 'jest.config.js')),
+        },
+        {
+            name: 'Test directory exists',
+            check: () => fs.existsSync(path.resolve(__dirname, '..', '..', '..', 'test')),
+        },
+        {
+            name: 'E2E test config exists',
+            check: () => fs.existsSync(path.resolve(__dirname, '..', '..', '..', 'test', 'jest-e2e.json')),
+        },
     ]);
     domains.push({
         domain: types_1.CertificationDomain.TESTS,
-        weight: 0.10,
+        weight: 0.1,
         score: testScore,
         tests: [],
         passed: testScore >= 90,
@@ -137,9 +146,13 @@ async function runCertification() {
     }
     logger.log('  └──────────────────────┴──────────┴──────────┴─────────┘');
     logger.log('');
-    const levelIcon = level === types_1.CertificationLevel.PLATINUM ? '🏆' :
-        level === types_1.CertificationLevel.GOLD ? '🥇' :
-            level === types_1.CertificationLevel.SILVER ? '🥈' : '❌';
+    const levelIcon = level === types_1.CertificationLevel.PLATINUM
+        ? '🏆'
+        : level === types_1.CertificationLevel.GOLD
+            ? '🥇'
+            : level === types_1.CertificationLevel.SILVER
+                ? '🥈'
+                : '❌';
     logger.log(`  Enterprise Quality Index (EQI): ${eqi.toFixed(1)}%`);
     logger.log(`  Certification Level: ${level} ${levelIcon}`);
     logger.log(`  Approved: ${level !== types_1.CertificationLevel.REJECTED ? 'YES ✅' : 'NO ❌'}`);
@@ -174,14 +187,14 @@ async function runCertification() {
         eqi: Math.round(eqi * 10) / 10,
         level,
         approved: level !== types_1.CertificationLevel.REJECTED,
-        domains: domains.map(d => ({
+        domains: domains.map((d) => ({
             domain: d.domain,
             weight: d.weight,
             score: d.score,
             passed: d.passed,
             testCount: d.tests.length,
-            passedTests: d.tests.filter(t => t.passed).length,
-            failedTests: d.tests.filter(t => !t.passed).length,
+            passedTests: d.tests.filter((t) => t.passed).length,
+            failedTests: d.tests.filter((t) => !t.passed).length,
             criticalFailures: d.criticalFailures,
         })),
         criticalIssues,

@@ -447,7 +447,7 @@ let AutoRecoveryService = AutoRecoveryService_1 = class AutoRecoveryService {
         const byStrategy = {};
         const byStatus = {};
         let succeeded = 0;
-        let total = allActions.length;
+        const total = allActions.length;
         for (const action of allActions) {
             byFailureType[action.failureType] = (byFailureType[action.failureType] ?? 0) + 1;
             byStrategy[action.recoveryStrategy] = (byStrategy[action.recoveryStrategy] ?? 0) + 1;
@@ -597,9 +597,7 @@ let AutoRecoveryService = AutoRecoveryService_1 = class AutoRecoveryService {
         return { ...record };
     }
     getUnacknowledgedEscalations() {
-        return this.escalations
-            .filter((e) => !e.acknowledged)
-            .map((e) => ({ ...e }));
+        return this.escalations.filter((e) => !e.acknowledged).map((e) => ({ ...e }));
     }
     getEscalations(agentId) {
         let result = this.escalations;

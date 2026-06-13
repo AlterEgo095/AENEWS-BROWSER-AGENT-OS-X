@@ -37,7 +37,12 @@ let MissionMonitorService = MissionMonitorService_1 = class MissionMonitorServic
         }
         const now = new Date();
         const defaultPhases = [
-            'PLANNING', 'BROWSER', 'DEVELOPMENT', 'BUSINESS', 'CERTIFICATION', 'DELIVERY',
+            'PLANNING',
+            'BROWSER',
+            'DEVELOPMENT',
+            'BUSINESS',
+            'CERTIFICATION',
+            'DELIVERY',
         ].map((phase) => ({
             phaseType: phase,
             progress: 0,
@@ -221,7 +226,10 @@ let MissionMonitorService = MissionMonitorService_1 = class MissionMonitorServic
             phase.status = 'FAILED';
             phase.lastUpdatedAt = new Date();
         }
-        this.recordAlert(missionId, AlertSeverity.ERROR, `Phase "${phaseType}" failed: ${error}`, { phaseType, error });
+        this.recordAlert(missionId, AlertSeverity.ERROR, `Phase "${phaseType}" failed: ${error}`, {
+            phaseType,
+            error,
+        });
         this.logger.error(`Mission "${missionId}": phase "${phaseType}" FAILED — ${error}`);
     }
     getMonitorStateOrThrow(missionId) {

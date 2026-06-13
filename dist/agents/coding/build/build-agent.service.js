@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BuildAgentService = exports.BUILD_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.BUILD_AGENT_CONFIG = {
     id: 'coding-build',
     name: 'Build',
@@ -24,7 +32,11 @@ exports.BUILD_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     projectPath: { type: 'string', description: 'Path to the project root' },
-                    environment: { type: 'string', enum: ['development', 'staging', 'production'], default: 'production' },
+                    environment: {
+                        type: 'string',
+                        enum: ['development', 'staging', 'production'],
+                        default: 'production',
+                    },
                     target: { type: 'string', description: 'Build target (e.g., "node", "browser")' },
                     watch: { type: 'boolean', default: false },
                     verbose: { type: 'boolean', default: false },
@@ -99,8 +111,16 @@ exports.BUILD_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     projectPath: { type: 'string', description: 'Path to project root' },
-                    cleanTargets: { type: 'array', items: { type: 'string' }, description: 'Directories to clean' },
-                    environment: { type: 'string', enum: ['development', 'staging', 'production'], default: 'production' },
+                    cleanTargets: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Directories to clean',
+                    },
+                    environment: {
+                        type: 'string',
+                        enum: ['development', 'staging', 'production'],
+                        default: 'production',
+                    },
                 },
                 required: ['projectPath'],
             },
@@ -177,8 +197,9 @@ exports.BUILD_AGENT_CONFIG = {
     },
 };
 let BuildAgentService = class BuildAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.buildHistory = [];
         this.lastBuildInfo = {};
     }
@@ -221,12 +242,31 @@ let BuildAgentService = class BuildAgentService extends base_agent_service_1.Bas
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DEVOPS, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback to local: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'build', 'compile', 'bundle', 'cleanBuild', 'configureBuild', 'getBuildInfo',
+            'build',
+            'compile',
+            'bundle',
+            'cleanBuild',
+            'configureBuild',
+            'getBuildInfo',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown build action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -252,7 +292,7 @@ let BuildAgentService = class BuildAgentService extends base_agent_service_1.Bas
         this.logger.log('Build agent destroyed, history cleared');
     }
     async build(params) {
-        const { projectPath, environment = 'production', target = 'node', watch = false, verbose = false } = params;
+        const { projectPath, environment = 'production', target = 'node', watch = false, verbose = false, } = params;
         if (!projectPath || typeof projectPath !== 'string') {
             throw new Error('Project path is required');
         }
@@ -384,7 +424,7 @@ let BuildAgentService = class BuildAgentService extends base_agent_service_1.Bas
         };
     }
     async cleanBuild(params) {
-        const { projectPath, cleanTargets = ['dist', 'build', '.cache', '.tmp'], environment = 'production' } = params;
+        const { projectPath, cleanTargets = ['dist', 'build', '.cache', '.tmp'], environment = 'production', } = params;
         if (!projectPath || typeof projectPath !== 'string') {
             throw new Error('Project path is required');
         }
@@ -457,11 +497,33 @@ let BuildAgentService = class BuildAgentService extends base_agent_service_1.Bas
         const buildTool = this.detectBuildTool();
         const nodeVersion = process.version;
         const lastBuildTime = this.lastBuildInfo.timestamp?.toISOString() || null;
-        const buildStatus = this.lastBuildInfo.success ? 'success' : this.lastBuildInfo.success === false ? 'failed' : 'never_built';
+        const buildStatus = this.lastBuildInfo.success
+            ? 'success'
+            : this.lastBuildInfo.success === false
+                ? 'failed'
+                : 'never_built';
         const buildArtifacts = [
-            { name: 'main.js', path: `${projectPath}/dist/main.js`, size: 245760, lastModified: new Date(), type: 'js' },
-            { name: 'main.js.map', path: `${projectPath}/dist/main.js.map`, size: 512000, lastModified: new Date(), type: 'map' },
-            { name: 'chunk-vendor.js', path: `${projectPath}/dist/chunk-vendor.js`, size: 1048576, lastModified: new Date(), type: 'js' },
+            {
+                name: 'main.js',
+                path: `${projectPath}/dist/main.js`,
+                size: 245760,
+                lastModified: new Date(),
+                type: 'js',
+            },
+            {
+                name: 'main.js.map',
+                path: `${projectPath}/dist/main.js.map`,
+                size: 512000,
+                lastModified: new Date(),
+                type: 'map',
+            },
+            {
+                name: 'chunk-vendor.js',
+                path: `${projectPath}/dist/chunk-vendor.js`,
+                size: 1048576,
+                lastModified: new Date(),
+                type: 'js',
+            },
         ];
         const result = {
             buildTool,
@@ -629,7 +691,7 @@ module.exports = {
       },
     },
   },
-  devtool: '${mode === "production" ? "source-map" : "eval-source-map"}',
+  devtool: '${mode === 'production' ? 'source-map' : 'eval-source-map'}',
 };`;
     }
     generateEsbuildConfig(options) {
@@ -717,6 +779,8 @@ export default {
 };
 exports.BuildAgentService = BuildAgentService;
 exports.BuildAgentService = BuildAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], BuildAgentService);
 //# sourceMappingURL=build-agent.service.js.map

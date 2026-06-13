@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClipboardAgentService = exports.CLIPBOARD_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.CLIPBOARD_AGENT_CONFIG = {
     id: 'computer-clipboard',
     name: 'Clipboard',
@@ -54,7 +62,11 @@ exports.CLIPBOARD_AGENT_CONFIG = {
                         default: 'text',
                         description: 'Content format',
                     },
-                    clearBefore: { type: 'boolean', default: true, description: 'Clear clipboard before writing' },
+                    clearBefore: {
+                        type: 'boolean',
+                        default: true,
+                        description: 'Clear clipboard before writing',
+                    },
                 },
                 required: ['content'],
             },
@@ -121,8 +133,9 @@ exports.CLIPBOARD_AGENT_CONFIG = {
     },
 };
 let ClipboardAgentService = class ClipboardAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.clipboardContent = {
             content: '',
             format: 'text',
@@ -161,12 +174,29 @@ let ClipboardAgentService = class ClipboardAgentService extends base_agent_servi
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DEBUG, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'readClipboard', 'writeClipboard', 'clearClipboard', 'watchClipboard',
+            'readClipboard',
+            'writeClipboard',
+            'clearClipboard',
+            'watchClipboard',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown clipboard action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -334,6 +364,8 @@ let ClipboardAgentService = class ClipboardAgentService extends base_agent_servi
 };
 exports.ClipboardAgentService = ClipboardAgentService;
 exports.ClipboardAgentService = ClipboardAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ClipboardAgentService);
 //# sourceMappingURL=clipboard-agent.service.js.map

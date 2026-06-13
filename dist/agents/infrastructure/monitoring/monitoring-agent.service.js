@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MonitoringAgentService = exports.MONITORING_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.MONITORING_AGENT_CONFIG = {
     id: 'infrastructure-monitoring',
     name: 'Monitoring',
@@ -24,8 +32,25 @@ exports.MONITORING_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     service: { type: 'string', description: 'Service name' },
-                    metricType: { type: 'string', enum: ['cpu', 'memory', 'disk', 'network', 'latency', 'error_rate', 'throughput', 'all'], default: 'all' },
-                    timeRange: { type: 'string', enum: ['5m', '15m', '1h', '6h', '24h', '7d'], default: '1h' },
+                    metricType: {
+                        type: 'string',
+                        enum: [
+                            'cpu',
+                            'memory',
+                            'disk',
+                            'network',
+                            'latency',
+                            'error_rate',
+                            'throughput',
+                            'all',
+                        ],
+                        default: 'all',
+                    },
+                    timeRange: {
+                        type: 'string',
+                        enum: ['5m', '15m', '1h', '6h', '24h', '7d'],
+                        default: '1h',
+                    },
                     granularity: { type: 'string', enum: ['1m', '5m', '15m', '1h'], default: '5m' },
                 },
                 required: ['service'],
@@ -48,9 +73,15 @@ exports.MONITORING_AGENT_CONFIG = {
                     name: { type: 'string' },
                     service: { type: 'string' },
                     metric: { type: 'string' },
-                    condition: { type: 'string', enum: ['greater_than', 'less_than', 'equals', 'not_equals'] },
+                    condition: {
+                        type: 'string',
+                        enum: ['greater_than', 'less_than', 'equals', 'not_equals'],
+                    },
                     threshold: { type: 'number' },
-                    duration: { type: 'string', description: 'Condition must persist for this duration (e.g., "5m")' },
+                    duration: {
+                        type: 'string',
+                        description: 'Condition must persist for this duration (e.g., "5m")',
+                    },
                     severity: { type: 'string', enum: ['info', 'warning', 'critical'], default: 'warning' },
                     channels: { type: 'array', items: { type: 'string' } },
                 },
@@ -72,8 +103,16 @@ exports.MONITORING_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     service: { type: 'string' },
-                    status: { type: 'string', enum: ['active', 'acknowledged', 'resolved', 'all'], default: 'all' },
-                    severity: { type: 'string', enum: ['info', 'warning', 'critical', 'all'], default: 'all' },
+                    status: {
+                        type: 'string',
+                        enum: ['active', 'acknowledged', 'resolved', 'all'],
+                        default: 'all',
+                    },
+                    severity: {
+                        type: 'string',
+                        enum: ['info', 'warning', 'critical', 'all'],
+                        default: 'all',
+                    },
                 },
             },
             outputSchema: {
@@ -135,7 +174,11 @@ exports.MONITORING_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     services: { type: 'array', items: { type: 'string' } },
-                    checks: { type: 'array', items: { type: 'string', enum: ['http', 'tcp', 'dns', 'certificate'] }, default: ['http'] },
+                    checks: {
+                        type: 'array',
+                        items: { type: 'string', enum: ['http', 'tcp', 'dns', 'certificate'] },
+                        default: ['http'],
+                    },
                 },
                 required: ['services'],
             },
@@ -166,8 +209,9 @@ exports.MONITORING_AGENT_CONFIG = {
     },
 };
 let MonitoringAgentService = class MonitoringAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.alerts = new Map();
         this.dashboards = new Map();
         this.alertCounter = 0;
@@ -213,13 +257,31 @@ let MonitoringAgentService = class MonitoringAgentService extends base_agent_ser
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DeliveryCapability.MONITORING_SETUP, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'getMetrics', 'createAlert', 'listAlerts', 'acknowledgeAlert',
-            'generateDashboard', 'checkServiceHealth',
+            'getMetrics',
+            'createAlert',
+            'listAlerts',
+            'acknowledgeAlert',
+            'generateDashboard',
+            'checkServiceHealth',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown monitoring action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -251,7 +313,16 @@ let MonitoringAgentService = class MonitoringAgentService extends base_agent_ser
         if (!service || typeof service !== 'string') {
             throw new Error('Service name is required');
         }
-        const validTypes = ['cpu', 'memory', 'disk', 'network', 'latency', 'error_rate', 'throughput', 'all'];
+        const validTypes = [
+            'cpu',
+            'memory',
+            'disk',
+            'network',
+            'latency',
+            'error_rate',
+            'throughput',
+            'all',
+        ];
         if (!validTypes.includes(metricType)) {
             throw new Error(`Invalid metric type: ${metricType}. Valid: ${validTypes.join(', ')}`);
         }
@@ -473,8 +544,20 @@ let MonitoringAgentService = class MonitoringAgentService extends base_agent_ser
         };
     }
     calculateDataPointCount(timeRange, granularity) {
-        const rangeMs = { '5m': 300000, '15m': 900000, '1h': 3600000, '6h': 21600000, '24h': 86400000, '7d': 604800000 };
-        const granMs = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000 };
+        const rangeMs = {
+            '5m': 300000,
+            '15m': 900000,
+            '1h': 3600000,
+            '6h': 21600000,
+            '24h': 86400000,
+            '7d': 604800000,
+        };
+        const granMs = {
+            '1m': 60000,
+            '5m': 300000,
+            '15m': 900000,
+            '1h': 3600000,
+        };
         const range = rangeMs[timeRange] || 3600000;
         const gran = granMs[granularity] || 300000;
         return Math.min(Math.floor(range / gran), 200);
@@ -503,16 +586,39 @@ let MonitoringAgentService = class MonitoringAgentService extends base_agent_ser
         }
         const values = dataPoints.map((dp) => dp.value);
         const current = values[values.length - 1] || 0;
-        const average = values.length > 0 ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100 : 0;
+        const average = values.length > 0
+            ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
+            : 0;
         const min = values.length > 0 ? Math.round(Math.min(...values) * 100) / 100 : 0;
         const max = values.length > 0 ? Math.round(Math.max(...values) * 100) / 100 : 0;
         return { metricType, unit: range.unit, current, average, min, max, dataPoints };
     }
     seedInitialAlerts() {
         const seedData = [
-            { name: 'High CPU Usage', service: 'api-gateway', metric: 'cpu', condition: 'greater_than', threshold: 80, severity: 'warning' },
-            { name: 'Memory Pressure', service: 'worker-service', metric: 'memory', condition: 'greater_than', threshold: 90, severity: 'critical' },
-            { name: 'High Error Rate', service: 'auth-service', metric: 'error_rate', condition: 'greater_than', threshold: 5, severity: 'critical' },
+            {
+                name: 'High CPU Usage',
+                service: 'api-gateway',
+                metric: 'cpu',
+                condition: 'greater_than',
+                threshold: 80,
+                severity: 'warning',
+            },
+            {
+                name: 'Memory Pressure',
+                service: 'worker-service',
+                metric: 'memory',
+                condition: 'greater_than',
+                threshold: 90,
+                severity: 'critical',
+            },
+            {
+                name: 'High Error Rate',
+                service: 'auth-service',
+                metric: 'error_rate',
+                condition: 'greater_than',
+                threshold: 5,
+                severity: 'critical',
+            },
         ];
         for (const data of seedData) {
             this.alertCounter++;
@@ -536,6 +642,8 @@ let MonitoringAgentService = class MonitoringAgentService extends base_agent_ser
 };
 exports.MonitoringAgentService = MonitoringAgentService;
 exports.MonitoringAgentService = MonitoringAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], MonitoringAgentService);
 //# sourceMappingURL=monitoring-agent.service.js.map

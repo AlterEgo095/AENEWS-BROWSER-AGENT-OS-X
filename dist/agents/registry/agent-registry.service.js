@@ -72,7 +72,8 @@ let AgentRegistryService = AgentRegistryService_1 = class AgentRegistryService {
         }
         this.nameIndex.set(config.name, config.id);
         this.logger.log(`Registered agent: ${config.id} (${config.name}) in cluster ${config.cluster}`);
-        this.eventBusService.publish({
+        this.eventBusService
+            .publish({
             type: agent_event_interface_1.AgentEventType.AGENT_INITIALIZED,
             sourceAgentId: config.id,
             cluster: config.cluster,
@@ -85,7 +86,8 @@ let AgentRegistryService = AgentRegistryService_1 = class AgentRegistryService {
             priority: 1,
             correlationId: (0, uuid_1.v4)(),
             metadata: {},
-        }).catch((err) => {
+        })
+            .catch((err) => {
             this.logger.warn(`Failed to publish registration event: ${err.message}`);
         });
     }
@@ -152,23 +154,19 @@ let AgentRegistryService = AgentRegistryService_1 = class AgentRegistryService {
         return this.getByCapability(capabilityName);
     }
     getAll() {
-        return Array.from(this.registry.values())
-            .map((entry) => entry.agentInstance);
+        return Array.from(this.registry.values()).map((entry) => entry.agentInstance);
     }
     getAllAgents() {
         return this.getAll();
     }
     getAllStates() {
-        return Array.from(this.registry.values())
-            .map((entry) => entry.agentInstance.getState());
+        return Array.from(this.registry.values()).map((entry) => entry.agentInstance.getState());
     }
     getAllAgentStates() {
         return this.getAllStates();
     }
     getAvailableAgents(cluster) {
-        const agents = cluster
-            ? this.getByCluster(cluster)
-            : this.getAll();
+        const agents = cluster ? this.getByCluster(cluster) : this.getAll();
         return agents.filter((agent) => agent.canAcceptTask());
     }
     findBestAgent(capability, priority) {
@@ -177,7 +175,7 @@ let AgentRegistryService = AgentRegistryService_1 = class AgentRegistryService {
             this.logger.warn(`No agents found with capability: ${capability}`);
             return undefined;
         }
-        let availableAgents = capableAgents.filter((agent) => agent.canAcceptTask());
+        const availableAgents = capableAgents.filter((agent) => agent.canAcceptTask());
         if (availableAgents.length === 0) {
             this.logger.warn(`No available agents with capability: ${capability} (all busy or unhealthy)`);
             return undefined;
@@ -377,8 +375,7 @@ let AgentRegistryService = AgentRegistryService_1 = class AgentRegistryService {
                 const state = entry.agentInstance.getState();
                 entry.lastHeartbeat = new Date();
                 const timeSinceActivity = Date.now() - state.lastActivity.getTime();
-                if (state.status === agent_interface_1.AgentStatus.RUNNING &&
-                    timeSinceActivity > 300000) {
+                if (state.status === agent_interface_1.AgentStatus.RUNNING && timeSinceActivity > 300000) {
                     this.logger.warn(`Agent ${agentId} has been idle for ${Math.round(timeSinceActivity / 1000)}s while in RUNNING state`);
                 }
             }

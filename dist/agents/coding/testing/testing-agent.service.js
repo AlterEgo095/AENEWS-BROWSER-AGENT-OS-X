@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TestingAgentService = exports.TESTING_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.TESTING_AGENT_CONFIG = {
     id: 'coding-testing',
     name: 'Testing',
@@ -49,7 +57,11 @@ exports.TESTING_AGENT_CONFIG = {
                     code: { type: 'string', description: 'Source code to test' },
                     language: { type: 'string', description: 'Programming language' },
                     framework: { type: 'string', description: 'Test framework' },
-                    endpoints: { type: 'array', items: { type: 'object' }, description: 'API endpoints to test' },
+                    endpoints: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'API endpoints to test',
+                    },
                 },
                 required: ['code', 'language'],
             },
@@ -132,13 +144,7 @@ exports.TESTING_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:code',
-        'write:test',
-        'execute:test',
-        'read:coverage',
-    ],
+    permissions: ['execute:task', 'read:code', 'write:test', 'execute:test', 'read:coverage'],
     maxConcurrentTasks: 4,
     timeout: 120000,
     retryPolicy: {
@@ -148,8 +154,9 @@ exports.TESTING_AGENT_CONFIG = {
     },
 };
 let TestingAgentService = class TestingAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.testResults = new Map();
         this.coverageHistory = [];
     }
@@ -187,6 +194,20 @@ let TestingAgentService = class TestingAgentService extends base_agent_service_1
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.TEST, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback to local: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -404,18 +425,23 @@ let TestingAgentService = class TestingAgentService extends base_agent_service_1
     parseParams(paramStr) {
         if (!paramStr.trim())
             return [];
-        return paramStr.split(',').map((param) => {
+        return paramStr
+            .split(',')
+            .map((param) => {
             const trimmed = param.trim();
             const parts = trimmed.split(':');
             const name = parts[0].replace(/\?.*$/, '').trim();
             const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'any';
             return { name, type };
-        }).filter((p) => p.name.length > 0);
+        })
+            .filter((p) => p.name.length > 0);
     }
     parsePythonParams(paramStr) {
         if (!paramStr.trim())
             return [];
-        return paramStr.split(',').map((param) => {
+        return paramStr
+            .split(',')
+            .map((param) => {
             const trimmed = param.trim();
             if (trimmed.startsWith('self') || trimmed.startsWith('cls')) {
                 return { name: trimmed, type: 'self' };
@@ -424,7 +450,8 @@ let TestingAgentService = class TestingAgentService extends base_agent_service_1
             const name = parts[0].replace(/\s*=\s*.*$/, '').trim();
             const type = parts[1] ? parts[1].replace(/\s*=\s*.*$/, '').trim() : 'Any';
             return { name, type };
-        }).filter((p) => p.name.length > 0 && p.type !== 'self');
+        })
+            .filter((p) => p.name.length > 0 && p.type !== 'self');
     }
     generateTestCasesForFunction(func) {
         const cases = [];
@@ -516,51 +543,73 @@ let TestingAgentService = class TestingAgentService extends base_agent_service_1
     getMockValueForType(type) {
         const lower = type.toLowerCase().replace(/\[\]/g, '');
         switch (lower) {
-            case 'string': return 'test-string';
+            case 'string':
+                return 'test-string';
             case 'number':
             case 'int':
             case 'float':
-            case 'double': return 42;
-            case 'boolean': return true;
-            case 'date': return new Date().toISOString();
+            case 'double':
+                return 42;
+            case 'boolean':
+                return true;
+            case 'date':
+                return new Date().toISOString();
             case 'array':
-            case 'any[]': return [];
+            case 'any[]':
+                return [];
             case 'object':
-            case 'record': return {};
+            case 'record':
+                return {};
             case 'promise':
-            case 'promise<void>': return undefined;
+            case 'promise<void>':
+                return undefined;
             case 'void':
-            case 'undefined': return undefined;
-            case 'null': return null;
-            default: return { mock: true };
+            case 'undefined':
+                return undefined;
+            case 'null':
+                return null;
+            default:
+                return { mock: true };
         }
     }
     getInvalidMockValueForType(type) {
         const lower = type.toLowerCase();
         switch (lower) {
-            case 'string': return 12345;
+            case 'string':
+                return 12345;
             case 'number':
             case 'int':
-            case 'float': return 'not-a-number';
-            case 'boolean': return 'not-a-boolean';
-            case 'array': return 'not-an-array';
+            case 'float':
+                return 'not-a-number';
+            case 'boolean':
+                return 'not-a-boolean';
+            case 'array':
+                return 'not-an-array';
             case 'object':
-            case 'record': return 'not-an-object';
-            default: return null;
+            case 'record':
+                return 'not-an-object';
+            default:
+                return null;
         }
     }
     getEdgeCaseValueForType(type) {
         const lower = type.toLowerCase();
         switch (lower) {
-            case 'string': return '';
+            case 'string':
+                return '';
             case 'number':
             case 'int':
-            case 'float': return Number.MAX_SAFE_INTEGER;
-            case 'boolean': return false;
-            case 'array': return [];
+            case 'float':
+                return Number.MAX_SAFE_INTEGER;
+            case 'boolean':
+                return false;
+            case 'array':
+                return [];
             case 'object':
-            case 'record': return {};
-            default: return null;
+            case 'record':
+                return {};
+            default:
+                return null;
         }
     }
     renderUnitTestCode(testCases, functions, framework, language, filePath) {
@@ -583,7 +632,8 @@ let TestingAgentService = class TestingAgentService extends base_agent_service_1
         const importStatement = imports.length > 0
             ? `import { ${imports.join(', ')} } from '${importPath}';`
             : `import * as module from '${importPath}';`;
-        const testBlocks = testCases.map((tc) => {
+        const testBlocks = testCases
+            .map((tc) => {
             const inputStr = JSON.stringify(tc.input, null, 4);
             const expectedStr = tc.expectedOutput !== null ? JSON.stringify(tc.expectedOutput) : 'undefined';
             return `  test('${tc.name}', async () => {
@@ -593,7 +643,8 @@ let TestingAgentService = class TestingAgentService extends base_agent_service_1
                 : `const result = await ${tc.name.split(' - ')[0].split('.').pop()}(input);
     expect(result).toBeDefined();`}
   });`;
-        }).join('\n\n');
+        })
+            .join('\n\n');
         return `${importStatement}
 
 describe('${functions[0]?.name || 'Module'}', () => {
@@ -602,7 +653,8 @@ ${testBlocks}
 `;
     }
     renderMochaUnitTests(testCases, functions) {
-        const testBlocks = testCases.map((tc) => {
+        const testBlocks = testCases
+            .map((tc) => {
             const inputStr = JSON.stringify(tc.input, null, 4);
             return `  it('${tc.name}', async () => {
     const input = ${inputStr};
@@ -611,7 +663,8 @@ ${testBlocks}
                 : `const result = await ${tc.name.split(' - ')[0].split('.').pop()}(input);
     expect(result).to.not.be.undefined;`}
   });`;
-        }).join('\n\n');
+        })
+            .join('\n\n');
         return `import { expect } from 'chai';
 
 describe('${functions[0]?.name || 'Module'}', () => {
@@ -620,7 +673,8 @@ ${testBlocks}
 `;
     }
     renderPytestUnitTests(testCases, functions) {
-        const testBlocks = testCases.map((tc) => {
+        const testBlocks = testCases
+            .map((tc) => {
             const inputStr = JSON.stringify(tc.input);
             const funcName = tc.name.split(' - ')[0].split('.').pop();
             const pytestName = `test_${funcName}_${tc.type}`;
@@ -630,7 +684,8 @@ ${testBlocks}
     ${tc.type === 'negative'
                 ? `with pytest.raises(Exception):\n        ${funcName}(**input_data)`
                 : `result = ${funcName}(**input_data)\n    assert result is not None`}`;
-        }).join('\n\n');
+        })
+            .join('\n\n');
         return `import pytest
 
 ${testBlocks}
@@ -673,15 +728,19 @@ ${testBlocks}
         return tests;
     }
     renderIntegrationTestCode(testSuites, framework, language) {
-        const suiteBlocks = testSuites.map((suite) => {
-            const testBlocks = suite.tests.map((test, index) => `  test('${test}', async () => {
+        const suiteBlocks = testSuites
+            .map((suite) => {
+            const testBlocks = suite.tests
+                .map((test, index) => `  test('${test}', async () => {
     const response = await request(app).${suite.name.split(' ')[0].toLowerCase()}('${suite.name.split(' ')[1]}');
     expect(response.status).toBeDefined();
-  });`).join('\n\n');
+  });`)
+                .join('\n\n');
             return `describe('${suite.name}', () => {
 ${testBlocks}
 });`;
-        }).join('\n\n');
+        })
+            .join('\n\n');
         return `import request from 'supertest';
 import { app } from './app';
 
@@ -830,15 +889,24 @@ ${suiteBlocks}
     renderTypeScriptFixtures(fixtures, schema) {
         const interfaceName = 'FixtureData';
         const properties = schema.properties || schema;
-        const interfaceProps = Object.entries(properties).map(([key, value]) => {
+        const interfaceProps = Object.entries(properties)
+            .map(([key, value]) => {
             const prop = value;
-            const type = prop.type === 'string' ? 'string' :
-                prop.type === 'number' || prop.type === 'integer' ? 'number' :
-                    prop.type === 'boolean' ? 'boolean' :
-                        prop.type === 'array' ? 'any[]' : 'any';
+            const type = prop.type === 'string'
+                ? 'string'
+                : prop.type === 'number' || prop.type === 'integer'
+                    ? 'number'
+                    : prop.type === 'boolean'
+                        ? 'boolean'
+                        : prop.type === 'array'
+                            ? 'any[]'
+                            : 'any';
             return `  ${key}: ${type};`;
-        }).join('\n');
-        const fixtureData = fixtures.map((f, i) => `  const fixture${i + 1}: ${interfaceName} = ${JSON.stringify(f, null, 4).replace(/\n/g, '\n  ')};`).join('\n\n');
+        })
+            .join('\n');
+        const fixtureData = fixtures
+            .map((f, i) => `  const fixture${i + 1}: ${interfaceName} = ${JSON.stringify(f, null, 4).replace(/\n/g, '\n  ')};`)
+            .join('\n\n');
         return `export interface ${interfaceName} {
 ${interfaceProps}
 }
@@ -855,9 +923,11 @@ ${fixtures.map((f) => JSON.stringify(f, null, 2)).join(',\n')}
 def fixture_data():
     return ${JSON.stringify(fixtures[0], null, 4)}
 
-${fixtures.map((f, i) => `def fixture_${i + 1}():
+${fixtures
+            .map((f, i) => `def fixture_${i + 1}():
     """Test fixture ${i + 1}"""
-    return ${JSON.stringify(f, null, 4)}`).join('\n\n')}
+    return ${JSON.stringify(f, null, 4)}`)
+            .join('\n\n')}
 `;
     }
     getExtension(language) {
@@ -872,6 +942,8 @@ ${fixtures.map((f, i) => `def fixture_${i + 1}():
 };
 exports.TestingAgentService = TestingAgentService;
 exports.TestingAgentService = TestingAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], TestingAgentService);
 //# sourceMappingURL=testing-agent.service.js.map

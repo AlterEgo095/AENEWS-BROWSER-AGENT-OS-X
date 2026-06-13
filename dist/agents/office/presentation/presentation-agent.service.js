@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PresentationAgentService = exports.PRESENTATION_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.PRESENTATION_AGENT_CONFIG = {
     id: 'office-presentation',
     name: 'Presentation',
@@ -26,8 +34,16 @@ exports.PRESENTATION_AGENT_CONFIG = {
                     title: { type: 'string', description: 'Presentation title' },
                     author: { type: 'string', description: 'Presentation author' },
                     theme: { type: 'string', description: 'Theme to apply' },
-                    slides: { type: 'array', items: { type: 'object' }, description: 'Initial slide definitions' },
-                    format: { type: 'string', enum: ['pptx', 'pdf', 'odp'], description: 'Presentation format' },
+                    slides: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Initial slide definitions',
+                    },
+                    format: {
+                        type: 'string',
+                        enum: ['pptx', 'pdf', 'odp'],
+                        description: 'Presentation format',
+                    },
                 },
                 required: ['title'],
             },
@@ -48,7 +64,18 @@ exports.PRESENTATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     presentationId: { type: 'string', description: 'ID of the presentation' },
-                    layout: { type: 'string', enum: ['title', 'titleAndContent', 'twoContent', 'blank', 'sectionHeader', 'comparison'], description: 'Slide layout' },
+                    layout: {
+                        type: 'string',
+                        enum: [
+                            'title',
+                            'titleAndContent',
+                            'twoContent',
+                            'blank',
+                            'sectionHeader',
+                            'comparison',
+                        ],
+                        description: 'Slide layout',
+                    },
                     position: { type: 'number', description: 'Position to insert slide (1-based index)' },
                     title: { type: 'string', description: 'Slide title' },
                     subtitle: { type: 'string', description: 'Slide subtitle' },
@@ -74,7 +101,11 @@ exports.PRESENTATION_AGENT_CONFIG = {
                 properties: {
                     presentationId: { type: 'string', description: 'ID of the presentation' },
                     slideId: { type: 'string', description: 'ID of the slide' },
-                    contentType: { type: 'string', enum: ['text', 'image', 'table', 'chart', 'shape', 'bulletList'], description: 'Type of content to add' },
+                    contentType: {
+                        type: 'string',
+                        enum: ['text', 'image', 'table', 'chart', 'shape', 'bulletList'],
+                        description: 'Type of content to add',
+                    },
                     content: { type: 'object', description: 'Content data (varies by type)' },
                     position: { type: 'object', description: 'Position and size on the slide' },
                     style: { type: 'object', description: 'Content styling' },
@@ -99,7 +130,10 @@ exports.PRESENTATION_AGENT_CONFIG = {
                 properties: {
                     presentationId: { type: 'string', description: 'ID of the presentation' },
                     themeId: { type: 'string', description: 'Theme identifier to apply' },
-                    slideId: { type: 'string', description: 'Specific slide ID (optional, applies to all if omitted)' },
+                    slideId: {
+                        type: 'string',
+                        description: 'Specific slide ID (optional, applies to all if omitted)',
+                    },
                     overrideColors: { type: 'object', description: 'Custom color overrides for the theme' },
                 },
                 required: ['presentationId', 'themeId'],
@@ -121,9 +155,17 @@ exports.PRESENTATION_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     presentationId: { type: 'string', description: 'ID of the presentation' },
-                    format: { type: 'string', enum: ['pptx', 'pdf', 'odp', 'images'], description: 'Export format' },
+                    format: {
+                        type: 'string',
+                        enum: ['pptx', 'pdf', 'odp', 'images'],
+                        description: 'Export format',
+                    },
                     slideRange: { type: 'object', description: 'Specific slide range to export' },
-                    quality: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Export quality' },
+                    quality: {
+                        type: 'string',
+                        enum: ['low', 'medium', 'high'],
+                        description: 'Export quality',
+                    },
                 },
                 required: ['presentationId', 'format'],
             },
@@ -146,9 +188,16 @@ exports.PRESENTATION_AGENT_CONFIG = {
                 properties: {
                     presentationId: { type: 'string', description: 'ID of the presentation' },
                     slideId: { type: 'string', description: 'ID of the slide to add transition to' },
-                    type: { type: 'string', enum: ['fade', 'slide', 'push', 'wipe', 'split', 'reveal', 'dissolve', 'none'], description: 'Transition type' },
+                    type: {
+                        type: 'string',
+                        enum: ['fade', 'slide', 'push', 'wipe', 'split', 'reveal', 'dissolve', 'none'],
+                        description: 'Transition type',
+                    },
                     duration: { type: 'number', description: 'Transition duration in milliseconds' },
-                    advanceAfter: { type: 'number', description: 'Auto-advance after milliseconds (0 for manual)' },
+                    advanceAfter: {
+                        type: 'number',
+                        description: 'Auto-advance after milliseconds (0 for manual)',
+                    },
                 },
                 required: ['presentationId', 'slideId', 'type'],
             },
@@ -163,12 +212,7 @@ exports.PRESENTATION_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:presentation',
-        'write:presentation',
-        'export:presentation',
-    ],
+    permissions: ['execute:task', 'read:presentation', 'write:presentation', 'export:presentation'],
     maxConcurrentTasks: 3,
     timeout: 60000,
     retryPolicy: {
@@ -178,8 +222,9 @@ exports.PRESENTATION_AGENT_CONFIG = {
     },
 };
 let PresentationAgentService = class PresentationAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.presentations = new Map();
         this.themes = new Map();
         this.presentationCounter = 0;
@@ -226,6 +271,20 @@ let PresentationAgentService = class PresentationAgentService extends base_agent
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.OfficeCapability.POWERPOINT, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -265,7 +324,7 @@ let PresentationAgentService = class PresentationAgentService extends base_agent
         this.logger.log('Presentation agent destroyed, all data cleared');
     }
     async createPresentation(params) {
-        const { title, author = 'agent@aenews.system', theme = 'professional', slides = [], format = 'pptx' } = params;
+        const { title, author = 'agent@aenews.system', theme = 'professional', slides = [], format = 'pptx', } = params;
         if (!title || typeof title !== 'string') {
             throw new Error('A valid presentation title is required');
         }
@@ -306,7 +365,14 @@ let PresentationAgentService = class PresentationAgentService extends base_agent
         if (!presentationId || typeof presentationId !== 'string') {
             throw new Error('A valid presentationId is required');
         }
-        const validLayouts = ['title', 'titleAndContent', 'twoContent', 'blank', 'sectionHeader', 'comparison'];
+        const validLayouts = [
+            'title',
+            'titleAndContent',
+            'twoContent',
+            'blank',
+            'sectionHeader',
+            'comparison',
+        ];
         if (!validLayouts.includes(layout)) {
             throw new Error(`Invalid layout: ${layout}. Supported: ${validLayouts.join(', ')}`);
         }
@@ -315,7 +381,9 @@ let PresentationAgentService = class PresentationAgentService extends base_agent
             throw new Error(`Presentation not found: ${presentationId}`);
         }
         const slide = this.createSlideObject(layout, title, subtitle, notes);
-        const insertPosition = position !== undefined ? Math.min(position - 1, presentation.slides.length) : presentation.slides.length;
+        const insertPosition = position !== undefined
+            ? Math.min(position - 1, presentation.slides.length)
+            : presentation.slides.length;
         presentation.slides.splice(insertPosition, 0, slide);
         presentation.updatedAt = new Date();
         this.logger.log(`Added slide: ${slide.id}, layout=${layout}, position=${insertPosition + 1} to presentation: ${presentationId}`);
@@ -467,7 +535,16 @@ let PresentationAgentService = class PresentationAgentService extends base_agent
         if (!slideId || typeof slideId !== 'string') {
             throw new Error('A valid slideId is required');
         }
-        const validTransitionTypes = ['fade', 'slide', 'push', 'wipe', 'split', 'reveal', 'dissolve', 'none'];
+        const validTransitionTypes = [
+            'fade',
+            'slide',
+            'push',
+            'wipe',
+            'split',
+            'reveal',
+            'dissolve',
+            'none',
+        ];
         if (!validTransitionTypes.includes(type)) {
             throw new Error(`Invalid transition type: ${type}. Supported: ${validTransitionTypes.join(', ')}`);
         }
@@ -622,6 +699,8 @@ let PresentationAgentService = class PresentationAgentService extends base_agent
 };
 exports.PresentationAgentService = PresentationAgentService;
 exports.PresentationAgentService = PresentationAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], PresentationAgentService);
 //# sourceMappingURL=presentation-agent.service.js.map

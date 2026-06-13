@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DeploymentAgentService = exports.DEPLOYMENT_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.DEPLOYMENT_AGENT_CONFIG = {
     id: 'infrastructure-deployment',
     name: 'Deployment',
@@ -26,7 +34,11 @@ exports.DEPLOYMENT_AGENT_CONFIG = {
                     appName: { type: 'string', description: 'Application name' },
                     version: { type: 'string', description: 'Version or image tag to deploy' },
                     environment: { type: 'string', enum: ['development', 'staging', 'production'] },
-                    strategy: { type: 'string', enum: ['rolling', 'blue-green', 'canary'], default: 'rolling' },
+                    strategy: {
+                        type: 'string',
+                        enum: ['rolling', 'blue-green', 'canary'],
+                        default: 'rolling',
+                    },
                     replicas: { type: 'number', default: 3 },
                     config: { type: 'object', description: 'Deployment configuration overrides' },
                 },
@@ -169,8 +181,9 @@ exports.DEPLOYMENT_AGENT_CONFIG = {
     },
 };
 let DeploymentAgentService = class DeploymentAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.deployments = new Map();
         this.deploymentCounter = 0;
     }
@@ -213,13 +226,31 @@ let DeploymentAgentService = class DeploymentAgentService extends base_agent_ser
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DeliveryCapability.DEPLOYMENT, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'deploy', 'rollback', 'promoteCanary', 'getDeploymentStatus',
-            'scaleDeployment', 'generateDeploymentReport',
+            'deploy',
+            'rollback',
+            'promoteCanary',
+            'getDeploymentStatus',
+            'scaleDeployment',
+            'generateDeploymentReport',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown deployment action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -245,7 +276,7 @@ let DeploymentAgentService = class DeploymentAgentService extends base_agent_ser
         this.logger.log('Deployment agent destroyed, state cleared');
     }
     async deploy(params) {
-        const { appName, version, environment, strategy = 'rolling', replicas = 3, config, } = params;
+        const { appName, version, environment, strategy = 'rolling', replicas = 3, config } = params;
         if (!appName || typeof appName !== 'string') {
             throw new Error('Application name is required');
         }
@@ -473,8 +504,7 @@ let DeploymentAgentService = class DeploymentAgentService extends base_agent_ser
             '30d': 2592000000,
         };
         const cutoff = new Date(Date.now() - rangeMs[timeRange]);
-        let records = Array.from(this.deployments.values())
-            .filter((d) => d.appName === appName && d.createdAt >= cutoff);
+        let records = Array.from(this.deployments.values()).filter((d) => d.appName === appName && d.createdAt >= cutoff);
         if (environment) {
             records = records.filter((d) => d.environment === environment);
         }
@@ -536,6 +566,8 @@ let DeploymentAgentService = class DeploymentAgentService extends base_agent_ser
 };
 exports.DeploymentAgentService = DeploymentAgentService;
 exports.DeploymentAgentService = DeploymentAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], DeploymentAgentService);
 //# sourceMappingURL=deployment-agent.service.js.map

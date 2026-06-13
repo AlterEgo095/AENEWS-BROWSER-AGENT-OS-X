@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BackupAgentService = exports.BACKUP_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.BACKUP_AGENT_CONFIG = {
     id: 'infrastructure-backup',
     name: 'Backup',
@@ -23,10 +31,16 @@ exports.BACKUP_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    resource: { type: 'string', description: 'Resource to back up (e.g., "database", "files", "config")' },
+                    resource: {
+                        type: 'string',
+                        description: 'Resource to back up (e.g., "database", "files", "config")',
+                    },
                     serviceName: { type: 'string', description: 'Service name' },
                     type: { type: 'string', enum: ['full', 'incremental', 'snapshot'], default: 'full' },
-                    destination: { type: 'string', description: 'Backup destination (e.g., "s3", "local", "gcs")' },
+                    destination: {
+                        type: 'string',
+                        description: 'Backup destination (e.g., "s3", "local", "gcs")',
+                    },
                     compression: { type: 'boolean', default: true },
                     encryption: { type: 'boolean', default: true },
                     tags: { type: 'object', description: 'Tags for the backup' },
@@ -74,7 +88,11 @@ exports.BACKUP_AGENT_CONFIG = {
                     resource: { type: 'string' },
                     serviceName: { type: 'string' },
                     cronExpression: { type: 'string', description: 'Cron expression for schedule' },
-                    type: { type: 'string', enum: ['full', 'incremental', 'snapshot'], default: 'incremental' },
+                    type: {
+                        type: 'string',
+                        enum: ['full', 'incremental', 'snapshot'],
+                        default: 'incremental',
+                    },
                     retention: { type: 'number', description: 'Number of backups to retain' },
                     destination: { type: 'string', default: 's3' },
                 },
@@ -95,7 +113,11 @@ exports.BACKUP_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     backupId: { type: 'string' },
-                    verificationType: { type: 'string', enum: ['checksum', 'restore_test', 'metadata', 'full'], default: 'checksum' },
+                    verificationType: {
+                        type: 'string',
+                        enum: ['checksum', 'restore_test', 'metadata', 'full'],
+                        default: 'checksum',
+                    },
                 },
                 required: ['backupId'],
             },
@@ -115,7 +137,11 @@ exports.BACKUP_AGENT_CONFIG = {
                 properties: {
                     serviceName: { type: 'string' },
                     resource: { type: 'string' },
-                    status: { type: 'string', enum: ['completed', 'in_progress', 'failed', 'all'], default: 'all' },
+                    status: {
+                        type: 'string',
+                        enum: ['completed', 'in_progress', 'failed', 'all'],
+                        default: 'all',
+                    },
                     limit: { type: 'number', default: 50 },
                 },
             },
@@ -165,8 +191,9 @@ exports.BACKUP_AGENT_CONFIG = {
     },
 };
 let BackupAgentService = class BackupAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.backups = new Map();
         this.schedules = new Map();
         this.backupCounter = 0;
@@ -212,13 +239,31 @@ let BackupAgentService = class BackupAgentService extends base_agent_service_1.B
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DeliveryCapability.BACKUP, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'createBackup', 'restoreBackup', 'scheduleBackup',
-            'verifyBackup', 'listBackups', 'deleteBackup',
+            'createBackup',
+            'restoreBackup',
+            'scheduleBackup',
+            'verifyBackup',
+            'listBackups',
+            'deleteBackup',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown backup action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -261,11 +306,15 @@ let BackupAgentService = class BackupAgentService extends base_agent_service_1.B
         }
         this.backupCounter++;
         const backupId = `backup-${this.backupCounter}-${Date.now()}`;
-        const durationMs = type === 'full' ? Math.floor(Math.random() * 300000) + 60000
-            : type === 'incremental' ? Math.floor(Math.random() * 120000) + 15000
+        const durationMs = type === 'full'
+            ? Math.floor(Math.random() * 300000) + 60000
+            : type === 'incremental'
+                ? Math.floor(Math.random() * 120000) + 15000
                 : Math.floor(Math.random() * 60000) + 5000;
-        const baseSize = type === 'full' ? Math.floor(Math.random() * 10737418240) + 1073741824
-            : type === 'incremental' ? Math.floor(Math.random() * 107374182) + 10485760
+        const baseSize = type === 'full'
+            ? Math.floor(Math.random() * 10737418240) + 1073741824
+            : type === 'incremental'
+                ? Math.floor(Math.random() * 107374182) + 10485760
                 : Math.floor(Math.random() * 5368709120) + 536870912;
         const sizeBytes = compression ? Math.round(baseSize * 0.6) : baseSize;
         const checksum = this.generateChecksum();
@@ -506,10 +555,30 @@ let BackupAgentService = class BackupAgentService extends base_agent_service_1.B
     }
     seedInitialBackups() {
         const seedData = [
-            { resource: 'database', serviceName: 'user-service', type: 'full', destination: 's3' },
-            { resource: 'database', serviceName: 'payment-service', type: 'full', destination: 's3' },
-            { resource: 'files', serviceName: 'media-service', type: 'incremental', destination: 'gcs' },
-            { resource: 'config', serviceName: 'api-gateway', type: 'snapshot', destination: 'local' },
+            {
+                resource: 'database',
+                serviceName: 'user-service',
+                type: 'full',
+                destination: 's3',
+            },
+            {
+                resource: 'database',
+                serviceName: 'payment-service',
+                type: 'full',
+                destination: 's3',
+            },
+            {
+                resource: 'files',
+                serviceName: 'media-service',
+                type: 'incremental',
+                destination: 'gcs',
+            },
+            {
+                resource: 'config',
+                serviceName: 'api-gateway',
+                type: 'snapshot',
+                destination: 'local',
+            },
         ];
         for (const data of seedData) {
             this.backupCounter++;
@@ -538,6 +607,8 @@ let BackupAgentService = class BackupAgentService extends base_agent_service_1.B
 };
 exports.BackupAgentService = BackupAgentService;
 exports.BackupAgentService = BackupAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], BackupAgentService);
 //# sourceMappingURL=backup-agent.service.js.map

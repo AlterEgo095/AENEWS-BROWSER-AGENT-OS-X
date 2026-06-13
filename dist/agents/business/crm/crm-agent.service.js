@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CRMAgentService = exports.CRM_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.CRM_AGENT_CONFIG = {
     id: 'business-crm',
     name: 'CRM',
@@ -103,7 +111,11 @@ exports.CRM_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    action: { type: 'string', enum: ['overview', 'forecast', 'move-deals'], description: 'Pipeline management action' },
+                    action: {
+                        type: 'string',
+                        enum: ['overview', 'forecast', 'move-deals'],
+                        description: 'Pipeline management action',
+                    },
                     pipelineId: { type: 'string', description: 'Pipeline ID' },
                     period: { type: 'string', description: 'Reporting period' },
                 },
@@ -148,7 +160,11 @@ exports.CRM_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    reportType: { type: 'string', enum: ['summary', 'pipeline', 'activity', 'performance'], description: 'Type of report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['summary', 'pipeline', 'activity', 'performance'],
+                        description: 'Type of report',
+                    },
                     period: { type: 'string', description: 'Report period' },
                     groupBy: { type: 'string', description: 'Group results by (e.g., "source", "owner")' },
                 },
@@ -166,13 +182,7 @@ exports.CRM_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:business',
-        'write:business',
-        'read:crm',
-        'write:crm',
-    ],
+    permissions: ['execute:task', 'read:business', 'write:business', 'read:crm', 'write:crm'],
     maxConcurrentTasks: 5,
     timeout: 30000,
     retryPolicy: {
@@ -182,8 +192,9 @@ exports.CRM_AGENT_CONFIG = {
     },
 };
 let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.contacts = new Map();
         this.deals = new Map();
         this.counter = 0;
@@ -227,6 +238,20 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.CRM, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -264,7 +289,7 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
         this.logger.log('CRM agent destroyed, all data cleared');
     }
     async createContact(params) {
-        const { name, email = '', phone = '', company = '', title = '', tags = [], source = 'manual' } = params;
+        const { name, email = '', phone = '', company = '', title = '', tags = [], source = 'manual', } = params;
         if (!name || typeof name !== 'string') {
             throw new Error('A valid contact name is required');
         }
@@ -345,7 +370,14 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
         if (!title || typeof title !== 'string') {
             throw new Error('A valid deal title is required');
         }
-        const validStages = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+        const validStages = [
+            'prospect',
+            'qualified',
+            'proposal',
+            'negotiation',
+            'closed_won',
+            'closed_lost',
+        ];
         if (!validStages.includes(stage)) {
             throw new Error(`Invalid stage: ${stage}. Supported: ${validStages.join(', ')}`);
         }
@@ -391,7 +423,7 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
             };
             this.deals.set(newDealId, deal);
         }
-        const weightedValue = Math.round(deal.value * deal.probability / 100);
+        const weightedValue = Math.round((deal.value * deal.probability) / 100);
         this.logger.log(`Tracked deal: ${deal.id}, title=${title}, stage=${stage}, value=${deal.value}`);
         return {
             dealId: deal.id,
@@ -410,7 +442,14 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
         }
         const allDeals = Array.from(this.deals.values());
         const activeDeals = allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage));
-        const stageNames = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+        const stageNames = [
+            'prospect',
+            'qualified',
+            'proposal',
+            'negotiation',
+            'closed_won',
+            'closed_lost',
+        ];
         const stages = stageNames
             .filter((s) => s !== 'closed_lost')
             .map((name) => {
@@ -425,7 +464,7 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
             };
         });
         const totalValue = activeDeals.reduce((s, d) => s + d.value, 0);
-        const weightedValue = activeDeals.reduce((s, d) => s + Math.round(d.value * d.probability / 100), 0);
+        const weightedValue = activeDeals.reduce((s, d) => s + Math.round((d.value * d.probability) / 100), 0);
         const forecast = {
             expected: weightedValue,
             best: Math.round(totalValue * 0.9),
@@ -446,7 +485,13 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
         this.counter++;
         const analysisId = `conv-${Date.now()}-${this.counter}`;
         const allDeals = Array.from(this.deals.values());
-        const stageOrder = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won'];
+        const stageOrder = [
+            'prospect',
+            'qualified',
+            'proposal',
+            'negotiation',
+            'closed_won',
+        ];
         const stageConversions = [];
         for (let i = 0; i < stageOrder.length - 1; i++) {
             const currentStage = stageOrder[i];
@@ -513,7 +558,8 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
                 summary = {
                     totalContacts: allContacts.length,
                     totalDeals: allDeals.length,
-                    activeDeals: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage)).length,
+                    activeDeals: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage))
+                        .length,
                     totalPipelineValue: allDeals.reduce((s, d) => s + d.value, 0),
                     wonDeals: allDeals.filter((d) => d.stage === 'closed_won').length,
                 };
@@ -524,19 +570,32 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
                 break;
             }
             case 'pipeline': {
-                const pipelineStages = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+                const pipelineStages = [
+                    'prospect',
+                    'qualified',
+                    'proposal',
+                    'negotiation',
+                    'closed_won',
+                    'closed_lost',
+                ];
                 const pipelineData = {};
                 for (const stage of pipelineStages) {
                     const stageDeals = allDeals.filter((d) => d.stage === stage);
                     pipelineData[stage] = {
                         count: stageDeals.length,
                         totalValue: stageDeals.reduce((s, d) => s + d.value, 0),
-                        avgDealSize: stageDeals.length > 0 ? +(stageDeals.reduce((s, d) => s + d.value, 0) / stageDeals.length).toFixed(0) : 0,
+                        avgDealSize: stageDeals.length > 0
+                            ? +(stageDeals.reduce((s, d) => s + d.value, 0) / stageDeals.length).toFixed(0)
+                            : 0,
                     };
                 }
                 summary = {
-                    pipelineValue: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage)).reduce((s, d) => s + d.value, 0),
-                    weightedPipelineValue: allDeals.filter((d) => !['closed_won', 'closed_lost'].includes(d.stage)).reduce((s, d) => s + d.value * d.probability / 100, 0),
+                    pipelineValue: allDeals
+                        .filter((d) => !['closed_won', 'closed_lost'].includes(d.stage))
+                        .reduce((s, d) => s + d.value, 0),
+                    weightedPipelineValue: allDeals
+                        .filter((d) => !['closed_won', 'closed_lost'].includes(d.stage))
+                        .reduce((s, d) => s + (d.value * d.probability) / 100, 0),
                 };
                 data = { stages: pipelineData };
                 break;
@@ -549,8 +608,12 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
                     averageDealAge: '45 days',
                 };
                 data = {
-                    recentContacts: allContacts.slice(-5).map((c) => ({ id: c.id, name: c.name, company: c.company, source: c.source })),
-                    recentDeals: allDeals.slice(-5).map((d) => ({ id: d.id, title: d.title, value: d.value, stage: d.stage })),
+                    recentContacts: allContacts
+                        .slice(-5)
+                        .map((c) => ({ id: c.id, name: c.name, company: c.company, source: c.source })),
+                    recentDeals: allDeals
+                        .slice(-5)
+                        .map((d) => ({ id: d.id, title: d.title, value: d.value, stage: d.stage })),
                 };
                 break;
             }
@@ -563,7 +626,9 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
                     winRate,
                     avgDealSize: Math.round(avgDealSize),
                     totalWonValue,
-                    totalLostValue: allDeals.filter((d) => d.stage === 'closed_lost').reduce((s, d) => s + d.value, 0),
+                    totalLostValue: allDeals
+                        .filter((d) => d.stage === 'closed_lost')
+                        .reduce((s, d) => s + d.value, 0),
                 };
                 data = {
                     performanceBySource: {
@@ -597,6 +662,8 @@ let CRMAgentService = class CRMAgentService extends base_agent_service_1.BaseAge
 };
 exports.CRMAgentService = CRMAgentService;
 exports.CRMAgentService = CRMAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], CRMAgentService);
 //# sourceMappingURL=crm-agent.service.js.map

@@ -73,12 +73,8 @@ async function bootstrap() {
                 maxFiles: 10,
             }),
         ],
-        exceptionHandlers: [
-            new winston.transports.File({ filename: `${logDir}/exceptions.log` }),
-        ],
-        rejectionHandlers: [
-            new winston.transports.File({ filename: `${logDir}/rejections.log` }),
-        ],
+        exceptionHandlers: [new winston.transports.File({ filename: `${logDir}/exceptions.log` })],
+        rejectionHandlers: [new winston.transports.File({ filename: `${logDir}/rejections.log` })],
     }));
     const corsEnabled = process.env.CORS_ENABLED !== 'false';
     if (corsEnabled) {
@@ -117,8 +113,7 @@ async function bootstrap() {
     if (swaggerEnabled) {
         const config = new swagger_1.DocumentBuilder()
             .setTitle(process.env.SWAGGER_TITLE || 'AENEWS Agent OS X API')
-            .setDescription(process.env.SWAGGER_DESCRIPTION ||
-            'Enterprise Autonomous Browser Platform API')
+            .setDescription(process.env.SWAGGER_DESCRIPTION || 'Enterprise Autonomous Browser Platform API')
             .setVersion(process.env.SWAGGER_VERSION || '0.0.1')
             .addBearerAuth()
             .addApiKey({ type: 'apiKey', name: 'X-API-Key', in: 'header' }, 'api-key')

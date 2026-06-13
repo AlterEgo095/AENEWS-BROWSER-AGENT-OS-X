@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ScalingAgentService = exports.SCALING_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.SCALING_AGENT_CONFIG = {
     id: 'infrastructure-scaling',
     name: 'Scaling',
@@ -24,7 +32,11 @@ exports.SCALING_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     service: { type: 'string' },
-                    resource: { type: 'string', enum: ['cpu', 'memory', 'instances', 'storage'], default: 'instances' },
+                    resource: {
+                        type: 'string',
+                        enum: ['cpu', 'memory', 'instances', 'storage'],
+                        default: 'instances',
+                    },
                     amount: { type: 'number', description: 'Amount to scale up by' },
                     reason: { type: 'string' },
                 },
@@ -46,7 +58,11 @@ exports.SCALING_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     service: { type: 'string' },
-                    resource: { type: 'string', enum: ['cpu', 'memory', 'instances', 'storage'], default: 'instances' },
+                    resource: {
+                        type: 'string',
+                        enum: ['cpu', 'memory', 'instances', 'storage'],
+                        default: 'instances',
+                    },
                     amount: { type: 'number', description: 'Amount to scale down by' },
                     reason: { type: 'string' },
                     force: { type: 'boolean', default: false },
@@ -75,7 +91,10 @@ exports.SCALING_AGENT_CONFIG = {
                     targetCpuPercent: { type: 'number' },
                     targetMemoryPercent: { type: 'number' },
                     scaleUpCooldown: { type: 'number', description: 'Cooldown in seconds after scale-up' },
-                    scaleDownCooldown: { type: 'number', description: 'Cooldown in seconds after scale-down' },
+                    scaleDownCooldown: {
+                        type: 'number',
+                        description: 'Cooldown in seconds after scale-down',
+                    },
                 },
                 required: ['service', 'minSize', 'maxSize'],
             },
@@ -115,7 +134,11 @@ exports.SCALING_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     service: { type: 'string' },
-                    strategy: { type: 'string', enum: ['cost', 'performance', 'balanced'], default: 'balanced' },
+                    strategy: {
+                        type: 'string',
+                        enum: ['cost', 'performance', 'balanced'],
+                        default: 'balanced',
+                    },
                     dryRun: { type: 'boolean', default: true },
                 },
                 required: ['service'],
@@ -171,8 +194,9 @@ exports.SCALING_AGENT_CONFIG = {
     },
 };
 let ScalingAgentService = class ScalingAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.serviceResources = new Map();
         this.autoScalingPolicies = new Map();
         this.capacityPlans = new Map();
@@ -219,13 +243,31 @@ let ScalingAgentService = class ScalingAgentService extends base_agent_service_1
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DeliveryCapability.LOAD_BALANCER, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'scaleUp', 'scaleDown', 'setAutoScaling',
-            'analyzeCapacity', 'optimizeResources', 'planCapacity',
+            'scaleUp',
+            'scaleDown',
+            'setAutoScaling',
+            'analyzeCapacity',
+            'optimizeResources',
+            'planCapacity',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown scaling action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -506,7 +548,7 @@ let ScalingAgentService = class ScalingAgentService extends base_agent_service_1
         };
     }
     async planCapacity(params) {
-        const { services, growthRate = 10, planningHorizonDays = 90, includeCostEstimate = true } = params;
+        const { services, growthRate = 10, planningHorizonDays = 90, includeCostEstimate = true, } = params;
         if (!services || !Array.isArray(services) || services.length === 0) {
             throw new Error('At least one service is required');
         }
@@ -574,8 +616,13 @@ let ScalingAgentService = class ScalingAgentService extends base_agent_service_1
     }
     seedInitialResources() {
         const services = [
-            'api-gateway', 'auth-service', 'user-service', 'payment-service',
-            'notification-service', 'search-service', 'worker-service',
+            'api-gateway',
+            'auth-service',
+            'user-service',
+            'payment-service',
+            'notification-service',
+            'search-service',
+            'worker-service',
         ];
         for (const service of services) {
             this.serviceResources.set(service, {
@@ -590,6 +637,8 @@ let ScalingAgentService = class ScalingAgentService extends base_agent_service_1
 };
 exports.ScalingAgentService = ScalingAgentService;
 exports.ScalingAgentService = ScalingAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ScalingAgentService);
 //# sourceMappingURL=scaling-agent.service.js.map

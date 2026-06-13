@@ -139,7 +139,11 @@ let PlanningTeamService = PlanningTeamService_1 = class PlanningTeamService {
             name: 'Certification',
             description: 'Test, audit, and certify all deliverables',
             teamType: interfaces_1.TeamType.CERTIFICATION,
-            assignedRoles: [interfaces_1.AgentRole.QA_TESTER, interfaces_1.AgentRole.SECURITY_AUDITOR, interfaces_1.AgentRole.DOCUMENTATION_WRITER],
+            assignedRoles: [
+                interfaces_1.AgentRole.QA_TESTER,
+                interfaces_1.AgentRole.SECURITY_AUDITOR,
+                interfaces_1.AgentRole.DOCUMENTATION_WRITER,
+            ],
             tasks: [
                 {
                     id: `task-${(0, uuid_1.v4)().slice(0, 8)}`,

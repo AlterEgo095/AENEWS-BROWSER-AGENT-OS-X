@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MemoryAuditorAgent = exports.MEMORY_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.MEMORY_AUDITOR_CONFIG = {
     id: 'certification-memory-auditor',
     name: 'MemoryAuditor',
@@ -23,7 +31,11 @@ exports.MEMORY_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'Memory tier or system to audit' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -96,8 +108,9 @@ exports.MEMORY_AUDITOR_CONFIG = {
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let MemoryAuditorAgent = class MemoryAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.memoryAuditLog = [];
     }
     defineConfig() {
@@ -127,8 +140,22 @@ let MemoryAuditorAgent = class MemoryAuditorAgent extends base_agent_service_1.B
         this.logger.log('MemoryAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.DATA_PRIVACY, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -162,7 +189,13 @@ let MemoryAuditorAgent = class MemoryAuditorAgent extends base_agent_service_1.B
         const issues = [];
         const recommendations = [];
         const tiers = ['working', 'session', 'long_term'];
-        const categories = ['tier_consistency', 'gateway_routing', 'ttl_violation', 'eviction_policy', 'retrieval_accuracy'];
+        const categories = [
+            'tier_consistency',
+            'gateway_routing',
+            'ttl_violation',
+            'eviction_policy',
+            'retrieval_accuracy',
+        ];
         const auditDepth = depth === 'exhaustive' ? 8 : depth === 'deep' ? 5 : 3;
         for (let i = 0; i < auditDepth; i++) {
             const issue = {
@@ -175,10 +208,17 @@ let MemoryAuditorAgent = class MemoryAuditorAgent extends base_agent_service_1.B
             issues.push(issue);
             this.memoryAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 25
+                    : issue.severity === 'high'
+                        ? 15
+                        : issue.severity === 'medium'
+                            ? 8
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'tier_consistency')) {
             recommendations.push('Ensure data consistency across memory tiers with write-through or write-behind strategies');
         }
@@ -193,9 +233,21 @@ let MemoryAuditorAgent = class MemoryAuditorAgent extends base_agent_service_1.B
     }
     async auditTiers(checkTTL = true, checkEviction = true) {
         const tierHealth = {
-            working: { entries: Math.floor(Math.random() * 500), hitRate: Math.round(Math.random() * 40 + 60), avgTTL: 300 },
-            session: { entries: Math.floor(Math.random() * 200), hitRate: Math.round(Math.random() * 30 + 50), avgTTL: 1800 },
-            long_term: { entries: Math.floor(Math.random() * 1000), hitRate: Math.round(Math.random() * 20 + 40), avgTTL: Infinity },
+            working: {
+                entries: Math.floor(Math.random() * 500),
+                hitRate: Math.round(Math.random() * 40 + 60),
+                avgTTL: 300,
+            },
+            session: {
+                entries: Math.floor(Math.random() * 200),
+                hitRate: Math.round(Math.random() * 30 + 50),
+                avgTTL: 1800,
+            },
+            long_term: {
+                entries: Math.floor(Math.random() * 1000),
+                hitRate: Math.round(Math.random() * 20 + 40),
+                avgTTL: Infinity,
+            },
         };
         if (checkTTL) {
             const ttlViolations = Math.floor(Math.random() * 5);
@@ -241,6 +293,9 @@ let MemoryAuditorAgent = class MemoryAuditorAgent extends base_agent_service_1.B
 };
 exports.MemoryAuditorAgent = MemoryAuditorAgent;
 exports.MemoryAuditorAgent = MemoryAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], MemoryAuditorAgent);
 //# sourceMappingURL=memory-auditor-agent.service.js.map

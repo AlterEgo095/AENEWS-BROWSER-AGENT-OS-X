@@ -1,8 +1,11 @@
 import { BaseAgentService } from '../../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 export declare const LOGGING_AGENT_CONFIG: AgentConfig;
 export declare class LoggingAgentService extends BaseAgentService {
+    private readonly bridge?;
     private logAlerts;
+    constructor(eventBusService?: any, memoryService?: any, permissionEvaluator?: any, bridge?: AgentConnectorBridge | undefined);
     private retentionPolicies;
     private logAlertCounter;
     private retentionCounter;

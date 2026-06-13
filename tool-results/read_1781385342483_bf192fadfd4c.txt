@@ -1,0 +1,1572 @@
+     1→/**
+     2→ * Mission OS Core Interfaces
+     3→ * AENEWS Agent OS X Project
+     4→ *
+     5→ * Comprehensive TypeScript definitions for the Mission OS layer,
+     6→ * covering capability registration, skill profiling, world modeling,
+     7→ * constitutional governance, mission planning, digital twins,
+     8→ * temporal memory, resource management, observability, auto-recovery,
+     9→ * marketplace plugins, and long-horizon planning.
+    10→ */
+    11→
+    12→// ============================================================================
+    13→// SECTION 1: CAPABILITY REGISTRATION
+    14→// ============================================================================
+    15→
+    16→/**
+    17→ * Represents a payload submitted when an agent registers its capabilities
+    18→ * with the Mission OS capability registry.
+    19→ */
+    20→export interface CapabilityRegistration {
+    21→  /** Unique identifier of the registering agent */
+    22→  agentId: string;
+    23→  /** List of capabilities this agent provides */
+    24→  capabilities: CapabilityDescriptor[];
+    25→  /** Timestamp of the registration event */
+    26→  registeredAt: string;
+    27→  /** Optional agent metadata (name, version, runtime, etc.) */
+    28→  agentMetadata?: Record<string, unknown>;
+    29→}
+    30→
+    31→/**
+    32→ * Full description of a single capability exposed by an agent,
+    33→ * including schemas, versioning, and cost/latency estimates.
+    34→ */
+    35→export interface CapabilityDescriptor {
+    36→  /** Human-readable capability name (e.g., "web-search", "code-generation") */
+    37→  name: string;
+    38→  /** Detailed description of what this capability does */
+    39→  description: string;
+    40→  /** JSON Schema describing the expected input shape */
+    41→  inputSchema: Record<string, unknown>;
+    42→  /** JSON Schema describing the output shape */
+    43→  outputSchema: Record<string, unknown>;
+    44→  /** Semantic version of this capability (e.g., "1.2.0") */
+    45→  version: string;
+    46→  /** Whether this capability is deprecated and slated for removal */
+    47→  deprecated: boolean;
+    48→  /** Estimated cost per invocation (in USD or internal credits) */
+    49→  costEstimate: number;
+    50→  /** Estimated latency in milliseconds for a typical invocation */
+    51→  latencyEstimate: number;
+    52→  /** Optional tags for categorization and discovery */
+    53→  tags?: string[];
+    54→  /** Optional deprecation message with migration guidance */
+    55→  deprecationMessage?: string;
+    56→  /** Required permissions or roles to invoke this capability */
+    57→  requiredPermissions?: string[];
+    58→}
+    59→
+    60→// ============================================================================
+    61→// SECTION 2: SKILL PROFILING
+    62→// ============================================================================
+    63→
+    64→/**
+    65→ * Skill level classification for agent proficiency.
+    66→ */
+    67→export enum SkillLevel {
+    68→  NOVICE = 'NOVICE',
+    69→  COMPETENT = 'COMPETENT',
+    70→  PROFICIENT = 'PROFICIENT',
+    71→  EXPERT = 'EXPERT',
+    72→  MASTER = 'MASTER',
+    73→}
+    74→
+    75→/**
+    76→ * Per-agent skill profile that tracks competence, cost, latency,
+    77→ * and improvement trends across all registered skills.
+    78→ */
+    79→export interface SkillProfile {
+    80→  /** Unique identifier of the agent this profile belongs to */
+    81→  agentId: string;
+    82→  /** Array of individual skill entries */
+    83→  skills: SkillEntry[];
+    84→  /** Overall composite score across all skills (0.0 - 1.0) */
+    85→  overallScore?: number;
+    86→  /** Timestamp of the last profile update */
+    87→  lastUpdatedAt?: string;
+    88→}
+    89→
+    90→/**
+    91→ * A single skill entry within an agent's skill profile,
+    92→ * capturing proficiency level, performance metrics, and trend data.
+    93→ */
+    94→export interface SkillEntry {
+    95→  /** Name of the skill (e.g., "typescript", "database-design") */
+    96→  name: string;
+    97→  /** Proficiency level classification */
+    98→  level: SkillLevel;
+    99→  /** Cost per execution in USD or internal credits */
+   100→  costPerExecution: number;
+   101→  /** Average latency in milliseconds */
+   102→  avgLatencyMs: number;
+   103→  /** Success rate as a fraction (0.0 - 1.0) */
+   104→  successRate: number;
+   105→  /** Total number of executions recorded */
+   106→  executionCount: number;
+   107→  /** ISO-8601 timestamp of the most recent execution */
+   108→  lastExecutedAt: string;
+   109→  /** Trend direction for improvement: positive = improving, negative = degrading */
+   110→  improvementTrend: number;
+   111→  /** Optional confidence score for this skill measurement (0.0 - 1.0) */
+   112→  confidence?: number;
+   113→}
+   114→
+   115→// ============================================================================
+   116→// SECTION 3: WORLD MODEL STATE
+   117→// ============================================================================
+   118→
+   119→/**
+   120→ * Global world representation that maintains the current state of
+   121→ * the user, project, objectives, constraints, and knowledge base.
+   122→ */
+   123→export interface WorldModelState {
+   124→  /** Currently authenticated user context */
+   125→  currentUser: WorldUser;
+   126→  /** Currently active project context */
+   127→  currentProject: WorldProject;
+   128→  /** Environmental context (locale, timezone, device, etc.) */
+   129→  context: WorldContext;
+   130→  /** Active objectives the system is pursuing */
+   131→  objectives: WorldObjective[];
+   132→  /** Active constraints governing system behavior */
+   133→  constraints: WorldConstraint[];
+   134→  /** Historical events and state transitions */
+   135→  history: WorldHistory;
+   136→  /** Aggregated knowledge base entries */
+   137→  knowledgeBase: WorldKnowledgeBase;
+   138→  /** Real-time events currently unfolding */
+   139→  currentEvents: WorldEvent[];
+   140→  /** Overall system state summary */
+   141→  systemState: WorldSystemState;
+   142→}
+   143→
+   144→/**
+   145→ * Represents the current user in the world model.
+   146→ */
+   147→export interface WorldUser {
+   148→  /** Unique user identifier */
+   149→  id: string;
+   150→  /** Display name */
+   151→  name: string;
+   152→  /** Email address */
+   153→  email?: string;
+   154→  /** Assigned roles */
+   155→  roles: string[];
+   156→  /** User preferences */
+   157→  preferences: Record<string, unknown>;
+   158→  /** Active sessions */
+   159→  activeSessions: number;
+   160→}
+   161→
+   162→/**
+   163→ * Represents the current project in the world model.
+   164→ */
+   165→export interface WorldProject {
+   166→  /** Unique project identifier */
+   167→  id: string;
+   168→  /** Project name */
+   169→  name: string;
+   170→  /** Project description */
+   171→  description?: string;
+   172→  /** Repository URL if applicable */
+   173→  repositoryUrl?: string;
+   174→  /** Tech stack identifiers */
+   175→  techStack: string[];
+   176→  /** Project root path on disk */
+   177→  rootPath?: string;
+   178→  /** Environment (development, staging, production) */
+   179→  environment: string;
+   180→}
+   181→
+   182→/**
+   183→ * Environmental context information.
+   184→ */
+   185→export interface WorldContext {
+   186→  /** Current locale (e.g., "en-US") */
+   187→  locale: string;
+   188→  /** Current timezone (e.g., "America/New_York") */
+   189→  timezone: string;
+   190→  /** Device type (desktop, mobile, server) */
+   191→  deviceType: string;
+   192→  /** Current date-time as ISO-8601 */
+   193→  currentDateTime: string;
+   194→  /** Whether the system is in quiet hours */
+   195→  quietHours: boolean;
+   196→  /** Network connectivity status */
+   197→  networkStatus: 'ONLINE' | 'OFFLINE' | 'DEGRADED';
+   198→  /** Additional context metadata */
+   199→  metadata: Record<string, unknown>;
+   200→}
+   201→
+   202→/**
+   203→ * An objective the world model is pursuing.
+   204→ */
+   205→export interface WorldObjective {
+   206→  /** Unique objective identifier */
+   207→  id: string;
+   208→  /** Human-readable description of the objective */
+   209→  description: string;
+   210→  /** Priority level for this objective */
+   211→  priority: number;
+   212→  /** Current status of the objective */
+   213→  status: ObjectiveStatus;
+   214→  /** Target completion date as ISO-8601 */
+   215→  targetDate?: string;
+   216→  /** Progress as a fraction (0.0 - 1.0) */
+   217→  progress: number;
+   218→  /** Nested sub-objectives */
+   219→  subObjectives: WorldObjective[];
+   220→  /** Agent IDs assigned to this objective */
+   221→  assignedAgents?: string[];
+   222→  /** Key-value metrics for this objective */
+   223→  metrics?: Record<string, number>;
+   224→}
+   225→
+   226→/**
+   227→ * Status of a world objective.
+   228→ */
+   229→export enum ObjectiveStatus {
+   230→  PENDING = 'PENDING',
+   231→  IN_PROGRESS = 'IN_PROGRESS',
+   232→  COMPLETED = 'COMPLETED',
+   233→  ABANDONED = 'ABANDONED',
+   234→}
+   235→
+   236→/**
+   237→ * A constraint governing system behavior.
+   238→ */
+   239→export interface WorldConstraint {
+   240→  /** Unique constraint identifier */
+   241→  id: string;
+   242→  /** Constraint name */
+   243→  name: string;
+   244→  /** Detailed description of the constraint */
+   245→  description: string;
+   246→  /** Constraint type (e.g., "budget", "time", "resource", "policy") */
+   247→  type: string;
+   248→  /** Whether this constraint is currently active */
+   249→  active: boolean;
+   250→  /** Constraint parameters */
+   251→  parameters: Record<string, unknown>;
+   252→}
+   253→
+   254→/**
+   255→ * Historical record of world state transitions and events.
+   256→ */
+   257→export interface WorldHistory {
+   258→  /** Recent state transitions */
+   259→  transitions: WorldStateTransition[];
+   260→  /** Total events recorded */
+   261→  totalEvents: number;
+   262→  /** Oldest recorded event timestamp */
+   263→  oldestEventAt?: string;
+   264→  /** Newest recorded event timestamp */
+   265→  newestEventAt?: string;
+   266→}
+   267→
+   268→/**
+   269→ * A single state transition in world history.
+   270→ */
+   271→export interface WorldStateTransition {
+   272→  /** Timestamp of the transition */
+   273→  timestamp: string;
+   274→  /** Transition type */
+   275→  type: string;
+   276→  /** Description of what changed */
+   277→  description: string;
+   278→  /** Agent or system that triggered the transition */
+   279→  triggeredBy: string;
+   280→  /** Before-state snapshot (partial) */
+   281→  beforeState?: Record<string, unknown>;
+   282→  /** After-state snapshot (partial) */
+   283→  afterState?: Record<string, unknown>;
+   284→}
+   285→
+   286→/**
+   287→ * Aggregated knowledge base for the world model.
+   288→ */
+   289→export interface WorldKnowledgeBase {
+   290→  /** Total number of entries */
+   291→  entryCount: number;
+   292→  /** Knowledge domains covered */
+   293→  domains: string[];
+   294→  /** Last knowledge base update timestamp */
+   295→  lastUpdatedAt: string;
+   296→  /** Index version for cache invalidation */
+   297→  indexVersion: string;
+   298→}
+   299→
+   300→/**
+   301→ * A real-time event in the world model.
+   302→ */
+   303→export interface WorldEvent {
+   304→  /** Unique event identifier */
+   305→  id: string;
+   306→  /** Event type (e.g., "deployment", "alert", "user-action") */
+   307→  type: string;
+   308→  /** Event description */
+   309→  description: string;
+   310→  /** Event timestamp */
+   311→  timestamp: string;
+   312→  /** Severity of the event */
+   313→  severity: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+   314→  /** Related agent IDs */
+   315→  relatedAgents?: string[];
+   316→  /** Event payload */
+   317→  payload?: Record<string, unknown>;
+   318→}
+   319→
+   320→/**
+   321→ * Overall system state summary within the world model.
+   322→ */
+   323→export interface WorldSystemState {
+   324→  /** Overall health status */
+   325→  health: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'CRITICAL';
+   326→  /** Uptime in seconds */
+   327→  uptimeSeconds: number;
+   328→  /** Active mission count */
+   329→  activeMissions: number;
+   330→  /** Active agent count */
+   331→  activeAgents: number;
+   332→  /** System load average (0.0 - 1.0) */
+   333→  loadAverage: number;
+   334→  /** Pending approval count */
+   335→  pendingApprovals: number;
+   336→  /** Last state update timestamp */
+   337→  lastUpdatedAt: string;
+   338→}
+   339→
+   340→// ============================================================================
+   341→// SECTION 4: CONSTITUTIONAL GOVERNANCE
+   342→// ============================================================================
+   343→
+   344→/**
+   345→ * Classification of constitutional rule types.
+   346→ */
+   347→export enum RuleType {
+   348→  PROHIBITION = 'PROHIBITION',
+   349→  REQUIREMENT = 'REQUIREMENT',
+   350→  CONSTRAINT = 'CONSTRAINT',
+   351→  GUIDELINE = 'GUIDELINE',
+   352→}
+   353→
+   354→/**
+   355→ * Severity levels for constitutional rules.
+   356→ */
+   357→export enum RuleSeverity {
+   358→  CRITICAL = 'CRITICAL',
+   359→  HIGH = 'HIGH',
+   360→  MEDIUM = 'MEDIUM',
+   361→  LOW = 'LOW',
+   362→}
+   363→
+   364→/**
+   365→ * Enforcement mechanisms for constitutional rules.
+   366→ */
+   367→export enum RuleEnforcement {
+   368→  BLOCK = 'BLOCK',
+   369→  WARN = 'WARN',
+   370→  LOG = 'LOG',
+   371→}
+   372→
+   373→/**
+   374→ * A permanent rule in the constitutional governance layer that
+   375→ * governs agent behavior and system operations.
+   376→ */
+   377→export interface ConstitutionalRule {
+   378→  /** Unique rule identifier */
+   379→  id: string;
+   380→  /** Human-readable rule name */
+   381→  name: string;
+   382→  /** Detailed description of the rule and its purpose */
+   383→  description: string;
+   384→  /** Classification of the rule type */
+   385→  ruleType: RuleType;
+   386→  /** Severity level of the rule */
+   387→  severity: RuleSeverity;
+   388→  /** How this rule is enforced when violated */
+   389→  enforcement: RuleEnforcement;
+   390→  /** Conditions under which this rule applies (evaluated expression) */
+   391→  conditions: string[];
+   392→  /** Whether this rule is currently active */
+   393→  isActive: boolean;
+   394→  /** Timestamp when the rule was created */
+   395→  createdAt: string;
+   396→  /** Timestamp when the rule was last updated */
+   397→  updatedAt: string;
+   398→  /** Optional rule category for grouping */
+   399→  category?: string;
+   400→  /** Optional audit trail of rule changes */
+   401→  changeLog?: ConstitutionalRuleChange[];
+   402→}
+   403→
+   404→/**
+   405→ * A change entry in a constitutional rule's audit trail.
+   406→ */
+   407→export interface ConstitutionalRuleChange {
+   408→  /** Timestamp of the change */
+   409→  timestamp: string;
+   410→  /** Who or what initiated the change */
+   411→  changedBy: string;
+   412→  /** Description of the change */
+   413→  description: string;
+   414→  /** Previous value snapshot */
+   415→  previousValue?: Record<string, unknown>;
+   416→}
+   417→
+   418→/**
+   419→ * Record of a constitutional rule violation by an agent.
+   420→ */
+   421→export interface ConstitutionalViolation {
+   422→  /** The rule that was violated */
+   423→  ruleId: string;
+   424→  /** The agent that committed the violation */
+   425→  agentId: string;
+   426→  /** The action that triggered the violation */
+   427→  action: string;
+   428→  /** Timestamp of the violation */
+   429→  timestamp: string;
+   430→  /** Whether the action was blocked by enforcement */
+   431→  blocked: boolean;
+   432→  /** Detailed reason for the violation */
+   433→  reason: string;
+   434→  /** Unique violation identifier */
+   435→  id?: string;
+   436→  /** Additional context about the violation */
+   437→  context?: Record<string, unknown>;
+   438→}
+   439→
+   440→// ============================================================================
+   441→// SECTION 5: MISSION DEFINITION & PLANNING
+   442→// ============================================================================
+   443→
+   444→/**
+   445→ * Status of a mission through its lifecycle.
+   446→ */
+   447→export enum MissionStatus {
+   448→  DRAFT = 'DRAFT',
+   449→  SIMULATING = 'SIMULATING',
+   450→  APPROVED = 'APPROVED',
+   451→  IN_PROGRESS = 'IN_PROGRESS',
+   452→  PAUSED = 'PAUSED',
+   453→  COMPLETED = 'COMPLETED',
+   454→  FAILED = 'FAILED',
+   455→  CANCELLED = 'CANCELLED',
+   456→}
+   457→
+   458→/**
+   459→ * Full mission definition encompassing objectives, task graphs,
+   460→ * dependencies, and execution metadata.
+   461→ */
+   462→export interface MissionDefinition {
+   463→  /** Unique mission identifier */
+   464→  id: string;
+   465→  /** Human-readable mission name */
+   466→  name: string;
+   467→  /** Detailed mission description */
+   468→  description: string;
+   469→  /** Current lifecycle status */
+   470→  status: MissionStatus;
+   471→  /** Mission-level objectives */
+   472→  objectives: MissionObjective[];
+   473→  /** Task dependency graph for execution planning */
+   474→  taskGraph: MissionTaskGraph;
+   475→  /** Dependency graph representation */
+   476→  dependencyGraph: Record<string, string[]>;
+   477→  /** Execution graph for runtime tracking */
+   478→  executionGraph: MissionExecutionGraph;
+   479→  /** Result graph capturing output artifacts */
+   480→  resultGraph: MissionResultGraph;
+   481→  /** Mission priority (higher = more important) */
+   482→  priority: number;
+   483→  /** Agent or user who created the mission */
+   484→  createdBy: string;
+   485→  /** Timestamp when the mission was created */
+   486→  createdAt: string;
+   487→  /** Timestamp when the mission was last updated */
+   488→  updatedAt: string;
+   489→  /** Timestamp when mission execution started */
+   490→  startedAt?: string;
+   491→  /** Timestamp when mission execution completed */
+   492→  completedAt?: string;
+   493→  /** Arbitrary metadata for extensibility */
+   494→  metadata: Record<string, unknown>;
+   495→}
+   496→
+   497→/**
+   498→ * An objective within a mission.
+   499→ */
+   500→export interface MissionObjective {
+   501→  /** Unique objective identifier */
+   502→  id: string;
+   503→  /** Parent mission identifier */
+   504→  missionId: string;
+   505→  /** Detailed description of the objective */
+   506→  description: string;
+   507→  /** Current objective status */
+   508→  status: ObjectiveStatus;
+   509→  /** Nested sub-objectives */
+   510→  subObjectives: MissionObjective[];
+   511→  /** Agent IDs assigned to this objective */
+   512→  assignedAgents: string[];
+   513→  /** Task IDs associated with this objective */
+   514→  taskIds: string[];
+   515→  /** Progress as a fraction (0.0 - 1.0) */
+   516→  progress: number;
+   517→  /** Target completion date */
+   518→  targetDate?: string;
+   519→  /** Objective-specific metrics */
+   520→  metrics?: Record<string, number>;
+   521→}
+   522→
+   523→/**
+   524→ * Task graph representing the full DAG of tasks within a mission.
+   525→ */
+   526→export interface MissionTaskGraph {
+   527→  /** Array of task nodes */
+   528→  nodes: MissionTaskNode[];
+   529→  /** Array of directed edges between tasks */
+   530→  edges: MissionTaskEdge[];
+   531→  /** Ordered list of node IDs on the critical path */
+   532→  criticalPath: string[];
+   533→}
+   534→
+   535→/**
+   536→ * A single task node in the mission task graph.
+   537→ */
+   538→export interface MissionTaskNode {
+   539→  /** Unique task node identifier */
+   540→  id: string;
+   541→  /** Task type (e.g., "computation", "io", "approval", "notification") */
+   542→  type: string;
+   543→  /** Agent ID assigned to execute this task */
+   544→  agentId: string;
+   545→  /** Required capability to execute this task */
+   546→  capability: string;
+   547→  /** IDs of tasks this task depends on */
+   548→  dependencies: string[];
+   549→  /** Estimated execution duration in milliseconds */
+   550→  estimatedDurationMs: number;
+   551→  /** Actual execution duration in milliseconds (post-execution) */
+   552→  actualDurationMs?: number;
+   553→  /** Current task status */
+   554→  status: MissionStatus;
+   555→  /** Task input parameters */
+   556→  input?: Record<string, unknown>;
+   557→  /** Task output results */
+   558→  output?: Record<string, unknown>;
+   559→  /** Retry count */
+   560→  retryCount?: number;
+   561→  /** Maximum allowed retries */
+   562→  maxRetries?: number;
+   563→}
+   564→
+   565→/**
+   566→ * Type of dependency between two task nodes.
+   567→ */
+   568→export enum TaskEdgeType {
+   569→  HARD_DEPENDENCY = 'HARD_DEPENDENCY',
+   570→  SOFT_DEPENDENCY = 'SOFT_DEPENDENCY',
+   571→  RESOURCE_DEPENDENCY = 'RESOURCE_DEPENDENCY',
+   572→}
+   573→
+   574→/**
+   575→ * A directed edge in the mission task graph.
+   576→ */
+   577→export interface MissionTaskEdge {
+   578→  /** Source task node ID */
+   579→  fromId: string;
+   580→  /** Target task node ID */
+   581→  toId: string;
+   582→  /** Type of dependency this edge represents */
+   583→  type: TaskEdgeType;
+   584→  /** Optional description of the dependency */
+   585→  description?: string;
+   586→}
+   587→
+   588→/**
+   589→ * Execution graph tracking runtime state of mission tasks.
+   590→ */
+   591→export interface MissionExecutionGraph {
+   592→  /** Map of task ID to execution state */
+   593→  taskStates: Record<string, MissionTaskExecutionState>;
+   594→  /** Currently executing task IDs */
+   595→  activeTasks: string[];
+   596→  /** Completed task IDs */
+   597→  completedTasks: string[];
+   598→  /** Failed task IDs */
+   599→  failedTasks: string[];
+   600→  /** Total elapsed execution time in milliseconds */
+   601→  elapsedMs: number;
+   602→}
+   603→
+   604→/**
+   605→ * Runtime execution state of a single mission task.
+   606→ */
+   607→export interface MissionTaskExecutionState {
+   608→  /** Task node ID */
+   609→  taskId: string;
+   610→  /** Execution status */
+   611→  status: MissionStatus;
+   612→  /** Timestamp when execution started */
+   613→  startedAt?: string;
+   614→  /** Timestamp when execution completed or failed */
+   615→  completedAt?: string;
+   616→  /** Agent ID currently executing */
+   617→  executingAgentId?: string;
+   618→  /** Retry attempt number (0 = first attempt) */
+   619→  attempt: number;
+   620→  /** Error message if failed */
+   621→  errorMessage?: string;
+   622→}
+   623→
+   624→/**
+   625→ * Result graph capturing output artifacts of a mission.
+   626→ */
+   627→export interface MissionResultGraph {
+   628→  /** Map of task ID to result artifact references */
+   629→  taskResults: Record<string, MissionTaskResult>;
+   630→  /** Overall mission result summary */
+   631→  missionSummary?: string;
+   632→  /** Aggregated mission metrics */
+   633→  metrics: Record<string, number>;
+   634→}
+   635→
+   636→/**
+   637→ * Result artifact from a single mission task.
+   638→ */
+   639→export interface MissionTaskResult {
+   640→  /** Task node ID */
+   641→  taskId: string;
+   642→  /** Output data from the task */
+   643→  output: Record<string, unknown>;
+   644→  /** Artifact references (file paths, URLs, etc.) */
+   645→  artifacts: string[];
+   646→  /** Quality score (0.0 - 1.0) */
+   647→  qualityScore?: number;
+   648→  /** Timestamp when the result was produced */
+   649→  producedAt: string;
+   650→}
+   651→
+   652→// ============================================================================
+   653→// SECTION 6: SIMULATION & APPROVAL
+   654→// ============================================================================
+   655→
+   656→/**
+   657→ * Risk level classification for simulation results.
+   658→ */
+   659→export enum RiskLevel {
+   660→  LOW = 'LOW',
+   661→  MEDIUM = 'MEDIUM',
+   662→  HIGH = 'HIGH',
+   663→  CRITICAL = 'CRITICAL',
+   664→}
+   665→
+   666→/**
+   667→ * Result of pre-execution simulation for a mission or action,
+   668→ * including cost, time, risk, and resource estimates.
+   669→ */
+   670→export interface SimulationResult {
+   671→  /** Estimated total cost in USD or internal credits */
+   672→  costEstimate: number;
+   673→  /** Estimated total execution time in milliseconds */
+   674→  timeEstimate: number;
+   675→  /** Overall risk level */
+   676→  riskLevel: RiskLevel;
+   677→  /** Probability of success (0.0 - 1.0) */
+   678→  successProbability: number;
+   679→  /** Identified bottlenecks */
+   680→  bottlenecks: SimulationBottleneck[];
+   681→  /** Recommendations for improving the plan */
+   682→  recommendations: string[];
+   683→  /** Required resources and quantities */
+   684→  resourceRequirements: SimulationResourceRequirement[];
+   685→  /** Simulation model version */
+   686→  modelVersion?: string;
+   687→  /** Confidence in the simulation result (0.0 - 1.0) */
+   688→  confidence?: number;
+   689→}
+   690→
+   691→/**
+   692→ * A bottleneck identified during simulation.
+   693→ */
+   694→export interface SimulationBottleneck {
+   695→  /** Description of the bottleneck */
+   696→  description: string;
+   697→  /** Affected task IDs */
+   698→  affectedTaskIds: string[];
+   699→  /** Severity of the bottleneck */
+   700→  severity: RiskLevel;
+   701→  /** Suggested mitigation */
+   702→  mitigation?: string;
+   703→}
+   704→
+   705→/**
+   706→ * A resource requirement identified during simulation.
+   707→ */
+   708→export interface SimulationResourceRequirement {
+   709→  /** Resource type needed */
+   710→  resourceType: ResourceType;
+   711→  /** Estimated quantity needed */
+   712→  quantity: number;
+   713→  /** Estimated duration of usage in milliseconds */
+   714→  durationMs: number;
+   715→  /** Estimated cost for this resource */
+   716→  estimatedCost: number;
+   717→}
+   718→
+   719→/**
+   720→ * Classification of approval action types that require human authorization.
+   721→ */
+   722→export enum ApprovalActionType {
+   723→  DELETE = 'DELETE',
+   724→  DEPLOY_PRODUCTION = 'DEPLOY_PRODUCTION',
+   725→  PAYMENT = 'PAYMENT',
+   726→  EMAIL_SEND = 'EMAIL_SEND',
+   727→  SOCIAL_MEDIA_POST = 'SOCIAL_MEDIA_POST',
+   728→  SSH_ACCESS = 'SSH_ACCESS',
+   729→  DNS_CHANGE = 'DNS_CHANGE',
+   730→  DATABASE_MIGRATION = 'DATABASE_MIGRATION',
+   731→  API_KEY_ROTATION = 'API_KEY_ROTATION',
+   732→}
+   733→
+   734→/**
+   735→ * Status of an approval request.
+   736→ */
+   737→export enum ApprovalStatus {
+   738→  PENDING = 'PENDING',
+   739→  APPROVED = 'APPROVED',
+   740→  REJECTED = 'REJECTED',
+   741→  EXPIRED = 'EXPIRED',
+   742→  CANCELLED = 'CANCELLED',
+   743→}
+   744→
+   745→/**
+   746→ * Request for human approval before executing a high-risk action.
+   747→ */
+   748→export interface ApprovalRequest {
+   749→  /** Unique approval request identifier */
+   750→  id: string;
+   751→  /** Agent ID requesting approval */
+   752→  agentId: string;
+   753→  /** Description of the action to be approved */
+   754→  action: string;
+   755→  /** Classification of the action type */
+   756→  actionType: ApprovalActionType;
+   757→  /** Payload containing action details */
+   758→  payload: Record<string, unknown>;
+   759→  /** Justification for why this action is needed */
+   760→  justification: string;
+   761→  /** Risk assessment for this action */
+   762→  riskAssessment: RiskLevel;
+   763→  /** Current approval status */
+   764→  status: ApprovalStatus;
+   765→  /** Timestamp when the request was submitted */
+   766→  requestedAt: string;
+   767→  /** Timestamp when the request was resolved */
+   768→  resolvedAt?: string;
+   769→  /** Agent or user who approved the request */
+   770→  approvedBy?: string;
+   771→  /** Reason for rejection if applicable */
+   772→  rejectionReason?: string;
+   773→  /** Expiration timestamp for this request */
+   774→  expiresAt?: string;
+   775→  /** Additional context or attachments */
+   776→  attachments?: ApprovalAttachment[];
+   777→}
+   778→
+   779→/**
+   780→ * An attachment to an approval request (e.g., screenshot, log excerpt).
+   781→ */
+   782→export interface ApprovalAttachment {
+   783→  /** Attachment name */
+   784→  name: string;
+   785→  /** MIME type */
+   786→  mimeType: string;
+   787→  /** Content (base64-encoded or URL) */
+   788→  content: string;
+   789→}
+   790→
+   791→// ============================================================================
+   792→// SECTION 7: DIGITAL TWIN
+   793→// ============================================================================
+   794→
+   795→/**
+   796→ * State of the infrastructure digital twin — a mirror of all
+   797→ * real-world infrastructure components for simulation and monitoring.
+   798→ */
+   799→export interface DigitalTwinState {
+   800→  /** Unique twin instance identifier */
+   801→  id: string;
+   802→  /** Timestamp of the last synchronization with real infrastructure */
+   803→  lastSyncAt: string;
+   804→  /** VPS instances in the twin */
+   805→  vps: TwinVPS[];
+   806→  /** Container instances in the twin */
+   807→  containers: TwinContainer[];
+   808→  /** Database instances in the twin */
+   809→  databases: TwinDatabase[];
+   810→  /** API endpoints in the twin */
+   811→  apis: TwinAPI[];
+   812→  /** Git repositories in the twin */
+   813→  gitRepos: TwinGitRepo[];
+   814→  /** Cloud services in the twin */
+   815→  cloudServices: TwinCloudService[];
+   816→  /** Browser instances in the twin */
+   817→  browsers: TwinBrowser[];
+   818→  /** Sync status */
+   819→  syncStatus: 'SYNCED' | 'SYNCING' | 'STALE' | 'ERROR';
+   820→  /** Sync error message if applicable */
+   821→  syncError?: string;
+   822→}
+   823→
+   824→/**
+   825→ * Virtual Private Server representation in the digital twin.
+   826→ */
+   827→export interface TwinVPS {
+   828→  /** Hostname of the VPS */
+   829→  host: string;
+   830→  /** IP address of the VPS */
+   831→  ip: string;
+   832→  /** Current status of the VPS */
+   833→  status: 'RUNNING' | 'STOPPED' | 'REBOOTING' | 'PROVISIONING' | 'ERROR';
+   834→  /** CPU usage metrics */
+   835→  cpu: TwinResourceMetric;
+   836→  /** Memory usage metrics */
+   837→  memory: TwinResourceMetric;
+   838→  /** Disk usage metrics */
+   839→  disk: TwinResourceMetric;
+   840→  /** Operating system information */
+   841→  os: string;
+   842→  /** Services running on this VPS */
+   843→  services: TwinVPSService[];
+   844→}
+   845→
+   846→/**
+   847→ * Resource metric for a digital twin component.
+   848→ */
+   849→export interface TwinResourceMetric {
+   850→  /** Current usage (e.g., percentage or absolute) */
+   851→  used: number;
+   852→  /** Total capacity */
+   853→  total: number;
+   854→  /** Unit of measurement (e.g., "%", "MB", "GB") */
+   855→  unit: string;
+   856→  /** Usage trend (positive = increasing, negative = decreasing) */
+   857→  trend?: number;
+   858→}
+   859→
+   860→/**
+   861→ * A service running on a VPS in the digital twin.
+   862→ */
+   863→export interface TwinVPSService {
+   864→  /** Service name */
+   865→  name: string;
+   866→  /** Service status */
+   867→  status: 'RUNNING' | 'STOPPED' | 'FAILED';
+   868→  /** Service port */
+   869→  port?: number;
+   870→  /** Protocol */
+   871→  protocol?: string;
+   872→}
+   873→
+   874→/**
+   875→ * Container representation in the digital twin.
+   876→ */
+   877→export interface TwinContainer {
+   878→  /** Unique container identifier */
+   879→  id: string;
+   880→  /** Container name */
+   881→  name: string;
+   882→  /** Container image */
+   883→  image: string;
+   884→  /** Container status */
+   885→  status: 'RUNNING' | 'STOPPED' | 'PAUSED' | 'RESTARTING' | 'ERROR' | 'DEAD';
+   886→  /** Port mappings */
+   887→  ports: TwinContainerPort[];
+   888→  /** Resource allocations */
+   889→  resources: TwinContainerResources;
+   890→  /** Health check result */
+   891→  health: 'HEALTHY' | 'UNHEALTHY' | 'UNKNOWN';
+   892→}
+   893→
+   894→/**
+   895→ * Port mapping for a container.
+   896→ */
+   897→export interface TwinContainerPort {
+   898→  /** Host port */
+   899→  hostPort: number;
+   900→  /** Container port */
+   901→  containerPort: number;
+   902→  /** Protocol */
+   903→  protocol: string;
+   904→}
+   905→
+   906→/**
+   907→ * Resource allocations for a container.
+   908→ */
+   909→export interface TwinContainerResources {
+   910→  /** CPU limit in cores */
+   911→  cpuLimit: number;
+   912→  /** Memory limit in MB */
+   913→  memoryLimitMb: number;
+   914→  /** Current CPU usage as a fraction */
+   915→  cpuUsage: number;
+   916→  /** Current memory usage in MB */
+   917→  memoryUsageMb: number;
+   918→}
+   919→
+   920→/**
+   921→ * Database representation in the digital twin.
+   922→ */
+   923→export interface TwinDatabase {
+   924→  /** Unique database identifier */
+   925→  id: string;
+   926→  /** Database type (e.g., "postgresql", "mysql", "mongodb", "redis") */
+   927→  type: string;
+   928→  /** Database host */
+   929→  host: string;
+   930→  /** Database status */
+   931→  status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'MAINTENANCE';
+   932→  /** Database size in MB */
+   933→  size: number;
+   934→  /** Current connection count */
+   935→  connections: number;
+   936→  /** Replication configuration */
+   937→  replication: TwinDatabaseReplication;
+   938→}
+   939→
+   940→/**
+   941→ * Replication configuration for a database.
+   942→ */
+   943→export interface TwinDatabaseReplication {
+   944→  /** Whether replication is enabled */
+   945→  enabled: boolean;
+   946→  /** Replication role (primary, replica, etc.) */
+   947→  role: 'PRIMARY' | 'REPLICA' | 'NONE';
+   948→  /** Number of replicas */
+   949→  replicaCount: number;
+   950→  /** Replication lag in milliseconds */
+   951→  replicationLagMs?: number;
+   952→}
+   953→
+   954→/**
+   955→ * API endpoint representation in the digital twin.
+   956→ */
+   957→export interface TwinAPI {
+   958→  /** Unique API identifier */
+   959→  id: string;
+   960→  /** API name */
+   961→  name: string;
+   962→  /** API endpoint URL */
+   963→  endpoint: string;
+   964→  /** API status */
+   965→  status: 'UP' | 'DOWN' | 'DEGRADED';
+   966→  /** Average response latency in milliseconds */
+   967→  latency: number;
+   968→  /** Rate limit configuration */
+   969→  rateLimit: TwinAPIRateLimit;
+   970→  /** Authentication type */
+   971→  authType?: string;
+   972→}
+   973→
+   974→/**
+   975→ * Rate limit configuration for an API.
+   976→ */
+   977→export interface TwinAPIRateLimit {
+   978→  /** Maximum requests per time window */
+   979→  maxRequests: number;
+   980→  /** Time window in seconds */
+   981→  windowSeconds: number;
+   982→  /** Current usage count in the window */
+   983→  currentUsage: number;
+   984→}
+   985→
+   986→/**
+   987→ * Git repository representation in the digital twin.
+   988→ */
+   989→export interface TwinGitRepo {
+   990→  /** Unique repository identifier */
+   991→  id: string;
+   992→  /** Repository name */
+   993→  name: string;
+   994→  /** Repository URL */
+   995→  url: string;
+   996→  /** Currently checked-out branch */
+   997→  branch: string;
+   998→  /** Last commit information */
+   999→  lastCommit: TwinGitCommit;
+  1000→  /** Repository status */
+  1001→  status: 'CLEAN' | 'DIRTY' | 'AHEAD' | 'BEHIND' | 'DIVERGED';
+  1002→}
+  1003→
+  1004→/**
+  1005→ * Git commit information.
+  1006→ */
+  1007→export interface TwinGitCommit {
+  1008→  /** Commit hash */
+  1009→  hash: string;
+  1010→  /** Commit message */
+  1011→  message: string;
+  1012→  /** Commit author */
+  1013→  author: string;
+  1014→  /** Commit timestamp */
+  1015→  timestamp: string;
+  1016→}
+  1017→
+  1018→/**
+  1019→ * Cloud service representation in the digital twin.
+  1020→ */
+  1021→export interface TwinCloudService {
+  1022→  /** Unique service identifier */
+  1023→  id: string;
+  1024→  /** Cloud provider (e.g., "aws", "gcp", "azure", "cloudflare") */
+  1025→  provider: string;
+  1026→  /** Service name (e.g., "s3", "lambda", "cloudfront") */
+  1027→  service: string;
+  1028→  /** Deployment region */
+  1029→  region: string;
+  1030→  /** Service status */
+  1031→  status: 'ACTIVE' | 'INACTIVE' | 'ERROR' | 'MAINTENANCE';
+  1032→  /** Monthly cost in USD */
+  1033→  cost: number;
+  1034→  /** Service-specific configuration */
+  1035→  config?: Record<string, unknown>;
+  1036→}
+  1037→
+  1038→/**
+  1039→ * Browser instance representation in the digital twin.
+  1040→ */
+  1041→export interface TwinBrowser {
+  1042→  /** Unique browser instance identifier */
+  1043→  id: string;
+  1044→  /** Browser type (e.g., "chromium", "firefox", "webkit") */
+  1045→  type: string;
+  1046→  /** Browser version */
+  1047→  version: string;
+  1048→  /** Active browser sessions */
+  1049→  sessions: TwinBrowserSession[];
+  1050→  /** Browser status */
+  1051→  status: 'READY' | 'BUSY' | 'CRASHED' | 'CLOSED';
+  1052→}
+  1053→
+  1054→/**
+  1055→ * A session within a browser instance.
+  1056→ */
+  1057→export interface TwinBrowserSession {
+  1058→  /** Session identifier */
+  1059→  sessionId: string;
+  1060→  /** Current URL */
+  1061→  currentUrl?: string;
+  1062→  /** Session status */
+  1063→  status: 'ACTIVE' | 'IDLE' | 'CLOSED';
+  1064→  /** Number of open tabs */
+  1065→  tabCount: number;
+  1066→}
+  1067→
+  1068→// ============================================================================
+  1069→// SECTION 8: TEMPORAL MEMORY
+  1070→// ============================================================================
+  1071→
+  1072→/**
+  1073→ * Time granularity levels for temporal memory indexing.
+  1074→ */
+  1075→export enum TimeGranularity {
+  1076→  MOMENT = 'MOMENT',
+  1077→  HOUR = 'HOUR',
+  1078→  DAY = 'DAY',
+  1079→  WEEK = 'WEEK',
+  1080→  MONTH = 'MONTH',
+  1081→  QUARTER = 'QUARTER',
+  1082→  YEAR = 'YEAR',
+  1083→  PROJECT = 'PROJECT',
+  1084→  ARCHIVE = 'ARCHIVE',
+  1085→}
+  1086→
+  1087→/**
+  1088→ * A single entry in the temporal memory system, indexed by
+  1089→ * time granularity for efficient retrieval and summarization.
+  1090→ */
+  1091→export interface TemporalMemoryEntry {
+  1092→  /** Unique memory entry identifier */
+  1093→  id: string;
+  1094→  /** Agent ID that created this memory */
+  1095→  agentId: string;
+  1096→  /** Memory content (text, structured data, or reference) */
+  1097→  content: string;
+  1098→  /** Timestamp when this memory was recorded */
+  1099→  timestamp: string;
+  1100→  /** Time granularity level for indexing */
+  1101→  timeGranularity: TimeGranularity;
+  1102→  /** Associated project identifier */
+  1103→  project: string;
+  1104→  /** Tags for categorization and search */
+  1105→  tags: string[];
+  1106→  /** Importance score (0.0 - 1.0) */
+  1107→  importance: number;
+  1108→  /** Number of times this memory has been accessed */
+  1109→  accessCount: number;
+  1110→  /** Embedding vector for semantic search */
+  1111→  embedding?: number[];
+  1112→  /** Memory type classification */
+  1113→  memoryType?: 'EPISODIC' | 'SEMANTIC' | 'PROCEDURAL';
+  1114→  /** Related memory entry IDs */
+  1115→  relatedEntries?: string[];
+  1116→}
+  1117→
+  1118→/**
+  1119→ * Query parameters for temporal memory retrieval.
+  1120→ */
+  1121→export interface TemporalQuery {
+  1122→  /** Start of the time range (ISO-8601) */
+  1123→  from: string;
+  1124→  /** End of the time range (ISO-8601) */
+  1125→  to: string;
+  1126→  /** Desired granularity for aggregation */
+  1127→  granularity: TimeGranularity;
+  1128→  /** Filter by agent ID */
+  1129→  agentId?: string;
+  1130→  /** Filter by project */
+  1131→  project?: string;
+  1132→  /** Filter by tags */
+  1133→  tags?: string[];
+  1134→  /** Minimum importance threshold (0.0 - 1.0) */
+  1135→  importanceThreshold?: number;
+  1136→  /** Maximum number of results to return */
+  1137→  limit: number;
+  1138→  /** Text search query */
+  1139→  searchText?: string;
+  1140→  /** Sort direction */
+  1141→  sortOrder?: 'ASC' | 'DESC';
+  1142→}
+  1143→
+  1144→// ============================================================================
+  1145→// SECTION 9: RESOURCE MANAGEMENT
+  1146→// ============================================================================
+  1147→
+  1148→/**
+  1149→ * Classification of resource types available for allocation.
+  1150→ */
+  1151→export enum ResourceType {
+  1152→  LLM = 'LLM',
+  1153→  BROWSER = 'BROWSER',
+  1154→  GPU = 'GPU',
+  1155→  WORKER = 'WORKER',
+  1156→  DATABASE = 'DATABASE',
+  1157→  CACHE = 'CACHE',
+  1158→  QUEUE = 'QUEUE',
+  1159→  STORAGE = 'STORAGE',
+  1160→}
+  1161→
+  1162→/**
+  1163→ * A specific resource allocation binding a resource to a task and agent.
+  1164→ */
+  1165→export interface ResourceAllocation {
+  1166→  /** Unique allocation identifier */
+  1167→  id: string;
+  1168→  /** Task ID this resource is allocated to */
+  1169→  taskId: string;
+  1170→  /** Agent ID this resource is allocated to */
+  1171→  agentId: string;
+  1172→  /** Type of resource allocated */
+  1173→  resourceType: ResourceType;
+  1174→  /** Resource provider identifier */
+  1175→  provider: string;
+  1176→  /** Provider-specific configuration */
+  1177→  config: Record<string, unknown>;
+  1178→  /** Estimated cost for this allocation */
+  1179→  costEstimate: number;
+  1180→  /** Timestamp when the resource was allocated */
+  1181→  allocatedAt: string;
+  1182→  /** Timestamp when the resource was released */
+  1183→  releasedAt?: string;
+  1184→  /** Allocation status */
+  1185→  status?: 'ACTIVE' | 'RELEASED' | 'EXPIRED' | 'FAILED';
+  1186→}
+  1187→
+  1188→/**
+  1189→ * A candidate resource available for allocation, used during
+  1190→ * resource selection and comparison.
+  1191→ */
+  1192→export interface ResourceCandidate {
+  1193→  /** Type of resource */
+  1194→  resourceType: ResourceType;
+  1195→  /** Resource provider identifier */
+  1196→  provider: string;
+  1197→  /** Provider-specific configuration */
+  1198→  config: Record<string, unknown>;
+  1199→  /** Cost per unit of usage */
+  1200→  costPerUnit: number;
+  1201→  /** Expected latency in milliseconds */
+  1202→  latencyMs: number;
+  1203→  /** Current availability (0.0 - 1.0) */
+  1204→  availability: number;
+  1205→  /** Quality score (0.0 - 1.0) */
+  1206→  quality: number;
+  1207→  /** Maximum capacity */
+  1208→  maxCapacity?: number;
+  1209→  /** Current load (0.0 - 1.0) */
+  1210→  currentLoad?: number;
+  1211→  /** Geographic region */
+  1212→  region?: string;
+  1213→}
+  1214→
+  1215→// ============================================================================
+  1216→// SECTION 10: OBSERVABILITY
+  1217→// ============================================================================
+  1218→
+  1219→/**
+  1220→ * A point-in-time snapshot of system observability data,
+  1221→ * including logs, metrics, traces, and health indicators.
+  1222→ */
+  1223→export interface ObservabilitySnapshot {
+  1224→  /** Timestamp of this snapshot */
+  1225→  timestamp: string;
+  1226→  /** Recent log entries */
+  1227→  logs: ObservabilityLogEntry[];
+  1228→  /** System metrics */
+  1229→  metrics: ObservabilityMetric[];
+  1230→  /** Distributed traces */
+  1231→  traces: ObservabilityTrace[];
+  1232→  /** Experience Quality Index score (0.0 - 1.0) */
+  1233→  eqiScore: number;
+  1234→  /** Memory subsystem health */
+  1235→  memory: ObservabilitySubsystemHealth;
+  1236→  /** Browser subsystem health */
+  1237→  browser: ObservabilitySubsystemHealth;
+  1238→  /** Agent health summary */
+  1239→  agentHealth: ObservabilityAgentHealth[];
+  1240→  /** CPU usage metrics */
+  1241→  cpu: ObservabilityResourceHealth;
+  1242→  /** GPU usage metrics */
+  1243→  gpu: ObservabilityResourceHealth;
+  1244→  /** Redis subsystem health */
+  1245→  redis: ObservabilitySubsystemHealth;
+  1246→  /** RabbitMQ subsystem health */
+  1247→  rabbitmq: ObservabilitySubsystemHealth;
+  1248→  /** PostgreSQL subsystem health */
+  1249→  postgresql: ObservabilitySubsystemHealth;
+  1250→}
+  1251→
+  1252→/**
+  1253→ * A single observability metric measurement.
+  1254→ */
+  1255→export interface ObservabilityMetric {
+  1256→  /** Metric name (e.g., "cpu.usage", "memory.available") */
+  1257→  name: string;
+  1258→  /** Current metric value */
+  1259→  value: number;
+  1260→  /** Unit of measurement (e.g., "%", "ms", "MB") */
+  1261→  unit: string;
+  1262→  /** Timestamp of the measurement */
+  1263→  timestamp: string;
+  1264→  /** Key-value labels for dimensional metrics */
+  1265→  labels: Record<string, string>;
+  1266→}
+  1267→
+  1268→/**
+  1269→ * A log entry in the observability system.
+  1270→ */
+  1271→export interface ObservabilityLogEntry {
+  1272→  /** Log level */
+  1273→  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
+  1274→  /** Log message */
+  1275→  message: string;
+  1276→  /** Timestamp */
+  1277→  timestamp: string;
+  1278→  /** Source agent or service */
+  1279→  source: string;
+  1280→  /** Correlation/trace ID */
+  1281→  traceId?: string;
+  1282→  /** Structured log data */
+  1283→  data?: Record<string, unknown>;
+  1284→}
+  1285→
+  1286→/**
+  1287→ * A distributed trace in the observability system.
+  1288→ */
+  1289→export interface ObservabilityTrace {
+  1290→  /** Trace identifier */
+  1291→  traceId: string;
+  1292→  /** Root span name */
+  1293→  name: string;
+  1294→  /** Start timestamp */
+  1295→  startedAt: string;
+  1296→  /** Duration in milliseconds */
+  1297→  durationMs: number;
+  1298→  /** Span count */
+  1299→  spanCount: number;
+  1300→  /** Status */
+  1301→  status: 'OK' | 'ERROR' | 'TIMEOUT';
+  1302→}
+  1303→
+  1304→/**
+  1305→ * Health status of a subsystem (memory, browser, redis, etc.).
+  1306→ */
+  1307→export interface ObservabilitySubsystemHealth {
+  1308→  /** Subsystem name */
+  1309→  name: string;
+  1310→  /** Health status */
+  1311→  status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY';
+  1312→  /** Response latency in milliseconds */
+  1313→  latencyMs: number;
+  1314→  /** Error rate as a fraction (0.0 - 1.0) */
+  1315→  errorRate: number;
+  1316→  /** Uptime percentage (0.0 - 100.0) */
+  1317→  uptimePercent: number;
+  1318→  /** Subsystem-specific details */
+  1319→  details?: Record<string, unknown>;
+  1320→}
+  1321→
+  1322→/**
+  1323→ * Health status of a computational resource (CPU, GPU).
+  1324→ */
+  1325→export interface ObservabilityResourceHealth {
+  1326→  /** Resource name */
+  1327→  name: string;
+  1328→  /** Current utilization as a fraction (0.0 - 1.0) */
+  1329→  utilization: number;
+  1330→  /** Temperature in Celsius */
+  1331→  temperature?: number;
+  1332→  /** Available capacity */
+  1333→  available: number;
+  1334→  /** Total capacity */
+  1335→  total: number;
+  1336→  /** Unit */
+  1337→  unit: string;
+  1338→}
+  1339→
+  1340→/**
+  1341→ * Health status of an individual agent.
+  1342→ */
+  1343→export interface ObservabilityAgentHealth {
+  1344→  /** Agent identifier */
+  1345→  agentId: string;
+  1346→  /** Agent status */
+  1347→  status: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'OFFLINE';
+  1348→  /** Last heartbeat timestamp */
+  1349→  lastHeartbeatAt: string;
+  1350→  /** Current task count */
+  1351→  activeTasks: number;
+  1352→  /** Error count in the last window */
+  1353→  recentErrors: number;
+  1354→  /** Memory usage in MB */
+  1355→  memoryUsageMb: number;
+  1356→}
+  1357→
+  1358→// ============================================================================
+  1359→// SECTION 11: AUTO-RECOVERY
+  1360→// ============================================================================
+  1361→
+  1362→/**
+  1363→ * Classification of failure types that can trigger auto-recovery.
+  1364→ */
+  1365→export enum FailureType {
+  1366→  CRASH = 'CRASH',
+  1367→  TIMEOUT = 'TIMEOUT',
+  1368→  OOM = 'OOM',
+  1369→  CIRCUIT_BREAKER_OPEN = 'CIRCUIT_BREAKER_OPEN',
+  1370→  HEALTH_CHECK_FAILED = 'HEALTH_CHECK_FAILED',
+  1371→  UNHANDLED_EXCEPTION = 'UNHANDLED_EXCEPTION',
+  1372→  DEADLOCK = 'DEADLOCK',
+  1373→}
+  1374→
+  1375→/**
+  1376→ * Classification of recovery strategies.
+  1377→ */
+  1378→export enum RecoveryStrategy {
+  1379→  RESTART = 'RESTART',
+  1380→  RESTORE_MEMORY_RESUME = 'RESTORE_MEMORY_RESUME',
+  1381→  FAILOVER = 'FAILOVER',
+  1382→  SCALE_OUT = 'SCALE_OUT',
+  1383→  DEGRADE = 'DEGRADE',
+  1384→  QUARANTINE = 'QUARANTINE',
+  1385→}
+  1386→
+  1387→/**
+  1388→ * An auto-recovery action taken by the system in response to a failure.
+  1389→ */
+  1390→export interface AutoRecoveryAction {
+  1391→  /** Unique recovery action identifier */
+  1392→  id: string;
+  1393→  /** Agent ID that experienced the failure */
+  1394→  agentId: string;
+  1395→  /** Type of failure detected */
+  1396→  failureType: FailureType;
+  1397→  /** Timestamp when the failure was detected */
+  1398→  detectionTime: string;
+  1399→  /** Recovery strategy chosen */
+  1400→  recoveryStrategy: RecoveryStrategy;
+  1401→  /** Current status of the recovery action */
+  1402→  status: 'DETECTED' | 'RECOVERING' | 'RECOVERED' | 'FAILED' | 'ESCALATED';
+  1403→  /** Number of recovery attempts made */
+  1404→  attempts: number;
+  1405→  /** Result of the recovery action */
+  1406→  result?: string;
+  1407→  /** Timestamp when recovery completed */
+  1408→  recoveryTime?: string;
+  1409→  /** Error details from the failure */
+  1410→  failureDetails?: string;
+  1411→  /** Contextual data about the failure */
+  1412→  context?: Record<string, unknown>;
+  1413→}
+  1414→
+  1415→// ============================================================================
+  1416→// SECTION 12: MARKETPLACE PLUGINS
+  1417→// ============================================================================
+  1418→
+  1419→/**
+  1420→ * A plugin available in the marketplace or installed in the system.
+  1421→ */
+  1422→export interface MarketplacePlugin {
+  1423→  /** Unique plugin identifier */
+  1424→  id: string;
+  1425→  /** Plugin name */
+  1426→  name: string;
+  1427→  /** Semantic version */
+  1428→  version: string;
+  1429→  /** Plugin description */
+  1430→  description: string;
+  1431→  /** Cluster or category the plugin belongs to */
+  1432→  cluster: string;
+  1433→  /** Plugin author */
+  1434→  author: string;
+  1435→  /** Plugin homepage URL */
+  1436→  homepage?: string;
+  1437→  /** Source repository URL */
+  1438→  repository?: string;
+  1439→  /** Capabilities provided by this plugin */
+  1440→  capabilities: string[];
+  1441→  /** Dependencies on other plugins */
+  1442→  dependencies: PluginDependency[];
+  1443→  /** Whether this plugin is currently installed */
+  1444→  installed: boolean;
+  1445→  /** Timestamp when the plugin was installed */
+  1446→  installedAt?: string;
+  1447→  /** Whether this plugin is currently enabled */
+  1448→  enabled: boolean;
+  1449→  /** Plugin-specific configuration */
+  1450→  config: Record<string, unknown>;
+  1451→  /** Community rating (0.0 - 5.0) */
+  1452→  rating: number;
+  1453→  /** Total download count */
+  1454→  downloads: number;
+  1455→  /** Plugin license identifier */
+  1456→  license?: string;
+  1457→  /** Minimum Agent OS version required */
+  1458→  minOsVersion?: string;
+  1459→}
+  1460→
+  1461→/**
+  1462→ * A dependency on another plugin.
+  1463→ */
+  1464→export interface PluginDependency {
+  1465→  /** Dependency plugin name */
+  1466→  name: string;
+  1467→  /** Required version range (semver) */
+  1468→  versionRange: string;
+  1469→  /** Whether this dependency is optional */
+  1470→  optional: boolean;
+  1471→}
+  1472→
+  1473→/**
+  1474→ * Plugin manifest file format, used for loading and validating
+  1475→ * plugin metadata from the filesystem or registry.
+  1476→ */
+  1477→export interface PluginManifest {
+  1478→  /** Unique plugin identifier */
+  1479→  id: string;
+  1480→  /** Plugin name */
+  1481→  name: string;
+  1482→  /** Semantic version */
+  1483→  version: string;
+  1484→  /** Plugin description */
+  1485→  description: string;
+  1486→  /** Cluster or category the plugin belongs to */
+  1487→  cluster: string;
+  1488→  /** Plugin author */
+  1489→  author: string;
+  1490→  /** Plugin homepage URL */
+  1491→  homepage?: string;
+  1492→  /** Source repository URL */
+  1493→  repository?: string;
+  1494→  /** Capabilities provided by this plugin */
+  1495→  capabilities: string[];
+  1496→  /** Dependencies on other plugins */
+  1497→  dependencies: PluginDependency[];
+  1498→  /** Whether this plugin is currently installed */
+  1499→  installed: boolean;
+  1500→  /** Timestamp when the plugin was installed */
+  1501→  installedAt?: string;
+  1502→  /** Whether this plugin is currently enabled */
+  1503→  enabled: boolean;
+  1504→  /** Plugin-specific configuration */
+  1505→  config: Record<string, unknown>;
+  1506→  /** Community rating (0.0 - 5.0) */
+  1507→  rating: number;
+  1508→  /** Total download count */
+  1509→  downloads: number;
+  1510→  /** Manifest schema version */
+  1511→  manifestVersion: string;
+  1512→  /** Entry point module path */
+  1513→  entryPoint: string;
+  1514→  /** Required permissions */
+  1515→  permissions: string[];
+  1516→  /** Checksum for integrity verification */
+  1517→  checksum?: string;
+  1518→}
+  1519→
+  1520→// ============================================================================
+  1521→// SECTION 13: LONG-HORIZON PLANNING
+  1522→// ============================================================================
+  1523→
+  1524→/**
+  1525→ * A long-horizon plan that decomposes a complex mission into
+  1526→ * hierarchical planning levels with sub-plans and task graphs.
+  1527→ */
+  1528→export interface LongHorizonPlan {
+  1529→  /** Unique plan identifier */
+  1530→  id: string;
+  1531→  /** Parent mission identifier */
+  1532→  missionId: string;
+  1533→  /** Hierarchical planning levels */
+  1534→  levels: PlanningLevel[];
+  1535→  /** Total estimated duration across all levels in milliseconds */
+  1536→  totalEstimatedDurationMs: number;
+  1537→  /** Aggregate resource requirements */
+  1538→  resourceRequirements: SimulationResourceRequirement[];
+  1539→  /** Risk assessment for this plan */
+  1540→  riskAssessment: RiskLevel;
+  1541→  /** Simulation result for this plan */
+  1542→  simulationResult?: SimulationResult;
+  1543→  /** Plan status */
+  1544→  status?: MissionStatus;
+  1545→  /** Plan version for iteration tracking */
+  1546→  version?: number;
+  1547→  /** Timestamp when the plan was created */
+  1548→  createdAt?: string;
+  1549→}
+  1550→
+  1551→/**
+  1552→ * A single level in a hierarchical long-horizon plan.
+  1553→ */
+  1554→export interface PlanningLevel {
+  1555→  /** Level number (0 = highest-level, increasing = more detailed) */
+  1556→  level: number;
+  1557→  /** Human-readable level name (e.g., "Strategic", "Tactical", "Operational") */
+  1558→  name: string;
+  1559→  /** Objectives for this planning level */
+  1560→  objectives: string[];
+  1561→  /** Sub-plans that decompose this level further */
+  1562→  subPlans: LongHorizonPlan[];
+  1563→  /** Task graph for this level */
+  1564→  taskGraph: MissionTaskGraph;
+  1565→  /** External dependencies for this level */
+  1566→  dependencies: string[];
+  1567→  /** Estimated duration for this level in milliseconds */
+  1568→  estimatedDurationMs?: number;
+  1569→  /** Confidence in this level's estimates (0.0 - 1.0) */
+  1570→  confidence?: number;
+  1571→}
+  1572→

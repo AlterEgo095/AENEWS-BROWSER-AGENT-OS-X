@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FinancialAnalysisAgentService = exports.FINANCIAL_ANALYSIS_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.FINANCIAL_ANALYSIS_AGENT_CONFIG = {
     id: 'business-financial-analysis',
     name: 'FinancialAnalysis',
@@ -24,7 +32,11 @@ exports.FINANCIAL_ANALYSIS_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     modelName: { type: 'string', description: 'Name of the financial model' },
-                    modelType: { type: 'string', enum: ['dcf', 'comparable', 'precedent', 'lbo'], description: 'Type of financial model' },
+                    modelType: {
+                        type: 'string',
+                        enum: ['dcf', 'comparable', 'precedent', 'lbo'],
+                        description: 'Type of financial model',
+                    },
                     projectionYears: { type: 'number', description: 'Number of years to project' },
                     assumptions: { type: 'object', description: 'Key financial assumptions' },
                 },
@@ -80,7 +92,11 @@ exports.FINANCIAL_ANALYSIS_AGENT_CONFIG = {
                     currentRevenue: { type: 'number', description: 'Current annual revenue' },
                     growthRate: { type: 'number', description: 'Expected annual growth rate (percentage)' },
                     projectionYears: { type: 'number', description: 'Number of years to project' },
-                    method: { type: 'string', enum: ['linear', 'exponential', 'logarithmic'], description: 'Forecast method' },
+                    method: {
+                        type: 'string',
+                        enum: ['linear', 'exponential', 'logarithmic'],
+                        description: 'Forecast method',
+                    },
                     seasonality: { type: 'boolean', description: 'Whether to include seasonality' },
                 },
                 required: ['currentRevenue', 'growthRate'],
@@ -105,7 +121,11 @@ exports.FINANCIAL_ANALYSIS_AGENT_CONFIG = {
                     revenue: { type: 'number', description: 'Annual revenue' },
                     ebitda: { type: 'number', description: 'Annual EBITDA' },
                     netIncome: { type: 'number', description: 'Annual net income' },
-                    method: { type: 'string', enum: ['dcf', 'comparable', 'asset-based', 'multiple'], description: 'Valuation method' },
+                    method: {
+                        type: 'string',
+                        enum: ['dcf', 'comparable', 'asset-based', 'multiple'],
+                        description: 'Valuation method',
+                    },
                     discountRate: { type: 'number', description: 'Discount rate for DCF (percentage)' },
                     growthRate: { type: 'number', description: 'Expected growth rate (percentage)' },
                 },
@@ -159,10 +179,17 @@ exports.FINANCIAL_ANALYSIS_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    reportType: { type: 'string', enum: ['summary', 'detailed', 'board', 'investor'], description: 'Type of financial report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['summary', 'detailed', 'board', 'investor'],
+                        description: 'Type of financial report',
+                    },
                     period: { type: 'string', description: 'Reporting period' },
                     includeCharts: { type: 'boolean', description: 'Whether to include chart data' },
-                    compareToPrior: { type: 'boolean', description: 'Whether to include prior period comparison' },
+                    compareToPrior: {
+                        type: 'boolean',
+                        description: 'Whether to include prior period comparison',
+                    },
                 },
                 required: ['reportType', 'period'],
             },
@@ -195,8 +222,9 @@ exports.FINANCIAL_ANALYSIS_AGENT_CONFIG = {
     },
 };
 let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.models = new Map();
         this.pnlAnalyses = new Map();
         this.analysisCounter = 0;
@@ -240,6 +268,20 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.FINANCE, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -277,7 +319,7 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
         this.logger.log('FinancialAnalysis agent destroyed, all data cleared');
     }
     async buildFinancialModel(params) {
-        const { modelName, modelType = 'dcf', projectionYears = 5, assumptions = {}, } = params;
+        const { modelName, modelType = 'dcf', projectionYears = 5, assumptions = {} } = params;
         if (!modelName || typeof modelName !== 'string') {
             throw new Error('A valid model name is required');
         }
@@ -408,7 +450,9 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
     }
     async forecastRevenue(params) {
         const { currentRevenue, growthRate, projectionYears = 5, method = 'exponential', seasonality = false, } = params;
-        if (currentRevenue === undefined || currentRevenue === null || typeof currentRevenue !== 'number') {
+        if (currentRevenue === undefined ||
+            currentRevenue === null ||
+            typeof currentRevenue !== 'number') {
             throw new Error('Current revenue must be a valid number');
         }
         if (growthRate === undefined || growthRate === null || typeof growthRate !== 'number') {
@@ -425,7 +469,7 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
             let projectedRevenue;
             switch (method) {
                 case 'linear':
-                    projectedRevenue = currentRevenue + (currentRevenue * (growthRate / 100)) * i;
+                    projectedRevenue = currentRevenue + currentRevenue * (growthRate / 100) * i;
                     break;
                 case 'logarithmic':
                     projectedRevenue = currentRevenue * (1 + (growthRate / 100) * Math.log(i + 1));
@@ -492,7 +536,8 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                     const discountFactor = Math.pow(1 + discountRate / 100, i);
                     pvCashFlows += lastCashFlow / discountFactor;
                 }
-                const terminalValue = lastCashFlow * (1 + terminalGrowthRate / 100) / ((discountRate - terminalGrowthRate) / 100);
+                const terminalValue = (lastCashFlow * (1 + terminalGrowthRate / 100)) /
+                    ((discountRate - terminalGrowthRate) / 100);
                 const pvTerminalValue = terminalValue / Math.pow(1 + discountRate / 100, projectionYears);
                 valuation = pvCashFlows + pvTerminalValue;
                 assumptions.push(`Discount rate: ${discountRate}%`);
@@ -546,7 +591,9 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
         if (!period || typeof period !== 'string') {
             throw new Error('A valid period is required');
         }
-        if (operatingCashFlow === undefined || operatingCashFlow === null || typeof operatingCashFlow !== 'number') {
+        if (operatingCashFlow === undefined ||
+            operatingCashFlow === null ||
+            typeof operatingCashFlow !== 'number') {
             throw new Error('Operating cash flow must be a valid number');
         }
         this.analysisCounter++;
@@ -560,7 +607,8 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
             healthAssessment = 'Healthy — positive operating cash flow and net cash generation';
         }
         else if (operatingCashFlow > 0 && netCashFlow < 0) {
-            healthAssessment = 'Moderate — positive operations but negative overall cash flow due to investing/financing';
+            healthAssessment =
+                'Moderate — positive operations but negative overall cash flow due to investing/financing';
         }
         else if (operatingCashFlow < 0 && endingCash > 0) {
             healthAssessment = 'Caution — negative operating cash flow but cash reserves available';
@@ -612,9 +660,9 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                     content: 'Overview of revenue and profitability metrics for the reporting period.',
                     metrics: {
                         revenue: Math.round(revenue),
-                        grossProfit: Math.round(revenue * grossMargin / 100),
-                        operatingIncome: Math.round(revenue * operatingMargin / 100),
-                        netIncome: Math.round(revenue * netMargin / 100),
+                        grossProfit: Math.round((revenue * grossMargin) / 100),
+                        operatingIncome: Math.round((revenue * operatingMargin) / 100),
+                        netIncome: Math.round((revenue * netMargin) / 100),
                     },
                 }, {
                     title: 'Key Ratios',
@@ -635,10 +683,10 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                     metrics: {
                         revenue: Math.round(revenue),
                         costOfGoods: Math.round(revenue * (1 - grossMargin / 100)),
-                        grossProfit: Math.round(revenue * grossMargin / 100),
-                        operatingExpenses: Math.round(revenue * (grossMargin - operatingMargin) / 100),
-                        operatingIncome: Math.round(revenue * operatingMargin / 100),
-                        netIncome: Math.round(revenue * netMargin / 100),
+                        grossProfit: Math.round((revenue * grossMargin) / 100),
+                        operatingExpenses: Math.round((revenue * (grossMargin - operatingMargin)) / 100),
+                        operatingIncome: Math.round((revenue * operatingMargin) / 100),
+                        netIncome: Math.round((revenue * netMargin) / 100),
                     },
                 }, {
                     title: 'Balance Sheet Highlights',
@@ -654,10 +702,10 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                     title: 'Cash Flow Overview',
                     content: 'Cash flow analysis across operating, investing, and financing activities.',
                     metrics: {
-                        operatingCashFlow: Math.round(revenue * netMargin / 100 * 1.2),
+                        operatingCashFlow: Math.round(((revenue * netMargin) / 100) * 1.2),
                         investingCashFlow: Math.round(-revenue * 0.08),
                         financingCashFlow: Math.round(-revenue * 0.03),
-                        freeCashFlow: Math.round(revenue * (netMargin / 100 * 1.2 - 0.08)),
+                        freeCashFlow: Math.round(revenue * ((netMargin / 100) * 1.2 - 0.08)),
                     },
                 });
                 break;
@@ -668,9 +716,9 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                     metrics: {
                         revenue: Math.round(revenue),
                         revenueGrowth: +(5 + Math.random() * 20).toFixed(2),
-                        ebitda: Math.round(revenue * (operatingMargin + 5) / 100),
+                        ebitda: Math.round((revenue * (operatingMargin + 5)) / 100),
                         ebitdaMargin: +(operatingMargin + 5).toFixed(2),
-                        netIncome: Math.round(revenue * netMargin / 100),
+                        netIncome: Math.round((revenue * netMargin) / 100),
                         cashPosition: Math.round(revenue * (0.5 + Math.random() * 0.5)),
                     },
                 }, {
@@ -680,7 +728,7 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                         customerAcquisitionCost: Math.round(100 + Math.random() * 400),
                         lifetimeValue: Math.round(500 + Math.random() * 3000),
                         ltvToCacRatio: +(2 + Math.random() * 5).toFixed(2),
-                        monthlyRecurringRevenue: Math.round(revenue * (0.6 + Math.random() * 0.3) / 12),
+                        monthlyRecurringRevenue: Math.round((revenue * (0.6 + Math.random() * 0.3)) / 12),
                         churnRate: +(1 + Math.random() * 5).toFixed(2),
                     },
                 });
@@ -695,7 +743,7 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                         grossMargin: +grossMargin.toFixed(2),
                         operatingMargin: +operatingMargin.toFixed(2),
                         netMargin: +netMargin.toFixed(2),
-                        freeCashFlow: Math.round(revenue * (netMargin / 100 * 1.1 - 0.06)),
+                        freeCashFlow: Math.round(revenue * ((netMargin / 100) * 1.1 - 0.06)),
                     },
                 }, {
                     title: 'Valuation Metrics',
@@ -728,7 +776,7 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
                 metrics: {
                     revenueByMonth: Math.round(revenue),
                     expensesByMonth: Math.round(revenue * (1 - netMargin / 100)),
-                    profitByMonth: Math.round(revenue * netMargin / 100),
+                    profitByMonth: Math.round((revenue * netMargin) / 100),
                 },
             });
         }
@@ -745,6 +793,8 @@ let FinancialAnalysisAgentService = class FinancialAnalysisAgentService extends 
 };
 exports.FinancialAnalysisAgentService = FinancialAnalysisAgentService;
 exports.FinancialAnalysisAgentService = FinancialAnalysisAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], FinancialAnalysisAgentService);
 //# sourceMappingURL=financial-analysis-agent.service.js.map

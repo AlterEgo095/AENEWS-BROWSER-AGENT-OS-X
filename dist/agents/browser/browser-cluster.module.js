@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BrowserClusterModule = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_module_1 = require("../base/base-agent.module");
+const bridge_1 = require("../bridge");
 const navigation_agent_service_1 = require("./navigation/navigation-agent.service");
 const click_agent_service_1 = require("./click/click-agent.service");
 const form_filling_agent_service_1 = require("./form-filling/form-filling-agent.service");
@@ -31,7 +32,7 @@ let BrowserClusterModule = class BrowserClusterModule {
 exports.BrowserClusterModule = BrowserClusterModule;
 exports.BrowserClusterModule = BrowserClusterModule = __decorate([
     (0, common_1.Module)({
-        imports: [base_agent_module_1.BaseAgentModule],
+        imports: [base_agent_module_1.BaseAgentModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             navigation_agent_service_1.NavigationAgentService,
             click_agent_service_1.ClickAgentService,

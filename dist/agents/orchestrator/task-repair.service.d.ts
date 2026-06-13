@@ -3,6 +3,7 @@ import { CritiqueResult } from './task-critic.service';
 import { StepExecutionResult } from './task-executor.service';
 import { OrchestrationRequest } from './orchestrator.service';
 import { TaskPlannerService } from './task-planner.service';
+import { AgentConnectorBridge } from '../bridge';
 export interface RepairResult {
     repairedPlan: OrchestrationPlan | null;
     repairedSteps: string[];
@@ -38,11 +39,13 @@ export interface RepairConfig {
 }
 export declare class TaskRepairService {
     private readonly plannerService;
+    private readonly bridge?;
     private readonly logger;
     private readonly config;
     private readonly repairHistory;
-    constructor(plannerService: TaskPlannerService);
+    constructor(plannerService: TaskPlannerService, bridge?: AgentConnectorBridge | undefined);
     repair(results: StepExecutionResult[], critique: CritiqueResult, request: OrchestrationRequest): Promise<RepairResult>;
+    llmRepair(results: StepExecutionResult[], critique: CritiqueResult, request: OrchestrationRequest): Promise<RepairResult | null>;
     getRepairHistory(taskId: string): RepairHistoryEntry[];
     clearRepairHistory(taskId: string): void;
     getRepairIterationCount(taskId: string): number;

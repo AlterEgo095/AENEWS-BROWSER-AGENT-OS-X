@@ -79,52 +79,103 @@ class FullAuditor {
         const testUrl = 'https://example.com';
         const ws = this.createWorkspace('browser');
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.SCREENSHOT, this.browser, {
-            missionId: 'audit-browser-1', instruction: 'Take a screenshot of example.com',
-            workspaceDir: ws, parameters: { url: testUrl }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-1',
+            instruction: 'Take a screenshot of example.com',
+            workspaceDir: ws,
+            parameters: { url: testUrl },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.NAVIGATION, this.browser, {
-            missionId: 'audit-browser-2', instruction: 'Navigate to example.com and extract content',
-            workspaceDir: ws, parameters: { url: testUrl }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-2',
+            instruction: 'Navigate to example.com and extract content',
+            workspaceDir: ws,
+            parameters: { url: testUrl },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.SEARCH, this.browser, {
-            missionId: 'audit-browser-3', instruction: 'Search for "test query"',
-            workspaceDir: ws, parameters: { query: 'AENEWS software factory', engine: 'duckduckgo' }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-3',
+            instruction: 'Search for "test query"',
+            workspaceDir: ws,
+            parameters: { query: 'AENEWS software factory', engine: 'duckduckgo' },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.LOGIN, this.browser, {
-            missionId: 'audit-browser-4', instruction: 'Login to a website',
-            workspaceDir: ws, parameters: { url: testUrl, username: 'test@test.com', password: 'test123' }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-4',
+            instruction: 'Login to a website',
+            workspaceDir: ws,
+            parameters: { url: testUrl, username: 'test@test.com', password: 'test123' },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.FORM, this.browser, {
-            missionId: 'audit-browser-5', instruction: 'Fill a form',
-            workspaceDir: ws, parameters: { url: 'https://httpbin.org/forms/post', fields: { 'custname': 'Test User', 'custtel': '1234567890' } }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-5',
+            instruction: 'Fill a form',
+            workspaceDir: ws,
+            parameters: {
+                url: 'https://httpbin.org/forms/post',
+                fields: { custname: 'Test User', custtel: '1234567890' },
+            },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.VISION, this.browser, {
-            missionId: 'audit-browser-6', instruction: 'Analyze this page visually',
-            workspaceDir: ws, parameters: { url: testUrl }, previousResults: new Map(), tools: ['playwright', 'z-ai-web-dev-sdk'],
+            missionId: 'audit-browser-6',
+            instruction: 'Analyze this page visually',
+            workspaceDir: ws,
+            parameters: { url: testUrl },
+            previousResults: new Map(),
+            tools: ['playwright', 'z-ai-web-dev-sdk'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.OCR, this.browser, {
-            missionId: 'audit-browser-7', instruction: 'Extract text from page',
-            workspaceDir: ws, parameters: { url: testUrl }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-7',
+            instruction: 'Extract text from page',
+            workspaceDir: ws,
+            parameters: { url: testUrl },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.SESSION, this.browser, {
-            missionId: 'audit-browser-8', instruction: 'Save session state',
-            workspaceDir: ws, parameters: { url: testUrl }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-8',
+            instruction: 'Save session state',
+            workspaceDir: ws,
+            parameters: { url: testUrl },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.COOKIE, this.browser, {
-            missionId: 'audit-browser-9', instruction: 'Get cookies from page',
-            workspaceDir: ws, parameters: { url: testUrl }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-9',
+            instruction: 'Get cookies from page',
+            workspaceDir: ws,
+            parameters: { url: testUrl },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.POPUP, this.browser, {
-            missionId: 'audit-browser-10', instruction: 'Handle popups',
-            workspaceDir: ws, parameters: { url: testUrl }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-10',
+            instruction: 'Handle popups',
+            workspaceDir: ws,
+            parameters: { url: testUrl },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.DOWNLOAD, this.browser, {
-            missionId: 'audit-browser-11', instruction: 'Download a file',
-            workspaceDir: ws, parameters: { url: 'https://example.com' }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-11',
+            instruction: 'Download a file',
+            workspaceDir: ws,
+            parameters: { url: 'https://example.com' },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
         await this.auditCapability('BROWSER', interfaces_1.BrowserCapability.UPLOAD, this.browser, {
-            missionId: 'audit-browser-12', instruction: 'Upload a file',
-            workspaceDir: ws, parameters: { url: testUrl, filePath: '/nonexistent/file.txt' }, previousResults: new Map(), tools: ['playwright'],
+            missionId: 'audit-browser-12',
+            instruction: 'Upload a file',
+            workspaceDir: ws,
+            parameters: { url: testUrl, filePath: '/nonexistent/file.txt' },
+            previousResults: new Map(),
+            tools: ['playwright'],
         });
     }
     async auditDevelopment() {
@@ -132,42 +183,108 @@ class FullAuditor {
         const instruction = 'Build a REST API for a task manager with CRUD operations';
         const prevResults = new Map();
         const archResult = await this.auditCapability('DEV', interfaces_1.DevCapability.ARCHITECTURE, this.dev, {
-            missionId: 'audit-dev-1', instruction, workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-1',
+            instruction,
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         if (archResult.success)
-            prevResults.set(interfaces_1.DevCapability.ARCHITECTURE, { success: true, artifacts: [], output: archResult, costUsd: 0, durationMs: 0 });
+            prevResults.set(interfaces_1.DevCapability.ARCHITECTURE, {
+                success: true,
+                artifacts: [],
+                output: archResult,
+                costUsd: 0,
+                durationMs: 0,
+            });
         await this.auditCapability('DEV', interfaces_1.DevCapability.FRONTEND, this.dev, {
-            missionId: 'audit-dev-2', instruction: 'Build a task manager UI', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-2',
+            instruction: 'Build a task manager UI',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.BACKEND, this.dev, {
-            missionId: 'audit-dev-3', instruction, workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-3',
+            instruction,
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.DATABASE, this.dev, {
-            missionId: 'audit-dev-4', instruction: 'Design database schema for task manager', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-4',
+            instruction: 'Design database schema for task manager',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.API, this.dev, {
-            missionId: 'audit-dev-5', instruction, workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-5',
+            instruction,
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.DEVOPS, this.dev, {
-            missionId: 'audit-dev-6', instruction: 'Setup CI/CD for task manager API', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-6',
+            instruction: 'Setup CI/CD for task manager API',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.DOCKER, this.dev, {
-            missionId: 'audit-dev-7', instruction: 'Dockerize the task manager', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: [],
+            missionId: 'audit-dev-7',
+            instruction: 'Dockerize the task manager',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: [],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.KUBERNETES, this.dev, {
-            missionId: 'audit-dev-8', instruction: 'Generate K8s manifests', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-8',
+            instruction: 'Generate K8s manifests',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.QA, this.dev, {
-            missionId: 'audit-dev-9', instruction: 'QA the task manager', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: [],
+            missionId: 'audit-dev-9',
+            instruction: 'QA the task manager',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: [],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.TEST, this.dev, {
-            missionId: 'audit-dev-10', instruction: 'Generate tests for task manager', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-10',
+            instruction: 'Generate tests for task manager',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.DEBUG, this.dev, {
-            missionId: 'audit-dev-11', instruction: 'Debug an error', workspaceDir: ws, parameters: { error: 'TypeError: Cannot read property "id" of undefined at line 42' }, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-11',
+            instruction: 'Debug an error',
+            workspaceDir: ws,
+            parameters: { error: 'TypeError: Cannot read property "id" of undefined at line 42' },
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
         await this.auditCapability('DEV', interfaces_1.DevCapability.DOCUMENTATION, this.dev, {
-            missionId: 'audit-dev-12', instruction: 'Document the task manager API', workspaceDir: ws, parameters: {}, previousResults: prevResults, tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-dev-12',
+            instruction: 'Document the task manager API',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: prevResults,
+            tools: ['z-ai-web-dev-sdk'],
         });
     }
     async auditCertification() {
@@ -178,8 +295,12 @@ class FullAuditor {
         fs.writeFileSync(path.join(ws, 'src', 'app.js'), 'const express = require("express");\nconst app = express();\napp.get("/", (req, res) => res.json({status: "ok"}));\napp.listen(3000);');
         fs.writeFileSync(path.join(ws, 'docs', 'ARCHITECTURE.md'), '# Architecture\n\n## Overview\nREST API with Express');
         const input = {
-            missionId: 'audit-cert', instruction: 'Certify the task manager project',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-cert',
+            instruction: 'Certify the task manager project',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         };
         await this.auditCapability('CERT', interfaces_1.CertCapability.ARCHITECTURE_REVIEW, this.cert, input);
         await this.auditCapability('CERT', interfaces_1.CertCapability.SECURITY_AUDIT, this.cert, input);
@@ -198,77 +319,150 @@ class FullAuditor {
         fs.writeFileSync(path.join(ws, 'README.md'), '# Delivery Test Project');
         fs.writeFileSync(path.join(ws, 'index.js'), 'console.log("hello");');
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.ZIP, this.delivery, {
-            missionId: 'audit-delivery-1', instruction: 'Create ZIP archive',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: ['archiver'],
+            missionId: 'audit-delivery-1',
+            instruction: 'Create ZIP archive',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: ['archiver'],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.GITHUB, this.delivery, {
-            missionId: 'audit-delivery-2', instruction: 'Initialize git repo',
-            workspaceDir: ws, parameters: { commitMessage: 'Audit test commit' }, previousResults: new Map(), tools: ['git'],
+            missionId: 'audit-delivery-2',
+            instruction: 'Initialize git repo',
+            workspaceDir: ws,
+            parameters: { commitMessage: 'Audit test commit' },
+            previousResults: new Map(),
+            tools: ['git'],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.DOCKER_REGISTRY, this.delivery, {
-            missionId: 'audit-delivery-3', instruction: 'Build and push Docker image',
-            workspaceDir: ws, parameters: { imageName: 'audit-test' }, previousResults: new Map(), tools: ['docker'],
+            missionId: 'audit-delivery-3',
+            instruction: 'Build and push Docker image',
+            workspaceDir: ws,
+            parameters: { imageName: 'audit-test' },
+            previousResults: new Map(),
+            tools: ['docker'],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.VPS, this.delivery, {
-            missionId: 'audit-delivery-4', instruction: 'Deploy to VPS',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: ['ssh'],
+            missionId: 'audit-delivery-4',
+            instruction: 'Deploy to VPS',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: ['ssh'],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.PDF_REPORT, this.delivery, {
-            missionId: 'audit-delivery-5', instruction: 'Generate delivery report',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-5',
+            instruction: 'Generate delivery report',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.NOTIFICATION, this.delivery, {
-            missionId: 'audit-delivery-6', instruction: 'Send notification',
-            workspaceDir: ws, parameters: { message: 'Audit test notification' }, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-6',
+            instruction: 'Send notification',
+            workspaceDir: ws,
+            parameters: { message: 'Audit test notification' },
+            previousResults: new Map(),
+            tools: [],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.DEPLOYMENT, this.delivery, {
-            missionId: 'audit-delivery-7', instruction: 'Deploy the application',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-7',
+            instruction: 'Deploy the application',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.CLOUD, this.delivery, {
-            missionId: 'audit-delivery-8', instruction: 'Deploy to cloud',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-8',
+            instruction: 'Deploy to cloud',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.CDN, this.delivery, {
-            missionId: 'audit-delivery-9', instruction: 'Deploy to CDN',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-9',
+            instruction: 'Deploy to CDN',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.BACKUP, this.delivery, {
-            missionId: 'audit-delivery-10', instruction: 'Create backup',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-10',
+            instruction: 'Create backup',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.MONITORING_SETUP, this.delivery, {
-            missionId: 'audit-delivery-11', instruction: 'Setup monitoring',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-11',
+            instruction: 'Setup monitoring',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         });
         await this.auditCapability('DELIVERY', interfaces_1.DeliveryCapability.LOAD_BALANCER, this.delivery, {
-            missionId: 'audit-delivery-12', instruction: 'Configure load balancer',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: [],
+            missionId: 'audit-delivery-12',
+            instruction: 'Configure load balancer',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: [],
         });
     }
     async auditOffice() {
         const ws = this.createWorkspace('office');
         const input = {
-            missionId: 'audit-office', instruction: 'Create a quarterly business report for Q4 2024',
-            workspaceDir: ws, parameters: {}, previousResults: new Map(), tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-office',
+            instruction: 'Create a quarterly business report for Q4 2024',
+            workspaceDir: ws,
+            parameters: {},
+            previousResults: new Map(),
+            tools: ['z-ai-web-dev-sdk'],
         };
         await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.PDF, this.office, input);
-        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.DOCX, this.office, { ...input, parameters: { context: 'Annual report for tech startup' } });
-        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.EXCEL, this.office, { ...input, parameters: { schema: 'revenue, expenses, profit, quarter' } });
+        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.DOCX, this.office, {
+            ...input,
+            parameters: { context: 'Annual report for tech startup' },
+        });
+        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.EXCEL, this.office, {
+            ...input,
+            parameters: { schema: 'revenue, expenses, profit, quarter' },
+        });
         await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.POWERPOINT, this.office, input);
-        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.SIGNATURE, this.office, { ...input, parameters: { signer: 'CEO' } });
-        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.EMAIL, this.office, { ...input, parameters: { recipient: 'board@company.com', tone: 'professional' } });
-        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.CALENDAR, this.office, { ...input, parameters: { title: 'Q4 Review Meeting', date: '2024-12-15' } });
+        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.SIGNATURE, this.office, {
+            ...input,
+            parameters: { signer: 'CEO' },
+        });
+        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.EMAIL, this.office, {
+            ...input,
+            parameters: { recipient: 'board@company.com', tone: 'professional' },
+        });
+        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.CALENDAR, this.office, {
+            ...input,
+            parameters: { title: 'Q4 Review Meeting', date: '2024-12-15' },
+        });
         const ocrFile = path.join(ws, 'sample.txt');
         fs.writeFileSync(ocrFile, 'Invoice #1234\nDate: 2024-01-15\nAmount: $5,000.00\nVendor: Acme Corp');
-        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.OCR, this.office, { ...input, parameters: { filePath: ocrFile } });
+        await this.auditCapability('OFFICE', interfaces_1.OfficeCapability.OCR, this.office, {
+            ...input,
+            parameters: { filePath: ocrFile },
+        });
     }
     async auditBusiness() {
         const ws = this.createWorkspace('business');
         const input = {
-            missionId: 'audit-business', instruction: 'Develop a marketing strategy for a SaaS product',
-            workspaceDir: ws, parameters: { industry: 'technology', target: 'B2B decision makers' },
-            previousResults: new Map(), tools: ['z-ai-web-dev-sdk'],
+            missionId: 'audit-business',
+            instruction: 'Develop a marketing strategy for a SaaS product',
+            workspaceDir: ws,
+            parameters: { industry: 'technology', target: 'B2B decision makers' },
+            previousResults: new Map(),
+            tools: ['z-ai-web-dev-sdk'],
         };
         await this.auditCapability('BUSINESS', interfaces_1.BusinessCapability.SEO, this.business, input);
         await this.auditCapability('BUSINESS', interfaces_1.BusinessCapability.MARKETING, this.business, input);
@@ -343,14 +537,21 @@ class FullAuditor {
         }
     }
     generateReport() {
-        const passed = this.results.filter(r => r.success).length;
-        const failed = this.results.filter(r => !r.success).length;
+        const passed = this.results.filter((r) => r.success).length;
+        const failed = this.results.filter((r) => !r.success).length;
         const totalCost = this.results.reduce((s, r) => s + r.costUsd, 0);
         const totalDuration = this.results.reduce((s, r) => s + r.durationMs, 0);
         const byPack = {};
         for (const r of this.results) {
             if (!byPack[r.pack])
-                byPack[r.pack] = { total: 0, passed: 0, failed: 0, avgDurationMs: 0, avgCostUsd: 0, totalCostUsd: 0 };
+                byPack[r.pack] = {
+                    total: 0,
+                    passed: 0,
+                    failed: 0,
+                    avgDurationMs: 0,
+                    avgCostUsd: 0,
+                    totalCostUsd: 0,
+                };
             byPack[r.pack].total++;
             if (r.success)
                 byPack[r.pack].passed++;
@@ -365,18 +566,18 @@ class FullAuditor {
         }
         const criticalOptimizations = [];
         const recommendedOptimizations = [];
-        const slowResults = this.results.filter(r => r.durationMs > 30000);
+        const slowResults = this.results.filter((r) => r.durationMs > 30000);
         if (slowResults.length > 0) {
-            criticalOptimizations.push(`SLOW EXECUTION: ${slowResults.length} capabilities take >30s: ${slowResults.map(r => r.capability).join(', ')}. ` +
+            criticalOptimizations.push(`SLOW EXECUTION: ${slowResults.length} capabilities take >30s: ${slowResults.map((r) => r.capability).join(', ')}. ` +
                 `Solution: Implement LLM streaming + async execution with progress callbacks.`);
         }
-        const browserResults = this.results.filter(r => r.pack === 'BROWSER');
+        const browserResults = this.results.filter((r) => r.pack === 'BROWSER');
         if (browserResults.length > 0) {
             criticalOptimizations.push(`BROWSER LEAK: Each browser capability launches a NEW chromium instance. ` +
                 `Solution: Implement a shared BrowserPool that reuses browser contexts across capabilities. ` +
                 `Estimated improvement: 3-5x faster browser operations.`);
         }
-        const llmResults = this.results.filter(r => r.costUsd > 0);
+        const llmResults = this.results.filter((r) => r.costUsd > 0);
         if (llmResults.length > 0) {
             recommendedOptimizations.push(`LLM CACHING: ${llmResults.length} capabilities use LLM (${totalCost.toFixed(4)} total). ` +
                 `Solution: Implement prompt-hash-based caching to avoid re-generating identical content. ` +
@@ -390,7 +591,7 @@ class FullAuditor {
         recommendedOptimizations.push(`CONTEXT WINDOW OPTIMIZATION: Development connector reads up to 1000 chars per file. ` +
             `Solution: Implement smart context selection — read function signatures + imports, skip bodies. ` +
             `This reduces token usage by ~60% while preserving essential context.`);
-        const failedResults = this.results.filter(r => !r.success);
+        const failedResults = this.results.filter((r) => !r.success);
         if (failedResults.length > 0) {
             recommendedOptimizations.push(`GRACEFUL DEGRADATION: ${failedResults.length} capabilities failed. ` +
                 `Solution: Add retry logic with exponential backoff at the connector level, ` +
@@ -402,7 +603,8 @@ class FullAuditor {
         const report = {
             timestamp: new Date().toISOString(),
             totalCapabilities: this.results.length,
-            passed, failed,
+            passed,
+            failed,
             totalCostUsd: totalCost,
             totalDurationMs: totalDuration,
             avgDurationMs: Math.round(totalDuration / this.results.length),

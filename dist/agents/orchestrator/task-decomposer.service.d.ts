@@ -1,5 +1,6 @@
 import { AgentInput, AgentCluster, TaskPriority, TaskDefinition } from '../interfaces/agent.interface';
 import { MemoryService } from '../memory/memory.service';
+import { AgentConnectorBridge } from '../bridge';
 export declare enum DecompositionStrategy {
     SEQUENTIAL = "sequential",
     PARALLEL = "parallel",
@@ -39,15 +40,17 @@ export interface DecompositionConfig {
 }
 export declare class TaskDecomposerService {
     private readonly memoryService;
+    private readonly bridge?;
     private readonly logger;
     private readonly config;
-    constructor(memoryService: MemoryService);
+    constructor(memoryService: MemoryService, bridge?: AgentConnectorBridge | undefined);
     decompose(input: AgentInput): Promise<TaskDefinition[]>;
     decomposeSubtask(subtask: TaskDefinition, depth?: number): Promise<TaskDefinition[]>;
     assessComplexity(input: AgentInput): TaskComplexity;
     selectStrategy(complexity: TaskComplexity, input: AgentInput): DecompositionStrategy;
     identifyDependencies(subtasks: TaskDefinition[]): Map<string, string[]>;
     determineExecutionOrder(subtasks: TaskDefinition[], dependencies: Map<string, string[]>): string[][];
+    llmDecompose(input: AgentInput): Promise<TaskDefinition[]>;
     private recursiveDecompose;
     private getComplexityScore;
     private performDecomposition;

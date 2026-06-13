@@ -186,7 +186,10 @@ let LongTermMemoryService = LongTermMemoryService_1 = class LongTermMemoryServic
         });
     }
     async fullTextSearch(searchTerm, options) {
-        const terms = searchTerm.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+        const terms = searchTerm
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((t) => t.length > 1);
         const matchedKeys = new Set();
         for (const term of terms) {
             const keys = this.fullTextIndex.get(term);

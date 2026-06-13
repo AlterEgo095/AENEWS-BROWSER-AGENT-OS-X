@@ -53,14 +53,7 @@ exports.VALID_TRANSITIONS = {
         agent_interface_1.AgentStatus.STOPPED,
         agent_interface_1.AgentStatus.MAINTENANCE,
     ],
-    [agent_interface_1.AgentStatus.STOPPED]: [
-        agent_interface_1.AgentStatus.INITIALIZING,
-        agent_interface_1.AgentStatus.IDLE,
-    ],
-    [agent_interface_1.AgentStatus.MAINTENANCE]: [
-        agent_interface_1.AgentStatus.IDLE,
-        agent_interface_1.AgentStatus.STOPPED,
-        agent_interface_1.AgentStatus.RUNNING,
-    ],
+    [agent_interface_1.AgentStatus.STOPPED]: [agent_interface_1.AgentStatus.INITIALIZING, agent_interface_1.AgentStatus.IDLE],
+    [agent_interface_1.AgentStatus.MAINTENANCE]: [agent_interface_1.AgentStatus.IDLE, agent_interface_1.AgentStatus.STOPPED, agent_interface_1.AgentStatus.RUNNING],
 };
 //# sourceMappingURL=agent-lifecycle.interface.js.map

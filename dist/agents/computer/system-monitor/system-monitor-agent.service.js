@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SystemMonitorAgentService = exports.SYSTEM_MONITOR_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.SYSTEM_MONITOR_AGENT_CONFIG = {
     id: 'computer-system-monitor',
     name: 'SystemMonitor',
@@ -126,7 +134,11 @@ exports.SYSTEM_MONITOR_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    resource: { type: 'string', enum: ['cpu', 'memory', 'disk', 'network', 'all'], default: 'all' },
+                    resource: {
+                        type: 'string',
+                        enum: ['cpu', 'memory', 'disk', 'network', 'all'],
+                        default: 'all',
+                    },
                     duration: { type: 'number', default: 30000, description: 'Monitoring duration in ms' },
                     interval: { type: 'number', default: 2000, description: 'Sampling interval in ms' },
                     alertThreshold: { type: 'number', description: 'Alert when usage exceeds this percent' },
@@ -164,8 +176,9 @@ exports.SYSTEM_MONITOR_AGENT_CONFIG = {
     },
 };
 let SystemMonitorAgentService = class SystemMonitorAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.historicalCpu = [];
         this.historicalMemory = [];
         this.maxHistorySize = 500;
@@ -224,13 +237,31 @@ let SystemMonitorAgentService = class SystemMonitorAgentService extends base_age
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DEBUG, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'getCpuUsage', 'getMemoryUsage', 'getDiskUsage',
-            'getNetworkStats', 'getSystemInfo', 'monitorResource',
+            'getCpuUsage',
+            'getMemoryUsage',
+            'getDiskUsage',
+            'getNetworkStats',
+            'getSystemInfo',
+            'monitorResource',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown system monitor action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -406,7 +437,7 @@ let SystemMonitorAgentService = class SystemMonitorAgentService extends base_age
                 bytesReceived: Math.round(this.systemState.networkBytesReceived),
                 bytesSent: Math.round(this.systemState.networkBytesSent * 0.7),
                 packetsReceived: Math.round(this.systemState.networkBytesReceived / 1500),
-                packetsSent: Math.round(this.systemState.networkBytesSent * 0.7 / 1500),
+                packetsSent: Math.round((this.systemState.networkBytesSent * 0.7) / 1500),
                 errors: Math.floor(Math.random() * 5),
                 isUp: true,
                 ipAddress: '192.168.1.100',
@@ -415,8 +446,8 @@ let SystemMonitorAgentService = class SystemMonitorAgentService extends base_age
                 name: 'eth1',
                 bytesReceived: Math.round(this.systemState.networkBytesReceived * 0.3),
                 bytesSent: Math.round(this.systemState.networkBytesSent * 0.3),
-                packetsReceived: Math.round(this.systemState.networkBytesReceived * 0.3 / 1500),
-                packetsSent: Math.round(this.systemState.networkBytesSent * 0.3 / 1500),
+                packetsReceived: Math.round((this.systemState.networkBytesReceived * 0.3) / 1500),
+                packetsSent: Math.round((this.systemState.networkBytesSent * 0.3) / 1500),
                 errors: 0,
                 isUp: true,
                 ipAddress: '10.0.0.50',
@@ -458,9 +489,10 @@ let SystemMonitorAgentService = class SystemMonitorAgentService extends base_age
             totalMemory: this.systemState.totalMemoryMb,
             uptime: uptimeSec,
             loadAverage: [
-                Math.round((this.systemState.currentCpuUsage / 100 * this.systemState.cpuCores) * 100) / 100,
-                Math.round((this.systemState.currentCpuUsage / 100 * this.systemState.cpuCores * 0.9) * 100) / 100,
-                Math.round((this.systemState.currentCpuUsage / 100 * this.systemState.cpuCores * 0.8) * 100) / 100,
+                Math.round((this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 100) /
+                    100,
+                Math.round((this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 0.9 * 100) / 100,
+                Math.round((this.systemState.currentCpuUsage / 100) * this.systemState.cpuCores * 0.8 * 100) / 100,
             ],
             systemTime: new Date().toISOString(),
         };
@@ -526,15 +558,19 @@ let SystemMonitorAgentService = class SystemMonitorAgentService extends base_age
             }
         }
         const monitoredDuration = Date.now() - monitorStart;
-        const values = samples
-            .map((s) => s.cpu ?? s.memory ?? s.disk ?? 0)
-            .filter((v) => v > 0);
+        const values = samples.map((s) => s.cpu ?? s.memory ?? s.disk ?? 0).filter((v) => v > 0);
         const avgUsage = values.length > 0
             ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100
             : 0;
         const maxUsage = values.length > 0 ? Math.round(Math.max(...values) * 100) / 100 : 0;
         const minUsage = values.length > 0 ? Math.round(Math.min(...values) * 100) / 100 : 0;
-        await this.storeInWorkingMemory(`sysmon:last:${resource}`, { avgUsage, maxUsage, minUsage, alertCount: alerts.length, sampledAt: new Date().toISOString() }, 300000);
+        await this.storeInWorkingMemory(`sysmon:last:${resource}`, {
+            avgUsage,
+            maxUsage,
+            minUsage,
+            alertCount: alerts.length,
+            sampledAt: new Date().toISOString(),
+        }, 300000);
         this.logger.log(`Monitored ${resource}: ${samples.length} samples over ${monitoredDuration}ms, ` +
             `avg: ${avgUsage}%, max: ${maxUsage}%, alerts: ${alerts.length}`);
         return {
@@ -569,6 +605,8 @@ let SystemMonitorAgentService = class SystemMonitorAgentService extends base_age
 };
 exports.SystemMonitorAgentService = SystemMonitorAgentService;
 exports.SystemMonitorAgentService = SystemMonitorAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], SystemMonitorAgentService);
 //# sourceMappingURL=system-monitor-agent.service.js.map

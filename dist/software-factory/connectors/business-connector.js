@@ -97,7 +97,13 @@ Be specific, actionable, and professional. Use markdown formatting.`;
         }
     }
     makeArtifact(name, type, fullPath, content) {
-        return { name, type, path: fullPath, size: Buffer.byteLength(content), content: content.substring(0, 500) };
+        return {
+            name,
+            type,
+            path: fullPath,
+            size: Buffer.byteLength(content),
+            content: content.substring(0, 500),
+        };
     }
 };
 exports.BusinessConnector = BusinessConnector;

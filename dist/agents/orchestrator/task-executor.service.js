@@ -130,11 +130,11 @@ let TaskExecutorService = TaskExecutorService_1 = class TaskExecutorService {
     async executeStep(step, correlationId) {
         const startTime = Date.now();
         step.status = agent_interface_1.TaskStatus.EXECUTING;
-        const stepTimeoutMs = step.input.context?.timeout
-            || this.config.defaultStepTimeoutMs;
+        const stepTimeoutMs = step.input.context?.timeout || this.config.defaultStepTimeoutMs;
         this.logger.log(`Executing step ${step.id} (order: ${step.order}) on agent ${step.agentId || 'auto'} ` +
             `(timeout: ${stepTimeoutMs}ms)`);
-        this.eventBusService.publish({
+        this.eventBusService
+            .publish({
             type: agent_event_interface_1.AgentEventType.TASK_PROGRESS,
             sourceAgentId: 'task-executor',
             payload: {
@@ -147,7 +147,8 @@ let TaskExecutorService = TaskExecutorService_1 = class TaskExecutorService {
             priority: 1,
             correlationId,
             metadata: { stepId: step.id },
-        }).catch(() => { });
+        })
+            .catch(() => { });
         try {
             const agent = this.findAgentForStep(step);
             if (!agent) {
@@ -199,7 +200,8 @@ let TaskExecutorService = TaskExecutorService_1 = class TaskExecutorService {
             step.status = output?.success ? agent_interface_1.TaskStatus.COMPLETED : agent_interface_1.TaskStatus.FAILED;
             step.retryCount = retryCount;
             const executionTimeMs = Date.now() - startTime;
-            this.eventBusService.publish({
+            this.eventBusService
+                .publish({
                 type: output?.success
                     ? agent_event_interface_1.AgentEventType.ORCHESTRATION_STEP_COMPLETED
                     : agent_event_interface_1.AgentEventType.TASK_FAILED,
@@ -213,7 +215,8 @@ let TaskExecutorService = TaskExecutorService_1 = class TaskExecutorService {
                 priority: 1,
                 correlationId,
                 metadata: { stepId: step.id },
-            }).catch(() => { });
+            })
+                .catch(() => { });
             return {
                 stepId: step.id,
                 stepOrder: step.order,
@@ -254,7 +257,8 @@ let TaskExecutorService = TaskExecutorService_1 = class TaskExecutorService {
             const timeoutId = setTimeout(() => {
                 reject(new agent_interface_1.AgentError(`Step timed out after ${timeoutMs}ms`, agent_interface_1.AgentErrorCode.TIMEOUT, 'task-executor', input.taskId));
             }, timeoutMs);
-            agent.execute(input)
+            agent
+                .execute(input)
                 .then((output) => {
                 clearTimeout(timeoutId);
                 resolve(output);

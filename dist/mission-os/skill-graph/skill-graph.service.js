@@ -31,11 +31,11 @@ const SKILL_LEVELS_ASC = [
     SkillLevel.EXPERT,
     SkillLevel.MASTER,
 ];
-const WEIGHT_SKILL_LEVEL = 0.30;
+const WEIGHT_SKILL_LEVEL = 0.3;
 const WEIGHT_SUCCESS_RATE = 0.25;
-const WEIGHT_COST_EFFICIENCY = 0.20;
+const WEIGHT_COST_EFFICIENCY = 0.2;
 const WEIGHT_LATENCY_EFFICIENCY = 0.15;
-const WEIGHT_IMPROVEMENT_TREND = 0.10;
+const WEIGHT_IMPROVEMENT_TREND = 0.1;
 let SkillGraphService = SkillGraphService_1 = class SkillGraphService {
     constructor() {
         this.logger = new common_1.Logger(SkillGraphService_1.name);
@@ -81,12 +81,10 @@ let SkillGraphService = SkillGraphService_1 = class SkillGraphService {
         else {
             const n = skill.executionCount;
             const alpha = this.smoothingFactor;
-            skill.avgLatencyMs =
-                alpha * executionResult.latencyMs + (1 - alpha) * skill.avgLatencyMs;
+            skill.avgLatencyMs = alpha * executionResult.latencyMs + (1 - alpha) * skill.avgLatencyMs;
             const successBinary = executionResult.success ? 1 : 0;
             skill.successRate = alpha * successBinary + (1 - alpha) * skill.successRate;
-            skill.costPerExecution =
-                alpha * executionResult.cost + (1 - alpha) * skill.costPerExecution;
+            skill.costPerExecution = alpha * executionResult.cost + (1 - alpha) * skill.costPerExecution;
             skill.executionCount = n + 1;
             skill.lastExecutedAt = new Date();
             skill.improvementTrend = this.calculateImprovementTrend(skill.history, executionResult);
@@ -127,7 +125,8 @@ let SkillGraphService = SkillGraphService_1 = class SkillGraphService {
             const skill = profile.skills.get(criteria.requiredSkill);
             if (!skill)
                 continue;
-            if (criteria.minLevel && SKILL_LEVEL_ORDER[skill.level] < SKILL_LEVEL_ORDER[criteria.minLevel]) {
+            if (criteria.minLevel &&
+                SKILL_LEVEL_ORDER[skill.level] < SKILL_LEVEL_ORDER[criteria.minLevel]) {
                 continue;
             }
             if (criteria.maxCost !== undefined && skill.costPerExecution > criteria.maxCost) {
@@ -326,12 +325,15 @@ let SkillGraphService = SkillGraphService_1 = class SkillGraphService {
         return decayed;
     }
     calculateImprovementTrend(history, latestResult) {
-        const allEntries = [...history, {
+        const allEntries = [
+            ...history,
+            {
                 timestamp: new Date(),
                 success: latestResult.success,
                 latencyMs: latestResult.latencyMs,
                 cost: latestResult.cost,
-            }];
+            },
+        ];
         if (allEntries.length < 2) {
             return 0;
         }
@@ -353,7 +355,7 @@ let SkillGraphService = SkillGraphService_1 = class SkillGraphService {
             { requiredCount: 100, requiredRate: 0.95, targetLevel: SkillLevel.MASTER },
             { requiredCount: 50, requiredRate: 0.85, targetLevel: SkillLevel.EXPERT },
             { requiredCount: 25, requiredRate: 0.75, targetLevel: SkillLevel.PROFICIENT },
-            { requiredCount: 10, requiredRate: 0.60, targetLevel: SkillLevel.COMPETENT },
+            { requiredCount: 10, requiredRate: 0.6, targetLevel: SkillLevel.COMPETENT },
         ];
         for (const threshold of upgradeThresholds) {
             if (SKILL_LEVEL_ORDER[threshold.targetLevel] > currentIdx &&
@@ -365,13 +367,12 @@ let SkillGraphService = SkillGraphService_1 = class SkillGraphService {
         }
         const downgradeThresholds = [
             { minRate: 0.55, floorLevel: SkillLevel.COMPETENT },
-            { minRate: 0.70, floorLevel: SkillLevel.PROFICIENT },
-            { minRate: 0.80, floorLevel: SkillLevel.EXPERT },
-            { minRate: 0.90, floorLevel: SkillLevel.MASTER },
+            { minRate: 0.7, floorLevel: SkillLevel.PROFICIENT },
+            { minRate: 0.8, floorLevel: SkillLevel.EXPERT },
+            { minRate: 0.9, floorLevel: SkillLevel.MASTER },
         ];
         for (const threshold of downgradeThresholds) {
-            if (successRate < threshold.minRate &&
-                currentIdx > SKILL_LEVEL_ORDER[threshold.floorLevel]) {
+            if (successRate < threshold.minRate && currentIdx > SKILL_LEVEL_ORDER[threshold.floorLevel]) {
                 const downgraded = threshold.floorLevel;
                 this.logger.log(`Skill "${skill.name}" downgraded: ${currentLevel} → ${downgraded} (successRate=${(successRate * 100).toFixed(1)}%)`);
                 return downgraded;

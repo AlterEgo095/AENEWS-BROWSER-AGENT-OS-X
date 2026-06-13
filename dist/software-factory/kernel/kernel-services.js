@@ -45,8 +45,7 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
         return this.activeMissions.get(missionId);
     }
     getActiveMissions() {
-        return Array.from(this.activeMissions.values())
-            .filter(m => m.status !== interfaces_1.MissionState.ARCHIVED && m.status !== interfaces_1.MissionState.COMPLETED);
+        return Array.from(this.activeMissions.values()).filter((m) => m.status !== interfaces_1.MissionState.ARCHIVED && m.status !== interfaces_1.MissionState.COMPLETED);
     }
     removeMission(missionId) {
         return this.activeMissions.delete(missionId);
@@ -77,23 +76,85 @@ let MissionPlannerService = MissionPlannerService_1 = class MissionPlannerServic
                 requiresDeployment: false,
             },
         };
-        if (this.matchesAny(lower, ['scrape', 'navigate', 'login', 'website', 'browse', 'page', 'crawl', 'extract data', 'web', 'site web'])) {
+        if (this.matchesAny(lower, [
+            'scrape',
+            'navigate',
+            'login',
+            'website',
+            'browse',
+            'page',
+            'crawl',
+            'extract data',
+            'web',
+            'site web',
+        ])) {
             plan.flags.requiresBrowser = true;
             plan.requiredPacks.push(interfaces_1.CapabilityPack.BROWSER);
         }
-        if (this.matchesAny(lower, ['develop', 'build', 'code', 'create', 'app', 'api', 'backend', 'frontend', 'database', 'saas', 'erp', 'crm', 'application', 'développ', 'créer', 'construire', 'coder'])) {
+        if (this.matchesAny(lower, [
+            'develop',
+            'build',
+            'code',
+            'create',
+            'app',
+            'api',
+            'backend',
+            'frontend',
+            'database',
+            'saas',
+            'erp',
+            'crm',
+            'application',
+            'développ',
+            'créer',
+            'construire',
+            'coder',
+        ])) {
             plan.flags.requiresDevelopment = true;
             plan.requiredPacks.push(interfaces_1.CapabilityPack.DEVELOPMENT);
         }
-        if (this.matchesAny(lower, ['pdf', 'docx', 'excel', 'spreadsheet', 'presentation', 'report', 'document', 'rapport', 'tableur', 'présentation'])) {
+        if (this.matchesAny(lower, [
+            'pdf',
+            'docx',
+            'excel',
+            'spreadsheet',
+            'presentation',
+            'report',
+            'document',
+            'rapport',
+            'tableur',
+            'présentation',
+        ])) {
             plan.flags.requiresOffice = true;
             plan.requiredPacks.push(interfaces_1.CapabilityPack.OFFICE);
         }
-        if (this.matchesAny(lower, ['seo', 'marketing', 'brand', 'analytics', 'campaign', 'copywriting', 'sales', 'référencement', 'marque', 'campagne'])) {
+        if (this.matchesAny(lower, [
+            'seo',
+            'marketing',
+            'brand',
+            'analytics',
+            'campaign',
+            'copywriting',
+            'sales',
+            'référencement',
+            'marque',
+            'campagne',
+        ])) {
             plan.flags.requiresBusiness = true;
             plan.requiredPacks.push(interfaces_1.CapabilityPack.BUSINESS);
         }
-        if (this.matchesAny(lower, ['deploy', 'docker', 'kubernetes', 'cloud', 'production', 'server', 'vps', 'déployer', 'serveur', 'production'])) {
+        if (this.matchesAny(lower, [
+            'deploy',
+            'docker',
+            'kubernetes',
+            'cloud',
+            'production',
+            'server',
+            'vps',
+            'déployer',
+            'serveur',
+            'production',
+        ])) {
             plan.flags.requiresDeployment = true;
             plan.requiredPacks.push(interfaces_1.CapabilityPack.DELIVERY);
         }
@@ -112,7 +173,7 @@ let MissionPlannerService = MissionPlannerService_1 = class MissionPlannerServic
         return plan;
     }
     matchesAny(text, keywords) {
-        return keywords.some(k => text.includes(k));
+        return keywords.some((k) => text.includes(k));
     }
 };
 exports.MissionPlannerService = MissionPlannerService;
@@ -126,8 +187,7 @@ let TaskSchedulerService = TaskSchedulerService_1 = class TaskSchedulerService {
     scheduleNextPhase(missionId, readyNodeIds, workers) {
         const decisions = [];
         for (const nodeId of readyNodeIds) {
-            const availableWorker = workers.find(w => w.status === interfaces_1.WorkerStatus.READY &&
-                w.assignedNodeIds.includes(nodeId));
+            const availableWorker = workers.find((w) => w.status === interfaces_1.WorkerStatus.READY && w.assignedNodeIds.includes(nodeId));
             if (availableWorker) {
                 decisions.push({
                     nodeId,
@@ -157,10 +217,18 @@ let ResourceManagerService = ResourceManagerService_1 = class ResourceManagerSer
     checkBudget(currentSpend, maxBudget, estimatedCost) {
         const remaining = maxBudget - currentSpend;
         if (estimatedCost > remaining) {
-            return { allowed: false, remaining, warning: `Insufficient budget: $${remaining.toFixed(2)} remaining, $${estimatedCost.toFixed(2)} needed` };
+            return {
+                allowed: false,
+                remaining,
+                warning: `Insufficient budget: $${remaining.toFixed(2)} remaining, $${estimatedCost.toFixed(2)} needed`,
+            };
         }
         if (remaining < maxBudget * 0.2) {
-            return { allowed: true, remaining, warning: `Budget low: $${remaining.toFixed(2)} remaining (${((remaining / maxBudget) * 100).toFixed(0)}%)` };
+            return {
+                allowed: true,
+                remaining,
+                warning: `Budget low: $${remaining.toFixed(2)} remaining (${((remaining / maxBudget) * 100).toFixed(0)}%)`,
+            };
         }
         return { allowed: true, remaining };
     }
@@ -216,7 +284,7 @@ let CertificationManagerService = CertificationManagerService_1 = class Certific
             { domain: 'Documentation', passed: true, score: 80, threshold: 70 },
             { domain: 'Integration', passed: true, score: 92, threshold: 80 },
         ];
-        const allPassed = checks.every(c => c.passed);
+        const allPassed = checks.every((c) => c.passed);
         const averageScore = checks.reduce((sum, c) => sum + c.score, 0) / checks.length;
         return {
             missionId,
@@ -224,7 +292,11 @@ let CertificationManagerService = CertificationManagerService_1 = class Certific
             qualityScore: Math.round(averageScore),
             checks,
             certifiedAt: allPassed ? new Date() : undefined,
-            reasons: allPassed ? [] : checks.filter(c => !c.passed).map(c => `${c.domain} below threshold (${c.score}/${c.threshold})`),
+            reasons: allPassed
+                ? []
+                : checks
+                    .filter((c) => !c.passed)
+                    .map((c) => `${c.domain} below threshold (${c.score}/${c.threshold})`),
         };
     }
 };
@@ -325,12 +397,27 @@ let RecoveryManagerService = RecoveryManagerService_1 = class RecoveryManagerSer
     }
     getRollbackStrategy(fromState) {
         const strategies = {
-            [interfaces_1.MissionState.TESTING]: { targetState: interfaces_1.MissionState.BUILDING, trigger: interfaces_1.TransitionTrigger.ROLLBACK },
-            [interfaces_1.MissionState.AUDITING]: { targetState: interfaces_1.MissionState.BUILDING, trigger: interfaces_1.TransitionTrigger.ROLLBACK },
-            [interfaces_1.MissionState.CERTIFYING]: { targetState: interfaces_1.MissionState.AUDITING, trigger: interfaces_1.TransitionTrigger.ROLLBACK },
-            [interfaces_1.MissionState.DELIVERING]: { targetState: interfaces_1.MissionState.CERTIFYING, trigger: interfaces_1.TransitionTrigger.ROLLBACK },
+            [interfaces_1.MissionState.TESTING]: {
+                targetState: interfaces_1.MissionState.BUILDING,
+                trigger: interfaces_1.TransitionTrigger.ROLLBACK,
+            },
+            [interfaces_1.MissionState.AUDITING]: {
+                targetState: interfaces_1.MissionState.BUILDING,
+                trigger: interfaces_1.TransitionTrigger.ROLLBACK,
+            },
+            [interfaces_1.MissionState.CERTIFYING]: {
+                targetState: interfaces_1.MissionState.AUDITING,
+                trigger: interfaces_1.TransitionTrigger.ROLLBACK,
+            },
+            [interfaces_1.MissionState.DELIVERING]: {
+                targetState: interfaces_1.MissionState.CERTIFYING,
+                trigger: interfaces_1.TransitionTrigger.ROLLBACK,
+            },
         };
-        return strategies[fromState] || { targetState: interfaces_1.MissionState.DRAFT, trigger: interfaces_1.TransitionTrigger.ROLLBACK };
+        return (strategies[fromState] || {
+            targetState: interfaces_1.MissionState.DRAFT,
+            trigger: interfaces_1.TransitionTrigger.ROLLBACK,
+        });
     }
 };
 exports.RecoveryManagerService = RecoveryManagerService;

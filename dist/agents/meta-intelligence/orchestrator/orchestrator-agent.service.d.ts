@@ -1,7 +1,10 @@
 import { BaseAgentService } from '../../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 export declare const META_ORCHESTRATOR_AGENT_CONFIG: AgentConfig;
 export declare class OrchestratorAgentService extends BaseAgentService {
+    private readonly bridge?;
+    constructor(bridge?: AgentConnectorBridge | undefined);
     private orchestrations;
     private assignments;
     protected defineConfig(): AgentConfig;

@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MetaIntelligenceClusterModule = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_module_1 = require("../base/base-agent.module");
+const bridge_1 = require("../bridge");
 const orchestrator_agent_service_1 = require("./orchestrator/orchestrator-agent.service");
 const planner_agent_service_1 = require("./planner/planner-agent.service");
 const critic_agent_service_1 = require("./critic/critic-agent.service");
@@ -27,7 +28,7 @@ let MetaIntelligenceClusterModule = class MetaIntelligenceClusterModule {
 exports.MetaIntelligenceClusterModule = MetaIntelligenceClusterModule;
 exports.MetaIntelligenceClusterModule = MetaIntelligenceClusterModule = __decorate([
     (0, common_1.Module)({
-        imports: [base_agent_module_1.BaseAgentModule],
+        imports: [base_agent_module_1.BaseAgentModule, bridge_1.AgentConnectorBridgeModule],
         providers: [
             orchestrator_agent_service_1.OrchestratorAgentService,
             planner_agent_service_1.PlannerAgentService,

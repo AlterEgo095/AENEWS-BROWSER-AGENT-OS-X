@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CalendarAgentService = exports.CALENDAR_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.CALENDAR_AGENT_CONFIG = {
     id: 'office-calendar',
     name: 'Calendar',
@@ -28,7 +36,11 @@ exports.CALENDAR_AGENT_CONFIG = {
                     startTime: { type: 'string', description: 'Event start time (ISO string)' },
                     endTime: { type: 'string', description: 'Event end time (ISO string)' },
                     location: { type: 'string', description: 'Event location' },
-                    attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee email addresses' },
+                    attendees: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Attendee email addresses',
+                    },
                     isRecurring: { type: 'boolean', description: 'Whether the event is recurring' },
                     recurrenceRule: { type: 'string', description: 'RRULE recurrence pattern' },
                     color: { type: 'string', description: 'Calendar color label' },
@@ -56,7 +68,11 @@ exports.CALENDAR_AGENT_CONFIG = {
                     startTime: { type: 'string', description: 'New start time (ISO string)' },
                     endTime: { type: 'string', description: 'New end time (ISO string)' },
                     location: { type: 'string', description: 'New location' },
-                    attendees: { type: 'array', items: { type: 'string' }, description: 'Updated attendee list' },
+                    attendees: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Updated attendee list',
+                    },
                 },
                 required: ['eventId'],
             },
@@ -76,7 +92,11 @@ exports.CALENDAR_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     eventId: { type: 'string', description: 'ID of the event to delete' },
-                    notifyAttendees: { type: 'boolean', default: true, description: 'Whether to notify attendees of cancellation' },
+                    notifyAttendees: {
+                        type: 'boolean',
+                        default: true,
+                        description: 'Whether to notify attendees of cancellation',
+                    },
                     cancellationReason: { type: 'string', description: 'Reason for cancellation' },
                 },
                 required: ['eventId'],
@@ -99,8 +119,16 @@ exports.CALENDAR_AGENT_CONFIG = {
                     dateFrom: { type: 'string', description: 'Start of date range (ISO string)' },
                     dateTo: { type: 'string', description: 'End of date range (ISO string)' },
                     durationMinutes: { type: 'number', description: 'Required slot duration in minutes' },
-                    workingHoursOnly: { type: 'boolean', default: true, description: 'Only consider working hours' },
-                    attendees: { type: 'array', items: { type: 'string' }, description: 'Attendees to check availability for' },
+                    workingHoursOnly: {
+                        type: 'boolean',
+                        default: true,
+                        description: 'Only consider working hours',
+                    },
+                    attendees: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Attendees to check availability for',
+                    },
                 },
                 required: ['dateFrom', 'dateTo', 'durationMinutes'],
             },
@@ -120,7 +148,11 @@ exports.CALENDAR_AGENT_CONFIG = {
                 properties: {
                     dateFrom: { type: 'string', description: 'Start of date range (ISO string)' },
                     dateTo: { type: 'string', description: 'End of date range (ISO string)' },
-                    includeCancelled: { type: 'boolean', default: false, description: 'Include cancelled events' },
+                    includeCancelled: {
+                        type: 'boolean',
+                        default: false,
+                        description: 'Include cancelled events',
+                    },
                 },
                 required: ['dateFrom', 'dateTo'],
             },
@@ -139,7 +171,11 @@ exports.CALENDAR_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     eventId: { type: 'string', description: 'ID of the event' },
-                    attendees: { type: 'array', items: { type: 'string' }, description: 'Email addresses to invite' },
+                    attendees: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Email addresses to invite',
+                    },
                     message: { type: 'string', description: 'Optional personal message with the invitation' },
                 },
                 required: ['eventId', 'attendees'],
@@ -160,8 +196,15 @@ exports.CALENDAR_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     eventId: { type: 'string', description: 'ID of the event' },
-                    minutesBefore: { type: 'number', description: 'Minutes before the event to trigger the reminder' },
-                    method: { type: 'string', enum: ['email', 'popup', 'sms'], description: 'Reminder delivery method' },
+                    minutesBefore: {
+                        type: 'number',
+                        description: 'Minutes before the event to trigger the reminder',
+                    },
+                    method: {
+                        type: 'string',
+                        enum: ['email', 'popup', 'sms'],
+                        description: 'Reminder delivery method',
+                    },
                 },
                 required: ['eventId', 'minutesBefore'],
             },
@@ -192,8 +235,9 @@ exports.CALENDAR_AGENT_CONFIG = {
     },
 };
 let CalendarAgentService = class CalendarAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.events = new Map();
         this.eventCounter = 0;
         this.reminderCounter = 0;
@@ -242,6 +286,20 @@ let CalendarAgentService = class CalendarAgentService extends base_agent_service
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.OfficeCapability.CALENDAR, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -414,7 +472,7 @@ let CalendarAgentService = class CalendarAgentService extends base_agent_service
         };
     }
     async findFreeSlots(params) {
-        const { dateFrom, dateTo, durationMinutes, workingHoursOnly = true, attendees = [], } = params;
+        const { dateFrom, dateTo, durationMinutes, workingHoursOnly = true, attendees = [] } = params;
         if (!dateFrom || !dateTo) {
             throw new Error('Both dateFrom and dateTo are required');
         }
@@ -431,9 +489,7 @@ let CalendarAgentService = class CalendarAgentService extends base_agent_service
         }
         const workStartHour = 9;
         const workEndHour = 17;
-        const busyEvents = Array.from(this.events.values()).filter((event) => event.status === 'confirmed' &&
-            event.startTime < rangeEnd &&
-            event.endTime > rangeStart);
+        const busyEvents = Array.from(this.events.values()).filter((event) => event.status === 'confirmed' && event.startTime < rangeEnd && event.endTime > rangeStart);
         const freeSlots = [];
         const currentDay = new Date(rangeStart);
         while (currentDay < rangeEnd) {
@@ -500,8 +556,7 @@ let CalendarAgentService = class CalendarAgentService extends base_agent_service
         if (isNaN(rangeStart.getTime()) || isNaN(rangeEnd.getTime())) {
             throw new Error('Invalid date range');
         }
-        let events = Array.from(this.events.values()).filter((event) => event.startTime < rangeEnd &&
-            event.endTime > rangeStart);
+        let events = Array.from(this.events.values()).filter((event) => event.startTime < rangeEnd && event.endTime > rangeStart);
         if (!includeCancelled) {
             events = events.filter((e) => e.status !== 'cancelled');
         }
@@ -584,9 +639,7 @@ let CalendarAgentService = class CalendarAgentService extends base_agent_service
         return `event-${Date.now()}-${this.eventCounter}`;
     }
     findConflicts(start, end) {
-        return Array.from(this.events.values()).filter((event) => event.status === 'confirmed' &&
-            event.startTime < end &&
-            event.endTime > start);
+        return Array.from(this.events.values()).filter((event) => event.status === 'confirmed' && event.startTime < end && event.endTime > start);
     }
     mergeIntervals(intervals) {
         if (intervals.length === 0)
@@ -611,6 +664,8 @@ let CalendarAgentService = class CalendarAgentService extends base_agent_service
 };
 exports.CalendarAgentService = CalendarAgentService;
 exports.CalendarAgentService = CalendarAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], CalendarAgentService);
 //# sourceMappingURL=calendar-agent.service.js.map

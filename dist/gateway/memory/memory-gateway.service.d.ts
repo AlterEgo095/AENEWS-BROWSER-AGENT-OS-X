@@ -1,6 +1,6 @@
 import { MemoryEntry, MemoryTier, MemoryStoreOptions, MemoryQuery, MemoryQueryResult, MemoryStats, IMemoryService } from '../../agents/interfaces/agent-memory.interface';
 export declare const MEMORY_TIERS: readonly ["working", "session", "conversation", "long_term", "semantic", "knowledge_graph", "vector", "archive"];
-export type MemoryGatewayTier = typeof MEMORY_TIERS[number];
+export type MemoryGatewayTier = (typeof MEMORY_TIERS)[number];
 export interface MemoryGatewayStoreOptions extends MemoryStoreOptions {
     autoTier?: boolean;
     importance?: number;

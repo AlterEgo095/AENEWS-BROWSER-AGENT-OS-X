@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NetworkAgentService = exports.NETWORK_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.NETWORK_AGENT_CONFIG = {
     id: 'infrastructure-network',
     name: 'Network',
@@ -46,8 +54,14 @@ exports.NETWORK_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     name: { type: 'string' },
-                    action: { type: 'string', enum: ['create', 'update', 'delete', 'addTarget', 'removeTarget', 'getHealth'] },
-                    algorithm: { type: 'string', enum: ['round_robin', 'least_connections', 'ip_hash', 'weighted'] },
+                    action: {
+                        type: 'string',
+                        enum: ['create', 'update', 'delete', 'addTarget', 'removeTarget', 'getHealth'],
+                    },
+                    algorithm: {
+                        type: 'string',
+                        enum: ['round_robin', 'least_connections', 'ip_hash', 'weighted'],
+                    },
                     targets: { type: 'array', items: { type: 'object' } },
                     healthCheckPath: { type: 'string' },
                     port: { type: 'number' },
@@ -73,7 +87,10 @@ exports.NETWORK_AGENT_CONFIG = {
                     action: { type: 'string', enum: ['create', 'update', 'delete', 'list'] },
                     direction: { type: 'string', enum: ['ingress', 'egress'] },
                     protocol: { type: 'string', enum: ['tcp', 'udp', 'icmp', 'all'] },
-                    portRange: { type: 'string', description: 'Port range (e.g., "80", "443", "1024-65535")' },
+                    portRange: {
+                        type: 'string',
+                        description: 'Port range (e.g., "80", "443", "1024-65535")',
+                    },
                     sourceCidr: { type: 'string', description: 'Source CIDR block' },
                     targetTags: { type: 'array', items: { type: 'string' } },
                     ruleAction: { type: 'string', enum: ['allow', 'deny'] },
@@ -98,7 +115,11 @@ exports.NETWORK_AGENT_CONFIG = {
                     source: { type: 'string', description: 'Source host or service' },
                     target: { type: 'string', description: 'Target host, IP, or URL' },
                     port: { type: 'number' },
-                    protocol: { type: 'string', enum: ['tcp', 'udp', 'icmp', 'http', 'https'], default: 'tcp' },
+                    protocol: {
+                        type: 'string',
+                        enum: ['tcp', 'udp', 'icmp', 'http', 'https'],
+                        default: 'tcp',
+                    },
                     timeout: { type: 'number', default: 5000 },
                 },
                 required: ['source', 'target'],
@@ -119,7 +140,11 @@ exports.NETWORK_AGENT_CONFIG = {
                 properties: {
                     service: { type: 'string' },
                     timeRange: { type: 'string', enum: ['1h', '6h', '24h', '7d'], default: '24h' },
-                    analysisType: { type: 'string', enum: ['bandwidth', 'connections', 'errors', 'latency', 'all'], default: 'all' },
+                    analysisType: {
+                        type: 'string',
+                        enum: ['bandwidth', 'connections', 'errors', 'latency', 'all'],
+                        default: 'all',
+                    },
                 },
                 required: ['service'],
             },
@@ -140,7 +165,11 @@ exports.NETWORK_AGENT_CONFIG = {
                 properties: {
                     domain: { type: 'string' },
                     action: { type: 'string', enum: ['provision', 'renew', 'revoke', 'list', 'verify'] },
-                    certificateType: { type: 'string', enum: ['lets_encrypt', 'custom', 'wildcard'], default: 'lets_encrypt' },
+                    certificateType: {
+                        type: 'string',
+                        enum: ['lets_encrypt', 'custom', 'wildcard'],
+                        default: 'lets_encrypt',
+                    },
                     autoRenew: { type: 'boolean', default: true },
                 },
                 required: ['domain', 'action'],
@@ -173,8 +202,9 @@ exports.NETWORK_AGENT_CONFIG = {
     },
 };
 let NetworkAgentService = class NetworkAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.dnsRecords = new Map();
         this.loadBalancers = new Map();
         this.firewallRules = new Map();
@@ -222,13 +252,31 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DeliveryCapability.CDN, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'configureDNS', 'manageLoadBalancer', 'configureFirewall',
-            'checkConnectivity', 'analyzeTraffic', 'manageSSL',
+            'configureDNS',
+            'manageLoadBalancer',
+            'configureFirewall',
+            'checkConnectivity',
+            'analyzeTraffic',
+            'manageSSL',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown network action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -276,7 +324,14 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
             }
             this.dnsRecords.delete(recordKey);
             this.logger.log(`Deleted DNS: ${domain} ${recordType}`);
-            return { success: true, recordId: existing.id, domain, recordType, action, message: `Deleted ${recordType} record for ${domain}` };
+            return {
+                success: true,
+                recordId: existing.id,
+                domain,
+                recordType,
+                action,
+                message: `Deleted ${recordType} record for ${domain}`,
+            };
         }
         if (action === 'update' && !existing) {
             throw new Error(`DNS record not found for ${domain} (${recordType}). Use action: 'create' to add.`);
@@ -347,12 +402,24 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
                 lb.targets.push({ host: t.host, port: t.port, weight: t.weight || 1, healthy: true });
             }
             this.logger.log(`Added ${targets.length} target(s) to LB ${name}`);
-            return { success: true, name, action, targets: lb.targets, message: `Added ${targets.length} target(s) to "${name}"` };
+            return {
+                success: true,
+                name,
+                action,
+                targets: lb.targets,
+                message: `Added ${targets.length} target(s) to "${name}"`,
+            };
         }
         if (action === 'removeTarget' && targets) {
             lb.targets = lb.targets.filter((existing) => !targets.some((t) => t.host === existing.host && t.port === existing.port));
             this.logger.log(`Removed target(s) from LB ${name}, ${lb.targets.length} remaining`);
-            return { success: true, name, action, targets: lb.targets, message: `Removed target(s) from "${name}", ${lb.targets.length} remaining` };
+            return {
+                success: true,
+                name,
+                action,
+                targets: lb.targets,
+                message: `Removed target(s) from "${name}", ${lb.targets.length} remaining`,
+            };
         }
         if (action === 'getHealth') {
             const healthStatus = lb.targets.map((t) => ({
@@ -361,7 +428,13 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
                 responseTimeMs: Math.floor(Math.random() * 100) + 5,
             }));
             this.logger.log(`LB ${name} health: ${healthStatus.filter((h) => h.healthy).length}/${healthStatus.length} healthy`);
-            return { success: true, name, action, healthStatus, message: `Health check for "${name}": ${healthStatus.filter((h) => h.healthy).length}/${healthStatus.length} targets healthy` };
+            return {
+                success: true,
+                name,
+                action,
+                healthStatus,
+                message: `Health check for "${name}": ${healthStatus.filter((h) => h.healthy).length}/${healthStatus.length} targets healthy`,
+            };
         }
         if (algorithm)
             lb.algorithm = algorithm;
@@ -372,7 +445,14 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
         if (healthCheckPath)
             lb.healthCheckPath = healthCheckPath;
         this.logger.log(`Updated LB ${name}`);
-        return { success: true, name, action, algorithm: lb.algorithm, targets: lb.targets, message: `Load balancer "${name}" updated` };
+        return {
+            success: true,
+            name,
+            action,
+            algorithm: lb.algorithm,
+            targets: lb.targets,
+            message: `Load balancer "${name}" updated`,
+        };
     }
     async configureFirewall(params) {
         const { name, action, direction = 'ingress', protocol = 'tcp', portRange, sourceCidr = '0.0.0.0/0', targetTags = [], ruleAction = 'allow', priority = 1000, } = params;
@@ -385,8 +465,14 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
         }
         if (action === 'list') {
             const rules = Array.from(this.firewallRules.values()).map((r) => ({
-                id: r.id, name: r.name, direction: r.direction, protocol: r.protocol,
-                portRange: r.portRange, sourceCidr: r.sourceCidr, ruleAction: r.ruleAction, priority: r.priority,
+                id: r.id,
+                name: r.name,
+                direction: r.direction,
+                protocol: r.protocol,
+                portRange: r.portRange,
+                sourceCidr: r.sourceCidr,
+                ruleAction: r.ruleAction,
+                priority: r.priority,
             }));
             this.logger.log(`Listed ${rules.length} firewall rules`);
             return { success: true, name, action, message: `${rules.length} firewall rules found` };
@@ -398,7 +484,13 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
             }
             this.firewallRules.delete(existing.id);
             this.logger.log(`Deleted firewall rule: ${name}`);
-            return { success: true, ruleId: existing.id, name, action, message: `Firewall rule "${name}" deleted` };
+            return {
+                success: true,
+                ruleId: existing.id,
+                name,
+                action,
+                message: `Firewall rule "${name}" deleted`,
+            };
         }
         const validDirections = ['ingress', 'egress'];
         if (!validDirections.includes(direction)) {
@@ -466,7 +558,16 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
             details = `Connection to ${target}${port ? `:${port}` : ''} (${protocol}) timed out after ${timeout}ms`;
         }
         this.logger.log(`Connectivity: ${source} → ${target} (${protocol}): ${connected ? 'OK' : 'FAILED'}, ${latencyMs}ms`);
-        return { source, target, connected, latencyMs, protocol, port, details, checkedAt: new Date().toISOString() };
+        return {
+            source,
+            target,
+            connected,
+            latencyMs,
+            protocol,
+            port,
+            details,
+            checkedAt: new Date().toISOString(),
+        };
     }
     async analyzeTraffic(params) {
         const { service, timeRange = '24h', analysisType = 'all' } = params;
@@ -497,9 +598,21 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
                 errorRate: Math.round(Math.random() * 3 * 10000) / 10000,
                 topErrors: [
                     { code: '502', count: Math.floor(Math.random() * 100) + 5, description: 'Bad Gateway' },
-                    { code: '503', count: Math.floor(Math.random() * 50) + 2, description: 'Service Unavailable' },
-                    { code: '504', count: Math.floor(Math.random() * 30) + 1, description: 'Gateway Timeout' },
-                    { code: '429', count: Math.floor(Math.random() * 200) + 10, description: 'Too Many Requests' },
+                    {
+                        code: '503',
+                        count: Math.floor(Math.random() * 50) + 2,
+                        description: 'Service Unavailable',
+                    },
+                    {
+                        code: '504',
+                        count: Math.floor(Math.random() * 30) + 1,
+                        description: 'Gateway Timeout',
+                    },
+                    {
+                        code: '429',
+                        count: Math.floor(Math.random() * 200) + 10,
+                        description: 'Too Many Requests',
+                    },
                 ],
             },
             latency: {
@@ -606,7 +719,13 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
                 message: `Certificate for ${domain} is ${existing.status}, expires in ${daysUntilExpiry} days${isExpiringSoon ? ' (EXPIRING SOON)' : ''}`,
             };
         }
-        return { success: true, domain, action, certificateType, message: `Action ${action} completed for ${domain}` };
+        return {
+            success: true,
+            domain,
+            action,
+            certificateType,
+            message: `Action ${action} completed for ${domain}`,
+        };
     }
     seedInitialData() {
         this.dnsRecords.set('example.com:A', {
@@ -650,6 +769,8 @@ let NetworkAgentService = class NetworkAgentService extends base_agent_service_1
 };
 exports.NetworkAgentService = NetworkAgentService;
 exports.NetworkAgentService = NetworkAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], NetworkAgentService);
 //# sourceMappingURL=network-agent.service.js.map

@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContainerAgentService = exports.CONTAINER_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.CONTAINER_AGENT_CONFIG = {
     id: 'infrastructure-container',
     name: 'Container',
@@ -29,7 +37,11 @@ exports.CONTAINER_AGENT_CONFIG = {
                     ports: { type: 'array', items: { type: 'object' } },
                     env: { type: 'array', items: { type: 'object' } },
                     resources: { type: 'object', description: 'CPU/memory limits and requests' },
-                    restartPolicy: { type: 'string', enum: ['Always', 'OnFailure', 'Never'], default: 'Always' },
+                    restartPolicy: {
+                        type: 'string',
+                        enum: ['Always', 'OnFailure', 'Never'],
+                        default: 'Always',
+                    },
                     labels: { type: 'object' },
                 },
                 required: ['name', 'image'],
@@ -117,7 +129,11 @@ exports.CONTAINER_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     namespace: { type: 'string', description: 'Specific namespace (or all)' },
-                    checks: { type: 'array', items: { type: 'string', enum: ['nodes', 'pods', 'services', 'events', 'resources'] }, default: ['nodes', 'pods'] },
+                    checks: {
+                        type: 'array',
+                        items: { type: 'string', enum: ['nodes', 'pods', 'services', 'events', 'resources'] },
+                        default: ['nodes', 'pods'],
+                    },
                 },
             },
             outputSchema: {
@@ -169,8 +185,9 @@ exports.CONTAINER_AGENT_CONFIG = {
     },
 };
 let ContainerAgentService = class ContainerAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.containers = new Map();
         this.pods = new Map();
         this.services = new Map();
@@ -217,13 +234,31 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.DevCapability.DOCKER, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
         }
         const supportedActions = [
-            'createContainer', 'managePod', 'scaleReplicaSet',
-            'configureService', 'checkClusterHealth', 'manageNamespace',
+            'createContainer',
+            'managePod',
+            'scaleReplicaSet',
+            'configureService',
+            'checkClusterHealth',
+            'manageNamespace',
         ];
         if (!supportedActions.includes(action)) {
             return this.createAgentOutput(input.taskId, false, null, `Unknown container action: ${action}. Supported: ${supportedActions.join(', ')}`, startTime);
@@ -320,7 +355,13 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
         if (action === 'list') {
             const podList = Array.from(this.pods.values())
                 .filter((p) => namespace === 'default' || p.namespace === namespace)
-                .map((p) => ({ name: p.name, namespace: p.namespace, status: p.status, containers: p.containers, nodeName: p.nodeName }));
+                .map((p) => ({
+                name: p.name,
+                namespace: p.namespace,
+                status: p.status,
+                containers: p.containers,
+                nodeName: p.nodeName,
+            }));
             this.logger.log(`Listed ${podList.length} pods in ${namespace}`);
             return {
                 success: true,
@@ -349,7 +390,13 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
         if (action === 'delete') {
             this.pods.delete(name);
             this.logger.log(`Deleted pod: ${name}`);
-            return { success: true, podName: name, namespace: pod.namespace, action, message: `Pod ${name} deleted` };
+            return {
+                success: true,
+                podName: name,
+                namespace: pod.namespace,
+                action,
+                message: `Pod ${name} deleted`,
+            };
         }
         if (action === 'logs') {
             const targetContainer = container || pod.containers[0];
@@ -396,7 +443,13 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
                 message: `Command executed in ${name}/${targetContainer}`,
             };
         }
-        return { success: true, podName: name, namespace, action, message: `Action ${action} completed` };
+        return {
+            success: true,
+            podName: name,
+            namespace,
+            action,
+            message: `Action ${action} completed`,
+        };
     }
     async scaleReplicaSet(params) {
         const { name, namespace = 'default', replicas, reason } = params;
@@ -406,8 +459,7 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
         if (replicas < 0 || replicas > 100) {
             throw new Error('Replicas must be between 0 and 100');
         }
-        const relatedPods = Array.from(this.pods.values())
-            .filter((p) => p.name.startsWith(name) && p.namespace === namespace);
+        const relatedPods = Array.from(this.pods.values()).filter((p) => p.name.startsWith(name) && p.namespace === namespace);
         const previousReplicas = relatedPods.length || 3;
         if (replicas > previousReplicas) {
             for (let i = previousReplicas; i < replicas; i++) {
@@ -441,7 +493,7 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
         };
     }
     async configureService(params) {
-        const { name, namespace = 'default', action, type = 'ClusterIP', selector = {}, ports = [] } = params;
+        const { name, namespace = 'default', action, type = 'ClusterIP', selector = {}, ports = [], } = params;
         if (!name || typeof name !== 'string') {
             throw new Error('Service name is required');
         }
@@ -459,7 +511,13 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
             }
             this.services.delete(name);
             this.logger.log(`Deleted service: ${name}`);
-            return { success: true, serviceName: name, namespace, action, message: `Service "${name}" deleted` };
+            return {
+                success: true,
+                serviceName: name,
+                namespace,
+                action,
+                message: `Service "${name}" deleted`,
+            };
         }
         if (action === 'get') {
             const svc = this.services.get(name);
@@ -478,7 +536,9 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
             };
         }
         const clusterIp = `10.96.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 254) + 1}`;
-        const externalIp = type === 'LoadBalancer' ? `${Math.floor(Math.random() * 255) + 1}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}` : undefined;
+        const externalIp = type === 'LoadBalancer'
+            ? `${Math.floor(Math.random() * 255) + 1}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`
+            : undefined;
         const record = {
             name,
             namespace,
@@ -515,15 +575,29 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
                 memoryPercent: Math.round((30 + Math.random() * 50) * 100) / 100,
             });
         }
-        const allPods = Array.from(this.pods.values())
-            .filter((p) => namespace === 'all' || p.namespace === namespace);
+        const allPods = Array.from(this.pods.values()).filter((p) => namespace === 'all' || p.namespace === namespace);
         const runningPods = allPods.filter((p) => p.status === 'Running').length;
         const events = [
-            { type: 'Normal', message: 'Pod api-gateway-7d8f9 started', count: 3, lastSeen: new Date(Date.now() - 300000).toISOString() },
-            { type: 'Warning', message: 'Pod worker-service-3a2b failed liveness probe', count: 5, lastSeen: new Date(Date.now() - 600000).toISOString() },
-            { type: 'Normal', message: 'Deployment auth-service scaled to 5 replicas', count: 1, lastSeen: new Date(Date.now() - 900000).toISOString() },
+            {
+                type: 'Normal',
+                message: 'Pod api-gateway-7d8f9 started',
+                count: 3,
+                lastSeen: new Date(Date.now() - 300000).toISOString(),
+            },
+            {
+                type: 'Warning',
+                message: 'Pod worker-service-3a2b failed liveness probe',
+                count: 5,
+                lastSeen: new Date(Date.now() - 600000).toISOString(),
+            },
+            {
+                type: 'Normal',
+                message: 'Deployment auth-service scaled to 5 replicas',
+                count: 1,
+                lastSeen: new Date(Date.now() - 900000).toISOString(),
+            },
         ];
-        const healthy = readyNodes === nodeCount && (runningPods / (allPods.length || 1)) > 0.8;
+        const healthy = readyNodes === nodeCount && runningPods / (allPods.length || 1) > 0.8;
         const result = {
             healthy,
             namespace,
@@ -545,9 +619,9 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
             events: checks.includes('events') ? events : [],
             resourceUsage: {
                 cpuTotalCores: nodeCount * 8,
-                cpuUsedPercent: Math.round(nodes.reduce((sum, n) => sum + n.cpuPercent, 0) / nodeCount * 100) / 100,
+                cpuUsedPercent: Math.round((nodes.reduce((sum, n) => sum + n.cpuPercent, 0) / nodeCount) * 100) / 100,
                 memoryTotalGb: nodeCount * 32,
-                memoryUsedPercent: Math.round(nodes.reduce((sum, n) => sum + n.memoryPercent, 0) / nodeCount * 100) / 100,
+                memoryUsedPercent: Math.round((nodes.reduce((sum, n) => sum + n.memoryPercent, 0) / nodeCount) * 100) / 100,
             },
             checkedAt: new Date().toISOString(),
         };
@@ -569,7 +643,12 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
                 status: ns.status,
             }));
             this.logger.log(`Listed ${nsList.length} namespaces`);
-            return { success: true, name, action, message: `${nsList.length} namespace(s): ${nsList.map((n) => n.name).join(', ')}` };
+            return {
+                success: true,
+                name,
+                action,
+                message: `${nsList.length} namespace(s): ${nsList.map((n) => n.name).join(', ')}`,
+            };
         }
         if (action === 'delete') {
             const existing = this.namespaces.get(name);
@@ -586,7 +665,13 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
             if (!existing) {
                 throw new Error(`Namespace not found: ${name}`);
             }
-            return { success: true, name, action, status: existing.status, message: `Namespace "${name}": status=${existing.status}` };
+            return {
+                success: true,
+                name,
+                action,
+                status: existing.status,
+                message: `Namespace "${name}": status=${existing.status}`,
+            };
         }
         if (this.namespaces.has(name)) {
             throw new Error(`Namespace already exists: ${name}`);
@@ -599,7 +684,13 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
             createdAt: new Date(),
         });
         this.logger.log(`Created namespace: ${name}`);
-        return { success: true, name, action, status: 'Active', message: `Namespace "${name}" created successfully` };
+        return {
+            success: true,
+            name,
+            action,
+            status: 'Active',
+            message: `Namespace "${name}" created successfully`,
+        };
     }
     generatePodSuffix() {
         const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -620,9 +711,24 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
             });
         }
         const seedPods = [
-            { name: 'api-gateway-7d8f9c', namespace: 'production', containers: ['api-gateway'], node: 'node-1' },
-            { name: 'auth-service-5a2b1d', namespace: 'production', containers: ['auth-service'], node: 'node-2' },
-            { name: 'worker-service-3e4f6g', namespace: 'production', containers: ['worker-service'], node: 'node-3' },
+            {
+                name: 'api-gateway-7d8f9c',
+                namespace: 'production',
+                containers: ['api-gateway'],
+                node: 'node-1',
+            },
+            {
+                name: 'auth-service-5a2b1d',
+                namespace: 'production',
+                containers: ['auth-service'],
+                node: 'node-2',
+            },
+            {
+                name: 'worker-service-3e4f6g',
+                namespace: 'production',
+                containers: ['worker-service'],
+                node: 'node-3',
+            },
             { name: 'coredns-8h9j0k', namespace: 'kube-system', containers: ['coredns'], node: 'node-1' },
         ];
         for (const pod of seedPods) {
@@ -650,6 +756,8 @@ let ContainerAgentService = class ContainerAgentService extends base_agent_servi
 };
 exports.ContainerAgentService = ContainerAgentService;
 exports.ContainerAgentService = ContainerAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ContainerAgentService);
 //# sourceMappingURL=container-agent.service.js.map

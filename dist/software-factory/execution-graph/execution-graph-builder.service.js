@@ -63,22 +63,22 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
         const graph = this.graphs.get(missionId);
         if (!graph)
             return false;
-        const node = graph.nodes.find(n => n.id === nodeId);
+        const node = graph.nodes.find((n) => n.id === nodeId);
         if (!node)
             return false;
         node.status = status;
         if (result) {
             node.result = result;
         }
-        if (graph.nodes.every(n => n.status === interfaces_1.GraphNodeStatus.COMPLETED)) {
+        if (graph.nodes.every((n) => n.status === interfaces_1.GraphNodeStatus.COMPLETED)) {
             graph.status = interfaces_1.GraphStatus.COMPLETED;
         }
-        else if (graph.nodes.some(n => n.status === interfaces_1.GraphNodeStatus.FAILED) &&
-            graph.nodes.filter(n => n.status === interfaces_1.GraphNodeStatus.COMPLETED).length <
+        else if (graph.nodes.some((n) => n.status === interfaces_1.GraphNodeStatus.FAILED) &&
+            graph.nodes.filter((n) => n.status === interfaces_1.GraphNodeStatus.COMPLETED).length <
                 graph.nodes.length * 0.5) {
             graph.status = interfaces_1.GraphStatus.FAILED;
         }
-        else if (graph.nodes.some(n => n.status === interfaces_1.GraphNodeStatus.RUNNING)) {
+        else if (graph.nodes.some((n) => n.status === interfaces_1.GraphNodeStatus.RUNNING)) {
             graph.status = interfaces_1.GraphStatus.RUNNING;
         }
         return true;
@@ -87,25 +87,25 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
         const graph = this.graphs.get(missionId);
         if (!graph)
             return [];
-        return graph.nodes.filter(node => {
+        return graph.nodes.filter((node) => {
             if (node.status !== interfaces_1.GraphNodeStatus.PENDING)
                 return false;
             const dependencies = graph.edges
-                .filter(e => e.to === node.id && e.type === interfaces_1.EdgeType.DEPENDS_ON)
-                .map(e => e.from);
-            return dependencies.every(depId => {
-                const depNode = graph.nodes.find(n => n.id === depId);
+                .filter((e) => e.to === node.id && e.type === interfaces_1.EdgeType.DEPENDS_ON)
+                .map((e) => e.from);
+            return dependencies.every((depId) => {
+                const depNode = graph.nodes.find((n) => n.id === depId);
                 return depNode?.status === interfaces_1.GraphNodeStatus.COMPLETED;
             });
         });
     }
     createNodes(plan, opts) {
         const nodes = [];
-        const researchCaps = plan.requiredCapabilities.filter(c => this.isResearchCap(c));
-        const buildCaps = plan.requiredCapabilities.filter(c => this.isBuildCap(c));
-        const testCaps = plan.requiredCapabilities.filter(c => this.isTestCap(c));
-        const certCaps = plan.requiredCapabilities.filter(c => this.isCertCap(c));
-        const deliverCaps = plan.requiredCapabilities.filter(c => this.isDeliverCap(c));
+        const researchCaps = plan.requiredCapabilities.filter((c) => this.isResearchCap(c));
+        const buildCaps = plan.requiredCapabilities.filter((c) => this.isBuildCap(c));
+        const testCaps = plan.requiredCapabilities.filter((c) => this.isTestCap(c));
+        const certCaps = plan.requiredCapabilities.filter((c) => this.isCertCap(c));
+        const deliverCaps = plan.requiredCapabilities.filter((c) => this.isDeliverCap(c));
         if (researchCaps.length > 0) {
             nodes.push(this.createNode('research', 'Research & Analysis', interfaces_1.GraphNodeType.RESEARCH, researchCaps, plan.requiredPacks, opts));
         }
@@ -143,10 +143,16 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
     }
     createEdges(nodes) {
         const edges = [];
-        const typeOrder = [interfaces_1.GraphNodeType.RESEARCH, interfaces_1.GraphNodeType.BUILD, interfaces_1.GraphNodeType.TEST, interfaces_1.GraphNodeType.CERTIFY, interfaces_1.GraphNodeType.DELIVER];
+        const typeOrder = [
+            interfaces_1.GraphNodeType.RESEARCH,
+            interfaces_1.GraphNodeType.BUILD,
+            interfaces_1.GraphNodeType.TEST,
+            interfaces_1.GraphNodeType.CERTIFY,
+            interfaces_1.GraphNodeType.DELIVER,
+        ];
         for (let i = 1; i < typeOrder.length; i++) {
-            const currentTypeNodes = nodes.filter(n => n.type === typeOrder[i]);
-            const prevTypeNodes = nodes.filter(n => n.type === typeOrder[i - 1]);
+            const currentTypeNodes = nodes.filter((n) => n.type === typeOrder[i]);
+            const prevTypeNodes = nodes.filter((n) => n.type === typeOrder[i - 1]);
             for (const current of currentTypeNodes) {
                 for (const prev of prevTypeNodes) {
                     edges.push({
@@ -157,16 +163,22 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
                 }
             }
         }
-        const buildNodes = nodes.filter(n => n.type === interfaces_1.GraphNodeType.BUILD);
+        const buildNodes = nodes.filter((n) => n.type === interfaces_1.GraphNodeType.BUILD);
         for (let i = 1; i < buildNodes.length; i++) {
         }
         return edges;
     }
     generatePhases(graph, opts) {
         const phases = [];
-        const typeOrder = [interfaces_1.GraphNodeType.RESEARCH, interfaces_1.GraphNodeType.BUILD, interfaces_1.GraphNodeType.TEST, interfaces_1.GraphNodeType.CERTIFY, interfaces_1.GraphNodeType.DELIVER];
+        const typeOrder = [
+            interfaces_1.GraphNodeType.RESEARCH,
+            interfaces_1.GraphNodeType.BUILD,
+            interfaces_1.GraphNodeType.TEST,
+            interfaces_1.GraphNodeType.CERTIFY,
+            interfaces_1.GraphNodeType.DELIVER,
+        ];
         for (const type of typeOrder) {
-            const nodesOfType = graph.nodes.filter(n => n.type === type);
+            const nodesOfType = graph.nodes.filter((n) => n.type === type);
             if (nodesOfType.length === 0)
                 continue;
             const isParallel = type === interfaces_1.GraphNodeType.BUILD && nodesOfType.length > 1;
@@ -175,7 +187,7 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
             phases.push({
                 id: `phase-${type.toLowerCase()}`,
                 name: this.getPhaseName(type),
-                nodeIds: nodesOfType.map(n => n.id),
+                nodeIds: nodesOfType.map((n) => n.id),
                 parallel: isParallel,
                 estimatedDurationMs: estimatedDuration,
                 estimatedCostUsd: estimatedCost,
@@ -184,13 +196,18 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
         return phases;
     }
     isResearchCap(cap) {
-        return cap.startsWith('browser.') || cap.startsWith('business.analytics') || cap.startsWith('business.seo');
+        return (cap.startsWith('browser.') ||
+            cap.startsWith('business.analytics') ||
+            cap.startsWith('business.seo'));
     }
     isBuildCap(cap) {
         return cap.startsWith('dev.') || cap.startsWith('office.') || cap.startsWith('business.');
     }
     isTestCap(cap) {
-        return cap.startsWith('cert.test') || cap.startsWith('cert.regression') || cap.startsWith('cert.performance') || cap.startsWith('cert.integration');
+        return (cap.startsWith('cert.test') ||
+            cap.startsWith('cert.regression') ||
+            cap.startsWith('cert.performance') ||
+            cap.startsWith('cert.integration'));
     }
     isCertCap(cap) {
         return cap.startsWith('cert.') && !this.isTestCap(cap);
@@ -201,14 +218,21 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
     groupBuildCapabilities(caps, maxParallelism) {
         if (caps.length === 0)
             return [[]];
-        const devCaps = caps.filter(c => c.startsWith('dev.'));
-        const officeCaps = caps.filter(c => c.startsWith('office.'));
-        const businessCaps = caps.filter(c => c.startsWith('business.'));
+        const devCaps = caps.filter((c) => c.startsWith('dev.'));
+        const officeCaps = caps.filter((c) => c.startsWith('office.'));
+        const businessCaps = caps.filter((c) => c.startsWith('business.'));
         const groups = [];
         if (devCaps.length > 0) {
-            const frontendCaps = devCaps.filter(c => c === 'dev.frontend' || c === 'dev.architecture' || c === 'dev.docker' || c === 'dev.documentation');
-            const backendCaps = devCaps.filter(c => c === 'dev.backend' || c === 'dev.database' || c === 'dev.api' || c === 'dev.kubernetes' || c === 'dev.devops');
-            const qaCaps = devCaps.filter(c => c === 'dev.qa' || c === 'dev.test' || c === 'dev.debug');
+            const frontendCaps = devCaps.filter((c) => c === 'dev.frontend' ||
+                c === 'dev.architecture' ||
+                c === 'dev.docker' ||
+                c === 'dev.documentation');
+            const backendCaps = devCaps.filter((c) => c === 'dev.backend' ||
+                c === 'dev.database' ||
+                c === 'dev.api' ||
+                c === 'dev.kubernetes' ||
+                c === 'dev.devops');
+            const qaCaps = devCaps.filter((c) => c === 'dev.qa' || c === 'dev.test' || c === 'dev.debug');
             if (frontendCaps.length > 0)
                 groups.push(frontendCaps);
             if (backendCaps.length > 0)
@@ -231,12 +255,12 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
         return groups.length > 0 ? groups : [caps];
     }
     findEntryNodes(nodes, edges) {
-        const targetIds = new Set(edges.map(e => e.to));
-        return nodes.filter(n => !targetIds.has(n.id)).map(n => n.id);
+        const targetIds = new Set(edges.map((e) => e.to));
+        return nodes.filter((n) => !targetIds.has(n.id)).map((n) => n.id);
     }
     findExitNodes(nodes, edges) {
-        const sourceIds = new Set(edges.map(e => e.from));
-        return nodes.filter(n => !sourceIds.has(n.id)).map(n => n.id);
+        const sourceIds = new Set(edges.map((e) => e.from));
+        return nodes.filter((n) => !sourceIds.has(n.id)).map((n) => n.id);
     }
     estimateTotalCost(nodes) {
         let total = 0;
@@ -254,7 +278,7 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
     }
     estimatePhaseDuration(nodes, parallel) {
         if (parallel) {
-            return Math.max(...nodes.map(n => this.estimateNodeDuration(n)));
+            return Math.max(...nodes.map((n) => this.estimateNodeDuration(n)));
         }
         return nodes.reduce((sum, n) => sum + this.estimateNodeDuration(n), 0);
     }
@@ -279,10 +303,10 @@ let ExecutionGraphBuilderService = ExecutionGraphBuilderService_1 = class Execut
         return total;
     }
     countWorkersNeeded(phases) {
-        return Math.max(...phases.map(p => p.parallel ? p.nodeIds.length : 1));
+        return Math.max(...phases.map((p) => (p.parallel ? p.nodeIds.length : 1)));
     }
     maxParallelismInPhases(phases) {
-        return Math.max(...phases.map(p => p.parallel ? p.nodeIds.length : 1));
+        return Math.max(...phases.map((p) => (p.parallel ? p.nodeIds.length : 1)));
     }
     getPhaseName(type) {
         const names = {

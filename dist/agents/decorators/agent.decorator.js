@@ -39,7 +39,8 @@ function mergeOptionsToMetadata(options) {
 }
 function Agent(optionsOrConfig) {
     let metadata;
-    if ('retryPolicy' in optionsOrConfig && optionsOrConfig.retryPolicy &&
+    if ('retryPolicy' in optionsOrConfig &&
+        optionsOrConfig.retryPolicy &&
         'maxRetries' in optionsOrConfig.retryPolicy &&
         'backoffMs' in optionsOrConfig.retryPolicy &&
         'exponentialBackoff' in optionsOrConfig.retryPolicy) {

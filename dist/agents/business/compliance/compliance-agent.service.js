@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ComplianceAgentService = exports.COMPLIANCE_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.COMPLIANCE_AGENT_CONFIG = {
     id: 'business-compliance',
     name: 'Compliance',
@@ -25,8 +33,15 @@ exports.COMPLIANCE_AGENT_CONFIG = {
                 properties: {
                     regulation: { type: 'string', description: 'Regulation or standard to check against' },
                     scope: { type: 'string', description: 'Scope of the compliance check' },
-                    entity: { type: 'string', description: 'Entity being checked (e.g., department, process)' },
-                    checklist: { type: 'array', items: { type: 'string' }, description: 'Specific compliance items to check' },
+                    entity: {
+                        type: 'string',
+                        description: 'Entity being checked (e.g., department, process)',
+                    },
+                    checklist: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Specific compliance items to check',
+                    },
                 },
                 required: ['regulation'],
             },
@@ -48,7 +63,10 @@ exports.COMPLIANCE_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    entityType: { type: 'string', description: 'Type of entity (e.g., "user", "transaction", "document")' },
+                    entityType: {
+                        type: 'string',
+                        description: 'Type of entity (e.g., "user", "transaction", "document")',
+                    },
                     entityId: { type: 'string', description: 'ID of the entity' },
                     action: { type: 'string', description: 'Action type to audit' },
                     dateFrom: { type: 'string', description: 'Start date (ISO string)' },
@@ -72,12 +90,20 @@ exports.COMPLIANCE_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    action: { type: 'string', enum: ['create', 'update', 'review', 'list'], description: 'Policy action' },
+                    action: {
+                        type: 'string',
+                        enum: ['create', 'update', 'review', 'list'],
+                        description: 'Policy action',
+                    },
                     policyId: { type: 'string', description: 'Policy ID (for update/review)' },
                     name: { type: 'string', description: 'Policy name' },
                     category: { type: 'string', description: 'Policy category' },
                     description: { type: 'string', description: 'Policy description' },
-                    requirements: { type: 'array', items: { type: 'string' }, description: 'Policy requirements' },
+                    requirements: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Policy requirements',
+                    },
                 },
                 required: ['action'],
             },
@@ -100,7 +126,11 @@ exports.COMPLIANCE_AGENT_CONFIG = {
                 properties: {
                     area: { type: 'string', description: 'Area to assess' },
                     framework: { type: 'string', description: 'Risk framework (e.g., "ISO 31000", "COSO")' },
-                    factors: { type: 'array', items: { type: 'string' }, description: 'Risk factors to evaluate' },
+                    factors: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Risk factors to evaluate',
+                    },
                 },
                 required: ['area'],
             },
@@ -122,7 +152,11 @@ exports.COMPLIANCE_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    reportType: { type: 'string', enum: ['status', 'gap', 'regulatory', 'executive'], description: 'Type of compliance report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['status', 'gap', 'regulatory', 'executive'],
+                        description: 'Type of compliance report',
+                    },
                     framework: { type: 'string', description: 'Compliance framework' },
                     period: { type: 'string', description: 'Reporting period' },
                 },
@@ -147,7 +181,11 @@ exports.COMPLIANCE_AGENT_CONFIG = {
                 properties: {
                     jurisdiction: { type: 'string', description: 'Regulatory jurisdiction' },
                     category: { type: 'string', description: 'Regulation category' },
-                    action: { type: 'string', enum: ['list', 'impact', 'timeline'], description: 'Tracking action' },
+                    action: {
+                        type: 'string',
+                        enum: ['list', 'impact', 'timeline'],
+                        description: 'Tracking action',
+                    },
                 },
                 required: ['jurisdiction'],
             },
@@ -179,8 +217,9 @@ exports.COMPLIANCE_AGENT_CONFIG = {
     },
 };
 let ComplianceAgentService = class ComplianceAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.complianceChecks = new Map();
         this.policies = new Map();
         this.auditEntries = [];
@@ -225,6 +264,20 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.LEGAL, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -352,8 +405,16 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
         this.counter++;
         const auditId = `audit-${Date.now()}-${this.counter}`;
         const actions = ['create', 'read', 'update', 'delete', 'approve', 'reject', 'export'];
-        const actors = ['admin@company.com', 'user1@company.com', 'system', 'auditor@company.com', 'manager@company.com'];
-        const fromDate = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const actors = [
+            'admin@company.com',
+            'user1@company.com',
+            'system',
+            'auditor@company.com',
+            'manager@company.com',
+        ];
+        const fromDate = dateFrom
+            ? new Date(dateFrom)
+            : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const toDate = dateTo ? new Date(dateTo) : new Date();
         const entries = [];
         const entryCount = 5 + Math.floor(Math.random() * 15);
@@ -368,7 +429,9 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
                 details: {
                     entityType,
                     entityId: entityId || `entity-${Math.floor(Math.random() * 1000)}`,
-                    changes: entryAction === 'update' ? { field: 'status', from: 'draft', to: 'approved' } : undefined,
+                    changes: entryAction === 'update'
+                        ? { field: 'status', from: 'draft', to: 'approved' }
+                        : undefined,
                     ipAddress: `192.168.1.${Math.floor(Math.random() * 255)}`,
                 },
             });
@@ -385,7 +448,7 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
         };
     }
     async managePolicies(params) {
-        const { action: policyAction, policyId, name, category = 'general', description = '', requirements = [] } = params;
+        const { action: policyAction, policyId, name, category = 'general', description = '', requirements = [], } = params;
         const validActions = ['create', 'update', 'review', 'list'];
         if (!validActions.includes(policyAction)) {
             throw new Error(`Invalid policy action: ${policyAction}. Supported: ${validActions.join(', ')}`);
@@ -402,7 +465,13 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
                     name,
                     category,
                     description,
-                    requirements: requirements.length > 0 ? requirements : ['Comply with applicable regulations', 'Document all procedures', 'Regular review and updates'],
+                    requirements: requirements.length > 0
+                        ? requirements
+                        : [
+                            'Comply with applicable regulations',
+                            'Document all procedures',
+                            'Regular review and updates',
+                        ],
                     version: '1.0',
                     status: 'active',
                     complianceScore,
@@ -573,7 +642,12 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
                 sections.push({ title: 'GDPR Compliance', status: 'mostly_compliant', score: 88, findings: 4 }, { title: 'SOX Compliance', status: 'compliant', score: 92, findings: 2 }, { title: 'HIPAA Compliance', status: 'partially_compliant', score: 75, findings: 6 }, { title: 'PCI DSS Compliance', status: 'mostly_compliant', score: 85, findings: 3 });
                 break;
             case 'executive':
-                sections.push({ title: 'Overall Compliance Posture', status: overallStatus, score: overallScore, findings: 15 }, { title: 'Key Risk Areas', status: 'attention_needed', score: 68, findings: 8 }, { title: 'Remediation Progress', status: 'on_track', score: 78, findings: 5 });
+                sections.push({
+                    title: 'Overall Compliance Posture',
+                    status: overallStatus,
+                    score: overallScore,
+                    findings: 15,
+                }, { title: 'Key Risk Areas', status: 'attention_needed', score: 68, findings: 8 }, { title: 'Remediation Progress', status: 'on_track', score: 78, findings: 5 });
                 break;
         }
         this.logger.log(`Generated compliance report: ${reportId}, type=${reportType}, score=${overallScore}%`);
@@ -597,20 +671,80 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
         const trackingId = `reg-track-${Date.now()}-${this.counter}`;
         const regulationTemplates = {
             EU: [
-                { name: 'GDPR', status: 'active', effectiveDate: '2018-05-25', impact: 'high', description: 'General Data Protection Regulation — data privacy and security' },
-                { name: 'AI Act', status: 'upcoming', effectiveDate: '2025-08-01', impact: 'high', description: 'EU Artificial Intelligence Act — AI governance framework' },
-                { name: 'Digital Services Act', status: 'active', effectiveDate: '2024-02-17', impact: 'medium', description: 'Platform accountability and content moderation rules' },
-                { name: 'NIS2 Directive', status: 'active', effectiveDate: '2024-10-17', impact: 'high', description: 'Network and Information Security — cybersecurity requirements' },
+                {
+                    name: 'GDPR',
+                    status: 'active',
+                    effectiveDate: '2018-05-25',
+                    impact: 'high',
+                    description: 'General Data Protection Regulation — data privacy and security',
+                },
+                {
+                    name: 'AI Act',
+                    status: 'upcoming',
+                    effectiveDate: '2025-08-01',
+                    impact: 'high',
+                    description: 'EU Artificial Intelligence Act — AI governance framework',
+                },
+                {
+                    name: 'Digital Services Act',
+                    status: 'active',
+                    effectiveDate: '2024-02-17',
+                    impact: 'medium',
+                    description: 'Platform accountability and content moderation rules',
+                },
+                {
+                    name: 'NIS2 Directive',
+                    status: 'active',
+                    effectiveDate: '2024-10-17',
+                    impact: 'high',
+                    description: 'Network and Information Security — cybersecurity requirements',
+                },
             ],
             US: [
-                { name: 'CCPA/CPRA', status: 'active', effectiveDate: '2023-01-01', impact: 'high', description: 'California Consumer Privacy Act — data privacy rights' },
-                { name: 'SOX', status: 'active', effectiveDate: '2002-07-30', impact: 'high', description: 'Sarbanes-Oxley Act — financial reporting and audit requirements' },
-                { name: 'HIPAA', status: 'active', effectiveDate: '1996-08-21', impact: 'medium', description: 'Health Insurance Portability and Accountability — health data privacy' },
-                { name: 'State AI Laws', status: 'evolving', effectiveDate: '2025-01-01', impact: 'medium', description: 'Emerging state-level AI governance legislation' },
+                {
+                    name: 'CCPA/CPRA',
+                    status: 'active',
+                    effectiveDate: '2023-01-01',
+                    impact: 'high',
+                    description: 'California Consumer Privacy Act — data privacy rights',
+                },
+                {
+                    name: 'SOX',
+                    status: 'active',
+                    effectiveDate: '2002-07-30',
+                    impact: 'high',
+                    description: 'Sarbanes-Oxley Act — financial reporting and audit requirements',
+                },
+                {
+                    name: 'HIPAA',
+                    status: 'active',
+                    effectiveDate: '1996-08-21',
+                    impact: 'medium',
+                    description: 'Health Insurance Portability and Accountability — health data privacy',
+                },
+                {
+                    name: 'State AI Laws',
+                    status: 'evolving',
+                    effectiveDate: '2025-01-01',
+                    impact: 'medium',
+                    description: 'Emerging state-level AI governance legislation',
+                },
             ],
             UK: [
-                { name: 'UK GDPR', status: 'active', effectiveDate: '2021-01-01', impact: 'high', description: 'UK General Data Protection Regulation — post-Brexit data privacy' },
-                { name: 'FCA Regulations', status: 'active', effectiveDate: '2024-01-01', impact: 'medium', description: 'Financial Conduct Authority — financial services compliance' },
+                {
+                    name: 'UK GDPR',
+                    status: 'active',
+                    effectiveDate: '2021-01-01',
+                    impact: 'high',
+                    description: 'UK General Data Protection Regulation — post-Brexit data privacy',
+                },
+                {
+                    name: 'FCA Regulations',
+                    status: 'active',
+                    effectiveDate: '2024-01-01',
+                    impact: 'medium',
+                    description: 'Financial Conduct Authority — financial services compliance',
+                },
             ],
         };
         const jurisdictionKey = Object.keys(regulationTemplates).find((k) => k.toLowerCase() === jurisdiction.toLowerCase()) || 'EU';
@@ -633,6 +767,8 @@ let ComplianceAgentService = class ComplianceAgentService extends base_agent_ser
 };
 exports.ComplianceAgentService = ComplianceAgentService;
 exports.ComplianceAgentService = ComplianceAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], ComplianceAgentService);
 //# sourceMappingURL=compliance-agent.service.js.map

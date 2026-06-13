@@ -1,5 +1,6 @@
 import { StepExecutionResult } from './task-executor.service';
 import { OrchestrationRequest } from './orchestrator.service';
+import { AgentConnectorBridge } from '../bridge';
 export interface ValidationResult {
     isValid: boolean;
     score: number;
@@ -19,8 +20,11 @@ export interface ValidationDetails {
     schemaValidationScore: number;
 }
 export declare class TaskValidatorService {
+    private readonly bridge?;
     private readonly logger;
+    constructor(bridge?: AgentConnectorBridge | undefined);
     validate(results: StepExecutionResult[], request: OrchestrationRequest): Promise<ValidationResult>;
+    llmValidate(results: any, requirements: any): Promise<ValidationResult | null>;
     private validateCompleteness;
     private validateQuality;
     private validatePerformance;

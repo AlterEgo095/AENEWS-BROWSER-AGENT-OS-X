@@ -1,8 +1,11 @@
 import { BaseAgentService } from '../../base/base-agent.service';
 import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+import { AgentConnectorBridge } from '../../bridge';
 export declare const NETWORK_AGENT_CONFIG: AgentConfig;
 export declare class NetworkAgentService extends BaseAgentService {
+    private readonly bridge?;
     private dnsRecords;
+    constructor(eventBusService?: any, memoryService?: any, permissionEvaluator?: any, bridge?: AgentConnectorBridge | undefined);
     private loadBalancers;
     private firewallRules;
     private sslCerts;

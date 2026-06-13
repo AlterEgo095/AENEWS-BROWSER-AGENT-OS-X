@@ -95,7 +95,7 @@ let SoftwareFactoryController = class SoftwareFactoryController {
                 qualityScore: result.qualityScore,
                 totalDurationMs: result.totalDurationMs,
                 totalCostUsd: result.totalCostUsd,
-                artifacts: result.artifacts.map(a => ({
+                artifacts: result.artifacts.map((a) => ({
                     name: a.name,
                     type: a.type,
                     size: a.size,
@@ -200,7 +200,7 @@ let SoftwareFactoryController = class SoftwareFactoryController {
         };
     }
     getCapabilitiesByPack(pack) {
-        const packEnum = Object.values(interfaces_1.CapabilityPack).find(p => p.toLowerCase() === pack.toLowerCase());
+        const packEnum = Object.values(interfaces_1.CapabilityPack).find((p) => p.toLowerCase() === pack.toLowerCase());
         if (!packEnum)
             return { success: false, error: `Invalid pack: ${pack}` };
         return { success: true, data: this.capabilityRegistry.getPack(packEnum) };
@@ -334,8 +334,10 @@ let SoftwareFactoryController = class SoftwareFactoryController {
                     durationMs: result.durationMs,
                     costUsd: result.costUsd,
                     artifactCount: result.artifacts.length,
-                    artifacts: result.artifacts.map(a => ({ name: a.name, type: a.type, size: a.size })),
-                    output: typeof result.output === 'object' ? JSON.stringify(result.output).substring(0, 1000) : result.output,
+                    artifacts: result.artifacts.map((a) => ({ name: a.name, type: a.type, size: a.size })),
+                    output: typeof result.output === 'object'
+                        ? JSON.stringify(result.output).substring(0, 1000)
+                        : result.output,
                     error: result.error,
                 },
             };

@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HRAgentService = exports.HR_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.HR_AGENT_CONFIG = {
     id: 'business-hr',
     name: 'HR',
@@ -26,9 +34,17 @@ exports.HR_AGENT_CONFIG = {
                     title: { type: 'string', description: 'Job title' },
                     department: { type: 'string', description: 'Department' },
                     location: { type: 'string', description: 'Job location' },
-                    type: { type: 'string', enum: ['full-time', 'part-time', 'contract', 'internship'], description: 'Employment type' },
+                    type: {
+                        type: 'string',
+                        enum: ['full-time', 'part-time', 'contract', 'internship'],
+                        description: 'Employment type',
+                    },
                     salaryRange: { type: 'object', description: 'Salary range with min and max' },
-                    requirements: { type: 'array', items: { type: 'string' }, description: 'Job requirements' },
+                    requirements: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Job requirements',
+                    },
                     description: { type: 'string', description: 'Job description' },
                 },
                 required: ['title', 'department'],
@@ -50,7 +66,11 @@ exports.HR_AGENT_CONFIG = {
                 type: 'object',
                 properties: {
                     postingId: { type: 'string', description: 'Job posting ID' },
-                    candidates: { type: 'array', items: { type: 'object' }, description: 'Candidate profiles to screen' },
+                    candidates: {
+                        type: 'array',
+                        items: { type: 'object' },
+                        description: 'Candidate profiles to screen',
+                    },
                     criteria: { type: 'object', description: 'Screening criteria and weights' },
                 },
                 required: ['postingId'],
@@ -72,7 +92,11 @@ exports.HR_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    action: { type: 'string', enum: ['start', 'update', 'complete', 'status'], description: 'Onboarding action' },
+                    action: {
+                        type: 'string',
+                        enum: ['start', 'update', 'complete', 'status'],
+                        description: 'Onboarding action',
+                    },
                     employeeId: { type: 'string', description: 'Employee ID' },
                     employeeName: { type: 'string', description: 'Employee name' },
                     department: { type: 'string', description: 'Department' },
@@ -123,7 +147,11 @@ exports.HR_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    reportType: { type: 'string', enum: ['headcount', 'turnover', 'diversity', 'recruitment', 'performance'], description: 'Type of HR report' },
+                    reportType: {
+                        type: 'string',
+                        enum: ['headcount', 'turnover', 'diversity', 'recruitment', 'performance'],
+                        description: 'Type of HR report',
+                    },
                     period: { type: 'string', description: 'Report period' },
                     department: { type: 'string', description: 'Filter by department' },
                 },
@@ -146,7 +174,11 @@ exports.HR_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    action: { type: 'string', enum: ['request', 'approve', 'reject', 'balance'], description: 'Leave action' },
+                    action: {
+                        type: 'string',
+                        enum: ['request', 'approve', 'reject', 'balance'],
+                        description: 'Leave action',
+                    },
                     employeeId: { type: 'string', description: 'Employee ID' },
                     leaveType: { type: 'string', description: 'Type of leave' },
                     startDate: { type: 'string', description: 'Leave start date' },
@@ -184,8 +216,9 @@ exports.HR_AGENT_CONFIG = {
     },
 };
 let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.jobPostings = new Map();
         this.employees = new Map();
         this.onboardingProcesses = new Map();
@@ -232,6 +265,20 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.BusinessCapability.LEGAL, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -285,7 +332,7 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
         this.counter++;
         const postingId = `job-${Date.now()}-${this.counter}`;
         const defaultRequirements = [
-            'Bachelor\'s degree or equivalent experience',
+            "Bachelor's degree or equivalent experience",
             'Strong communication skills',
             'Team collaboration ability',
             'Problem-solving mindset',
@@ -330,11 +377,36 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
         this.counter++;
         const screeningId = `screen-${Date.now()}-${this.counter}`;
         const defaultCandidates = [
-            { name: 'Alice Johnson', experience: 5, skills: ['JavaScript', 'TypeScript', 'React'], education: 'BS Computer Science' },
-            { name: 'Bob Smith', experience: 3, skills: ['Python', 'Django', 'SQL'], education: 'MS Software Engineering' },
-            { name: 'Carol Davis', experience: 7, skills: ['Java', 'Spring', 'AWS'], education: 'BS Information Technology' },
-            { name: 'David Wilson', experience: 2, skills: ['React', 'Node.js', 'MongoDB'], education: 'BS Computer Science' },
-            { name: 'Eva Martinez', experience: 4, skills: ['Python', 'ML', 'Data Analysis'], education: 'MS Data Science' },
+            {
+                name: 'Alice Johnson',
+                experience: 5,
+                skills: ['JavaScript', 'TypeScript', 'React'],
+                education: 'BS Computer Science',
+            },
+            {
+                name: 'Bob Smith',
+                experience: 3,
+                skills: ['Python', 'Django', 'SQL'],
+                education: 'MS Software Engineering',
+            },
+            {
+                name: 'Carol Davis',
+                experience: 7,
+                skills: ['Java', 'Spring', 'AWS'],
+                education: 'BS Information Technology',
+            },
+            {
+                name: 'David Wilson',
+                experience: 2,
+                skills: ['React', 'Node.js', 'MongoDB'],
+                education: 'BS Computer Science',
+            },
+            {
+                name: 'Eva Martinez',
+                experience: 4,
+                skills: ['Python', 'ML', 'Data Analysis'],
+                education: 'MS Data Science',
+            },
         ];
         const candidatesToScreen = candidates.length > 0 ? candidates : defaultCandidates;
         const defaultCriteria = {
@@ -347,7 +419,11 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
         const results = candidatesToScreen.map((candidate) => {
             const experienceScore = Math.min(candidate.experience / 7, 1) * 100;
             const skillMatch = 50 + Math.random() * 50;
-            const educationScore = candidate.education.includes('MS') ? 85 : candidate.education.includes('BS') ? 70 : 50;
+            const educationScore = candidate.education.includes('MS')
+                ? 85
+                : candidate.education.includes('BS')
+                    ? 70
+                    : 50;
             const culturalFitScore = 60 + Math.random() * 35;
             const totalScore = experienceScore * (screeningCriteria.experience || 0.3) +
                 skillMatch * (screeningCriteria.skills || 0.4) +
@@ -384,7 +460,7 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
         };
     }
     async manageOnboarding(params) {
-        const { action, employeeId, employeeName, department = 'General', startDate, tasks = [] } = params;
+        const { action, employeeId, employeeName, department = 'General', startDate, tasks = [], } = params;
         const validActions = ['start', 'update', 'complete', 'status'];
         if (!validActions.includes(action)) {
             throw new Error(`Invalid onboarding action: ${action}. Supported: ${validActions.join(', ')}`);
@@ -465,7 +541,9 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
                 const process = Array.from(this.onboardingProcesses.values()).find((p) => p.employeeId === employeeId);
                 if (!process)
                     throw new Error(`Onboarding process not found for employee: ${employeeId}`);
-                process.tasks.forEach((t) => { t.status = 'completed'; });
+                process.tasks.forEach((t) => {
+                    t.status = 'completed';
+                });
                 process.progress = 100;
                 process.status = 'completed';
                 this.logger.log(`Completed onboarding: ${process.id}, employee=${process.employeeName}`);
@@ -560,9 +638,7 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
             strengths.push('Reliable and consistent contributor');
         if (areasForImprovement.length === 0)
             areasForImprovement.push('Continue developing leadership skills');
-        const goalsProgress = goals.length > 0
-            ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length)
-            : 0;
+        const goalsProgress = goals.length > 0 ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0;
         const employee = this.employees.get(employeeId);
         if (employee) {
             employee.performanceScore = overallScore;
@@ -598,7 +674,11 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
                 for (const dept of departments) {
                     headcountByDept[dept] = 10 + Math.floor(Math.random() * 40);
                 }
-                summary = { totalEmployees, departments: departments.length, avgTeamSize: Math.round(totalEmployees / departments.length) };
+                summary = {
+                    totalEmployees,
+                    departments: departments.length,
+                    avgTeamSize: Math.round(totalEmployees / departments.length),
+                };
                 data = { headcountByDept, trend: 'growing' };
                 break;
             }
@@ -677,12 +757,19 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
         };
     }
     async manageLeave(params) {
-        const { action, employeeId, leaveType = 'vacation', startDate, endDate, reason = '', requestId } = params;
+        const { action, employeeId, leaveType = 'vacation', startDate, endDate, reason = '', requestId, } = params;
         const validActions = ['request', 'approve', 'reject', 'balance'];
         if (!validActions.includes(action)) {
             throw new Error(`Invalid leave action: ${action}. Supported: ${validActions.join(', ')}`);
         }
-        const validLeaveTypes = ['vacation', 'sick', 'personal', 'maternity', 'paternity', 'bereavement'];
+        const validLeaveTypes = [
+            'vacation',
+            'sick',
+            'personal',
+            'maternity',
+            'paternity',
+            'bereavement',
+        ];
         if (!validLeaveTypes.includes(leaveType)) {
             throw new Error(`Invalid leave type: ${leaveType}. Supported: ${validLeaveTypes.join(', ')}`);
         }
@@ -825,6 +912,8 @@ let HRAgentService = class HRAgentService extends base_agent_service_1.BaseAgent
 };
 exports.HRAgentService = HRAgentService;
 exports.HRAgentService = HRAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], HRAgentService);
 //# sourceMappingURL=hr-agent.service.js.map

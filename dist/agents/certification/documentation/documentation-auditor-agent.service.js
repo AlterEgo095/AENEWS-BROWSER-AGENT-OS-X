@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DocumentationAuditorAgent = exports.DOCUMENTATION_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.DOCUMENTATION_AUDITOR_CONFIG = {
     id: 'certification-documentation-auditor',
     name: 'DocumentationAuditor',
@@ -23,7 +31,11 @@ exports.DOCUMENTATION_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'Module or system to audit documentation' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -95,8 +107,9 @@ exports.DOCUMENTATION_AUDITOR_CONFIG = {
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let DocumentationAuditorAgent = class DocumentationAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.documentationAuditLog = [];
     }
     defineConfig() {
@@ -126,8 +139,22 @@ let DocumentationAuditorAgent = class DocumentationAuditorAgent extends base_age
         this.logger.log('DocumentationAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.DOC_REVIEW, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -173,10 +200,17 @@ let DocumentationAuditorAgent = class DocumentationAuditorAgent extends base_age
             issues.push(issue);
             this.documentationAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 20 : issue.severity === 'high' ? 12 : issue.severity === 'medium' ? 6 : 2;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 20
+                    : issue.severity === 'high'
+                        ? 12
+                        : issue.severity === 'medium'
+                            ? 6
+                            : 2;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'jsdoc')) {
             recommendations.push('Add JSDoc comments to all public methods, classes, and interfaces');
         }
@@ -208,8 +242,13 @@ let DocumentationAuditorAgent = class DocumentationAuditorAgent extends base_age
     }
     async checkApiDocs(endpoint) {
         const allEndpoints = [
-            '/api/agents', '/api/tasks', '/api/events', '/api/health',
-            '/api/certification', '/api/memory', '/api/orchestrator',
+            '/api/agents',
+            '/api/tasks',
+            '/api/events',
+            '/api/health',
+            '/api/certification',
+            '/api/memory',
+            '/api/orchestrator',
         ];
         const missingEndpoints = allEndpoints.filter(() => Math.random() > 0.7);
         const outdatedDocs = [];
@@ -229,8 +268,12 @@ let DocumentationAuditorAgent = class DocumentationAuditorAgent extends base_age
     }
     async checkDiagrams(diagramType) {
         const requiredDiagrams = [
-            'system-architecture', 'agent-lifecycle', 'data-flow',
-            'deployment', 'sequence-critical-paths', 'module-dependencies',
+            'system-architecture',
+            'agent-lifecycle',
+            'data-flow',
+            'deployment',
+            'sequence-critical-paths',
+            'module-dependencies',
         ];
         const missingDiagrams = requiredDiagrams.filter(() => Math.random() > 0.5);
         const diagramScore = Math.round(((requiredDiagrams.length - missingDiagrams.length) / requiredDiagrams.length) * 100);
@@ -250,6 +293,9 @@ let DocumentationAuditorAgent = class DocumentationAuditorAgent extends base_age
 };
 exports.DocumentationAuditorAgent = DocumentationAuditorAgent;
 exports.DocumentationAuditorAgent = DocumentationAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], DocumentationAuditorAgent);
 //# sourceMappingURL=documentation-auditor-agent.service.js.map

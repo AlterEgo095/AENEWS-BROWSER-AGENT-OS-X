@@ -1,15 +1,36 @@
+/**
+ * AENEWS Agent OS X - Root AppModule
+ *
+ * Phase 3: Full Integration — all modules wired together
+ *
+ * Architecture:
+ *   IntegrationModule (cross-module bridge)
+ *     ├── SoftwareFactoryModule (mission execution engine)
+ *     ├── AgentsModule (80+ agents in 14 clusters)
+ *     ├── MissionOsModule (7 OS services: constitutional, human approval, etc.)
+ *     ├── GatewayModule (security, memory, documentation gateways)
+ *     ├── RealtimeModule (WebSocket gateway for live updates)
+ *     └── QueuesModule (Bull/Redis processors for missions, tasks, events)
+ *
+ * Plus: TypeORM (PostgreSQL), Bull (Redis), EventEmitter2, ConfigModule
+ */
+
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
-import { APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HealthModule } from './health/health.module';
 import { AgentsModule } from './agents/agents.module';
 import { SoftwareFactoryModule } from './software-factory/software-factory.module';
+import { MissionOsModule } from './mission-os/mission-os.module';
+import { GatewayModule } from './gateway/gateway.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { QueuesModule } from './queues/queues.module';
+import { IntegrationModule } from './integration/integration.module';
 
 import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
 
@@ -89,11 +110,18 @@ import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
     // ─── Health Module ───────────────────────────────────────
     HealthModule,
 
-    // ─── Agents Framework ────────────────────────────────────
+    // ─── Core Modules ────────────────────────────────────────
     AgentsModule,
-
-    // ─── Software Factory ─────────────────────────────────────
     SoftwareFactoryModule,
+    MissionOsModule,
+    GatewayModule,
+
+    // ─── Phase 3: Real-Time & Queues ─────────────────────────
+    RealtimeModule,
+    QueuesModule,
+
+    // ─── Phase 3: Cross-Module Integration ───────────────────
+    IntegrationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

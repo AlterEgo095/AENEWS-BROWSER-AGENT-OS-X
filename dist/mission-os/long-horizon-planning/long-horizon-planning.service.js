@@ -28,17 +28,32 @@ var PlanStatus;
     PlanStatus["REVISED"] = "revised";
 })(PlanStatus || (exports.PlanStatus = PlanStatus = {}));
 const CONJUNCTION_MARKERS = [
-    ' and ', ' then ', ' after ', ' followed by ', ' before ',
-    ' while ', ' alongside ', ' once ', ' upon ',
+    ' and ',
+    ' then ',
+    ' after ',
+    ' followed by ',
+    ' before ',
+    ' while ',
+    ' alongside ',
+    ' once ',
+    ' upon ',
 ];
 const TEMPORAL_MARKERS = [
-    'first', 'second', 'third', 'finally', 'lastly',
-    'initially', 'subsequently', 'next', 'afterwards',
-    'before', 'after', 'during', 'meanwhile',
+    'first',
+    'second',
+    'third',
+    'finally',
+    'lastly',
+    'initially',
+    'subsequently',
+    'next',
+    'afterwards',
+    'before',
+    'after',
+    'during',
+    'meanwhile',
 ];
-const RESOURCE_BOUNDARIES = [
-    'using', 'with', 'requiring', 'utilizing', 'via', 'through',
-];
+const RESOURCE_BOUNDARIES = ['using', 'with', 'requiring', 'utilizing', 'via', 'through'];
 const DEFAULT_MAX_DEPTH = 4;
 const DEFAULT_MONTE_CARLO_ITERATIONS = 1000;
 const HISTORICAL_BASE_SUCCESS_RATE = 0.85;
@@ -206,7 +221,9 @@ let LongHorizonPlanningService = LongHorizonPlanningService_1 = class LongHorizo
                     },
                 ],
                 totalEstimatedDurationMs: this.estimateObjectiveDuration(subObjectives),
-                resourceRequirements: this.estimateLevelResources([{ objectives: subObjectives }]),
+                resourceRequirements: this.estimateLevelResources([
+                    { objectives: subObjectives },
+                ]),
                 riskAssessment: {
                     overallRisk: 0.3,
                     risks: [],
@@ -847,8 +864,17 @@ let LongHorizonPlanningService = LongHorizonPlanningService_1 = class LongHorizo
             }
         }
         const actionVerbs = [
-            'create', 'build', 'deploy', 'implement', 'design', 'test',
-            'verify', 'validate', 'optimize', 'migrate', 'configure',
+            'create',
+            'build',
+            'deploy',
+            'implement',
+            'design',
+            'test',
+            'verify',
+            'validate',
+            'optimize',
+            'migrate',
+            'configure',
         ];
         for (const verb of actionVerbs) {
             if (description.toLowerCase().includes(verb)) {
@@ -1008,7 +1034,7 @@ let LongHorizonPlanningService = LongHorizonPlanningService_1 = class LongHorizo
         return Math.round(baseDuration * complexityMultiplier * criteriaMultiplier * Math.max(0.5, priorityMultiplier));
     }
     estimateSingleObjectiveCost(objective) {
-        const baseCost = 0.10;
+        const baseCost = 0.1;
         const complexityMultiplier = 1 + Math.min(objective.description.length / 300, 2);
         const criteriaMultiplier = 1 + objective.successCriteria.length * 0.05;
         return baseCost * complexityMultiplier * criteriaMultiplier;
@@ -1108,8 +1134,7 @@ let LongHorizonPlanningService = LongHorizonPlanningService_1 = class LongHorizo
                 for (let j = i + 1; j < entries.length; j++) {
                     const a = entries[i];
                     const b = entries[j];
-                    if (a.timeWindow.start < b.timeWindow.end &&
-                        b.timeWindow.start < a.timeWindow.end) {
+                    if (a.timeWindow.start < b.timeWindow.end && b.timeWindow.start < a.timeWindow.end) {
                         conflicts.push(`${type}: needed during overlapping windows ` +
                             `[${a.timeWindow.start}-${a.timeWindow.end}] and ` +
                             `[${b.timeWindow.start}-${b.timeWindow.end}]`);

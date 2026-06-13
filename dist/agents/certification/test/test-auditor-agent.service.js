@@ -5,10 +5,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TestAuditorAgent = exports.TEST_AUDITOR_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.TEST_AUDITOR_CONFIG = {
     id: 'certification-test-auditor',
     name: 'TestAuditor',
@@ -23,7 +31,11 @@ exports.TEST_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     target: { type: 'string', description: 'Module or system to audit tests' },
-                    depth: { type: 'string', enum: ['surface', 'deep', 'exhaustive'], description: 'Audit depth' },
+                    depth: {
+                        type: 'string',
+                        enum: ['surface', 'deep', 'exhaustive'],
+                        description: 'Audit depth',
+                    },
                 },
                 required: ['target'],
             },
@@ -43,7 +55,11 @@ exports.TEST_AUDITOR_CONFIG = {
                 type: 'object',
                 properties: {
                     module: { type: 'string', description: 'Module to check coverage' },
-                    coverageType: { type: 'string', enum: ['line', 'branch', 'function', 'statement'], description: 'Coverage type' },
+                    coverageType: {
+                        type: 'string',
+                        enum: ['line', 'branch', 'function', 'statement'],
+                        description: 'Coverage type',
+                    },
                 },
             },
             outputSchema: {
@@ -96,8 +112,9 @@ exports.TEST_AUDITOR_CONFIG = {
     retryPolicy: { maxRetries: 2, backoffMs: 1000, exponentialBackoff: true },
 };
 let TestAuditorAgent = class TestAuditorAgent extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(bridge) {
+        super();
+        this.bridge = bridge;
         this.testAuditLog = [];
     }
     defineConfig() {
@@ -127,8 +144,22 @@ let TestAuditorAgent = class TestAuditorAgent extends base_agent_service_1.BaseA
         this.logger.log('TestAuditor agent initialized with 4 tools');
     }
     async onExecute(input) {
-        const action = input.payload?.action || 'audit';
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const result = await this.bridge.executeCapability(interfaces_1.CertCapability.TEST_COVERAGE, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback: ${error.message}`);
+            }
+        }
+        const action = input.payload?.action || 'audit';
         try {
             let result;
             switch (action) {
@@ -174,10 +205,17 @@ let TestAuditorAgent = class TestAuditorAgent extends base_agent_service_1.BaseA
             issues.push(issue);
             this.testAuditLog.push(issue);
         }
-        const score = Math.max(0, 100 - issues.reduce((penalty, issue) => {
-            const weight = issue.severity === 'critical' ? 25 : issue.severity === 'high' ? 15 : issue.severity === 'medium' ? 8 : 3;
-            return penalty + weight;
-        }, 0));
+        const score = Math.max(0, 100 -
+            issues.reduce((penalty, issue) => {
+                const weight = issue.severity === 'critical'
+                    ? 25
+                    : issue.severity === 'high'
+                        ? 15
+                        : issue.severity === 'medium'
+                            ? 8
+                            : 3;
+                return penalty + weight;
+            }, 0));
         if (issues.some((i) => i.category === 'coverage')) {
             recommendations.push('Increase test coverage to at least 80% for all critical modules');
         }
@@ -209,8 +247,12 @@ let TestAuditorAgent = class TestAuditorAgent extends base_agent_service_1.BaseA
     async auditTestQuality(testSuite) {
         const antiPatterns = [];
         const patternTypes = [
-            'flaky_test', 'hardcoded_values', 'missing_assertions',
-            'test_interdependency', 'over_mocking', 'sleep_in_test',
+            'flaky_test',
+            'hardcoded_values',
+            'missing_assertions',
+            'test_interdependency',
+            'over_mocking',
+            'sleep_in_test',
         ];
         for (let i = 0; i < Math.floor(Math.random() * 4) + 1; i++) {
             antiPatterns.push({
@@ -255,6 +297,9 @@ let TestAuditorAgent = class TestAuditorAgent extends base_agent_service_1.BaseA
 };
 exports.TestAuditorAgent = TestAuditorAgent;
 exports.TestAuditorAgent = TestAuditorAgent = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(0, (0, common_1.Optional)()),
+    __param(0, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [bridge_1.AgentConnectorBridge])
 ], TestAuditorAgent);
 //# sourceMappingURL=test-auditor-agent.service.js.map

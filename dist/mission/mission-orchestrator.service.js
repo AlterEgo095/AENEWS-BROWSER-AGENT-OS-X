@@ -41,30 +41,123 @@ var MissionPhaseType;
     MissionPhaseType["DELIVER"] = "deliver";
 })(MissionPhaseType || (exports.MissionPhaseType = MissionPhaseType = {}));
 const BROWSER_KEYWORDS = [
-    'web', 'search', 'scrape', 'scraping', 'browse', 'navigate', 'url',
-    'website', 'page', 'crawling', 'crawl', 'download', 'screenshot',
-    'online', 'internet', 'http', 'api call', 'fetch data', 'extract data',
-    'monitor site', 'track price', 'research online', 'find information',
-    'collect data', 'survey', 'competitive analysis', 'market data',
+    'web',
+    'search',
+    'scrape',
+    'scraping',
+    'browse',
+    'navigate',
+    'url',
+    'website',
+    'page',
+    'crawling',
+    'crawl',
+    'download',
+    'screenshot',
+    'online',
+    'internet',
+    'http',
+    'api call',
+    'fetch data',
+    'extract data',
+    'monitor site',
+    'track price',
+    'research online',
+    'find information',
+    'collect data',
+    'survey',
+    'competitive analysis',
+    'market data',
 ];
 const DEVELOPMENT_KEYWORDS = [
-    'create', 'build', 'develop', 'code', 'app', 'application', 'software',
-    'website', 'api', 'backend', 'frontend', 'fullstack', 'database',
-    'deploy', 'saas', 'platform', 'service', 'microservice', 'function',
-    'component', 'module', 'library', 'framework', 'test', 'testing',
-    'debug', 'refactor', 'migrate', 'integrate', 'automate', 'script',
-    'program', 'algorithm', 'feature', 'ui', 'ux', 'rest', 'graphql',
-    'crud', 'auth', 'authentication', 'authorization', 'docker',
-    'kubernetes', 'ci/cd', 'pipeline', 'infrastructure', 'terraform',
-    'construct', 'implement', 'engineer', 'scaffold', 'generate code',
+    'create',
+    'build',
+    'develop',
+    'code',
+    'app',
+    'application',
+    'software',
+    'website',
+    'api',
+    'backend',
+    'frontend',
+    'fullstack',
+    'database',
+    'deploy',
+    'saas',
+    'platform',
+    'service',
+    'microservice',
+    'function',
+    'component',
+    'module',
+    'library',
+    'framework',
+    'test',
+    'testing',
+    'debug',
+    'refactor',
+    'migrate',
+    'integrate',
+    'automate',
+    'script',
+    'program',
+    'algorithm',
+    'feature',
+    'ui',
+    'ux',
+    'rest',
+    'graphql',
+    'crud',
+    'auth',
+    'authentication',
+    'authorization',
+    'docker',
+    'kubernetes',
+    'ci/cd',
+    'pipeline',
+    'infrastructure',
+    'terraform',
+    'construct',
+    'implement',
+    'engineer',
+    'scaffold',
+    'generate code',
 ];
 const BUSINESS_KEYWORDS = [
-    'analyze', 'report', 'marketing', 'seo', 'strategy', 'business',
-    'financial', 'market research', 'competitor', 'roi', 'kpi', 'metrics',
-    'analytics', 'dashboard', 'insight', 'forecast', 'budget', 'revenue',
-    'growth', 'conversion', 'engagement', 'audience', 'segmentation',
-    'brand', 'content strategy', 'campaign', 'optimization', 'audit',
-    'compliance', 'legal', 'proposal', 'business plan', 'model',
+    'analyze',
+    'report',
+    'marketing',
+    'seo',
+    'strategy',
+    'business',
+    'financial',
+    'market research',
+    'competitor',
+    'roi',
+    'kpi',
+    'metrics',
+    'analytics',
+    'dashboard',
+    'insight',
+    'forecast',
+    'budget',
+    'revenue',
+    'growth',
+    'conversion',
+    'engagement',
+    'audience',
+    'segmentation',
+    'brand',
+    'content strategy',
+    'campaign',
+    'optimization',
+    'audit',
+    'compliance',
+    'legal',
+    'proposal',
+    'business plan',
+    'model',
 ];
 const CERTIFICATION_DOMAINS = [
     'completeness',
@@ -77,10 +170,27 @@ const CERTIFICATION_DOMAINS = [
 ];
 const VALID_TRANSITIONS = {
     [MissionStatus.RECEIVED]: [MissionStatus.PLANNING, MissionStatus.CANCELLED],
-    [MissionStatus.PLANNING]: [MissionStatus.EXECUTING, MissionStatus.FAILED, MissionStatus.CANCELLED],
-    [MissionStatus.EXECUTING]: [MissionStatus.CERTIFYING, MissionStatus.FAILED, MissionStatus.CANCELLED, MissionStatus.PAUSED],
-    [MissionStatus.CERTIFYING]: [MissionStatus.DELIVERING, MissionStatus.FAILED, MissionStatus.CANCELLED],
-    [MissionStatus.DELIVERING]: [MissionStatus.COMPLETED, MissionStatus.FAILED, MissionStatus.CANCELLED],
+    [MissionStatus.PLANNING]: [
+        MissionStatus.EXECUTING,
+        MissionStatus.FAILED,
+        MissionStatus.CANCELLED,
+    ],
+    [MissionStatus.EXECUTING]: [
+        MissionStatus.CERTIFYING,
+        MissionStatus.FAILED,
+        MissionStatus.CANCELLED,
+        MissionStatus.PAUSED,
+    ],
+    [MissionStatus.CERTIFYING]: [
+        MissionStatus.DELIVERING,
+        MissionStatus.FAILED,
+        MissionStatus.CANCELLED,
+    ],
+    [MissionStatus.DELIVERING]: [
+        MissionStatus.COMPLETED,
+        MissionStatus.FAILED,
+        MissionStatus.CANCELLED,
+    ],
     [MissionStatus.COMPLETED]: [],
     [MissionStatus.FAILED]: [],
     [MissionStatus.CANCELLED]: [],
@@ -245,9 +355,7 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
                     dependsOn: [],
                 },
             ];
-            const businessDependsOn = needsBrowser
-                ? [lastPhaseId]
-                : [planPhaseId];
+            const businessDependsOn = needsBrowser ? [lastPhaseId] : [planPhaseId];
             phases.push({
                 id: businessPhaseId,
                 type: MissionPhaseType.BUSINESS,
@@ -304,9 +412,7 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
                     dependsOn: [],
                 },
             ];
-            const developDependsOn = needsBrowser
-                ? [lastPhaseId]
-                : [planPhaseId];
+            const developDependsOn = needsBrowser ? [lastPhaseId] : [planPhaseId];
             phases.push({
                 id: developPhaseId,
                 type: MissionPhaseType.DEVELOP,
@@ -387,7 +493,7 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
         const costPerTeam = {
             [TeamType.BROWSER]: 0.05,
             [TeamType.DEVELOPMENT]: 0.25,
-            [TeamType.BUSINESS]: 0.10,
+            [TeamType.BUSINESS]: 0.1,
             [TeamType.MEMORY]: 0.02,
             [TeamType.CERTIFICATION]: 0.08,
             [TeamType.DELIVERY]: 0.03,
@@ -445,7 +551,9 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
         for (let i = 0; i < phases.length; i++) {
             if (this.cancelledMissions.has(missionId)) {
                 this.transitionStatus(mission, MissionStatus.CANCELLED);
-                this.emitEvent(missionId, 'mission.cancelled', { reason: 'User cancelled during execution' });
+                this.emitEvent(missionId, 'mission.cancelled', {
+                    reason: 'User cancelled during execution',
+                });
                 return;
             }
             while (this.pausedMissions.has(missionId)) {
@@ -601,9 +709,7 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
         const allPhasesCompleted = mission.phases.every((p) => p.status === 'completed');
         const totalTasks = mission.phases.reduce((sum, p) => sum + p.tasks.length, 0);
         const completedTasks = mission.phases.reduce((sum, p) => sum + p.tasks.filter((t) => t.status === 'completed').length, 0);
-        const completenessScore = totalTasks > 0
-            ? Math.round((completedTasks / totalTasks) * 100)
-            : 0;
+        const completenessScore = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
         domains.push({
             name: 'completeness',
             score: completenessScore,
@@ -631,7 +737,7 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
         const withinEstimate = totalDuration <= estimatedDuration * 1.5;
         const performanceScore = withinEstimate
             ? Math.min(100, Math.round((estimatedDuration / Math.max(totalDuration, 1)) * 100))
-            : Math.max(0, Math.round(100 - ((totalDuration - estimatedDuration * 1.5) / 1000)));
+            : Math.max(0, Math.round(100 - (totalDuration - estimatedDuration * 1.5) / 1000));
         domains.push({
             name: 'performance',
             score: performanceScore,
@@ -640,17 +746,15 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
         });
         const failedPhases = mission.phases.filter((p) => p.status === 'failed').length;
         const totalPhases = mission.phases.length;
-        const reliabilityScore = totalPhases > 0
-            ? Math.round(((totalPhases - failedPhases) / totalPhases) * 100)
-            : 100;
+        const reliabilityScore = totalPhases > 0 ? Math.round(((totalPhases - failedPhases) / totalPhases) * 100) : 100;
         domains.push({
             name: 'reliability',
             score: reliabilityScore,
             passed: reliabilityScore >= 80,
             details: `${failedPhases}/${totalPhases} phases failed. ${this.repairAttempts.get(missionId) ?? 0} repairs attempted.`,
         });
-        const hasDocs = mission.results.has(MissionPhaseType.DEVELOP)
-            && mission.phases.some((p) => p.tasks.some((t) => t.capability === 'documentation' && t.status === 'completed'));
+        const hasDocs = mission.results.has(MissionPhaseType.DEVELOP) &&
+            mission.phases.some((p) => p.tasks.some((t) => t.capability === 'documentation' && t.status === 'completed'));
         const docScore = hasDocs ? 85 : 40;
         domains.push({
             name: 'documentation',
@@ -660,7 +764,8 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
                 ? 'Documentation task completed as part of development phase'
                 : 'No documentation task found or completed',
         });
-        const hasTests = mission.phases.some((p) => p.tasks.some((t) => (t.capability === 'test' || t.capability === 'certify_quality') && t.status === 'completed'));
+        const hasTests = mission.phases.some((p) => p.tasks.some((t) => (t.capability === 'test' || t.capability === 'certify_quality') &&
+            t.status === 'completed'));
         const testScore = hasTests ? 80 : 30;
         domains.push({
             name: 'test_coverage',
@@ -671,13 +776,13 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
                 : 'No testing tasks were executed',
         });
         const weights = {
-            completeness: 0.20,
-            quality: 0.20,
+            completeness: 0.2,
+            quality: 0.2,
             security: 0.15,
-            performance: 0.10,
+            performance: 0.1,
             reliability: 0.15,
-            documentation: 0.10,
-            test_coverage: 0.10,
+            documentation: 0.1,
+            test_coverage: 0.1,
         };
         const overallScore = Math.round(domains.reduce((sum, d) => sum + d.score * (weights[d.name] ?? 1 / domains.length), 0));
         const allPassed = domains.every((d) => d.passed);
@@ -750,8 +855,8 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
                     type: 'deployed_url',
                     name: `deployment-url-${missionId.substring(0, 8)}`,
                     description: 'Deployed application URL',
-                    location: devResult.output?.find?.((o) => o.capability === 'deploy')?.result?.url
-                        ?? `https://app-${missionId.substring(0, 8)}.aenews.app`,
+                    location: devResult.output?.find?.((o) => o.capability === 'deploy')?.result?.url ??
+                        `https://app-${missionId.substring(0, 8)}.aenews.app`,
                     createdAt: new Date(),
                 });
             }
@@ -887,7 +992,8 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
         const certifiedMissions = missions.filter((m) => m.certificationReport !== null);
         const totalCertifications = certifiedMissions.length;
         const averageCertificationScore = certifiedMissions.length > 0
-            ? Math.round(certifiedMissions.reduce((sum, m) => sum + m.certificationReport.overallScore, 0) / certifiedMissions.length)
+            ? Math.round(certifiedMissions.reduce((sum, m) => sum + m.certificationReport.overallScore, 0) /
+                certifiedMissions.length)
             : 0;
         return {
             totalMissions,
@@ -973,9 +1079,7 @@ let MissionOrchestratorService = MissionOrchestratorService_1 = class MissionOrc
                     task.result = {
                         contextRetrieved: true,
                         relevantMemories: [],
-                        projectContext: mission.metadata.projectId
-                            ? { id: mission.metadata.projectId }
-                            : null,
+                        projectContext: mission.metadata.projectId ? { id: mission.metadata.projectId } : null,
                     };
                     task.status = 'completed';
                 }

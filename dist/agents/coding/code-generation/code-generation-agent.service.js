@@ -5,11 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodeGenerationAgentService = exports.CODE_GENERATION_AGENT_CONFIG = void 0;
 const common_1 = require("@nestjs/common");
 const base_agent_service_1 = require("../../base/base-agent.service");
 const agent_interface_1 = require("../../interfaces/agent.interface");
+const bridge_1 = require("../../bridge");
+const interfaces_1 = require("../../../software-factory/interfaces");
 exports.CODE_GENERATION_AGENT_CONFIG = {
     id: 'coding-code-generation',
     name: 'CodeGeneration',
@@ -68,10 +76,17 @@ exports.CODE_GENERATION_AGENT_CONFIG = {
             inputSchema: {
                 type: 'object',
                 properties: {
-                    description: { type: 'string', description: 'Natural language description of desired code' },
+                    description: {
+                        type: 'string',
+                        description: 'Natural language description of desired code',
+                    },
                     language: { type: 'string', description: 'Target programming language' },
                     context: { type: 'string', description: 'Additional context or existing code' },
-                    constraints: { type: 'array', items: { type: 'string' }, description: 'Constraints to follow' },
+                    constraints: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Constraints to follow',
+                    },
                 },
                 required: ['description', 'language'],
             },
@@ -131,13 +146,7 @@ exports.CODE_GENERATION_AGENT_CONFIG = {
             },
         },
     ],
-    permissions: [
-        'execute:task',
-        'read:code',
-        'write:code',
-        'read:templates',
-        'write:generated',
-    ],
+    permissions: ['execute:task', 'read:code', 'write:code', 'read:templates', 'write:generated'],
     maxConcurrentTasks: 4,
     timeout: 60000,
     retryPolicy: {
@@ -147,8 +156,9 @@ exports.CODE_GENERATION_AGENT_CONFIG = {
     },
 };
 let CodeGenerationAgentService = class CodeGenerationAgentService extends base_agent_service_1.BaseAgentService {
-    constructor() {
-        super(...arguments);
+    constructor(eventBusService, memoryService, permissionEvaluator, bridge) {
+        super(eventBusService, memoryService, permissionEvaluator);
+        this.bridge = bridge;
         this.templates = new Map();
         this.generationHistory = [];
     }
@@ -187,6 +197,26 @@ let CodeGenerationAgentService = class CodeGenerationAgentService extends base_a
     }
     async onExecute(input) {
         const startTime = Date.now();
+        if (this.bridge) {
+            try {
+                const lang = (input.payload?.language || '').toLowerCase();
+                const framework = (input.payload?.framework || '').toLowerCase();
+                const frontendLangs = ['html', 'css', 'javascript', 'typescript', 'jsx', 'tsx'];
+                const frontendFrameworks = ['react', 'vue', 'angular', 'svelte', 'next', 'nuxt'];
+                const isFrontend = frontendLangs.includes(lang) || frontendFrameworks.some((f) => framework.includes(f));
+                const capability = isFrontend ? interfaces_1.DevCapability.FRONTEND : interfaces_1.DevCapability.BACKEND;
+                const result = await this.bridge.executeCapability(capability, {
+                    missionId: input.taskId,
+                    instruction: JSON.stringify(input.payload),
+                    workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+                    parameters: input.payload,
+                });
+                return this.createAgentOutput(input.taskId, result.success, result.output, result.error, startTime);
+            }
+            catch (error) {
+                this.logger.warn(`Bridge failed, fallback to local: ${error.message}`);
+            }
+        }
         const { action, ...params } = input.payload;
         if (!action) {
             return this.createAgentOutput(input.taskId, false, null, 'Missing required parameter: action', startTime);
@@ -522,7 +552,11 @@ export default router;`,
                 const name = trimmed.replace(/^#+\s*/, '');
                 currentSection = {
                     name: this.toPascalCase(name),
-                    type: name.toLowerCase().includes('service') ? 'service' : name.toLowerCase().includes('controller') ? 'controller' : 'module',
+                    type: name.toLowerCase().includes('service')
+                        ? 'service'
+                        : name.toLowerCase().includes('controller')
+                            ? 'controller'
+                            : 'module',
                     description: name,
                 };
             }
@@ -560,7 +594,8 @@ export default router;`,
     generateNestJSController(name, methods) {
         const routePath = this.toKebabCase(name);
         const serviceVar = this.toCamelCase(name);
-        const methodImplementations = methods.map((method) => {
+        const methodImplementations = methods
+            .map((method) => {
             const httpMethod = this.inferHttpMethod(method);
             const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) => method.toLowerCase().includes(m.toLowerCase()));
             if (hasParam) {
@@ -573,7 +608,8 @@ export default router;`,
   ${method}() {
     return this.${serviceVar}Service.${method}();
   }`;
-        }).join('\n\n');
+        })
+            .join('\n\n');
         return `import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { ${name}Service } from './${routePath}.service';
 
@@ -585,7 +621,8 @@ ${methodImplementations}
 }`;
     }
     generateNestJSService(name, methods) {
-        const methodImplementations = methods.map((method) => {
+        const methodImplementations = methods
+            .map((method) => {
             const hasParam = ['findOne', 'update', 'remove', 'delete', 'get'].some((m) => method.toLowerCase().includes(m.toLowerCase()));
             if (hasParam) {
                 return `  async ${method}(id: string): Promise<any> {
@@ -597,7 +634,8 @@ ${methodImplementations}
     // TODO: Implement ${method} logic
     return { message: '${method} executed' };
   }`;
-        }).join('\n\n');
+        })
+            .join('\n\n');
         return `import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -607,9 +645,11 @@ ${methodImplementations}
 }`;
     }
     generateGenericModule(name, language, methods) {
-        const methodImplementations = methods.map((method) => {
+        const methodImplementations = methods
+            .map((method) => {
             return `  function ${method}() {\n    // TODO: Implement ${method}\n    return null;\n  }`;
-        }).join('\n\n');
+        })
+            .join('\n\n');
         if (language === 'python') {
             return `"""${name} module generated from specification"""\n\nclass ${name}:\n${methods.map((m) => `    def ${m}(self):\n        """TODO: Implement ${m}"""\n        pass`).join('\n\n')}`;
         }
@@ -661,9 +701,7 @@ ${methodImplementations}`;
         const constraintComment = constraints?.length
             ? `\n// Constraints: ${constraints.join(', ')}`
             : '';
-        const contextComment = context
-            ? `\n// Context: ${context.substring(0, 200)}`
-            : '';
+        const contextComment = context ? `\n// Context: ${context.substring(0, 200)}` : '';
         if (language === 'typescript') {
             if (intent.type === 'class') {
                 const className = this.extractClassName(description) || 'GeneratedClass';
@@ -773,7 +811,8 @@ def generated_function():
                 replacement: '$1$2$1',
             });
         }
-        if (allGoals.includes('modernization') && (language === 'typescript' || language === 'javascript')) {
+        if (allGoals.includes('modernization') &&
+            (language === 'typescript' || language === 'javascript')) {
             patterns.push({
                 type: 'modernization',
                 description: 'Convert var declarations to const/let',
@@ -812,21 +851,73 @@ def generated_function():
     getOptimizationStrategies(target, level, language) {
         const strategies = [];
         if (target === 'performance') {
-            strategies.push({ type: 'loop-optimization', description: 'Optimize loop patterns for performance', target: 'performance' }, { type: 'caching', description: 'Add memoization/caching for expensive computations', target: 'performance' }, { type: 'async-optimization', description: 'Convert synchronous operations to async where beneficial', target: 'performance' });
+            strategies.push({
+                type: 'loop-optimization',
+                description: 'Optimize loop patterns for performance',
+                target: 'performance',
+            }, {
+                type: 'caching',
+                description: 'Add memoization/caching for expensive computations',
+                target: 'performance',
+            }, {
+                type: 'async-optimization',
+                description: 'Convert synchronous operations to async where beneficial',
+                target: 'performance',
+            });
             if (level === 'aggressive') {
-                strategies.push({ type: 'inline-functions', description: 'Inline small functions to reduce call overhead', target: 'performance' }, { type: 'early-return', description: 'Add early returns to avoid unnecessary computation', target: 'performance' });
+                strategies.push({
+                    type: 'inline-functions',
+                    description: 'Inline small functions to reduce call overhead',
+                    target: 'performance',
+                }, {
+                    type: 'early-return',
+                    description: 'Add early returns to avoid unnecessary computation',
+                    target: 'performance',
+                });
             }
         }
         if (target === 'memory') {
-            strategies.push({ type: 'object-pooling', description: 'Suggest object pooling for frequently created objects', target: 'memory' }, { type: 'stream-processing', description: 'Convert bulk data processing to streaming', target: 'memory' });
+            strategies.push({
+                type: 'object-pooling',
+                description: 'Suggest object pooling for frequently created objects',
+                target: 'memory',
+            }, {
+                type: 'stream-processing',
+                description: 'Convert bulk data processing to streaming',
+                target: 'memory',
+            });
         }
         if (target === 'readability') {
-            strategies.push({ type: 'extract-method', description: 'Extract complex logic into named methods', target: 'readability' }, { type: 'meaningful-names', description: 'Suggest more descriptive variable names', target: 'readability' }, { type: 'add-comments', description: 'Add inline comments for complex logic', target: 'readability' });
+            strategies.push({
+                type: 'extract-method',
+                description: 'Extract complex logic into named methods',
+                target: 'readability',
+            }, {
+                type: 'meaningful-names',
+                description: 'Suggest more descriptive variable names',
+                target: 'readability',
+            }, {
+                type: 'add-comments',
+                description: 'Add inline comments for complex logic',
+                target: 'readability',
+            });
         }
         if (target === 'bundle-size') {
-            strategies.push({ type: 'tree-shaking', description: 'Mark unused exports for tree-shaking', target: 'bundle-size' }, { type: 'lazy-loading', description: 'Suggest dynamic imports for lazy loading', target: 'bundle-size' });
+            strategies.push({
+                type: 'tree-shaking',
+                description: 'Mark unused exports for tree-shaking',
+                target: 'bundle-size',
+            }, {
+                type: 'lazy-loading',
+                description: 'Suggest dynamic imports for lazy loading',
+                target: 'bundle-size',
+            });
             if (level !== 'safe') {
-                strategies.push({ type: 'minification-safe', description: 'Ensure code is minification-safe', target: 'bundle-size' });
+                strategies.push({
+                    type: 'minification-safe',
+                    description: 'Ensure code is minification-safe',
+                    target: 'bundle-size',
+                });
             }
         }
         return strategies;
@@ -893,7 +984,10 @@ def generated_function():
     }
     estimateDuplicateReduction(originalCode, refactoredCode) {
         const countLineFrequencies = (code) => {
-            const lines = code.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+            const lines = code
+                .split('\n')
+                .map((l) => l.trim())
+                .filter((l) => l.length > 0);
             const freq = new Map();
             for (const line of lines) {
                 freq.set(line, (freq.get(line) || 0) + 1);
@@ -970,9 +1064,16 @@ def generated_function():
     }
     inferHttpMethod(methodName) {
         const lower = methodName.toLowerCase();
-        if (lower.includes('create') || lower.includes('add') || lower.includes('insert') || lower.includes('post'))
+        if (lower.includes('create') ||
+            lower.includes('add') ||
+            lower.includes('insert') ||
+            lower.includes('post'))
             return 'Post';
-        if (lower.includes('update') || lower.includes('edit') || lower.includes('modify') || lower.includes('put') || lower.includes('patch'))
+        if (lower.includes('update') ||
+            lower.includes('edit') ||
+            lower.includes('modify') ||
+            lower.includes('put') ||
+            lower.includes('patch'))
             return 'Put';
         if (lower.includes('delete') || lower.includes('remove'))
             return 'Delete';
@@ -1001,6 +1102,8 @@ def generated_function():
 };
 exports.CodeGenerationAgentService = CodeGenerationAgentService;
 exports.CodeGenerationAgentService = CodeGenerationAgentService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Inject)(bridge_1.AgentConnectorBridge)),
+    __metadata("design:paramtypes", [Object, Object, Object, bridge_1.AgentConnectorBridge])
 ], CodeGenerationAgentService);
 //# sourceMappingURL=code-generation-agent.service.js.map

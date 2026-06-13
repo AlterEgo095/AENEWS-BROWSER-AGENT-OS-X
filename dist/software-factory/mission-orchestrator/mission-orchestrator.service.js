@@ -120,7 +120,7 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
             budget: contract.budget.maxApiCostUsd,
             deadline: contract.deadline.deadline,
         });
-        this.executePipeline(missionId).catch(err => {
+        this.executePipeline(missionId).catch((err) => {
             this.logger.error(`Pipeline failed for ${missionId}: ${err.message}`);
         });
         return {
@@ -148,7 +148,10 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
             const plan = this.planner.createPlan(context?.instruction || '', context);
             this.memoryService.storePlan(missionId, plan);
             await this.transitionTo(missionId, interfaces_1.TransitionTrigger.START_RESEARCH, interfaces_1.MissionState.RESEARCH);
-            this.orchestrator.updateMission(missionId, { currentPhase: 'Capability Resolution', progress: 15 });
+            this.orchestrator.updateMission(missionId, {
+                currentPhase: 'Capability Resolution',
+                progress: 15,
+            });
             const resolution = this.capabilityResolver.resolve({
                 missionId,
                 instruction: context?.instruction || '',
@@ -158,16 +161,19 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
             this.memoryService.storeResearch(missionId, {
                 plan,
                 resolution,
-                requiredCapabilities: resolution.requiredCapabilities.map(c => c.capabilityId),
+                requiredCapabilities: resolution.requiredCapabilities.map((c) => c.capabilityId),
                 packsNeeded: resolution.packsNeeded,
                 confidence: resolution.confidence,
             });
             await this.transitionTo(missionId, interfaces_1.TransitionTrigger.START_BUILD, interfaces_1.MissionState.BUILDING);
-            this.orchestrator.updateMission(missionId, { currentPhase: 'Building Execution Graph', progress: 25 });
+            this.orchestrator.updateMission(missionId, {
+                currentPhase: 'Building Execution Graph',
+                progress: 25,
+            });
             const graphPlan = this.graphBuilder.buildGraph({
                 missionId,
                 instruction: context?.instruction || '',
-                requiredCapabilities: resolution.requiredCapabilities.map(c => c.capabilityId),
+                requiredCapabilities: resolution.requiredCapabilities.map((c) => c.capabilityId),
                 requiredPacks: resolution.packsNeeded,
                 estimatedComplexity: plan.complexity,
             });
@@ -180,10 +186,13 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
             const workspaceDir = path.join('/home/z/my-project/download/missions', missionId);
             this.workerFactory.setMissionWorkspace(missionId, workspaceDir);
             this.logger.log(`Mission workspace: ${workspaceDir}`);
-            this.orchestrator.updateMission(missionId, { currentPhase: 'Spawning Workers', progress: 35 });
+            this.orchestrator.updateMission(missionId, {
+                currentPhase: 'Spawning Workers',
+                progress: 35,
+            });
             for (const phase of graphPlan.phases) {
                 for (const nodeId of phase.nodeIds) {
-                    const node = graphPlan.graph.nodes.find(n => n.id === nodeId);
+                    const node = graphPlan.graph.nodes.find((n) => n.id === nodeId);
                     if (!node || node.status === interfaces_1.GraphNodeStatus.COMPLETED)
                         continue;
                     const budgetCheck = this.resourceManager.checkBudget(execution.totalCost, contract?.budget.maxApiCostUsd || 100, this.estimateNodeCost(node.capabilities));
@@ -297,8 +306,9 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
         };
     }
     getActiveMissions() {
-        return this.orchestrator.getActiveMissions()
-            .map(m => this.getExecution(m.missionId))
+        return this.orchestrator
+            .getActiveMissions()
+            .map((m) => this.getExecution(m.missionId))
             .filter(Boolean);
     }
     async cancelMission(missionId) {
@@ -366,7 +376,12 @@ let MissionOrchestratorPipeline = MissionOrchestratorPipeline_1 = class MissionO
         const artifacts = [];
         for (const [, data] of Object.entries(results)) {
             if (data?.executionPlan) {
-                artifacts.push({ name: 'execution-plan.json', type: 'plan', path: '/artifacts/execution-plan.json', size: 2000 });
+                artifacts.push({
+                    name: 'execution-plan.json',
+                    type: 'plan',
+                    path: '/artifacts/execution-plan.json',
+                    size: 2000,
+                });
             }
             if (data?.artifacts) {
                 if (Array.isArray(data.artifacts)) {

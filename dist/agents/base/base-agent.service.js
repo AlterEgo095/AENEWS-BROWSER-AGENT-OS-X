@@ -339,10 +339,10 @@ let BaseAgentService = class BaseAgentService {
     }
     async checkPermission(action, resource) {
         const permissionString = `${action}:${resource}`;
-        const hasPermission = this.config.permissions.includes(permissionString) ||
-            this.config.permissions.includes('*');
+        const hasPermission = this.config.permissions.includes(permissionString) || this.config.permissions.includes('*');
         if (!hasPermission) {
-            if (this.permissionEvaluator && typeof this.permissionEvaluator.hasPermission === 'function') {
+            if (this.permissionEvaluator &&
+                typeof this.permissionEvaluator.hasPermission === 'function') {
                 const evaluated = await this.permissionEvaluator.hasPermission(this.config.id, action, resource);
                 if (evaluated)
                     return true;
@@ -352,8 +352,8 @@ let BaseAgentService = class BaseAgentService {
         return true;
     }
     hasPermissionForResource(resource, action) {
-        return this.config.permissions.includes(`${action}:${resource}`) ||
-            this.config.permissions.includes('*');
+        return (this.config.permissions.includes(`${action}:${resource}`) ||
+            this.config.permissions.includes('*'));
     }
     async executeWithTimeout(input) {
         const timeoutMs = input.context?.timeout || this.config.timeout;
@@ -534,7 +534,9 @@ let BaseAgentService = class BaseAgentService {
     }
     async storeInWorkingMemory(key, value, ttlMs) {
         if (this.memoryService) {
-            await this.memoryService.store(this.config.id, key, value, agent_memory_interface_1.MemoryTier.WORKING, { ttlMs });
+            await this.memoryService.store(this.config.id, key, value, agent_memory_interface_1.MemoryTier.WORKING, {
+                ttlMs,
+            });
         }
     }
     async retrieveFromWorkingMemory(key) {
@@ -718,9 +720,9 @@ let BaseAgentService = class BaseAgentService {
         return this.currentTasks.size;
     }
     canAcceptTask() {
-        return (this.status === agent_interface_1.AgentStatus.RUNNING ||
-            this.status === agent_interface_1.AgentStatus.IDLE) && this.currentTasks.size < this.config.maxConcurrentTasks &&
-            this.circuitBreaker.state !== 'open';
+        return ((this.status === agent_interface_1.AgentStatus.RUNNING || this.status === agent_interface_1.AgentStatus.IDLE) &&
+            this.currentTasks.size < this.config.maxConcurrentTasks &&
+            this.circuitBreaker.state !== 'open');
     }
     async enterMaintenance() {
         await this.transitionTo(agent_interface_1.AgentStatus.MAINTENANCE);

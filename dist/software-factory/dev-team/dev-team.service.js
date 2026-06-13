@@ -19,7 +19,9 @@ let DevTeamService = DevTeamService_1 = class DevTeamService {
         this.registry = registry;
         this.logger = new common_1.Logger(DevTeamService_1.name);
     }
-    getTeamAgents() { return this.registry.getByLevel(interfaces_1.AgentLevel.DEVELOPMENT); }
+    getTeamAgents() {
+        return this.registry.getByLevel(interfaces_1.AgentLevel.DEVELOPMENT);
+    }
     selectAgents(taskDescription) {
         const desc = taskDescription.toLowerCase();
         const agents = [];
@@ -59,11 +61,16 @@ let DevTeamService = DevTeamService_1 = class DevTeamService {
             agentId: interfaces_1.DevAgent.ARCHITECT,
             missionId,
             success: true,
-            output: { task, agentsUsed: selectedAgents, result: 'Development task completed', data: input },
+            output: {
+                task,
+                agentsUsed: selectedAgents,
+                result: 'Development task completed',
+                data: input,
+            },
             artifacts: [],
             cost: selectedAgents.length * 0.3,
             durationMs: selectedAgents.length * 2000,
-            logs: selectedAgents.map(a => `Agent ${a} executed`),
+            logs: selectedAgents.map((a) => `Agent ${a} executed`),
             errors: [],
         };
     }
@@ -71,8 +78,11 @@ let DevTeamService = DevTeamService_1 = class DevTeamService {
         return {
             level: interfaces_1.AgentLevel.DEVELOPMENT,
             totalAgents: 12,
-            availableAgents: this.getTeamAgents().map(a => ({
-                id: a.id, name: a.name, skills: a.skills, costPerTask: a.estimatedCostPerTask,
+            availableAgents: this.getTeamAgents().map((a) => ({
+                id: a.id,
+                name: a.name,
+                skills: a.skills,
+                costPerTask: a.estimatedCostPerTask,
             })),
         };
     }

@@ -160,7 +160,7 @@ Create complete HTML/CSS/JS that works when opened in a browser.`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -189,7 +189,7 @@ Create a Node.js/Express server with all necessary endpoints.`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -218,7 +218,7 @@ Create schema.sql, seed.sql, and a db.js utility module.`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -240,7 +240,7 @@ Create a complete REST API with all endpoints.`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -259,7 +259,7 @@ Include: .github/workflows/ci.yml, .env.example, Makefile`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -281,7 +281,7 @@ Include: .github/workflows/ci.yml, .env.example, Makefile`;
         return {
             success: true,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: 0,
             durationMs: 0,
         };
@@ -308,7 +308,7 @@ Include: deployment.yml, service.yml, ingress.yml, configmap.yml`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -318,7 +318,9 @@ Include: deployment.yml, service.yml, ingress.yml, configmap.yml`;
         let allPassed = true;
         const testDir = path.join(input.workspaceDir, 'tests');
         if (fs.existsSync(testDir)) {
-            const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+            const testFiles = fs
+                .readdirSync(testDir)
+                .filter((f) => f.endsWith('.js') || f.endsWith('.mjs'));
             for (const testFile of testFiles.slice(0, 5)) {
                 try {
                     const output = (0, child_process_1.execSync)(`node "${path.join(testDir, testFile)}" 2>&1`, {
@@ -328,7 +330,11 @@ Include: deployment.yml, service.yml, ingress.yml, configmap.yml`;
                     results.push({ file: testFile, passed: true, output: output.slice(0, 500) });
                 }
                 catch (err) {
-                    results.push({ file: testFile, passed: false, output: (err.stdout || err.message || '').toString().slice(0, 500) });
+                    results.push({
+                        file: testFile,
+                        passed: false,
+                        output: (err.stdout || err.message || '').toString().slice(0, 500),
+                    });
                     allPassed = false;
                 }
             }
@@ -339,16 +345,20 @@ Include: deployment.yml, service.yml, ingress.yml, configmap.yml`;
             if (srcFiles.length > 0) {
                 const llmResult = await this.llm.call({
                     systemPrompt: 'You are a QA engineer. Analyze code for bugs and quality issues.',
-                    userPrompt: `Analyze this code for quality:\n${srcFiles.slice(0, 5).map(f => `--- ${f.name} ---\n${f.content?.slice(0, 500) || ''}`).join('\n\n')}\n\nReply in JSON: {"passed": true/false, "analysis": "brief analysis", "bugs": []}`,
+                    userPrompt: `Analyze this code for quality:\n${srcFiles
+                        .slice(0, 5)
+                        .map((f) => `--- ${f.name} ---\n${f.content?.slice(0, 500) || ''}`)
+                        .join('\n\n')}\n\nReply in JSON: {"passed": true/false, "analysis": "brief analysis", "bugs": []}`,
                     maxTokens: 2048,
                 });
                 llmAnalysis = llmResult.content;
             }
         }
-        catch { }
+        catch {
+        }
         const reportPath = path.join(input.workspaceDir, 'docs', 'QA-REPORT.md');
         fs.mkdirSync(path.dirname(reportPath), { recursive: true });
-        const report = `# QA Report\n\n## Test Results\n${results.map(r => `- ${r.file}: ${r.passed ? 'PASS' : 'FAIL'}`).join('\n')}\n\n## LLM Analysis\n${llmAnalysis || 'N/A'}\n`;
+        const report = `# QA Report\n\n## Test Results\n${results.map((r) => `- ${r.file}: ${r.passed ? 'PASS' : 'FAIL'}`).join('\n')}\n\n## LLM Analysis\n${llmAnalysis || 'N/A'}\n`;
         fs.writeFileSync(reportPath, report, 'utf-8');
         return {
             success: allPassed,
@@ -383,7 +393,7 @@ Create test files in the tests/ directory that verify the core functionality.`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -430,7 +440,7 @@ Create:
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -450,7 +460,7 @@ Generate all necessary files.`;
         return {
             success: artifacts.length > 0,
             artifacts,
-            output: { filesGenerated: artifacts.map(a => a.name) },
+            output: { filesGenerated: artifacts.map((a) => a.name) },
             costUsd: llmResult.costUsd,
             durationMs: 0,
         };
@@ -472,7 +482,11 @@ Generate all necessary files.`;
                 type = 'test';
             else if (filePath.endsWith('.md') || filePath.endsWith('.txt'))
                 type = 'document';
-            else if (filePath.endsWith('.json') || filePath.endsWith('.yml') || filePath.endsWith('.yaml') || filePath.endsWith('Dockerfile') || filePath.includes('.config'))
+            else if (filePath.endsWith('.json') ||
+                filePath.endsWith('.yml') ||
+                filePath.endsWith('.yaml') ||
+                filePath.endsWith('Dockerfile') ||
+                filePath.includes('.config'))
                 type = 'config';
             artifacts.push(this.makeArtifact(path.basename(filePath), type, fullPath, content));
             this.logger.log(`  Created: ${filePath} (${Buffer.byteLength(content)} bytes)`);
@@ -514,12 +528,13 @@ Generate all necessary files.`;
                 if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
                     walkDir(fullPath);
                 }
-                else if (entry.isFile() && extensions.some(ext => entry.name.endsWith(ext))) {
+                else if (entry.isFile() && extensions.some((ext) => entry.name.endsWith(ext))) {
                     try {
                         const content = fs.readFileSync(fullPath, 'utf-8').slice(0, 1000);
                         files.push({ name: path.relative(workspaceDir, fullPath), content });
                     }
-                    catch { }
+                    catch {
+                    }
                 }
             }
         };
@@ -528,7 +543,11 @@ Generate all necessary files.`;
     }
     generateDockerfile(instruction) {
         const lower = instruction.toLowerCase();
-        const isNode = lower.includes('node') || lower.includes('app') || lower.includes('api') || lower.includes('web') || lower.includes('server');
+        const isNode = lower.includes('node') ||
+            lower.includes('app') ||
+            lower.includes('api') ||
+            lower.includes('web') ||
+            lower.includes('server');
         const isPython = lower.includes('python') || lower.includes('flask') || lower.includes('django');
         if (isPython) {
             return `FROM python:3.11-slim
