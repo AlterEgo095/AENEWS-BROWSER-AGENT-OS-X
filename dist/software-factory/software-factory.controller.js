@@ -58,12 +58,15 @@ const kernel_services_1 = require("./kernel/kernel-services");
 const kernel_services_2 = require("./kernel/kernel-services");
 const mission_archive_service_1 = require("./archive/mission-archive.service");
 const mission_runtime_engine_1 = require("./runtime/mission-runtime.engine");
+const mission_metrics_service_1 = require("./runtime/mission-metrics.service");
+const reference_missions_1 = require("./runtime/reference-missions");
 const interfaces_1 = require("./interfaces");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 let SoftwareFactoryController = class SoftwareFactoryController {
-    constructor(runtime, pipeline, contractService, stateMachine, capabilityRegistry, capabilityResolver, workerFactory, deliveryManager, archiveService, monitoring) {
+    constructor(runtime, metrics, pipeline, contractService, stateMachine, capabilityRegistry, capabilityResolver, workerFactory, deliveryManager, archiveService, monitoring) {
         this.runtime = runtime;
+        this.metrics = metrics;
         this.pipeline = pipeline;
         this.contractService = contractService;
         this.stateMachine = stateMachine;
@@ -254,6 +257,66 @@ let SoftwareFactoryController = class SoftwareFactoryController {
             },
         };
     }
+    getMSR() {
+        const aggregate = this.metrics.getAggregate();
+        return {
+            success: true,
+            data: {
+                msr: aggregate.msr,
+                msrPercent: `${(aggregate.msr * 100).toFixed(1)}%`,
+                totalMissions: aggregate.totalMissions,
+                successes: aggregate.successes,
+                certified: aggregate.certified,
+                certificationRate: aggregate.certificationRate,
+                currentTarget: this.metrics.getCurrentMsrTarget(),
+                msrTargets: mission_metrics_service_1.MSR_TARGETS,
+                msrGap: aggregate.msrGap,
+                trend: aggregate.recentTrend,
+            },
+        };
+    }
+    getMetrics(category) {
+        if (category) {
+            const catMetrics = this.metrics.getByCategory(category);
+            return { success: true, data: { category, missions: catMetrics } };
+        }
+        return { success: true, data: this.metrics.getAggregate() };
+    }
+    getRecentMetrics(count) {
+        const n = count ? parseInt(count) : 20;
+        return { success: true, data: this.metrics.getRecent(n) };
+    }
+    getFailures() {
+        return { success: true, data: this.metrics.getFailures() };
+    }
+    getSlowest(count) {
+        const n = count ? parseInt(count) : 10;
+        return { success: true, data: this.metrics.getSlowest(n) };
+    }
+    getLowestQuality(count) {
+        const n = count ? parseInt(count) : 10;
+        return { success: true, data: this.metrics.getLowestQuality(n) };
+    }
+    getReferenceMissions(pack, difficulty, category) {
+        let missions = reference_missions_1.ReferenceMissions.ALL;
+        if (pack)
+            missions = reference_missions_1.ReferenceMissions.getByPack(pack);
+        if (difficulty)
+            missions = reference_missions_1.ReferenceMissions.getByDifficulty(difficulty);
+        if (category)
+            missions = reference_missions_1.ReferenceMissions.getByCategory(category);
+        return {
+            success: true,
+            data: {
+                total: missions.length,
+                stats: reference_missions_1.ReferenceMissions.getStats(),
+                missions,
+            },
+        };
+    }
+    getReferenceMissionStats() {
+        return { success: true, data: reference_missions_1.ReferenceMissions.getStats() };
+    }
 };
 exports.SoftwareFactoryController = SoftwareFactoryController;
 __decorate([
@@ -414,9 +477,79 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], SoftwareFactoryController.prototype, "getFactoryStats", null);
+__decorate([
+    (0, common_1.Get)('metrics/msr'),
+    openapi.ApiResponse({ status: 200 }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getMSR", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get full aggregate metrics dashboard\nGET /api/factory/metrics" }),
+    (0, common_1.Get)('metrics'),
+    openapi.ApiResponse({ status: 200, type: Object }),
+    __param(0, (0, common_1.Query)('category')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getMetrics", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get recent mission metrics\nGET /api/factory/metrics/recent" }),
+    (0, common_1.Get)('metrics/recent'),
+    openapi.ApiResponse({ status: 200 }),
+    __param(0, (0, common_1.Query)('count')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getRecentMetrics", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get failed missions for analysis\nGET /api/factory/metrics/failures" }),
+    (0, common_1.Get)('metrics/failures'),
+    openapi.ApiResponse({ status: 200 }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getFailures", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get slowest missions\nGET /api/factory/metrics/slowest" }),
+    (0, common_1.Get)('metrics/slowest'),
+    openapi.ApiResponse({ status: 200 }),
+    __param(0, (0, common_1.Query)('count')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getSlowest", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get lowest quality missions\nGET /api/factory/metrics/lowest-quality" }),
+    (0, common_1.Get)('metrics/lowest-quality'),
+    openapi.ApiResponse({ status: 200 }),
+    __param(0, (0, common_1.Query)('count')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getLowestQuality", null);
+__decorate([
+    (0, common_1.Get)('reference-missions'),
+    openapi.ApiResponse({ status: 200 }),
+    __param(0, (0, common_1.Query)('pack')),
+    __param(1, (0, common_1.Query)('difficulty')),
+    __param(2, (0, common_1.Query)('category')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getReferenceMissions", null);
+__decorate([
+    openapi.ApiOperation({ description: "Get reference mission stats\nGET /api/factory/reference-missions/stats" }),
+    (0, common_1.Get)('reference-missions/stats'),
+    openapi.ApiResponse({ status: 200 }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SoftwareFactoryController.prototype, "getReferenceMissionStats", null);
 exports.SoftwareFactoryController = SoftwareFactoryController = __decorate([
     (0, common_1.Controller)('api/factory'),
     __metadata("design:paramtypes", [mission_runtime_engine_1.MissionRuntimeEngine,
+        mission_metrics_service_1.MissionMetricsService,
         mission_orchestrator_service_1.MissionOrchestratorPipeline,
         mission_contract_service_1.MissionContractService,
         mission_state_machine_service_1.MissionStateMachineService,

@@ -5,6 +5,7 @@ import { MissionMemoryService } from '../memory/mission-memory.service';
 import { MissionArchiveService } from '../archive/mission-archive.service';
 import { CapabilityRegistryService } from '../capability-registry/capability-registry.service';
 import { CapabilityResolverService } from '../capability-resolver/capability-resolver.service';
+import { MissionMetricsService } from './mission-metrics.service';
 export interface RuntimeMission {
     id: string;
     instruction: string;
@@ -41,12 +42,13 @@ export declare class MissionRuntimeEngine {
     private readonly archiveService;
     private readonly capabilityRegistry;
     private readonly capabilityResolver;
+    private readonly metricsService;
     private readonly logger;
     private readonly missions;
     private zaiInstance;
     private readonly baseWorkspace;
     private llmCallCount;
-    constructor(contractService: MissionContractService, stateMachine: MissionStateMachineService, memoryService: MissionMemoryService, archiveService: MissionArchiveService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService);
+    constructor(contractService: MissionContractService, stateMachine: MissionStateMachineService, memoryService: MissionMemoryService, archiveService: MissionArchiveService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, metricsService: MissionMetricsService);
     executeMission(request: {
         instruction: string;
         description?: string;

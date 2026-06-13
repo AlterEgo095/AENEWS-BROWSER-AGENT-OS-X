@@ -9,9 +9,11 @@ import { DeliveryManagerService } from './kernel/kernel-services';
 import { MonitoringManagerService } from './kernel/kernel-services';
 import { MissionArchiveService } from './archive/mission-archive.service';
 import { MissionRuntimeEngine } from './runtime/mission-runtime.engine';
+import { MissionMetricsService } from './runtime/mission-metrics.service';
 import { CapabilityPack } from './interfaces';
 export declare class SoftwareFactoryController {
     private readonly runtime;
+    private readonly metrics;
     private readonly pipeline;
     private readonly contractService;
     private readonly stateMachine;
@@ -21,7 +23,7 @@ export declare class SoftwareFactoryController {
     private readonly deliveryManager;
     private readonly archiveService;
     private readonly monitoring;
-    constructor(runtime: MissionRuntimeEngine, pipeline: MissionOrchestratorPipeline, contractService: MissionContractService, stateMachine: MissionStateMachineService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, workerFactory: WorkerFactoryService, deliveryManager: DeliveryManagerService, archiveService: MissionArchiveService, monitoring: MonitoringManagerService);
+    constructor(runtime: MissionRuntimeEngine, metrics: MissionMetricsService, pipeline: MissionOrchestratorPipeline, contractService: MissionContractService, stateMachine: MissionStateMachineService, capabilityRegistry: CapabilityRegistryService, capabilityResolver: CapabilityResolverService, workerFactory: WorkerFactoryService, deliveryManager: DeliveryManagerService, archiveService: MissionArchiveService, monitoring: MonitoringManagerService);
     runMission(body: {
         instruction: string;
         description?: string;
@@ -179,6 +181,69 @@ export declare class SoftwareFactoryController {
             };
             systemHealth: import("./kernel/kernel-services").SystemHealth;
             missionsByState: Record<string, number>;
+        };
+    };
+    getMSR(): {
+        success: boolean;
+        data: {
+            msr: number;
+            msrPercent: string;
+            totalMissions: number;
+            successes: number;
+            certified: number;
+            certificationRate: number;
+            currentTarget: import("./runtime/mission-metrics.service").MsrTarget;
+            msrTargets: import("./runtime/mission-metrics.service").MsrTarget[];
+            msrGap: number;
+            trend: import("./runtime/mission-metrics.service").TrendMetrics;
+        };
+    };
+    getMetrics(category?: string): {
+        success: boolean;
+        data: {
+            category: string;
+            missions: import("./runtime/mission-metrics.service").MissionMetric[];
+        };
+    } | {
+        success: boolean;
+        data: import("./runtime/mission-metrics.service").AggregateMetrics;
+    };
+    getRecentMetrics(count?: string): {
+        success: boolean;
+        data: import("./runtime/mission-metrics.service").MissionMetric[];
+    };
+    getFailures(): {
+        success: boolean;
+        data: import("./runtime/mission-metrics.service").MissionMetric[];
+    };
+    getSlowest(count?: string): {
+        success: boolean;
+        data: import("./runtime/mission-metrics.service").MissionMetric[];
+    };
+    getLowestQuality(count?: string): {
+        success: boolean;
+        data: import("./runtime/mission-metrics.service").MissionMetric[];
+    };
+    getReferenceMissions(pack?: string, difficulty?: string, category?: string): {
+        success: boolean;
+        data: {
+            total: number;
+            stats: {
+                total: number;
+                byPack: Record<string, number>;
+                byDifficulty: Record<string, number>;
+                byCategory: Record<string, number>;
+            };
+            missions: import("./runtime/reference-missions").ReferenceMission[];
+        };
+    };
+    getReferenceMissionStats(): {
+        success: boolean;
+        data: {
+            total: number;
+            byPack: Record<string, number>;
+            byDifficulty: Record<string, number>;
+            byCategory: Record<string, number>;
         };
     };
 }

@@ -47,6 +47,9 @@ import { MissionOrchestratorPipeline } from './mission-orchestrator/mission-orch
 // Mission Runtime Engine — THE execution motor
 import { MissionRuntimeEngine } from './runtime/mission-runtime.engine';
 
+// Mission Metrics Tracker — KPI #1 = MSR
+import { MissionMetricsService } from './runtime/mission-metrics.service';
+
 // API Controller
 import { SoftwareFactoryController } from './software-factory.controller';
 
@@ -85,6 +88,9 @@ import { SoftwareFactoryController } from './software-factory.controller';
 
     // ─── Mission Runtime Engine — THE motor ───────────────────
     MissionRuntimeEngine,
+
+    // ─── Mission Metrics Tracker — KPI #1 = MSR ───────────────
+    MissionMetricsService,
   ],
   exports: [
     CapabilityRegistryService,
@@ -93,6 +99,7 @@ import { SoftwareFactoryController } from './software-factory.controller';
     WorkerFactoryService,
     MissionOrchestratorPipeline,
     MissionRuntimeEngine,
+    MissionMetricsService,
     MissionContractService,
     MissionStateMachineService,
     MissionMemoryService,

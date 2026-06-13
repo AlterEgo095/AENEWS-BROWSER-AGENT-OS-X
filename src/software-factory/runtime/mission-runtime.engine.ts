@@ -36,6 +36,7 @@ import { MissionMemoryService } from '../memory/mission-memory.service';
 import { MissionArchiveService } from '../archive/mission-archive.service';
 import { CapabilityRegistryService } from '../capability-registry/capability-registry.service';
 import { CapabilityResolverService } from '../capability-resolver/capability-resolver.service';
+import { MissionMetricsService, MissionCategory } from './mission-metrics.service';
 
 // ─── Runtime Types ───────────────────────────────────────────
 
@@ -86,6 +87,7 @@ export class MissionRuntimeEngine {
     private readonly archiveService: MissionArchiveService,
     private readonly capabilityRegistry: CapabilityRegistryService,
     private readonly capabilityResolver: CapabilityResolverService,
+    private readonly metricsService: MissionMetricsService,
   ) {
     // Ensure workspace exists
     fs.mkdirSync(this.baseWorkspace, { recursive: true });
@@ -252,12 +254,51 @@ export class MissionRuntimeEngine {
       const totalDuration = Date.now() - startTime;
       this.logger.log(`═══ MISSION COMPLETE: ${missionId} ═══ ${mission.artifacts.length} artifacts, $${totalCost.toFixed(2)}, ${totalDuration}ms`);
 
-      return this.buildResult(mission, startTime, totalCost, certResult.certified);
+      const result = this.buildResult(mission, startTime, totalCost, certResult.certified);
+
+      // ─── Step 12: Record metrics ──────────────────────────
+      this.metricsService.record({
+        missionId,
+        instruction: request.instruction,
+        category: MissionMetricsService.classifyMission(request.instruction),
+        success: result.success,
+        certified: result.certified,
+        qualityScore: result.qualityScore,
+        artifactCount: mission.artifacts.length,
+        totalSizeBytes: mission.artifacts.reduce((s, a) => s + a.size, 0),
+        durationMs: result.totalDurationMs,
+        costUsd: result.totalCostUsd,
+        retries: 0,
+        errors: mission.errors,
+        phases: [],
+      });
+
+      return result;
     } catch (error) {
       this.logger.error(`Mission ${missionId} FAILED: ${(error as Error).message}`);
       mission.errors.push((error as Error).message);
       this.updateState(missionId, MissionState.AUDITING, `Failed: ${(error as Error).message}`);
-      return this.buildResult(mission, startTime, totalCost, false);
+
+      const result = this.buildResult(mission, startTime, totalCost, false);
+
+      // Record failed mission metrics too
+      this.metricsService.record({
+        missionId,
+        instruction: request.instruction,
+        category: MissionMetricsService.classifyMission(request.instruction),
+        success: false,
+        certified: false,
+        qualityScore: result.qualityScore,
+        artifactCount: mission.artifacts.length,
+        totalSizeBytes: mission.artifacts.reduce((s, a) => s + a.size, 0),
+        durationMs: result.totalDurationMs,
+        costUsd: result.totalCostUsd,
+        retries: 0,
+        errors: mission.errors,
+        phases: [],
+      });
+
+      return result;
     }
   }
 

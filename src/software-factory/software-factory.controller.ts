@@ -27,6 +27,8 @@ import { DeliveryManagerService } from './kernel/kernel-services';
 import { MonitoringManagerService } from './kernel/kernel-services';
 import { MissionArchiveService } from './archive/mission-archive.service';
 import { MissionRuntimeEngine, RuntimeResult } from './runtime/mission-runtime.engine';
+import { MissionMetricsService, MissionCategory, MSR_TARGETS } from './runtime/mission-metrics.service';
+import { ReferenceMissions } from './runtime/reference-missions';
 import { CapabilityPack, MissionQuality } from './interfaces';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,6 +37,7 @@ import * as path from 'path';
 export class SoftwareFactoryController {
   constructor(
     private readonly runtime: MissionRuntimeEngine,
+    private readonly metrics: MissionMetricsService,
     private readonly pipeline: MissionOrchestratorPipeline,
     private readonly contractService: MissionContractService,
     private readonly stateMachine: MissionStateMachineService,
@@ -330,5 +333,123 @@ export class SoftwareFactoryController {
         missionsByState,
       },
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  METRICS & MSR — KPI #1 = Mission Success Rate
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Get Mission Success Rate (MSR) — THE KPI
+   * GET /api/factory/metrics/msr
+   */
+  @Get('metrics/msr')
+  getMSR() {
+    const aggregate = this.metrics.getAggregate();
+    return {
+      success: true,
+      data: {
+        msr: aggregate.msr,
+        msrPercent: `${(aggregate.msr * 100).toFixed(1)}%`,
+        totalMissions: aggregate.totalMissions,
+        successes: aggregate.successes,
+        certified: aggregate.certified,
+        certificationRate: aggregate.certificationRate,
+        currentTarget: this.metrics.getCurrentMsrTarget(),
+        msrTargets: MSR_TARGETS,
+        msrGap: aggregate.msrGap,
+        trend: aggregate.recentTrend,
+      },
+    };
+  }
+
+  /**
+   * Get full aggregate metrics dashboard
+   * GET /api/factory/metrics
+   */
+  @Get('metrics')
+  getMetrics(@Query('category') category?: string) {
+    if (category) {
+      const catMetrics = this.metrics.getByCategory(category as MissionCategory);
+      return { success: true, data: { category, missions: catMetrics } };
+    }
+    return { success: true, data: this.metrics.getAggregate() };
+  }
+
+  /**
+   * Get recent mission metrics
+   * GET /api/factory/metrics/recent
+   */
+  @Get('metrics/recent')
+  getRecentMetrics(@Query('count') count?: string) {
+    const n = count ? parseInt(count) : 20;
+    return { success: true, data: this.metrics.getRecent(n) };
+  }
+
+  /**
+   * Get failed missions for analysis
+   * GET /api/factory/metrics/failures
+   */
+  @Get('metrics/failures')
+  getFailures() {
+    return { success: true, data: this.metrics.getFailures() };
+  }
+
+  /**
+   * Get slowest missions
+   * GET /api/factory/metrics/slowest
+   */
+  @Get('metrics/slowest')
+  getSlowest(@Query('count') count?: string) {
+    const n = count ? parseInt(count) : 10;
+    return { success: true, data: this.metrics.getSlowest(n) };
+  }
+
+  /**
+   * Get lowest quality missions
+   * GET /api/factory/metrics/lowest-quality
+   */
+  @Get('metrics/lowest-quality')
+  getLowestQuality(@Query('count') count?: string) {
+    const n = count ? parseInt(count) : 10;
+    return { success: true, data: this.metrics.getLowestQuality(n) };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  REFERENCE MISSIONS — The 100 validation missions
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Get all reference missions
+   * GET /api/factory/reference-missions
+   */
+  @Get('reference-missions')
+  getReferenceMissions(
+    @Query('pack') pack?: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('category') category?: string,
+  ) {
+    let missions = ReferenceMissions.ALL;
+    if (pack) missions = ReferenceMissions.getByPack(pack as any);
+    if (difficulty) missions = ReferenceMissions.getByDifficulty(difficulty as any);
+    if (category) missions = ReferenceMissions.getByCategory(category as MissionCategory);
+
+    return {
+      success: true,
+      data: {
+        total: missions.length,
+        stats: ReferenceMissions.getStats(),
+        missions,
+      },
+    };
+  }
+
+  /**
+   * Get reference mission stats
+   * GET /api/factory/reference-missions/stats
+   */
+  @Get('reference-missions/stats')
+  getReferenceMissionStats() {
+    return { success: true, data: ReferenceMissions.getStats() };
   }
 }

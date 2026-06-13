@@ -55,14 +55,16 @@ const mission_memory_service_1 = require("../memory/mission-memory.service");
 const mission_archive_service_1 = require("../archive/mission-archive.service");
 const capability_registry_service_1 = require("../capability-registry/capability-registry.service");
 const capability_resolver_service_1 = require("../capability-resolver/capability-resolver.service");
+const mission_metrics_service_1 = require("./mission-metrics.service");
 let MissionRuntimeEngine = MissionRuntimeEngine_1 = class MissionRuntimeEngine {
-    constructor(contractService, stateMachine, memoryService, archiveService, capabilityRegistry, capabilityResolver) {
+    constructor(contractService, stateMachine, memoryService, archiveService, capabilityRegistry, capabilityResolver, metricsService) {
         this.contractService = contractService;
         this.stateMachine = stateMachine;
         this.memoryService = memoryService;
         this.archiveService = archiveService;
         this.capabilityRegistry = capabilityRegistry;
         this.capabilityResolver = capabilityResolver;
+        this.metricsService = metricsService;
         this.logger = new common_1.Logger(MissionRuntimeEngine_1.name);
         this.missions = new Map();
         this.zaiInstance = null;
@@ -182,13 +184,45 @@ let MissionRuntimeEngine = MissionRuntimeEngine_1 = class MissionRuntimeEngine {
             });
             const totalDuration = Date.now() - startTime;
             this.logger.log(`═══ MISSION COMPLETE: ${missionId} ═══ ${mission.artifacts.length} artifacts, $${totalCost.toFixed(2)}, ${totalDuration}ms`);
-            return this.buildResult(mission, startTime, totalCost, certResult.certified);
+            const result = this.buildResult(mission, startTime, totalCost, certResult.certified);
+            this.metricsService.record({
+                missionId,
+                instruction: request.instruction,
+                category: mission_metrics_service_1.MissionMetricsService.classifyMission(request.instruction),
+                success: result.success,
+                certified: result.certified,
+                qualityScore: result.qualityScore,
+                artifactCount: mission.artifacts.length,
+                totalSizeBytes: mission.artifacts.reduce((s, a) => s + a.size, 0),
+                durationMs: result.totalDurationMs,
+                costUsd: result.totalCostUsd,
+                retries: 0,
+                errors: mission.errors,
+                phases: [],
+            });
+            return result;
         }
         catch (error) {
             this.logger.error(`Mission ${missionId} FAILED: ${error.message}`);
             mission.errors.push(error.message);
             this.updateState(missionId, interfaces_1.MissionState.AUDITING, `Failed: ${error.message}`);
-            return this.buildResult(mission, startTime, totalCost, false);
+            const result = this.buildResult(mission, startTime, totalCost, false);
+            this.metricsService.record({
+                missionId,
+                instruction: request.instruction,
+                category: mission_metrics_service_1.MissionMetricsService.classifyMission(request.instruction),
+                success: false,
+                certified: false,
+                qualityScore: result.qualityScore,
+                artifactCount: mission.artifacts.length,
+                totalSizeBytes: mission.artifacts.reduce((s, a) => s + a.size, 0),
+                durationMs: result.totalDurationMs,
+                costUsd: result.totalCostUsd,
+                retries: 0,
+                errors: mission.errors,
+                phases: [],
+            });
+            return result;
         }
     }
     async analyzeMission(instruction) {
@@ -1008,6 +1042,7 @@ exports.MissionRuntimeEngine = MissionRuntimeEngine = MissionRuntimeEngine_1 = _
         mission_memory_service_1.MissionMemoryService,
         mission_archive_service_1.MissionArchiveService,
         capability_registry_service_1.CapabilityRegistryService,
-        capability_resolver_service_1.CapabilityResolverService])
+        capability_resolver_service_1.CapabilityResolverService,
+        mission_metrics_service_1.MissionMetricsService])
 ], MissionRuntimeEngine);
 //# sourceMappingURL=mission-runtime.engine.js.map
