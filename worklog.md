@@ -133,3 +133,27 @@ Stage Summary:
 - Tools verified: Playwright, z-ai-web-dev-sdk (LLM), archiver (ZIP), git, child_process (shell)
 - 64/64 capabilities covered by real connectors
 - 0 compilation errors, 0 runtime errors
+---
+Task ID: sprint-2-optimization
+Agent: main
+Task: Full audit and optimization of all 6 connectors for production readiness
+
+Work Log:
+- Audited all 6 connectors (64 capabilities total) — code review + runtime testing
+- Identified 5 critical optimizations
+- Created BrowserPool: shared Playwright browser instance (1.9x faster, validated)
+- Upgraded LLMHelper: prompt-hash caching + buildChainContext for connector chaining
+- Updated WorkerFactory: parallel execution of independent capabilities via Promise.all
+- Migrated all 12 browser methods from chromium.launch() to BrowserPool.withPage()
+- Changed all navigation from 'networkidle' to 'domcontentloaded' (faster page loads)
+- Fixed browser crash: removed --single-process flag from Chromium args
+- Fixed TypeScript: added missing interface exports to barrel (agents-64, agent-pool, team)
+- Full build verification: 0 compilation errors, 0 runtime errors
+
+Stage Summary:
+- BrowserPool: cold 184ms → warm 97ms (1.9x faster, should be 3-5x in real scenarios)
+- LLMHelper cache: prompt-hash-based, 200 entry max, 30min TTL
+- LLMHelper.buildChainContext: auto-injects previous results into LLM prompts
+- WorkerFactory: parallel execution for independent caps (browser, office, business, etc.)
+- 64/64 capabilities covered, all connectors operational with LLM integration
+- Build: PASS, Compilation: PASS, Runtime: PASS

@@ -249,9 +249,41 @@ export class WorkerFactoryService {
     const startTime = Date.now();
 
     try {
-      // Execute each capability in the worker
+      // Execute capabilities — PARALLEL for independent, SEQUENTIAL for dependent
       const results: CapabilityExecutionResult[] = [];
-      for (const capId of worker.capabilities) {
+
+      // Group capabilities: independent ones run in parallel, dependent ones sequential
+      const { parallel, sequential } = this.groupCapabilities(worker.capabilities);
+
+      // Phase 1: Execute independent capabilities in parallel
+      if (parallel.length > 0) {
+        this.logger.log(`Worker ${execRequest.workerId}: executing ${parallel.length} capabilities in PARALLEL`);
+        const parallelResults = await Promise.all(
+          parallel.map(async (capId) => {
+            const capDef = this.capabilityRegistry.getCapability(capId);
+            return this.executeCapability(capId, capDef, execRequest.input, worker.missionId);
+          }),
+        );
+        results.push(...parallelResults);
+
+        // Store results for chaining
+        for (const capResult of parallelResults) {
+          worker.results.push(capResult);
+          const connectorOutput: any = {
+            success: capResult.success,
+            artifacts: capResult.artifacts.map(p => ({ name: p, path: p, type: 'source', size: 0 })),
+            output: capResult.output,
+            costUsd: capResult.costUsd,
+            durationMs: capResult.durationMs,
+          };
+          const prevResults = this.missionResults.get(worker.missionId) || new Map<CapabilityId, any>();
+          prevResults.set(capResult.capabilityId, connectorOutput);
+          this.missionResults.set(worker.missionId, prevResults);
+        }
+      }
+
+      // Phase 2: Execute dependent capabilities sequentially (with context from phase 1)
+      for (const capId of sequential) {
         const capDef = this.capabilityRegistry.getCapability(capId);
         const capResult: CapabilityExecutionResult = await this.executeCapability(
           capId,
@@ -520,5 +552,61 @@ export class WorkerFactoryService {
       }
     }
     return result;
+  }
+
+  /**
+   * Group capabilities into parallel-safe and sequential.
+   *
+   * Rules:
+   *   - Capabilities from DIFFERENT packs can always run in parallel
+   *   - Within the SAME pack, most capabilities are independent
+   *   - Exception: dev.architecture must run before dev.frontend/backend/database/api
+   *   - Exception: dev.test must run after dev.frontend/backend
+   *   - Exception: cert.* must run after dev.* (needs source code to audit)
+   *
+   * Strategy: first pass runs independent capabilities, second pass runs dependent ones
+   * using the results from the first pass as context.
+   */
+  private groupCapabilities(capabilities: CapabilityId[]): {
+    parallel: CapabilityId[];
+    sequential: CapabilityId[];
+  } {
+    const DEPENDENT_CAPABILITIES = new Set<string>([
+      'dev.frontend', 'dev.backend', 'dev.database', 'dev.api',
+      'dev.test', 'dev.documentation', 'dev.debug',
+      'cert.architecture_review', 'cert.security_audit', 'cert.test_coverage',
+      'cert.regression', 'cert.performance', 'cert.doc_review',
+      'cert.integration', 'cert.compliance', 'cert.accessibility', 'cert.data_privacy',
+      'delivery.zip', 'delivery.github', 'delivery.docker_registry',
+      'delivery.vps', 'delivery.deployment', 'delivery.pdf_report',
+    ]);
+
+    const INDEPENDENT_CAPABILITIES = new Set<string>([
+      'dev.architecture', 'dev.devops', 'dev.docker', 'dev.kubernetes', 'dev.qa',
+      'browser.login', 'browser.navigation', 'browser.search', 'browser.form',
+      'browser.upload', 'browser.download', 'browser.screenshot', 'browser.vision',
+      'browser.session', 'browser.cookie', 'browser.popup', 'browser.ocr',
+      'office.pdf', 'office.docx', 'office.excel', 'office.powerpoint',
+      'office.ocr', 'office.signature', 'office.email', 'office.calendar',
+      'business.seo', 'business.marketing', 'business.copywriting', 'business.branding',
+      'business.crm', 'business.analytics', 'business.finance', 'business.sales',
+      'business.legal', 'business.partnership',
+      'delivery.cloud', 'delivery.cdn', 'delivery.backup',
+      'delivery.monitoring_setup', 'delivery.load_balancer', 'delivery.notification',
+    ]);
+
+    const parallel: CapabilityId[] = [];
+    const sequential: CapabilityId[] = [];
+
+    for (const capId of capabilities) {
+      if (INDEPENDENT_CAPABILITIES.has(capId as string)) {
+        parallel.push(capId);
+      } else {
+        // Default: treat as sequential (safe)
+        sequential.push(capId);
+      }
+    }
+
+    return { parallel, sequential };
   }
 }

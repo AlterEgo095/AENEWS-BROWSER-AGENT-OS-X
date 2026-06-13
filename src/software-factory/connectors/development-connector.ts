@@ -617,6 +617,11 @@ Generate all necessary files.`;
   }
 
   private getExistingFilesContext(input: ConnectorInput): string {
+    // Use the enhanced LLMHelper.buildChainContext for richer context
+    const chainContext = this.llm.buildChainContext(input.previousResults, 2000);
+    if (chainContext) return chainContext;
+
+    // Fallback to basic context if no previous results
     const existing = input.previousResults;
     if (!existing || existing.size === 0) return '';
 

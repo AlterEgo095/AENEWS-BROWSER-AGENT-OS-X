@@ -1,8 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ConnectorRegistry = exports.BusinessConnector = exports.OfficeConnector = exports.DeliveryConnector = exports.CertificationConnector = exports.BrowserConnector = exports.DevelopmentConnector = exports.LLMHelper = void 0;
+exports.ConnectorRegistry = exports.BusinessConnector = exports.OfficeConnector = exports.DeliveryConnector = exports.CertificationConnector = exports.BrowserConnector = exports.DevelopmentConnector = exports.BrowserPool = exports.LLMHelper = void 0;
 var llm_helper_1 = require("./llm-helper");
 Object.defineProperty(exports, "LLMHelper", { enumerable: true, get: function () { return llm_helper_1.LLMHelper; } });
+var browser_pool_1 = require("./browser-pool");
+Object.defineProperty(exports, "BrowserPool", { enumerable: true, get: function () { return browser_pool_1.BrowserPool; } });
 var development_connector_1 = require("./development-connector");
 Object.defineProperty(exports, "DevelopmentConnector", { enumerable: true, get: function () { return development_connector_1.DevelopmentConnector; } });
 var browser_connector_1 = require("./browser-connector");

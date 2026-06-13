@@ -27,4 +27,5 @@ export declare class WorkerFactoryService {
     private executeCapability;
     private getActiveCount;
     private getActiveWorkers;
+    private groupCapabilities;
 }

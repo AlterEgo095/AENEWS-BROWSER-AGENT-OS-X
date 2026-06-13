@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-06-13T18:58:35.187Z",
+  "results": [
+    {
+      "pack": "BROWSER",
+      "cap": "screenshot",
+      "success": true,
+      "ms": 186,
+      "cost": 0.01
+    },
+    {
+      "pack": "BROWSER",
+      "cap": "cookie",
+      "success": false,
+      "ms": 14,
+      "cost": 0
+    },
+    {
+      "pack": "DEV",
+      "cap": "documentation",
+      "success": true,
+      "ms": 34665,
+      "cost": 0.021410000000000002
+    },
+    {
+      "pack": "DEV",
+      "cap": "documentation(cached)",
+      "success": true,
+      "ms": 1,
+      "cost": 0.021410000000000002
+    },
+    {
+      "pack": "DELIVERY",
+      "cap": "zip",
+      "success": true,
+      "ms": 5,
+      "cost": 0
+    },
+    {
+      "pack": "CERT",
+      "cap": "security_audit",
+      "success": true,
+      "ms": 1661,
+      "cost": 0.02
+    },
+    {
+      "pack": "OFFICE",
+      "cap": "email",
+      "success": true,
+      "ms": 1471,
+      "cost": 0.0021200000000000004
+    },
+    {
+      "pack": "BUSINESS",
+      "cap": "seo",
+      "success": true,
+      "ms": 19034,
+      "cost": 0.018000000000000002
+    }
+  ],
+  "totalMs": 57037,
+  "totalCostUsd": 0.09294000000000001,
+  "allPassed": false,
+  "optimizationsApplied": [
+    "BrowserPool: shared Playwright browser instance",
+    "LLMHelper caching: prompt-hash-based result cache",
+    "LLMHelper.buildChainContext: auto-inject previous results",
+    "WorkerFactory parallel execution: Promise.all for independent capabilities"
+  ]
+}

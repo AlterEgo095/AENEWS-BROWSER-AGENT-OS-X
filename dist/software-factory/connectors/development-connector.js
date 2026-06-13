@@ -489,6 +489,9 @@ Generate all necessary files.`;
         };
     }
     getExistingFilesContext(input) {
+        const chainContext = this.llm.buildChainContext(input.previousResults, 2000);
+        if (chainContext)
+            return chainContext;
         const existing = input.previousResults;
         if (!existing || existing.size === 0)
             return '';

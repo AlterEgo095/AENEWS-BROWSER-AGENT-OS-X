@@ -1,5 +1,6 @@
 export { ICapabilityConnector, ConnectorInput, ConnectorOutput, GeneratedArtifact, LLMCallOptions, LLMCallResult } from './connector.interface';
 export { LLMHelper } from './llm-helper';
+export { BrowserPool } from './browser-pool';
 export { DevelopmentConnector } from './development-connector';
 export { BrowserConnector } from './browser-connector';
 export { CertificationConnector } from './certification-connector';

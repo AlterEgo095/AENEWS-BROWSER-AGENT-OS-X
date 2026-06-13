@@ -46,6 +46,7 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const interfaces_1 = require("../interfaces");
 const llm_helper_1 = require("./llm-helper");
+const browser_pool_1 = require("./browser-pool");
 let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
     constructor() {
         this.supportedPack = interfaces_1.CapabilityPack.BROWSER;
@@ -132,18 +133,12 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
         fs.mkdirSync(screenshotDir, { recursive: true });
         const screenshotPath = path.join(screenshotDir, `screenshot-${Date.now()}.png`);
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            await page.screenshot({ path: screenshotPath, fullPage: true });
-            await browser.close();
-            const stats = fs.statSync(screenshotPath);
-            this.logger.log(`Screenshot saved: ${screenshotPath} (${stats.size} bytes)`);
+            const sizeBytes = await BrowserConnector_1.browserPool.screenshot(url, screenshotPath, true);
+            this.logger.log(`Screenshot saved: ${screenshotPath} (${sizeBytes} bytes)`);
             return {
                 success: true,
-                artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, stats.size)],
-                output: { url, screenshotPath, sizeBytes: stats.size },
+                artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, sizeBytes)],
+                output: { url, screenshotPath, sizeBytes },
                 costUsd: 0.01,
                 durationMs: 0,
             };
@@ -170,30 +165,28 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url', 'navigation');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            const title = await page.title();
-            const content = await page.content();
-            const contentDir = path.join(input.workspaceDir, 'browser-data');
-            fs.mkdirSync(contentDir, { recursive: true });
-            const htmlPath = path.join(contentDir, 'page.html');
-            fs.writeFileSync(htmlPath, content, 'utf-8');
-            const textContent = await page.evaluate(() => document.body?.innerText || '');
-            const textPath = path.join(contentDir, 'page-text.txt');
-            fs.writeFileSync(textPath, textContent, 'utf-8');
-            await browser.close();
-            return {
-                success: true,
-                artifacts: [
-                    this.makeArtifact('page.html', 'source', htmlPath, content),
-                    this.makeArtifact('page-text.txt', 'document', textPath, textContent),
-                ],
-                output: { url, title, textLength: textContent.length },
-                costUsd: 0.01,
-                durationMs: 0,
-            };
+            return await BrowserConnector_1.browserPool.withPage(async (page) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                const title = await page.title();
+                const content = await page.content();
+                const contentDir = path.join(input.workspaceDir, 'browser-data');
+                fs.mkdirSync(contentDir, { recursive: true });
+                const htmlPath = path.join(contentDir, 'page.html');
+                fs.writeFileSync(htmlPath, content, 'utf-8');
+                const textContent = await page.evaluate(() => document.body?.innerText || '');
+                const textPath = path.join(contentDir, 'page-text.txt');
+                fs.writeFileSync(textPath, textContent, 'utf-8');
+                return {
+                    success: true,
+                    artifacts: [
+                        this.makeArtifact('page.html', 'source', htmlPath, content),
+                        this.makeArtifact('page-text.txt', 'document', textPath, textContent),
+                    ],
+                    output: { url, title, textLength: textContent.length },
+                    costUsd: 0.01,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'navigation', url, error);
@@ -207,54 +200,52 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url, username, password', 'login');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
-            const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
-            let filledUsername = false;
-            for (const selector of usernameSelectors) {
-                try {
-                    const element = await page.$(selector);
-                    if (element) {
-                        await element.fill(username);
-                        filledUsername = true;
-                        break;
+            return await BrowserConnector_1.browserPool.withPage(async (page) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
+                const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
+                let filledUsername = false;
+                for (const selector of usernameSelectors) {
+                    try {
+                        const element = await page.$(selector);
+                        if (element) {
+                            await element.fill(username);
+                            filledUsername = true;
+                            break;
+                        }
                     }
+                    catch { }
                 }
-                catch { }
-            }
-            let filledPassword = false;
-            for (const selector of passwordSelectors) {
-                try {
-                    const element = await page.$(selector);
-                    if (element) {
-                        await element.fill(password);
-                        filledPassword = true;
-                        break;
+                let filledPassword = false;
+                for (const selector of passwordSelectors) {
+                    try {
+                        const element = await page.$(selector);
+                        if (element) {
+                            await element.fill(password);
+                            filledPassword = true;
+                            break;
+                        }
                     }
+                    catch { }
                 }
-                catch { }
-            }
-            if (filledUsername && filledPassword) {
-                await page.keyboard.press('Enter');
-                await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => { });
-            }
-            const resultTitle = await page.title();
-            const resultUrl = page.url();
-            const screenshotDir = path.join(input.workspaceDir, 'screenshots');
-            fs.mkdirSync(screenshotDir, { recursive: true });
-            const screenshotPath = path.join(screenshotDir, 'post-login.png');
-            await page.screenshot({ path: screenshotPath }).catch(() => { });
-            await browser.close();
-            return {
-                success: filledUsername && filledPassword,
-                artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
-                output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
-                costUsd: 0.02,
-                durationMs: 0,
-            };
+                if (filledUsername && filledPassword) {
+                    await page.keyboard.press('Enter');
+                    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => { });
+                }
+                const resultTitle = await page.title();
+                const resultUrl = page.url();
+                const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+                fs.mkdirSync(screenshotDir, { recursive: true });
+                const screenshotPath = path.join(screenshotDir, 'post-login.png');
+                await page.screenshot({ path: screenshotPath }).catch(() => { });
+                return {
+                    success: filledUsername && filledPassword,
+                    artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
+                    output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
+                    costUsd: 0.02,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'login', url, error);
@@ -273,42 +264,40 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
         };
         const url = searchUrls[engine.toLowerCase()] || searchUrls.google;
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            const results = await page.evaluate(() => {
-                const items = [];
-                document.querySelectorAll('h3').forEach((h3, i) => {
-                    if (i < 10) {
-                        const link = h3.closest('a');
-                        items.push({
-                            title: h3.textContent || '',
-                            url: link?.href || '',
-                        });
-                    }
+            return await BrowserConnector_1.browserPool.withPage(async (page) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                const results = await page.evaluate(() => {
+                    const items = [];
+                    document.querySelectorAll('h3').forEach((h3, i) => {
+                        if (i < 10) {
+                            const link = h3.closest('a');
+                            items.push({
+                                title: h3.textContent || '',
+                                url: link?.href || '',
+                            });
+                        }
+                    });
+                    return items;
                 });
-                return items;
+                const dataDir = path.join(input.workspaceDir, 'browser-data');
+                fs.mkdirSync(dataDir, { recursive: true });
+                const resultsPath = path.join(dataDir, 'search-results.json');
+                fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2), 'utf-8');
+                const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+                fs.mkdirSync(screenshotDir, { recursive: true });
+                const screenshotPath = path.join(screenshotDir, 'search-results.png');
+                await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => { });
+                return {
+                    success: results.length > 0,
+                    artifacts: [
+                        this.makeArtifact('search-results.json', 'source', resultsPath, JSON.stringify(results)),
+                        this.makeArtifact('search-results.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
+                    ],
+                    output: { query, engine, resultCount: results.length, results: results.slice(0, 5) },
+                    costUsd: 0.02,
+                    durationMs: 0,
+                };
             });
-            const dataDir = path.join(input.workspaceDir, 'browser-data');
-            fs.mkdirSync(dataDir, { recursive: true });
-            const resultsPath = path.join(dataDir, 'search-results.json');
-            fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2), 'utf-8');
-            const screenshotDir = path.join(input.workspaceDir, 'screenshots');
-            fs.mkdirSync(screenshotDir, { recursive: true });
-            const screenshotPath = path.join(screenshotDir, 'search-results.png');
-            await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => { });
-            await browser.close();
-            return {
-                success: results.length > 0,
-                artifacts: [
-                    this.makeArtifact('search-results.json', 'source', resultsPath, JSON.stringify(results)),
-                    this.makeArtifact('search-results.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
-                ],
-                output: { query, engine, resultCount: results.length, results: results.slice(0, 5) },
-                costUsd: 0.02,
-                durationMs: 0,
-            };
         }
         catch (error) {
             return this.playwrightFallback(input, 'search', url, error);
@@ -321,37 +310,35 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url', 'form');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            const filledFields = [];
-            for (const [selector, value] of Object.entries(fields)) {
-                try {
-                    await page.fill(selector, value);
-                    filledFields.push(selector);
-                }
-                catch {
+            return await BrowserConnector_1.browserPool.withPage(async (page) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                const filledFields = [];
+                for (const [selector, value] of Object.entries(fields)) {
                     try {
-                        await page.fill(`[name="${selector}"]`, value);
-                        filledFields.push(`[name="${selector}"]`);
+                        await page.fill(selector, value);
+                        filledFields.push(selector);
                     }
-                    catch { }
+                    catch {
+                        try {
+                            await page.fill(`[name="${selector}"]`, value);
+                            filledFields.push(`[name="${selector}"]`);
+                        }
+                        catch { }
+                    }
                 }
-            }
-            if (input.parameters.submit !== false) {
-                await page.keyboard.press('Enter');
-                await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => { });
-            }
-            const resultUrl = page.url();
-            await browser.close();
-            return {
-                success: filledFields.length > 0,
-                artifacts: [],
-                output: { url, resultUrl, filledFields, totalFields: Object.keys(fields).length },
-                costUsd: 0.01,
-                durationMs: 0,
-            };
+                if (input.parameters.submit !== false) {
+                    await page.keyboard.press('Enter');
+                    await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => { });
+                }
+                const resultUrl = page.url();
+                return {
+                    success: filledFields.length > 0,
+                    artifacts: [],
+                    output: { url, resultUrl, filledFields, totalFields: Object.keys(fields).length },
+                    costUsd: 0.01,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'form', url, error);
@@ -421,24 +408,23 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url', 'download');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            const downloadDir = path.join(input.workspaceDir, 'downloads');
-            fs.mkdirSync(downloadDir, { recursive: true });
-            const download = await page.waitForEvent('download', { timeout: 30000 });
-            const fileName = outputPath || download.suggestedFilename() || `download-${Date.now()}`;
-            const savePath = path.join(downloadDir, fileName);
-            await download.saveAs(savePath);
-            await browser.close();
-            const stats = fs.statSync(savePath);
-            return {
-                success: true,
-                artifacts: [this.makeArtifact(fileName, 'source', savePath, stats.size)],
-                output: { url, savedTo: savePath, sizeBytes: stats.size },
-                costUsd: 0.01,
-                durationMs: 0,
-            };
+            return await BrowserConnector_1.browserPool.withPage(async (page) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                const downloadDir = path.join(input.workspaceDir, 'downloads');
+                fs.mkdirSync(downloadDir, { recursive: true });
+                const download = await page.waitForEvent('download', { timeout: 30000 });
+                const fileName = outputPath || download.suggestedFilename() || `download-${Date.now()}`;
+                const savePath = path.join(downloadDir, fileName);
+                await download.saveAs(savePath);
+                const stats = fs.statSync(savePath);
+                return {
+                    success: true,
+                    artifacts: [this.makeArtifact(fileName, 'source', savePath, stats.size)],
+                    output: { url, savedTo: savePath, sizeBytes: stats.size },
+                    costUsd: 0.01,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'download', url, error);
@@ -452,23 +438,21 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url, filePath', 'upload');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            await page.setInputFiles(selector, filePath);
-            if (input.parameters.autoSubmit !== true) {
-                await page.keyboard.press('Enter').catch(() => { });
-            }
-            await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => { });
-            await browser.close();
-            return {
-                success: true,
-                artifacts: [],
-                output: { url, uploadedFile: filePath },
-                costUsd: 0.01,
-                durationMs: 0,
-            };
+            return await BrowserConnector_1.browserPool.withPage(async (page) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                await page.setInputFiles(selector, filePath);
+                if (input.parameters.autoSubmit !== true) {
+                    await page.keyboard.press('Enter').catch(() => { });
+                }
+                await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => { });
+                return {
+                    success: true,
+                    artifacts: [],
+                    output: { url, uploadedFile: filePath },
+                    costUsd: 0.01,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'upload', url, error);
@@ -480,24 +464,21 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url', 'session');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const context = await browser.newContext();
-            const page = await context.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            const stateDir = path.join(input.workspaceDir, 'browser-data');
-            fs.mkdirSync(stateDir, { recursive: true });
-            const statePath = path.join(stateDir, 'session-state.json');
-            await context.storageState({ path: statePath });
-            await browser.close();
-            const stateContent = fs.readFileSync(statePath, 'utf-8');
-            return {
-                success: true,
-                artifacts: [this.makeArtifact('session-state.json', 'config', statePath, stateContent)],
-                output: { url, statePath },
-                costUsd: 0.01,
-                durationMs: 0,
-            };
+            return await BrowserConnector_1.browserPool.withPage(async (page, context) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                const stateDir = path.join(input.workspaceDir, 'browser-data');
+                fs.mkdirSync(stateDir, { recursive: true });
+                const statePath = path.join(stateDir, 'session-state.json');
+                await context.storageState({ path: statePath });
+                const stateContent = fs.readFileSync(statePath, 'utf-8');
+                return {
+                    success: true,
+                    artifacts: [this.makeArtifact('session-state.json', 'config', statePath, stateContent)],
+                    output: { url, statePath },
+                    costUsd: 0.01,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'session', url, error);
@@ -509,27 +490,24 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url', 'cookie');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const context = await browser.newContext();
-            const page = await context.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            if (input.parameters.cookies) {
-                await context.addCookies(input.parameters.cookies);
-            }
-            const cookies = await context.cookies();
-            await browser.close();
-            const dataDir = path.join(input.workspaceDir, 'browser-data');
-            fs.mkdirSync(dataDir, { recursive: true });
-            const cookiesPath = path.join(dataDir, 'cookies.json');
-            fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
-            return {
-                success: true,
-                artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
-                output: { url, cookieCount: cookies.length },
-                costUsd: 0.01,
-                durationMs: 0,
-            };
+            return await BrowserConnector_1.browserPool.withPage(async (page, context) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                if (input.parameters.cookies) {
+                    await context.addCookies(input.parameters.cookies);
+                }
+                const cookies = await context.cookies();
+                const dataDir = path.join(input.workspaceDir, 'browser-data');
+                fs.mkdirSync(dataDir, { recursive: true });
+                const cookiesPath = path.join(dataDir, 'cookies.json');
+                fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
+                return {
+                    success: true,
+                    artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
+                    output: { url, cookieCount: cookies.length },
+                    costUsd: 0.01,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'cookie', url, error);
@@ -541,29 +519,27 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
             return this.missingParamResult('url', 'popup');
         }
         try {
-            const { chromium } = await Promise.resolve().then(() => __importStar(require('playwright')));
-            const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-            const popupPromise = page.waitForEvent('popup', { timeout: 10000 }).catch(() => null);
-            if (input.parameters.triggerSelector) {
-                await page.click(input.parameters.triggerSelector).catch(() => { });
-            }
-            const popup = await popupPromise;
-            let popupUrl = '';
-            let popupTitle = '';
-            if (popup) {
-                popupUrl = popup.url();
-                popupTitle = await popup.title();
-            }
-            await browser.close();
-            return {
-                success: true,
-                artifacts: [],
-                output: { url, popupUrl, popupTitle, popupDetected: !!popup },
-                costUsd: 0.01,
-                durationMs: 0,
-            };
+            return await BrowserConnector_1.browserPool.withPage(async (page) => {
+                await BrowserConnector_1.browserPool.navigate(page, url, 'domcontentloaded');
+                const popupPromise = page.waitForEvent('popup', { timeout: 10000 }).catch(() => null);
+                if (input.parameters.triggerSelector) {
+                    await page.click(input.parameters.triggerSelector).catch(() => { });
+                }
+                const popup = await popupPromise;
+                let popupUrl = '';
+                let popupTitle = '';
+                if (popup) {
+                    popupUrl = popup.url();
+                    popupTitle = await popup.title();
+                }
+                return {
+                    success: true,
+                    artifacts: [],
+                    output: { url, popupUrl, popupTitle, popupDetected: !!popup },
+                    costUsd: 0.01,
+                    durationMs: 0,
+                };
+            });
         }
         catch (error) {
             return this.playwrightFallback(input, 'popup', url, error);
@@ -620,6 +596,7 @@ let BrowserConnector = BrowserConnector_1 = class BrowserConnector {
     }
 };
 exports.BrowserConnector = BrowserConnector;
+BrowserConnector.browserPool = new browser_pool_1.BrowserPool({ maxContexts: 5, idleTimeoutMs: 60000 });
 BrowserConnector.BROWSER_CAPABILITIES = new Set(Object.values(interfaces_1.BrowserCapability));
 exports.BrowserConnector = BrowserConnector = BrowserConnector_1 = __decorate([
     (0, common_1.Injectable)()

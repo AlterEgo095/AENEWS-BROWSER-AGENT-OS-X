@@ -33,12 +33,16 @@ import {
   GeneratedArtifact,
 } from './connector.interface';
 import { LLMHelper } from './llm-helper';
+import { BrowserPool } from './browser-pool';
 
 @Injectable()
 export class BrowserConnector implements ICapabilityConnector {
   readonly supportedPack = CapabilityPack.BROWSER;
   private readonly logger = new Logger(BrowserConnector.name);
   private readonly llm = new LLMHelper();
+
+  /** Shared browser pool — reuses a single Playwright browser instance */
+  private static readonly browserPool = new BrowserPool({ maxContexts: 5, idleTimeoutMs: 60000 });
 
   private static readonly BROWSER_CAPABILITIES = new Set<string>(Object.values(BrowserCapability));
 
@@ -133,26 +137,19 @@ export class BrowserConnector implements ICapabilityConnector {
     const screenshotPath = path.join(screenshotDir, `screenshot-${Date.now()}.png`);
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      await browser.close();
+      const sizeBytes = await BrowserConnector.browserPool.screenshot(url, screenshotPath, true);
 
-      const stats = fs.statSync(screenshotPath);
-      this.logger.log(`Screenshot saved: ${screenshotPath} (${stats.size} bytes)`);
+      this.logger.log(`Screenshot saved: ${screenshotPath} (${sizeBytes} bytes)`);
 
       return {
         success: true,
-        artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, stats.size)],
-        output: { url, screenshotPath, sizeBytes: stats.size },
+        artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, sizeBytes)],
+        output: { url, screenshotPath, sizeBytes },
         costUsd: 0.01,
         durationMs: 0,
       };
     } catch (error: any) {
       this.logger.warn(`Playwright screenshot failed: ${error.message}`);
-      // Fallback: generate a report about the attempt
       const reportPath = path.join(input.workspaceDir, 'docs', 'browser-report.md');
       const report = `# Browser Screenshot Report\n\nURL: ${url}\nStatus: FAILED\nError: ${error.message}\n\nNote: Playwright may not be installed. Run: npx playwright install chromium\n`;
       fs.mkdirSync(path.dirname(reportPath), { recursive: true });
@@ -180,38 +177,35 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      const title = await page.title();
-      const content = await page.content();
+        const title = await page.title();
+        const content = await page.content();
 
-      // Save page content
-      const contentDir = path.join(input.workspaceDir, 'browser-data');
-      fs.mkdirSync(contentDir, { recursive: true });
+        // Save page content
+        const contentDir = path.join(input.workspaceDir, 'browser-data');
+        fs.mkdirSync(contentDir, { recursive: true });
 
-      const htmlPath = path.join(contentDir, 'page.html');
-      fs.writeFileSync(htmlPath, content, 'utf-8');
+        const htmlPath = path.join(contentDir, 'page.html');
+        fs.writeFileSync(htmlPath, content, 'utf-8');
 
-      // Extract text content
-      const textContent = await page.evaluate(() => document.body?.innerText || '');
-      const textPath = path.join(contentDir, 'page-text.txt');
-      fs.writeFileSync(textPath, textContent, 'utf-8');
+        // Extract text content
+        const textContent = await page.evaluate(() => document.body?.innerText || '');
+        const textPath = path.join(contentDir, 'page-text.txt');
+        fs.writeFileSync(textPath, textContent, 'utf-8');
 
-      await browser.close();
-
-      return {
-        success: true,
-        artifacts: [
-          this.makeArtifact('page.html', 'source', htmlPath, content),
-          this.makeArtifact('page-text.txt', 'document', textPath, textContent),
-        ],
-        output: { url, title, textLength: textContent.length },
-        costUsd: 0.01,
-        durationMs: 0,
-      };
+        return {
+          success: true,
+          artifacts: [
+            this.makeArtifact('page.html', 'source', htmlPath, content),
+            this.makeArtifact('page-text.txt', 'document', textPath, textContent),
+          ],
+          output: { url, title, textLength: textContent.length },
+          costUsd: 0.01,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'navigation', url, error);
     }
@@ -231,63 +225,60 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      // Try common selectors for username/email and password fields
-      const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
-      const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
+        // Try common selectors for username/email and password fields
+        const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
+        const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
 
-      let filledUsername = false;
-      for (const selector of usernameSelectors) {
-        try {
-          const element = await page.$(selector);
-          if (element) {
-            await element.fill(username);
-            filledUsername = true;
-            break;
-          }
-        } catch { /* try next selector */ }
-      }
+        let filledUsername = false;
+        for (const selector of usernameSelectors) {
+          try {
+            const element = await page.$(selector);
+            if (element) {
+              await element.fill(username);
+              filledUsername = true;
+              break;
+            }
+          } catch { /* try next selector */ }
+        }
 
-      let filledPassword = false;
-      for (const selector of passwordSelectors) {
-        try {
-          const element = await page.$(selector);
-          if (element) {
-            await element.fill(password);
-            filledPassword = true;
-            break;
-          }
-        } catch { /* try next selector */ }
-      }
+        let filledPassword = false;
+        for (const selector of passwordSelectors) {
+          try {
+            const element = await page.$(selector);
+            if (element) {
+              await element.fill(password);
+              filledPassword = true;
+              break;
+            }
+          } catch { /* try next selector */ }
+        }
 
-      // Submit form
-      if (filledUsername && filledPassword) {
-        await page.keyboard.press('Enter');
-        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-      }
+        // Submit form
+        if (filledUsername && filledPassword) {
+          await page.keyboard.press('Enter');
+          await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+        }
 
-      const resultTitle = await page.title();
-      const resultUrl = page.url();
+        const resultTitle = await page.title();
+        const resultUrl = page.url();
 
-      // Screenshot of post-login state
-      const screenshotDir = path.join(input.workspaceDir, 'screenshots');
-      fs.mkdirSync(screenshotDir, { recursive: true });
-      const screenshotPath = path.join(screenshotDir, 'post-login.png');
-      await page.screenshot({ path: screenshotPath }).catch(() => {});
+        // Screenshot of post-login state
+        const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+        fs.mkdirSync(screenshotDir, { recursive: true });
+        const screenshotPath = path.join(screenshotDir, 'post-login.png');
+        await page.screenshot({ path: screenshotPath }).catch(() => {});
 
-      await browser.close();
-
-      return {
-        success: filledUsername && filledPassword,
-        artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
-        output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
-        costUsd: 0.02,
-        durationMs: 0,
-      };
+        return {
+          success: filledUsername && filledPassword,
+          artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
+          output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
+          costUsd: 0.02,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'login', url, error);
     }
@@ -314,50 +305,47 @@ export class BrowserConnector implements ICapabilityConnector {
     const url = searchUrls[engine.toLowerCase()] || searchUrls.google;
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      // Extract search results
-      const results = await page.evaluate(() => {
-        const items: any[] = [];
-        document.querySelectorAll('h3').forEach((h3, i) => {
-          if (i < 10) {
-            const link = h3.closest('a');
-            items.push({
-              title: h3.textContent || '',
-              url: link?.href || '',
-            });
-          }
+        // Extract search results
+        const results = await page.evaluate(() => {
+          const items: any[] = [];
+          document.querySelectorAll('h3').forEach((h3, i) => {
+            if (i < 10) {
+              const link = h3.closest('a');
+              items.push({
+                title: h3.textContent || '',
+                url: link?.href || '',
+              });
+            }
+          });
+          return items;
         });
-        return items;
+
+        // Save results
+        const dataDir = path.join(input.workspaceDir, 'browser-data');
+        fs.mkdirSync(dataDir, { recursive: true });
+        const resultsPath = path.join(dataDir, 'search-results.json');
+        fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2), 'utf-8');
+
+        // Screenshot
+        const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+        fs.mkdirSync(screenshotDir, { recursive: true });
+        const screenshotPath = path.join(screenshotDir, 'search-results.png');
+        await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+
+        return {
+          success: results.length > 0,
+          artifacts: [
+            this.makeArtifact('search-results.json', 'source', resultsPath, JSON.stringify(results)),
+            this.makeArtifact('search-results.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
+          ],
+          output: { query, engine, resultCount: results.length, results: results.slice(0, 5) },
+          costUsd: 0.02,
+          durationMs: 0,
+        };
       });
-
-      // Save results
-      const dataDir = path.join(input.workspaceDir, 'browser-data');
-      fs.mkdirSync(dataDir, { recursive: true });
-      const resultsPath = path.join(dataDir, 'search-results.json');
-      fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2), 'utf-8');
-
-      // Screenshot
-      const screenshotDir = path.join(input.workspaceDir, 'screenshots');
-      fs.mkdirSync(screenshotDir, { recursive: true });
-      const screenshotPath = path.join(screenshotDir, 'search-results.png');
-      await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
-
-      await browser.close();
-
-      return {
-        success: results.length > 0,
-        artifacts: [
-          this.makeArtifact('search-results.json', 'source', resultsPath, JSON.stringify(results)),
-          this.makeArtifact('search-results.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
-        ],
-        output: { query, engine, resultCount: results.length, results: results.slice(0, 5) },
-        costUsd: 0.02,
-        durationMs: 0,
-      };
     } catch (error: any) {
       return this.playwrightFallback(input, 'search', url, error);
     }
@@ -376,43 +364,40 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      // Fill each field
-      const filledFields: string[] = [];
-      for (const [selector, value] of Object.entries(fields)) {
-        try {
-          await page.fill(selector, value as string);
-          filledFields.push(selector);
-        } catch {
-          // Try by name attribute
+        // Fill each field
+        const filledFields: string[] = [];
+        for (const [selector, value] of Object.entries(fields)) {
           try {
-            await page.fill(`[name="${selector}"]`, value as string);
-            filledFields.push(`[name="${selector}"]`);
-          } catch { /* skip this field */ }
+            await page.fill(selector, value as string);
+            filledFields.push(selector);
+          } catch {
+            // Try by name attribute
+            try {
+              await page.fill(`[name="${selector}"]`, value as string);
+              filledFields.push(`[name="${selector}"]`);
+            } catch { /* skip this field */ }
+          }
         }
-      }
 
-      // Submit
-      if (input.parameters.submit !== false) {
-        await page.keyboard.press('Enter');
-        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-      }
+        // Submit
+        if (input.parameters.submit !== false) {
+          await page.keyboard.press('Enter');
+          await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+        }
 
-      const resultUrl = page.url();
+        const resultUrl = page.url();
 
-      await browser.close();
-
-      return {
-        success: filledFields.length > 0,
-        artifacts: [],
-        output: { url, resultUrl, filledFields, totalFields: Object.keys(fields).length },
-        costUsd: 0.01,
-        durationMs: 0,
-      };
+        return {
+          success: filledFields.length > 0,
+          artifacts: [],
+          output: { url, resultUrl, filledFields, totalFields: Object.keys(fields).length },
+          costUsd: 0.01,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'form', url, error);
     }
@@ -508,28 +493,26 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
+      return await BrowserConnector.browserPool.withPage(async (page) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      const downloadDir = path.join(input.workspaceDir, 'downloads');
-      fs.mkdirSync(downloadDir, { recursive: true });
+        const downloadDir = path.join(input.workspaceDir, 'downloads');
+        fs.mkdirSync(downloadDir, { recursive: true });
 
-      const download = await page.waitForEvent('download', { timeout: 30000 });
-      const fileName = outputPath || download.suggestedFilename() || `download-${Date.now()}`;
-      const savePath = path.join(downloadDir, fileName);
-      await download.saveAs(savePath);
+        const download = await page.waitForEvent('download', { timeout: 30000 });
+        const fileName = outputPath || download.suggestedFilename() || `download-${Date.now()}`;
+        const savePath = path.join(downloadDir, fileName);
+        await download.saveAs(savePath);
 
-      await browser.close();
-
-      const stats = fs.statSync(savePath);
-      return {
-        success: true,
-        artifacts: [this.makeArtifact(fileName, 'source', savePath, stats.size)],
-        output: { url, savedTo: savePath, sizeBytes: stats.size },
-        costUsd: 0.01,
-        durationMs: 0,
-      };
+        const stats = fs.statSync(savePath);
+        return {
+          success: true,
+          artifacts: [this.makeArtifact(fileName, 'source', savePath, stats.size)],
+          output: { url, savedTo: savePath, sizeBytes: stats.size },
+          costUsd: 0.01,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'download', url, error);
     }
@@ -549,29 +532,26 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      await page.setInputFiles(selector, filePath);
+        await page.setInputFiles(selector, filePath);
 
-      // Submit if auto-submit not triggered
-      if (input.parameters.autoSubmit !== true) {
-        await page.keyboard.press('Enter').catch(() => {});
-      }
+        // Submit if auto-submit not triggered
+        if (input.parameters.autoSubmit !== true) {
+          await page.keyboard.press('Enter').catch(() => {});
+        }
 
-      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+        await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
 
-      await browser.close();
-
-      return {
-        success: true,
-        artifacts: [],
-        output: { url, uploadedFile: filePath },
-        costUsd: 0.01,
-        durationMs: 0,
-      };
+        return {
+          success: true,
+          artifacts: [],
+          output: { url, uploadedFile: filePath },
+          costUsd: 0.01,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'upload', url, error);
     }
@@ -588,28 +568,24 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const context = await browser.newContext();
-      const page = await context.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page, context) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      // Save storage state (cookies, localStorage)
-      const stateDir = path.join(input.workspaceDir, 'browser-data');
-      fs.mkdirSync(stateDir, { recursive: true });
-      const statePath = path.join(stateDir, 'session-state.json');
-      await context.storageState({ path: statePath });
+        // Save storage state (cookies, localStorage)
+        const stateDir = path.join(input.workspaceDir, 'browser-data');
+        fs.mkdirSync(stateDir, { recursive: true });
+        const statePath = path.join(stateDir, 'session-state.json');
+        await context.storageState({ path: statePath });
 
-      await browser.close();
-
-      const stateContent = fs.readFileSync(statePath, 'utf-8');
-      return {
-        success: true,
-        artifacts: [this.makeArtifact('session-state.json', 'config', statePath, stateContent)],
-        output: { url, statePath },
-        costUsd: 0.01,
-        durationMs: 0,
-      };
+        const stateContent = fs.readFileSync(statePath, 'utf-8');
+        return {
+          success: true,
+          artifacts: [this.makeArtifact('session-state.json', 'config', statePath, stateContent)],
+          output: { url, statePath },
+          costUsd: 0.01,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'session', url, error);
     }
@@ -626,34 +602,30 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const context = await browser.newContext();
-      const page = await context.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page, context) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      // Set cookies if provided
-      if (input.parameters.cookies) {
-        await context.addCookies(input.parameters.cookies);
-      }
+        // Set cookies if provided
+        if (input.parameters.cookies) {
+          await context.addCookies(input.parameters.cookies);
+        }
 
-      // Get all cookies
-      const cookies = await context.cookies();
+        // Get all cookies
+        const cookies = await context.cookies();
 
-      await browser.close();
+        const dataDir = path.join(input.workspaceDir, 'browser-data');
+        fs.mkdirSync(dataDir, { recursive: true });
+        const cookiesPath = path.join(dataDir, 'cookies.json');
+        fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
 
-      const dataDir = path.join(input.workspaceDir, 'browser-data');
-      fs.mkdirSync(dataDir, { recursive: true });
-      const cookiesPath = path.join(dataDir, 'cookies.json');
-      fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
-
-      return {
-        success: true,
-        artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
-        output: { url, cookieCount: cookies.length },
-        costUsd: 0.01,
-        durationMs: 0,
-      };
+        return {
+          success: true,
+          artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
+          output: { url, cookieCount: cookies.length },
+          costUsd: 0.01,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'cookie', url, error);
     }
@@ -670,37 +642,34 @@ export class BrowserConnector implements ICapabilityConnector {
     }
 
     try {
-      const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: true });
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      return await BrowserConnector.browserPool.withPage(async (page) => {
+        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
 
-      // Listen for popups
-      const popupPromise = page.waitForEvent('popup', { timeout: 10000 }).catch(() => null);
+        // Listen for popups
+        const popupPromise = page.waitForEvent('popup', { timeout: 10000 }).catch(() => null);
 
-      // Click the trigger if provided
-      if (input.parameters.triggerSelector) {
-        await page.click(input.parameters.triggerSelector).catch(() => {});
-      }
+        // Click the trigger if provided
+        if (input.parameters.triggerSelector) {
+          await page.click(input.parameters.triggerSelector).catch(() => {});
+        }
 
-      const popup = await popupPromise;
-      let popupUrl = '';
-      let popupTitle = '';
+        const popup = await popupPromise;
+        let popupUrl = '';
+        let popupTitle = '';
 
-      if (popup) {
-        popupUrl = popup.url();
-        popupTitle = await popup.title();
-      }
+        if (popup) {
+          popupUrl = popup.url();
+          popupTitle = await popup.title();
+        }
 
-      await browser.close();
-
-      return {
-        success: true,
-        artifacts: [],
-        output: { url, popupUrl, popupTitle, popupDetected: !!popup },
-        costUsd: 0.01,
-        durationMs: 0,
-      };
+        return {
+          success: true,
+          artifacts: [],
+          output: { url, popupUrl, popupTitle, popupDetected: !!popup },
+          costUsd: 0.01,
+          durationMs: 0,
+        };
+      });
     } catch (error: any) {
       return this.playwrightFallback(input, 'popup', url, error);
     }

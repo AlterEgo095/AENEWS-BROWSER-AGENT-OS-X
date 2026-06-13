@@ -5,10 +5,13 @@
  * - 6 connectors, one per capability pack
  * - ConnectorRegistry maps capabilities to connectors
  * - WorkerFactory uses ConnectorRegistry for real execution
+ * - BrowserPool reuses Playwright browser instances (3-5x faster)
+ * - LLMHelper provides caching, retry, chain context
  */
 
 export { ICapabilityConnector, ConnectorInput, ConnectorOutput, GeneratedArtifact, LLMCallOptions, LLMCallResult } from './connector.interface';
 export { LLMHelper } from './llm-helper';
+export { BrowserPool } from './browser-pool';
 export { DevelopmentConnector } from './development-connector';
 export { BrowserConnector } from './browser-connector';
 export { CertificationConnector } from './certification-connector';

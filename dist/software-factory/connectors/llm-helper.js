@@ -35,16 +35,31 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LLMHelper = void 0;
 const common_1 = require("@nestjs/common");
+const crypto = __importStar(require("crypto"));
 class LLMHelper {
-    constructor() {
+    constructor(options) {
         this.logger = new common_1.Logger(LLMHelper.name);
         this.zaiInstance = null;
         this.callCount = 0;
+        this.cache = new Map();
+        this.totalLatencyMs = 0;
+        this.totalCostUsd = 0;
+        this.byConnector = new Map();
+        this.maxCacheSize = options?.maxCacheSize ?? 200;
+        this.cacheTtlMs = options?.cacheTtlMs ?? 30 * 60 * 1000;
     }
     async call(options) {
+        const cacheKey = this.computeCacheKey(options);
+        const cached = this.cache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < this.cacheTtlMs) {
+            cached.hitCount++;
+            this.logger.log(`LLM cache HIT (used ${cached.hitCount}x) — saved $${cached.result.costUsd.toFixed(4)}`);
+            return { ...cached.result, retries: 0 };
+        }
         await this.ensureInitialized();
         const maxRetries = options.retries ?? 3;
         let lastError = null;
+        const startTime = Date.now();
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 const completion = await this.zaiInstance.chat.completions.create({
@@ -59,11 +74,21 @@ class LLMHelper {
                 if (!content)
                     throw new Error('Empty LLM response');
                 this.callCount++;
-                return {
+                const costUsd = this.estimateCost(options.userPrompt, content);
+                const durationMs = Date.now() - startTime;
+                this.totalLatencyMs += durationMs;
+                this.totalCostUsd += costUsd;
+                const result = {
                     content,
-                    costUsd: this.estimateCost(options.userPrompt, content),
+                    costUsd,
+                    tokenCount: Math.ceil(options.userPrompt.length / 4) + Math.ceil(content.length / 4),
                     retries: attempt,
                 };
+                this.cache.set(cacheKey, { result, timestamp: Date.now(), hitCount: 0 });
+                if (this.cache.size > this.maxCacheSize) {
+                    this.evictOldest();
+                }
+                return result;
             }
             catch (err) {
                 lastError = err;
@@ -121,6 +146,58 @@ class LLMHelper {
         }
         return files;
     }
+    buildChainContext(previousResults, maxTokens = 2000) {
+        if (!previousResults || previousResults.size === 0)
+            return '';
+        const parts = [];
+        let estimatedTokens = 0;
+        for (const [capId, output] of previousResults) {
+            const summary = this.summarizeOutput(capId, output);
+            const tokenEstimate = Math.ceil(summary.length / 4);
+            if (estimatedTokens + tokenEstimate > maxTokens) {
+                const remaining = maxTokens - estimatedTokens;
+                const truncated = summary.substring(0, remaining * 4);
+                parts.push(truncated + '...(truncated)');
+                break;
+            }
+            parts.push(summary);
+            estimatedTokens += tokenEstimate;
+        }
+        return parts.length > 0
+            ? `## Previous Results (for context)\n${parts.join('\n\n')}\n\nUse this context to build upon what was already generated.`
+            : '';
+    }
+    getMetrics() {
+        const byConnectorObj = {};
+        for (const [name, m] of this.byConnector) {
+            byConnectorObj[name] = { calls: m.calls, costUsd: m.costUsd, avgMs: Math.round(m.totalMs / m.calls) };
+        }
+        return {
+            totalCalls: this.callCount,
+            cacheHits: Array.from(this.cache.values()).reduce((s, e) => s + e.hitCount, 0),
+            cacheMisses: this.callCount,
+            totalCostUsd: this.totalCostUsd,
+            totalTokensEstimated: 0,
+            avgLatencyMs: this.callCount > 0 ? Math.round(this.totalLatencyMs / this.callCount) : 0,
+            byConnector: byConnectorObj,
+        };
+    }
+    getCacheStats() {
+        let totalHits = 0;
+        let savings = 0;
+        for (const entry of this.cache.values()) {
+            totalHits += entry.hitCount;
+            savings += entry.hitCount * entry.result.costUsd;
+        }
+        return {
+            size: this.cache.size,
+            hitRate: this.callCount + totalHits > 0 ? totalHits / (this.callCount + totalHits) : 0,
+            savingsUsd: savings,
+        };
+    }
+    clearCache() {
+        this.cache.clear();
+    }
     getCallCount() {
         return this.callCount;
     }
@@ -140,6 +217,47 @@ class LLMHelper {
         const promptTokens = Math.ceil(prompt.length / 4);
         const responseTokens = Math.ceil(response.length / 4);
         return (promptTokens + responseTokens) * 0.00001;
+    }
+    computeCacheKey(options) {
+        const input = `${options.systemPrompt}|||${options.userPrompt}|||${options.temperature ?? 0.3}|||${options.maxTokens ?? 4096}`;
+        return crypto.createHash('sha256').update(input).digest('hex').substring(0, 24);
+    }
+    evictOldest() {
+        let oldest = null;
+        let oldestTime = Infinity;
+        for (const [key, entry] of this.cache) {
+            if (entry.timestamp < oldestTime) {
+                oldestTime = entry.timestamp;
+                oldest = key;
+            }
+        }
+        if (oldest) {
+            this.cache.delete(oldest);
+        }
+    }
+    summarizeOutput(capId, output) {
+        if (!output)
+            return '';
+        const artifacts = output.artifacts || output.results?.artifacts || [];
+        const artifactList = Array.isArray(artifacts)
+            ? artifacts.map((a) => `- ${a.name || a.path} (${a.type || 'file'}, ${a.size || '?'} bytes)`).join('\n')
+            : '';
+        let contentSummary = '';
+        if (output.output) {
+            if (typeof output.output === 'string') {
+                contentSummary = output.output.substring(0, 500);
+            }
+            else if (output.output.content) {
+                contentSummary = String(output.output.content).substring(0, 500);
+            }
+            else if (output.output.architecture || output.output.analysis) {
+                contentSummary = String(output.output.architecture || output.output.analysis || '').substring(0, 500);
+            }
+            else {
+                contentSummary = JSON.stringify(output.output).substring(0, 500);
+            }
+        }
+        return `### ${capId}\nSuccess: ${output.success !== false}\n${artifactList ? `Artifacts:\n${artifactList}\n` : ''}${contentSummary ? `Summary: ${contentSummary}` : ''}`;
     }
 }
 exports.LLMHelper = LLMHelper;

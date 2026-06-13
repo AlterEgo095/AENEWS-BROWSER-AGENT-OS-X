@@ -192,7 +192,29 @@ let WorkerFactoryService = WorkerFactoryService_1 = class WorkerFactoryService {
         const startTime = Date.now();
         try {
             const results = [];
-            for (const capId of worker.capabilities) {
+            const { parallel, sequential } = this.groupCapabilities(worker.capabilities);
+            if (parallel.length > 0) {
+                this.logger.log(`Worker ${execRequest.workerId}: executing ${parallel.length} capabilities in PARALLEL`);
+                const parallelResults = await Promise.all(parallel.map(async (capId) => {
+                    const capDef = this.capabilityRegistry.getCapability(capId);
+                    return this.executeCapability(capId, capDef, execRequest.input, worker.missionId);
+                }));
+                results.push(...parallelResults);
+                for (const capResult of parallelResults) {
+                    worker.results.push(capResult);
+                    const connectorOutput = {
+                        success: capResult.success,
+                        artifacts: capResult.artifacts.map(p => ({ name: p, path: p, type: 'source', size: 0 })),
+                        output: capResult.output,
+                        costUsd: capResult.costUsd,
+                        durationMs: capResult.durationMs,
+                    };
+                    const prevResults = this.missionResults.get(worker.missionId) || new Map();
+                    prevResults.set(capResult.capabilityId, connectorOutput);
+                    this.missionResults.set(worker.missionId, prevResults);
+                }
+            }
+            for (const capId of sequential) {
                 const capDef = this.capabilityRegistry.getCapability(capId);
                 const capResult = await this.executeCapability(capId, capDef, execRequest.input, worker.missionId);
                 results.push(capResult);
@@ -380,6 +402,41 @@ let WorkerFactoryService = WorkerFactoryService_1 = class WorkerFactoryService {
             }
         }
         return result;
+    }
+    groupCapabilities(capabilities) {
+        const DEPENDENT_CAPABILITIES = new Set([
+            'dev.frontend', 'dev.backend', 'dev.database', 'dev.api',
+            'dev.test', 'dev.documentation', 'dev.debug',
+            'cert.architecture_review', 'cert.security_audit', 'cert.test_coverage',
+            'cert.regression', 'cert.performance', 'cert.doc_review',
+            'cert.integration', 'cert.compliance', 'cert.accessibility', 'cert.data_privacy',
+            'delivery.zip', 'delivery.github', 'delivery.docker_registry',
+            'delivery.vps', 'delivery.deployment', 'delivery.pdf_report',
+        ]);
+        const INDEPENDENT_CAPABILITIES = new Set([
+            'dev.architecture', 'dev.devops', 'dev.docker', 'dev.kubernetes', 'dev.qa',
+            'browser.login', 'browser.navigation', 'browser.search', 'browser.form',
+            'browser.upload', 'browser.download', 'browser.screenshot', 'browser.vision',
+            'browser.session', 'browser.cookie', 'browser.popup', 'browser.ocr',
+            'office.pdf', 'office.docx', 'office.excel', 'office.powerpoint',
+            'office.ocr', 'office.signature', 'office.email', 'office.calendar',
+            'business.seo', 'business.marketing', 'business.copywriting', 'business.branding',
+            'business.crm', 'business.analytics', 'business.finance', 'business.sales',
+            'business.legal', 'business.partnership',
+            'delivery.cloud', 'delivery.cdn', 'delivery.backup',
+            'delivery.monitoring_setup', 'delivery.load_balancer', 'delivery.notification',
+        ]);
+        const parallel = [];
+        const sequential = [];
+        for (const capId of capabilities) {
+            if (INDEPENDENT_CAPABILITIES.has(capId)) {
+                parallel.push(capId);
+            }
+            else {
+                sequential.push(capId);
+            }
+        }
+        return { parallel, sequential };
     }
 };
 exports.WorkerFactoryService = WorkerFactoryService;
