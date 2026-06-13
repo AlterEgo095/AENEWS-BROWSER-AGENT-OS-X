@@ -1,0 +1,31 @@
+import { BaseAgentService } from '../../base/base-agent.service';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+export declare const DEPENDENCY_AGENT_CONFIG: AgentConfig;
+export declare class DependencyAgentService extends BaseAgentService {
+    private auditHistory;
+    protected defineConfig(): AgentConfig;
+    protected onInitialize(): Promise<void>;
+    protected onExecute(input: AgentInput): Promise<AgentOutput>;
+    protected onDestroy(): Promise<void>;
+    private listDependencies;
+    private checkVulnerabilities;
+    private updateDependency;
+    private auditDependencies;
+    private resolveConflict;
+    private createDependencyInfo;
+    private cleanVersion;
+    private isVersionVulnerable;
+    private simulateLatestVersion;
+    private simulateMinorVersion;
+    private simulateLicense;
+    private simulateAdditionalVulnerabilityChecks;
+    private calculateVulnerabilityRiskScore;
+    private isLikelyUnused;
+    private detectBreakingChanges;
+    private generateMigrationSteps;
+    private calculateDependencyHealthScore;
+    private resolveVersionConflict;
+    private findNewestVersion;
+    private findOldestVersion;
+    private findSemverCompatibleVersion;
+}

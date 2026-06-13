@@ -1,0 +1,31 @@
+import { BaseAgentService } from '../../base/base-agent.service';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+export declare const SEO_OPTIMIZATION_AGENT_CONFIG: AgentConfig;
+export declare class SEOOptimizationAgentService extends BaseAgentService {
+    private auditHistory;
+    private keywordCache;
+    protected defineConfig(): AgentConfig;
+    protected onInitialize(): Promise<void>;
+    protected onExecute(input: AgentInput): Promise<AgentOutput>;
+    protected onDestroy(): Promise<void>;
+    private analyzeSEO;
+    private researchKeywords;
+    private optimizeContent;
+    private generateMetaTags;
+    private analyzeCompetitors;
+    private auditTechnicalSEO;
+    private calculateAvgSentenceLength;
+    private generateKeywordVariations;
+    private estimateSearchVolume;
+    private estimateDifficulty;
+    private estimateRelevance;
+    private estimateCPC;
+    private generateRelatedTopics;
+    private identifyContentGaps;
+    private optimizeForKeywords;
+    private optimizeForReadability;
+    private optimizeForFeaturedSnippet;
+    private estimateCompetitorStrengths;
+    private estimateCompetitorWeaknesses;
+    private identifyOpportunities;
+}

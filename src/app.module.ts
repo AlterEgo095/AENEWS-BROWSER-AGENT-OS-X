@@ -9,6 +9,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HealthModule } from './health/health.module';
 import { AgentsModule } from './agents/agents.module';
+import { SoftwareFactoryModule } from './software-factory/software-factory.module';
+import { SoftwareFactoryController } from './software-factory/software-factory.controller';
 
 import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
 
@@ -90,8 +92,11 @@ import { appConfig, databaseConfig, redisConfig, jwtConfig } from './config';
 
     // ─── Agents Framework ────────────────────────────────────
     AgentsModule,
+
+    // ─── Software Factory ─────────────────────────────────────
+    SoftwareFactoryModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, SoftwareFactoryController],
   providers: [AppService],
   exports: [AppService],
 })

@@ -386,13 +386,13 @@ export class ScreenCaptureAgentService extends BaseAgentService {
     let targetWindow = SIMULATED_WINDOWS[0]; // Default
 
     if (windowId !== undefined) {
-      targetWindow = SIMULATED_WINDOWS.find((w) => w.id === windowId) || null;
+      targetWindow = SIMULATED_WINDOWS.find((w) => w.id === windowId) ?? SIMULATED_WINDOWS[0];
       if (!targetWindow) {
         throw new Error(`Window not found with ID: ${windowId}`);
       }
     } else if (windowTitle) {
       const lowerTitle = windowTitle.toLowerCase();
-      targetWindow = SIMULATED_WINDOWS.find((w) => w.title.toLowerCase().includes(lowerTitle)) || null;
+      targetWindow = SIMULATED_WINDOWS.find((w) => w.title.toLowerCase().includes(lowerTitle)) ?? SIMULATED_WINDOWS[0];
       if (!targetWindow) {
         throw new Error(`Window not found matching title: "${windowTitle}". Available: ${SIMULATED_WINDOWS.map((w) => w.title).join(', ')}`);
       }

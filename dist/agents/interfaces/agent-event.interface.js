@@ -1,0 +1,53 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.EventProcessingStatus = exports.EventPriority = exports.AgentEventType = void 0;
+var AgentEventType;
+(function (AgentEventType) {
+    AgentEventType["AGENT_INITIALIZED"] = "agent.initialized";
+    AgentEventType["AGENT_STARTED"] = "agent.started";
+    AgentEventType["AGENT_STOPPED"] = "agent.stopped";
+    AgentEventType["AGENT_PAUSED"] = "agent.paused";
+    AgentEventType["AGENT_RESUMED"] = "agent.resumed";
+    AgentEventType["AGENT_DESTROYED"] = "agent.destroyed";
+    AgentEventType["AGENT_ERROR"] = "agent.error";
+    AgentEventType["AGENT_STATUS_CHANGED"] = "agent.status_changed";
+    AgentEventType["AGENT_HEALTH_CHANGED"] = "agent.health_changed";
+    AgentEventType["TASK_CREATED"] = "task.created";
+    AgentEventType["TASK_STARTED"] = "task.started";
+    AgentEventType["TASK_COMPLETED"] = "task.completed";
+    AgentEventType["TASK_FAILED"] = "task.failed";
+    AgentEventType["TASK_CANCELLED"] = "task.cancelled";
+    AgentEventType["TASK_PROGRESS"] = "task.progress";
+    AgentEventType["ORCHESTRATION_STARTED"] = "orchestration.started";
+    AgentEventType["ORCHESTRATION_DECOMPOSED"] = "orchestration.decomposed";
+    AgentEventType["ORCHESTRATION_PLANNED"] = "orchestration.planned";
+    AgentEventType["ORCHESTRATION_STEP_COMPLETED"] = "orchestration.step_completed";
+    AgentEventType["ORCHESTRATION_COMPLETED"] = "orchestration.completed";
+    AgentEventType["ORCHESTRATION_FAILED"] = "orchestration.failed";
+    AgentEventType["MEMORY_STORED"] = "memory.stored";
+    AgentEventType["MEMORY_RETRIEVED"] = "memory.retrieved";
+    AgentEventType["MEMORY_DELETED"] = "memory.deleted";
+    AgentEventType["MESSAGE_SENT"] = "communication.message_sent";
+    AgentEventType["MESSAGE_RECEIVED"] = "communication.message_received";
+    AgentEventType["MESSAGE_FAILED"] = "communication.message_failed";
+    AgentEventType["SYSTEM_ALERT"] = "system.alert";
+    AgentEventType["SYSTEM_CONFIG_CHANGED"] = "system.config_changed";
+    AgentEventType["CIRCUIT_BREAKER_OPENED"] = "system.circuit_breaker_opened";
+    AgentEventType["CIRCUIT_BREAKER_CLOSED"] = "system.circuit_breaker_closed";
+})(AgentEventType || (exports.AgentEventType = AgentEventType = {}));
+var EventPriority;
+(function (EventPriority) {
+    EventPriority[EventPriority["LOW"] = 0] = "LOW";
+    EventPriority[EventPriority["NORMAL"] = 1] = "NORMAL";
+    EventPriority[EventPriority["HIGH"] = 2] = "HIGH";
+    EventPriority[EventPriority["CRITICAL"] = 3] = "CRITICAL";
+})(EventPriority || (exports.EventPriority = EventPriority = {}));
+var EventProcessingStatus;
+(function (EventProcessingStatus) {
+    EventProcessingStatus["PENDING"] = "pending";
+    EventProcessingStatus["PROCESSING"] = "processing";
+    EventProcessingStatus["COMPLETED"] = "completed";
+    EventProcessingStatus["FAILED"] = "failed";
+    EventProcessingStatus["DEAD_LETTER"] = "dead_letter";
+})(EventProcessingStatus || (exports.EventProcessingStatus = EventProcessingStatus = {}));
+//# sourceMappingURL=agent-event.interface.js.map

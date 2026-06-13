@@ -232,7 +232,7 @@ interface VirtualNode {
 
 @Injectable()
 export class FileSystemAgentService extends BaseAgentService {
-  private root: VirtualNode;
+  private root!: VirtualNode;
   private operationLog: Array<{ operation: string; path: string; timestamp: Date; success: boolean }> = [];
 
   protected defineConfig(): AgentConfig {

@@ -1,0 +1,27 @@
+import { BaseAgentService } from '../../base/base-agent.service';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+export declare const BUILD_AGENT_CONFIG: AgentConfig;
+export declare class BuildAgentService extends BaseAgentService {
+    private buildHistory;
+    private lastBuildInfo;
+    protected defineConfig(): AgentConfig;
+    protected onInitialize(): Promise<void>;
+    protected onExecute(input: AgentInput): Promise<AgentOutput>;
+    protected onDestroy(): Promise<void>;
+    private build;
+    private compile;
+    private bundle;
+    private cleanBuild;
+    private configureBuild;
+    private getBuildInfo;
+    private simulateCompilation;
+    private simulateStrictModeCheck;
+    private simulateBuildOutput;
+    private generateTsConfig;
+    private generateWebpackConfig;
+    private generateEsbuildConfig;
+    private generateRollupConfig;
+    private generateNestCliConfig;
+    private detectBuildTool;
+    private generateShortHash;
+}

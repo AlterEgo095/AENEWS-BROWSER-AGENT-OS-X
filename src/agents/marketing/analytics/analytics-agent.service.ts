@@ -586,7 +586,7 @@ export class AnalyticsAgentService extends BaseAgentService {
     }
 
     // Define default funnel stages
-    const defaultStages: Array<{ name: string; dropOffRate: number }> = {
+    const defaultStages: Array<{ name: string; dropOffRate: number }> = ({
       awareness: [
         { name: 'Impression', dropOffRate: 0.6 },
         { name: 'Click', dropOffRate: 0.7 },
@@ -619,7 +619,7 @@ export class AnalyticsAgentService extends BaseAgentService {
             { name: 'Action', dropOffRate: 0.5 },
             { name: 'Completion', dropOffRate: 0 },
           ],
-    }[funnelType];
+    } as Record<string, Array<{ name: string; dropOffRate: number }>>)[funnelType] || [];
 
     if (!defaultStages || defaultStages.length === 0) {
       throw new Error(`Failed to build funnel stages for type: ${funnelType}`);

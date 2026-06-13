@@ -259,7 +259,7 @@ interface SystemState {
 
 @Injectable()
 export class SystemMonitorAgentService extends BaseAgentService {
-  private systemState: SystemState;
+  private systemState!: SystemState;
   private historicalCpu: CpuSample[] = [];
   private historicalMemory: MemorySample[] = [];
   private maxHistorySize = 500;

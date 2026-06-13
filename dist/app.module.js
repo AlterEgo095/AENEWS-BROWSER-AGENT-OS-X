@@ -15,6 +15,9 @@ const bull_1 = require("@nestjs/bull");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const health_module_1 = require("./health/health.module");
+const agents_module_1 = require("./agents/agents.module");
+const software_factory_module_1 = require("./software-factory/software-factory.module");
+const software_factory_controller_1 = require("./software-factory/software-factory.controller");
 const config_2 = require("./config");
 let AppModule = class AppModule {
 };
@@ -86,8 +89,10 @@ exports.AppModule = AppModule = __decorate([
                 }),
             }),
             health_module_1.HealthModule,
+            agents_module_1.AgentsModule,
+            software_factory_module_1.SoftwareFactoryModule,
         ],
-        controllers: [app_controller_1.AppController],
+        controllers: [app_controller_1.AppController, software_factory_controller_1.SoftwareFactoryController],
         providers: [app_service_1.AppService],
         exports: [app_service_1.AppService],
     })

@@ -1,0 +1,34 @@
+import { BaseAgentService } from '../../base/base-agent.service';
+import { AgentConfig, AgentInput, AgentOutput } from '../../interfaces/agent.interface';
+export declare const SPREADSHEET_AGENT_CONFIG: AgentConfig;
+export declare class SpreadsheetAgentService extends BaseAgentService {
+    private spreadsheets;
+    private spreadsheetCounter;
+    private chartCounter;
+    private pivotCounter;
+    protected defineConfig(): AgentConfig;
+    protected onInitialize(): Promise<void>;
+    protected onExecute(input: AgentInput): Promise<AgentOutput>;
+    protected onDestroy(): Promise<void>;
+    private createSpreadsheet;
+    private updateCell;
+    private applyFormula;
+    private createChart;
+    private importData;
+    private exportData;
+    private pivotTable;
+    private generateSpreadsheetId;
+    private validateCellReference;
+    private parseCellReference;
+    private columnToLetter;
+    private letterToColumn;
+    private parseRange;
+    private evaluateFormula;
+    private adjustFormulaForCell;
+    private parseCsv;
+    private parseJsonData;
+    private convertToCsv;
+    private convertToJson;
+    private convertTo2DArray;
+    private aggregatePivotData;
+}

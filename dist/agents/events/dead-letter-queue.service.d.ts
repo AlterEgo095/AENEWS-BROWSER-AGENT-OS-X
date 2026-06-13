@@ -1,0 +1,40 @@
+import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { IDeadLetterQueueService, DeadLetterEntry, DeadLetterQueueStats } from '../interfaces/agent-event.interface';
+import { EventBusService } from './event-bus.service';
+export declare class DeadLetterQueueService implements IDeadLetterQueueService, OnModuleInit, OnModuleDestroy {
+    private readonly logger;
+    private readonly queue;
+    private readonly retryConfig;
+    private readonly repairHistory;
+    private retryInterval;
+    private static readonly MAX_QUEUE_SIZE;
+    private static readonly PURGE_BATCH_SIZE;
+    onModuleInit(): Promise<void>;
+    onModuleDestroy(): Promise<void>;
+    add(entry: Omit<DeadLetterEntry, 'id'>): Promise<DeadLetterEntry>;
+    get(id: string): Promise<DeadLetterEntry | null>;
+    getAll(): DeadLetterEntry[];
+    getCount(): number;
+    getPending(limit?: number): Promise<DeadLetterEntry[]>;
+    retry(id: string): Promise<boolean>;
+    discard(id: string): Promise<boolean>;
+    getStats(): Promise<DeadLetterQueueStats>;
+    getRepairHistory(entryId: string): Array<{
+        timestamp: Date;
+        success: boolean;
+        error?: string;
+    }>;
+    getPermanentlyFailed(): DeadLetterEntry[];
+    getByEventType(eventType: string): DeadLetterEntry[];
+    purge(): void;
+    purgeOlderThan(date: Date): number;
+    purgePermanentlyFailed(): number;
+    private eventBusRef;
+    setEventBus(eventBus: EventBusService): void;
+    private republishEvent;
+    private calculateRetryBackoff;
+    private recordRepairAttempt;
+    private startRetryTimer;
+    private processRetries;
+    private evictOldest;
+}

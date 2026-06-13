@@ -391,8 +391,8 @@ export class ScalingAgentService extends BaseAgentService {
     }
 
     const resources = this.getOrCreateServiceResources(service);
-    let previousValue: number;
-    let newValue: number;
+    let previousValue: number = 0;
+    let newValue: number = 0;
 
     switch (resource) {
       case 'cpu':
@@ -453,8 +453,8 @@ export class ScalingAgentService extends BaseAgentService {
     }
 
     const resources = this.getOrCreateServiceResources(service);
-    let previousValue: number;
-    let newValue: number;
+    let previousValue: number = 0;
+    let newValue: number = 0;
     let warning: string | undefined;
 
     switch (resource) {
@@ -688,7 +688,7 @@ export class ScalingAgentService extends BaseAgentService {
     const currentCopy = { ...current };
 
     // Calculate optimized allocation based on strategy
-    const optimized: ServiceResources = { service, ...currentCopy };
+    const optimized: ServiceResources = { ...currentCopy };
 
     const changes: string[] = [];
 

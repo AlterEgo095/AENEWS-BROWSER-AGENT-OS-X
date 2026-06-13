@@ -92,7 +92,7 @@ export const DEPLOYMENT_AGENT_CONFIG: AgentConfig = {
       },
     },
     {
-      name: 'getStatus',
+      name: 'getDeploymentStatus',
       description: 'Get the status of a deployment',
       inputSchema: {
         type: 'object',
@@ -249,13 +249,13 @@ export class DeploymentAgentService extends BaseAgentService {
     });
 
     this.registerTool({
-      name: 'getStatus',
+      name: 'getDeploymentStatus',
       description: 'Get the status of a deployment',
       execute: async (params: {
         appName: string;
         deploymentId?: string;
         environment?: string;
-      }) => this.getStatus(params),
+      }) => this.getDeploymentStatus(params),
     });
 
     this.registerTool({
@@ -292,7 +292,7 @@ export class DeploymentAgentService extends BaseAgentService {
     }
 
     const supportedActions = [
-      'deploy', 'rollback', 'promoteCanary', 'getStatus',
+      'deploy', 'rollback', 'promoteCanary', 'getDeploymentStatus',
       'scaleDeployment', 'generateDeploymentReport',
     ];
 
@@ -560,7 +560,7 @@ export class DeploymentAgentService extends BaseAgentService {
     };
   }
 
-  private async getStatus(params: {
+  private async getDeploymentStatus(params: {
     appName: string;
     deploymentId?: string;
     environment?: string;
@@ -615,7 +615,7 @@ export class DeploymentAgentService extends BaseAgentService {
       updatedAt: d.updatedAt.toISOString(),
     }));
 
-    this.logger.log(`getStatus: ${appName} → ${mapped.length} deployment(s)`);
+    this.logger.log(`getDeploymentStatus: ${appName} → ${mapped.length} deployment(s)`);
     return { appName, deployments: mapped, total: mapped.length };
   }
 
