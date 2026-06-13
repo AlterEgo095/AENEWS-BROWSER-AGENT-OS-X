@@ -2,7 +2,7 @@
  * AENEWS Agent OS X - Root Agents Module
  * Aggregates all agent framework modules into a single import.
  * Phase 1: Added AgentConnectorBridgeModule + all cluster modules
- * so agents can delegate to real connectors.
+ * Phase 2: Added LLM Intelligence, Watchdog, Intelligent Orchestration clusters
  */
 
 import { Module } from '@nestjs/common';
@@ -25,6 +25,9 @@ import { SecurityClusterModule } from './security/security-cluster.module';
 import { MetaIntelligenceClusterModule } from './meta-intelligence/meta-intelligence-cluster.module';
 import { CertificationClusterModule } from './certification/certification-cluster.module';
 import { SelfEvolutionClusterModule } from './self-evolution/self-evolution-cluster.module';
+import { LLMIntelligenceClusterModule } from './llm-intelligence';
+import { WatchdogClusterModule } from './watchdog';
+import { IntelligentOrchestrationClusterModule } from './intelligent-orchestration';
 
 @Module({
   imports: [
@@ -40,7 +43,7 @@ import { SelfEvolutionClusterModule } from './self-evolution/self-evolution-clus
     // ─── Bridge to Real Connectors ───────────────────────────
     AgentConnectorBridgeModule,
 
-    // ─── Agent Clusters (11 clusters, 80+ agents) ───────────
+    // ─── Agent Clusters (11 original clusters, 80+ agents) ──
     BrowserClusterModule,
     ComputerClusterModule,
     CodingClusterModule,
@@ -52,6 +55,11 @@ import { SelfEvolutionClusterModule } from './self-evolution/self-evolution-clus
     MetaIntelligenceClusterModule,
     CertificationClusterModule,
     SelfEvolutionClusterModule,
+
+    // ─── Phase 2: Intelligence Clusters (3 new, 13 agents) ──
+    LLMIntelligenceClusterModule,
+    WatchdogClusterModule,
+    IntelligentOrchestrationClusterModule,
   ],
   exports: [
     BaseAgentModule,
@@ -73,6 +81,9 @@ import { SelfEvolutionClusterModule } from './self-evolution/self-evolution-clus
     MetaIntelligenceClusterModule,
     CertificationClusterModule,
     SelfEvolutionClusterModule,
+    LLMIntelligenceClusterModule,
+    WatchdogClusterModule,
+    IntelligentOrchestrationClusterModule,
   ],
 })
 export class AgentsModule {}

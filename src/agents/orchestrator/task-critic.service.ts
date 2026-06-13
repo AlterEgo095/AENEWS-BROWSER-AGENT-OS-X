@@ -5,10 +5,11 @@
  * Scores quality on a 0-100 scale and determines if repair is needed.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { AgentOutput } from '../interfaces/agent.interface';
 import { OrchestrationRequest } from './orchestrator.service';
 import { StepExecutionResult } from './task-executor.service';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Critique Result ──────────────────────────────────────────────
 export interface CritiqueResult {
@@ -62,6 +63,10 @@ export class TaskCriticService {
   private readonly logger = new Logger(TaskCriticService.name);
   private readonly config: CritiqueConfig = { ...DEFAULT_CRITIQUE_CONFIG };
 
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {}
+
   /**
    * Critique execution results to determine if they meet quality standards.
    * Returns a score (0-100) and detailed issues.
@@ -73,6 +78,25 @@ export class TaskCriticService {
     const startTime = Date.now();
     this.logger.log(`Critiquing ${results.length} execution results`);
 
+    // Try LLM critique first when bridge is available
+    if (this.bridge) {
+      try {
+        const llmResult = await this.llmCritique(results, request);
+        if (llmResult) {
+          this.logger.log(
+            `LLM critique completed: ${llmResult.passed ? 'PASSED' : 'FAILED'} (score: ${llmResult.score}) ` +
+              `in ${Date.now() - startTime}ms`,
+          );
+          return llmResult;
+        }
+      } catch (error) {
+        this.logger.warn(
+          `LLM critique failed, falling back to rule-based: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    // Rule-based critique (original logic)
     const issues: CritiqueIssue[] = [];
     let totalScore = 0;
     const maxScore = results.length * 100;
@@ -121,6 +145,58 @@ export class TaskCriticService {
     );
 
     return critiqueResult;
+  }
+
+  /**
+   * LLM-powered critique: uses the AgentConnectorBridge to provide semantic
+   * quality analysis beyond rule-based checks.
+   */
+  async llmCritique(
+    results: StepExecutionResult[],
+    request: OrchestrationRequest,
+  ): Promise<CritiqueResult | null> {
+    if (!this.bridge) {
+      return null;
+    }
+
+    const userPrompt = JSON.stringify({
+      results: results.map((r) => ({
+        stepId: r.stepId,
+        success: r.success,
+        executionTimeMs: r.executionTimeMs,
+        retryCount: r.retryCount,
+        timedOut: r.timedOut,
+        result: r.output.result,
+        error: r.output.error,
+      })),
+      requestPayload: request.payload,
+      requestContext: request.context,
+    });
+
+    const result = await this.bridge.callLLM({
+      systemPrompt:
+        'You are an expert quality critic. Analyze the execution results for correctness, completeness, efficiency. ' +
+        'Output JSON: {passed: boolean, score: 0-100, issues: [{stepId, severity, category, message, autoRepairable}], recommendations: []}',
+      userPrompt,
+      temperature: 0.2,
+      maxTokens: 4096,
+    });
+
+    const parsed = JSON.parse(result.content);
+
+    return {
+      passed: parsed.passed ?? false,
+      score: parsed.score ?? 0,
+      issues: (parsed.issues || []).map((issue: any) => ({
+        stepId: issue.stepId || 'unknown',
+        severity: issue.severity || 'warning',
+        category: issue.category || CritiqueCategory.ACCURACY,
+        message: issue.message || 'No message provided',
+        autoRepairable: issue.autoRepairable ?? false,
+      })),
+      summary: `LLM critique: score ${parsed.score}/100`,
+      recommendations: parsed.recommendations || [],
+    };
   }
 
   /**

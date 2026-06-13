@@ -1,0 +1,913 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Meta Critic Agent
+     3→ * Quality evaluation and critique of agent outputs for the Meta Intelligence cluster.
+     4→ * Handles output evaluation, quality scoring, issue identification, improvement suggestions,
+     5→ * output comparison, and consistency validation.
+     6→ */
+     7→
+     8→import { Injectable, Optional, Inject } from '@nestjs/common';
+     9→import { BaseAgentService } from '../../base/base-agent.service';
+    10→import {
+    11→  AgentConfig,
+    12→  AgentCluster,
+    13→  AgentInput,
+    14→  AgentOutput,
+    15→} from '../../interfaces/agent.interface';
+    16→import { AgentConnectorBridge } from '../../bridge';
+    17→
+    18→// ─── Agent Configuration ──────────────────────────────────────────
+    19→
+    20→export const META_CRITIC_AGENT_CONFIG: AgentConfig = {
+    21→  id: 'meta-critic',
+    22→  name: 'MetaCritic',
+    23→  cluster: AgentCluster.META_INTELLIGENCE,
+    24→  version: '1.0.0',
+    25→  description:
+    26→    'Quality evaluation agent that critiques agent outputs, scores quality, identifies issues, suggests improvements, compares outputs, and validates consistency across the Meta Intelligence cluster.',
+    27→  capabilities: [
+    28→    {
+    29→      name: 'evaluateOutput',
+    30→      description: 'Evaluate an agent output against quality criteria',
+    31→      inputSchema: {
+    32→        type: 'object',
+    33→        properties: {
+    34→          output: { type: 'object', description: 'Output to evaluate' },
+    35→          criteria: {
+    36→            type: 'array',
+    37→            items: { type: 'string' },
+    38→            description: 'Evaluation criteria',
+    39→          },
+    40→          context: { type: 'object', description: 'Evaluation context' },
+    41→        },
+    42→        required: ['output'],
+    43→      },
+    44→      outputSchema: {
+    45→        type: 'object',
+    46→        properties: {
+    47→          overallScore: { type: 'number' },
+    48→          criteriaScores: { type: 'object' },
+    49→          passed: { type: 'boolean' },
+    50→        },
+    51→      },
+    52→    },
+    53→    {
+    54→      name: 'scoreQuality',
+    55→      description: 'Score the quality of an output on multiple dimensions',
+    56→      inputSchema: {
+    57→        type: 'object',
+    58→        properties: {
+    59→          content: { type: 'any', description: 'Content to score' },
+    60→          dimensions: {
+    61→            type: 'array',
+    62→            items: { type: 'string' },
+    63→            description: 'Quality dimensions',
+    64→          },
+    65→        },
+    66→        required: ['content'],
+    67→      },
+    68→      outputSchema: {
+    69→        type: 'object',
+    70→        properties: {
+    71→          scores: { type: 'object' },
+    72→          overallScore: { type: 'number' },
+    73→          grade: { type: 'string' },
+    74→        },
+    75→      },
+    76→    },
+    77→    {
+    78→      name: 'identifyIssues',
+    79→      description: 'Identify issues, errors, or deficiencies in an output',
+    80→      inputSchema: {
+    81→        type: 'object',
+    82→        properties: {
+    83→          output: { type: 'any', description: 'Output to analyze' },
+    84→          expectedFormat: { type: 'object', description: 'Expected output format' },
+    85→          severity: {
+    86→            type: 'string',
+    87→            enum: ['all', 'critical', 'warning'],
+    88→            description: 'Minimum severity filter',
+    89→          },
+    90→        },
+    91→        required: ['output'],
+    92→      },
+    93→      outputSchema: {
+    94→        type: 'object',
+    95→        properties: {
+    96→          issues: { type: 'array', items: { type: 'object' } },
+    97→          issueCount: { type: 'number' },
+    98→          criticalCount: { type: 'number' },
+    99→        },
+   100→      },
+   101→    },
+   102→    {
+   103→      name: 'suggestImprovements',
+   104→      description: 'Suggest improvements for a given output',
+   105→      inputSchema: {
+   106→        type: 'object',
+   107→        properties: {
+   108→          output: { type: 'any', description: 'Output to improve' },
+   109→          goals: { type: 'array', items: { type: 'string' }, description: 'Improvement goals' },
+   110→          constraints: { type: 'object', description: 'Constraints on improvements' },
+   111→        },
+   112→        required: ['output'],
+   113→      },
+   114→      outputSchema: {
+   115→        type: 'object',
+   116→        properties: {
+   117→          suggestions: { type: 'array', items: { type: 'object' } },
+   118→          priorityOrder: { type: 'array', items: { type: 'string' } },
+   119→          estimatedImpact: { type: 'string' },
+   120→        },
+   121→      },
+   122→    },
+   123→    {
+   124→      name: 'compareOutputs',
+   125→      description: 'Compare two or more outputs and determine the best one',
+   126→      inputSchema: {
+   127→        type: 'object',
+   128→        properties: {
+   129→          outputs: { type: 'array', items: { type: 'object' }, description: 'Outputs to compare' },
+   130→          criteria: {
+   131→            type: 'array',
+   132→            items: { type: 'string' },
+   133→            description: 'Comparison criteria',
+   134→          },
+   135→        },
+   136→        required: ['outputs'],
+   137→      },
+   138→      outputSchema: {
+   139→        type: 'object',
+   140→        properties: {
+   141→          rankings: { type: 'array', items: { type: 'object' } },
+   142→          bestOutput: { type: 'string' },
+   143→          comparison: { type: 'object' },
+   144→        },
+   145→      },
+   146→    },
+   147→    {
+   148→      name: 'validateConsistency',
+   149→      description: 'Validate consistency across multiple outputs or data points',
+   150→      inputSchema: {
+   151→        type: 'object',
+   152→        properties: {
+   153→          outputs: {
+   154→            type: 'array',
+   155→            items: { type: 'any' },
+   156→            description: 'Outputs to check for consistency',
+   157→          },
+   158→          rules: { type: 'array', items: { type: 'object' }, description: 'Consistency rules' },
+   159→        },
+   160→        required: ['outputs'],
+   161→      },
+   162→      outputSchema: {
+   163→        type: 'object',
+   164→        properties: {
+   165→          consistent: { type: 'boolean' },
+   166→          inconsistencies: { type: 'array', items: { type: 'object' } },
+   167→          consistencyScore: { type: 'number' },
+   168→        },
+   169→      },
+   170→    },
+   171→  ],
+   172→  permissions: ['execute:task', 'read:output', 'write:critique', 'read:quality'],
+   173→  maxConcurrentTasks: 4,
+   174→  timeout: 60000,
+   175→  retryPolicy: {
+   176→    maxRetries: 2,
+   177→    backoffMs: 2000,
+   178→    exponentialBackoff: true,
+   179→  },
+   180→};
+   181→
+   182→// ─── Internal Types ───────────────────────────────────────────────
+   183→
+   184→interface Issue {
+   185→  id: string;
+   186→  severity: 'critical' | 'warning' | 'info';
+   187→  category: string;
+   188→  message: string;
+   189→  location?: string;
+   190→  recommendation: string;
+   191→}
+   192→
+   193→interface Suggestion {
+   194→  id: string;
+   195→  category: string;
+   196→  description: string;
+   197→  priority: 'high' | 'medium' | 'low';
+   198→  estimatedImpact: string;
+   199→  implementation: string;
+   200→}
+   201→
+   202→// ─── Agent Service ────────────────────────────────────────────────
+   203→
+   204→@Injectable()
+   205→export class CriticAgentService extends BaseAgentService {
+   206→  constructor(
+   207→    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+   208→  ) {
+   209→    super();
+   210→  }
+   211→  private evaluationHistory: Array<{
+   212→    outputId: string;
+   213→    score: number;
+   214→    timestamp: Date;
+   215→  }> = [];
+   216→
+   217→  protected defineConfig(): AgentConfig {
+   218→    return META_CRITIC_AGENT_CONFIG;
+   219→  }
+   220→
+   221→  protected async onInitialize(): Promise<void> {
+   222→    this.registerTool({
+   223→      name: 'evaluateOutput',
+   224→      description: 'Evaluate an agent output against quality criteria',
+   225→      execute: async (params: {
+   226→        output: any;
+   227→        criteria?: string[];
+   228→        context?: Record<string, any>;
+   229→      }) => this.evaluateOutput(params),
+   230→    });
+   231→
+   232→    this.registerTool({
+   233→      name: 'scoreQuality',
+   234→      description: 'Score the quality of an output on multiple dimensions',
+   235→      execute: async (params: { content: any; dimensions?: string[] }) => this.scoreQuality(params),
+   236→    });
+   237→
+   238→    this.registerTool({
+   239→      name: 'identifyIssues',
+   240→      description: 'Identify issues, errors, or deficiencies in an output',
+   241→      execute: async (params: {
+   242→        output: any;
+   243→        expectedFormat?: Record<string, any>;
+   244→        severity?: string;
+   245→      }) => this.identifyIssues(params),
+   246→    });
+   247→
+   248→    this.registerTool({
+   249→      name: 'suggestImprovements',
+   250→      description: 'Suggest improvements for a given output',
+   251→      execute: async (params: {
+   252→        output: any;
+   253→        goals?: string[];
+   254→        constraints?: Record<string, any>;
+   255→      }) => this.suggestImprovements(params),
+   256→    });
+   257→
+   258→    this.registerTool({
+   259→      name: 'compareOutputs',
+   260→      description: 'Compare two or more outputs and determine the best one',
+   261→      execute: async (params: {
+   262→        outputs: Array<{ id: string; content: any }>;
+   263→        criteria?: string[];
+   264→      }) => this.compareOutputs(params),
+   265→    });
+   266→
+   267→    this.registerTool({
+   268→      name: 'validateConsistency',
+   269→      description: 'Validate consistency across multiple outputs or data points',
+   270→      execute: async (params: { outputs: any[]; rules?: Array<{ field: string; type: string }> }) =>
+   271→        this.validateConsistency(params),
+   272→    });
+   273→
+   274→    await this.storeInWorkingMemory('critic:initializedAt', new Date().toISOString(), 600000);
+   275→    this.logger.log('MetaCritic agent initialized with 6 tools');
+   276→  }
+   277→
+   278→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   279→    const startTime = Date.now();
+   280→    // Bridge: use LLM for quality evaluation, issue identification, and improvement suggestions
+   281→    if (this.bridge) {
+   282→      try {
+   283→        const llmResult = await this.bridge.callLLM({
+   284→          systemPrompt: `You are the ${this.config.name} agent in the Meta-Intelligence cluster. Analyze the following task and provide detailed quality evaluation, issue identification, and improvement suggestions.`,
+   285→          userPrompt: JSON.stringify(input.payload),
+   286→          temperature: 0.3,
+   287→          maxTokens: 2048,
+   288→        });
+   289→
+   290→        const analysis = llmResult.content;
+   291→
+   292→        return this.createAgentOutput(
+   293→          input.taskId,
+   294→          true,
+   295→          { analysis, costUsd: llmResult.costUsd, tokensUsed: llmResult.tokenCount },
+   296→          undefined,
+   297→          startTime,
+   298→        );
+   299→      } catch (error) {
+   300→        this.logger.warn(`Bridge LLM failed, fallback: ${(error as Error).message}`);
+   301→      }
+   302→    }
+   303→
+   304→    const { action, ...params } = input.payload;
+   305→
+   306→    if (!action) {
+   307→      return this.createAgentOutput(
+   308→        input.taskId,
+   309→        false,
+   310→        null,
+   311→        'Missing required parameter: action',
+   312→        startTime,
+   313→      );
+   314→    }
+   315→
+   316→    const supportedActions = [
+   317→      'evaluateOutput',
+   318→      'scoreQuality',
+   319→      'identifyIssues',
+   320→      'suggestImprovements',
+   321→      'compareOutputs',
+   322→      'validateConsistency',
+   323→    ];
+   324→
+   325→    if (!supportedActions.includes(action)) {
+   326→      return this.createAgentOutput(
+   327→        input.taskId,
+   328→        false,
+   329→        null,
+   330→        `Unknown critic action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   331→        startTime,
+   332→      );
+   333→    }
+   334→
+   335→    try {
+   336→      const tool = this.getTool(action);
+   337→      if (!tool) {
+   338→        return this.createAgentOutput(
+   339→          input.taskId,
+   340→          false,
+   341→          null,
+   342→          `Tool not found: ${action}`,
+   343→          startTime,
+   344→        );
+   345→      }
+   346→
+   347→      const result = await tool.execute(params);
+   348→      await this.storeInWorkingMemory(
+   349→        `critic:last:${action}`,
+   350→        { params, result, timestamp: new Date() },
+   351→        300000,
+   352→      );
+   353→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   354→    } catch (error) {
+   355→      const msg = (error as Error).message;
+   356→      this.logger.error(`MetaCritic execution failed for ${action}: ${msg}`);
+   357→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   358→    }
+   359→  }
+   360→
+   361→  protected async onDestroy(): Promise<void> {
+   362→    this.evaluationHistory = [];
+   363→    this.logger.log('MetaCritic agent destroyed, evaluation history cleared');
+   364→  }
+   365→
+   366→  // ─── Tool Implementations ──────────────────────────────────────
+   367→
+   368→  private async evaluateOutput(params: {
+   369→    output: any;
+   370→    criteria?: string[];
+   371→    context?: Record<string, any>;
+   372→  }): Promise<{
+   373→    overallScore: number;
+   374→    criteriaScores: Record<string, number>;
+   375→    passed: boolean;
+   376→    summary: string;
+   377→  }> {
+   378→    const {
+   379→      output,
+   380→      criteria = ['completeness', 'accuracy', 'relevance', 'clarity'],
+   381→      context = {},
+   382→    } = params;
+   383→
+   384→    if (output === null || output === undefined) {
+   385→      throw new Error('Output cannot be null or undefined for evaluation');
+   386→    }
+   387→
+   388→    const criteriaScores: Record<string, number> = {};
+   389→
+   390→    for (const criterion of criteria) {
+   391→      criteriaScores[criterion] = this.evaluateCriterion(output, criterion, context);
+   392→    }
+   393→
+   394→    const overallScore = Math.round(
+   395→      Object.values(criteriaScores).reduce((sum, s) => sum + s, 0) / criteria.length,
+   396→    );
+   397→
+   398→    const passed = overallScore >= 60;
+   399→
+   400→    const summary = this.generateEvaluationSummary(criteriaScores, overallScore, passed);
+   401→
+   402→    const outputId = this.generateId();
+   403→    this.evaluationHistory.push({ outputId, score: overallScore, timestamp: new Date() });
+   404→
+   405→    this.logger.log(
+   406→      `Output evaluated: score=${overallScore}, passed=${passed}, criteria=${criteria.length}`,
+   407→    );
+   408→
+   409→    return { overallScore, criteriaScores, passed, summary };
+   410→  }
+   411→
+   412→  private async scoreQuality(params: { content: any; dimensions?: string[] }): Promise<{
+   413→    scores: Record<string, number>;
+   414→    overallScore: number;
+   415→    grade: string;
+   416→  }> {
+   417→    const {
+   418→      content,
+   419→      dimensions = ['correctness', 'completeness', 'consistency', 'efficiency', 'readability'],
+   420→    } = params;
+   421→
+   422→    if (content === null || content === undefined) {
+   423→      throw new Error('Content cannot be null or undefined for quality scoring');
+   424→    }
+   425→
+   426→    const scores: Record<string, number> = {};
+   427→
+   428→    for (const dim of dimensions) {
+   429→      scores[dim] = this.scoreDimension(content, dim);
+   430→    }
+   431→
+   432→    const overallScore = Math.round(
+   433→      Object.values(scores).reduce((sum, s) => sum + s, 0) / dimensions.length,
+   434→    );
+   435→
+   436→    const grade = this.scoreToGrade(overallScore);
+   437→
+   438→    this.logger.log(
+   439→      `Quality scored: overall=${overallScore}, grade=${grade}, dimensions=${dimensions.length}`,
+   440→    );
+   441→
+   442→    return { scores, overallScore, grade };
+   443→  }
+   444→
+   445→  private async identifyIssues(params: {
+   446→    output: any;
+   447→    expectedFormat?: Record<string, any>;
+   448→    severity?: string;
+   449→  }): Promise<{
+   450→    issues: Issue[];
+   451→    issueCount: number;
+   452→    criticalCount: number;
+   453→  }> {
+   454→    const { output, expectedFormat, severity = 'all' } = params;
+   455→
+   456→    if (output === null || output === undefined) {
+   457→      throw new Error('Output cannot be null or undefined for issue identification');
+   458→    }
+   459→
+   460→    const issues: Issue[] = [];
+   461→
+   462→    // Check for null/undefined fields
+   463→    if (typeof output === 'object') {
+   464→      for (const [key, value] of Object.entries(output)) {
+   465→        if (value === null || value === undefined) {
+   466→          issues.push({
+   467→            id: this.generateId(),
+   468→            severity: 'warning',
+   469→            category: 'missing-field',
+   470→            message: `Field "${key}" is null or undefined`,
+   471→            location: key,
+   472→            recommendation: `Provide a value for field "${key}"`,
+   473→          });
+   474→        }
+   475→      }
+   476→    }
+   477→
+   478→    // Check against expected format
+   479→    if (expectedFormat) {
+   480→      for (const [key, type] of Object.entries(expectedFormat)) {
+   481→        if (!(key in (output || {}))) {
+   482→          issues.push({
+   483→            id: this.generateId(),
+   484→            severity: 'critical',
+   485→            category: 'missing-field',
+   486→            message: `Required field "${key}" is missing`,
+   487→            location: key,
+   488→            recommendation: `Add the required field "${key}" of type ${type}`,
+   489→          });
+   490→        } else if (typeof output[key] !== type) {
+   491→          issues.push({
+   492→            id: this.generateId(),
+   493→            severity: 'warning',
+   494→            category: 'type-mismatch',
+   495→            message: `Field "${key}" expected type ${type}, got ${typeof output[key]}`,
+   496→            location: key,
+   497→            recommendation: `Convert field "${key}" to type ${type}`,
+   498→          });
+   499→        }
+   500→      }
+   501→    }
+   502→
+   503→    // Check for empty strings
+   504→    if (typeof output === 'string' && output.trim().length === 0) {
+   505→      issues.push({
+   506→        id: this.generateId(),
+   507→        severity: 'critical',
+   508→        category: 'empty-output',
+   509→        message: 'Output is an empty string',
+   510→        recommendation: 'Provide non-empty content',
+   511→      });
+   512→    }
+   513→
+   514→    // Check for error indicators
+   515→    if (typeof output === 'object' && output.error) {
+   516→      issues.push({
+   517→        id: this.generateId(),
+   518→        severity: 'critical',
+   519→        category: 'error-indicator',
+   520→        message: `Output contains error: ${output.error}`,
+   521→        location: 'error',
+   522→        recommendation: 'Investigate and resolve the error before using this output',
+   523→      });
+   524→    }
+   525→
+   526→    // Filter by severity
+   527→    const filteredIssues =
+   528→      severity === 'all'
+   529→        ? issues
+   530→        : issues.filter((i) => {
+   531→            if (severity === 'critical') return i.severity === 'critical';
+   532→            if (severity === 'warning')
+   533→              return i.severity === 'critical' || i.severity === 'warning';
+   534→            return true;
+   535→          });
+   536→
+   537→    const criticalCount = filteredIssues.filter((i) => i.severity === 'critical').length;
+   538→
+   539→    this.logger.log(`Issues identified: total=${filteredIssues.length}, critical=${criticalCount}`);
+   540→
+   541→    return { issues: filteredIssues, issueCount: filteredIssues.length, criticalCount };
+   542→  }
+   543→
+   544→  private async suggestImprovements(params: {
+   545→    output: any;
+   546→    goals?: string[];
+   547→    constraints?: Record<string, any>;
+   548→  }): Promise<{
+   549→    suggestions: Suggestion[];
+   550→    priorityOrder: string[];
+   551→    estimatedImpact: string;
+   552→  }> {
+   553→    const { output, goals = ['quality', 'completeness'], constraints = {} } = params;
+   554→
+   555→    if (output === null || output === undefined) {
+   556→      throw new Error('Output cannot be null or undefined for improvement suggestions');
+   557→    }
+   558→
+   559→    const suggestions: Suggestion[] = [];
+   560→
+   561→    // Analyze output and generate suggestions
+   562→    if (typeof output === 'string') {
+   563→      if (output.length < 100) {
+   564→        suggestions.push({
+   565→          id: this.generateId(),
+   566→          category: 'content-depth',
+   567→          description: 'Output is brief; consider adding more detail and context',
+   568→          priority: 'medium',
+   569→          estimatedImpact: 'moderate',
+   570→          implementation: 'Expand on key points with supporting evidence or examples',
+   571→        });
+   572→      }
+   573→      if (!output.includes('.')) {
+   574→        suggestions.push({
+   575→          id: this.generateId(),
+   576→          category: 'completeness',
+   577→          description: 'Output appears to be incomplete (no sentence termination)',
+   578→          priority: 'high',
+   579→          estimatedImpact: 'significant',
+   580→          implementation: 'Complete the thought with proper sentence structure',
+   581→        });
+   582→      }
+   583→    }
+   584→
+   585→    if (typeof output === 'object') {
+   586→      const keys = Object.keys(output || {});
+   587→      if (keys.length < 3) {
+   588→        suggestions.push({
+   589→          id: this.generateId(),
+   590→          category: 'completeness',
+   591→          description: 'Output object has few fields; consider adding more structured data',
+   592→          priority: 'medium',
+   593→          estimatedImpact: 'moderate',
+   594→          implementation: 'Add additional relevant fields to provide comprehensive information',
+   595→        });
+   596→      }
+   597→
+   598→      if (!output.success && output.success !== undefined) {
+   599→        suggestions.push({
+   600→          id: this.generateId(),
+   601→          category: 'error-handling',
+   602→          description: 'Output indicates failure; improve error handling and recovery',
+   603→          priority: 'high',
+   604→          estimatedImpact: 'significant',
+   605→          implementation: 'Add fallback logic and graceful degradation paths',
+   606→        });
+   607→      }
+   608→    }
+   609→
+   610→    // Goal-based suggestions
+   611→    if (goals.includes('quality')) {
+   612→      suggestions.push({
+   613→        id: this.generateId(),
+   614→        category: 'quality',
+   615→        description: 'Add validation and verification steps to ensure output quality',
+   616→        priority: 'medium',
+   617→        estimatedImpact: 'moderate',
+   618→        implementation: 'Implement schema validation and cross-check mechanisms',
+   619→      });
+   620→    }
+   621→
+   622→    if (goals.includes('completeness')) {
+   623→      suggestions.push({
+   624→        id: this.generateId(),
+   625→        category: 'completeness',
+   626→        description: 'Ensure all required fields and edge cases are covered',
+   627→        priority: 'medium',
+   628→        estimatedImpact: 'moderate',
+   629→        implementation: 'Add checklist verification for all required output elements',
+   630→      });
+   631→    }
+   632→
+   633→    // Sort by priority
+   634→    const priorityOrder = suggestions
+   635→      .sort((a, b) => {
+   636→        const priorityVal = { high: 3, medium: 2, low: 1 };
+   637→        return (priorityVal[b.priority] || 0) - (priorityVal[a.priority] || 0);
+   638→      })
+   639→      .map((s) => s.id);
+   640→
+   641→    const estimatedImpact = suggestions.some((s) => s.priority === 'high')
+   642→      ? 'significant'
+   643→      : suggestions.length > 0
+   644→        ? 'moderate'
+   645→        : 'minimal';
+   646→
+   647→    this.logger.log(
+   648→      `Improvements suggested: count=${suggestions.length}, impact=${estimatedImpact}`,
+   649→    );
+   650→
+   651→    return { suggestions, priorityOrder, estimatedImpact };
+   652→  }
+   653→
+   654→  private async compareOutputs(params: {
+   655→    outputs: Array<{ id: string; content: any }>;
+   656→    criteria?: string[];
+   657→  }): Promise<{
+   658→    rankings: Array<{ id: string; score: number; rank: number }>;
+   659→    bestOutput: string;
+   660→    comparison: Record<string, Record<string, number>>;
+   661→  }> {
+   662→    const { outputs, criteria = ['quality', 'completeness', 'accuracy', 'efficiency'] } = params;
+   663→
+   664→    if (!outputs || !Array.isArray(outputs) || outputs.length < 2) {
+   665→      throw new Error('At least two outputs are required for comparison');
+   666→    }
+   667→
+   668→    const comparison: Record<string, Record<string, number>> = {};
+   669→    const scored: Array<{ id: string; score: number }> = [];
+   670→
+   671→    for (const output of outputs) {
+   672→      const criteriaScores: Record<string, number> = {};
+   673→
+   674→      for (const criterion of criteria) {
+   675→        criteriaScores[criterion] = this.evaluateCriterion(output.content, criterion, {});
+   676→      }
+   677→
+   678→      comparison[output.id] = criteriaScores;
+   679→      const avgScore =
+   680→        Object.values(criteriaScores).reduce((sum, s) => sum + s, 0) / criteria.length;
+   681→      scored.push({ id: output.id, score: Math.round(avgScore) });
+   682→    }
+   683→
+   684→    scored.sort((a, b) => b.score - a.score);
+   685→
+   686→    const rankings = scored.map((s, i) => ({
+   687→      id: s.id,
+   688→      score: s.score,
+   689→      rank: i + 1,
+   690→    }));
+   691→
+   692→    const bestOutput = rankings[0].id;
+   693→
+   694→    this.logger.log(`Outputs compared: count=${outputs.length}, best=${bestOutput}`);
+   695→
+   696→    return { rankings, bestOutput, comparison };
+   697→  }
+   698→
+   699→  private async validateConsistency(params: {
+   700→    outputs: any[];
+   701→    rules?: Array<{ field: string; type: string }>;
+   702→  }): Promise<{
+   703→    consistent: boolean;
+   704→    inconsistencies: Array<{
+   705→      outputIndex: number;
+   706→      field: string;
+   707→      issue: string;
+   708→      expected: string;
+   709→      actual: string;
+   710→    }>;
+   711→    consistencyScore: number;
+   712→  }> {
+   713→    const { outputs, rules = [] } = params;
+   714→
+   715→    if (!outputs || !Array.isArray(outputs) || outputs.length === 0) {
+   716→      throw new Error('Non-empty outputs array is required for consistency validation');
+   717→    }
+   718→
+   719→    const inconsistencies: Array<{
+   720→      outputIndex: number;
+   721→      field: string;
+   722→      issue: string;
+   723→      expected: string;
+   724→      actual: string;
+   725→    }> = [];
+   726→
+   727→    // Validate against rules
+   728→    for (let i = 0; i < outputs.length; i++) {
+   729→      const output = outputs[i];
+   730→
+   731→      for (const rule of rules) {
+   732→        const value = output?.[rule.field];
+   733→        if (rule.type === 'required' && (value === null || value === undefined)) {
+   734→          inconsistencies.push({
+   735→            outputIndex: i,
+   736→            field: rule.field,
+   737→            issue: 'Missing required field',
+   738→            expected: rule.type,
+   739→            actual: 'undefined',
+   740→          });
+   741→        } else if (rule.type === 'string' && typeof value !== 'string') {
+   742→          inconsistencies.push({
+   743→            outputIndex: i,
+   744→            field: rule.field,
+   745→            issue: 'Type mismatch',
+   746→            expected: 'string',
+   747→            actual: typeof value,
+   748→          });
+   749→        } else if (rule.type === 'number' && typeof value !== 'number') {
+   750→          inconsistencies.push({
+   751→            outputIndex: i,
+   752→            field: rule.field,
+   753→            issue: 'Type mismatch',
+   754→            expected: 'number',
+   755→            actual: typeof value,
+   756→          });
+   757→        }
+   758→      }
+   759→    }
+   760→
+   761→    // Check cross-output consistency
+   762→    if (outputs.length > 1) {
+   763→      const firstKeys = typeof outputs[0] === 'object' ? Object.keys(outputs[0] || {}).sort() : [];
+   764→      for (let i = 1; i < outputs.length; i++) {
+   765→        const currentKeys =
+   766→          typeof outputs[i] === 'object' ? Object.keys(outputs[i] || {}).sort() : [];
+   767→        if (JSON.stringify(firstKeys) !== JSON.stringify(currentKeys)) {
+   768→          inconsistencies.push({
+   769→            outputIndex: i,
+   770→            field: 'structure',
+   771→            issue: 'Structural inconsistency with first output',
+   772→            expected: firstKeys.join(','),
+   773→            actual: currentKeys.join(','),
+   774→          });
+   775→        }
+   776→      }
+   777→    }
+   778→
+   779→    const consistent = inconsistencies.length === 0;
+   780→    const consistencyScore =
+   781→      outputs.length > 0
+   782→        ? Math.round(Math.max(0, 100 - (inconsistencies.length / outputs.length) * 50))
+   783→        : 100;
+   784→
+   785→    this.logger.log(
+   786→      `Consistency validated: outputs=${outputs.length}, consistent=${consistent}, score=${consistencyScore}`,
+   787→    );
+   788→
+   789→    return { consistent, inconsistencies, consistencyScore };
+   790→  }
+   791→
+   792→  // ─── Private Helpers ───────────────────────────────────────────
+   793→
+   794→  private evaluateCriterion(output: any, criterion: string, context: Record<string, any>): number {
+   795→    switch (criterion) {
+   796→      case 'completeness': {
+   797→        if (typeof output === 'object' && output !== null) {
+   798→          const keys = Object.keys(output);
+   799→          const nullValues = keys.filter((k) => output[k] === null || output[k] === undefined);
+   800→          return keys.length > 0
+   801→            ? Math.round(((keys.length - nullValues.length) / keys.length) * 100)
+   802→            : 50;
+   803→        }
+   804→        return typeof output === 'string' && output.length > 0 ? 80 : 40;
+   805→      }
+   806→      case 'accuracy': {
+   807→        if (output?.error) return 30;
+   808→        if (output?.success === true) return 90;
+   809→        if (output?.success === false) return 40;
+   810→        return 65 + Math.floor(Math.random() * 20);
+   811→      }
+   812→      case 'relevance': {
+   813→        const contextKeys = Object.keys(context);
+   814→        if (contextKeys.length === 0) return 70 + Math.floor(Math.random() * 15);
+   815→        return 60 + Math.floor(Math.random() * 25);
+   816→      }
+   817→      case 'clarity': {
+   818→        if (typeof output === 'string') {
+   819→          const avgWordLength =
+   820→            output.split(/\s+/).reduce((sum, w) => sum + w.length, 0) /
+   821→            (output.split(/\s+/).length || 1);
+   822→          return avgWordLength < 8 ? 85 : avgWordLength < 12 ? 70 : 55;
+   823→        }
+   824→        return 75;
+   825→      }
+   826→      case 'correctness': {
+   827→        if (output?.error) return 30;
+   828→        return 70 + Math.floor(Math.random() * 20);
+   829→      }
+   830→      case 'consistency': {
+   831→        return 65 + Math.floor(Math.random() * 25);
+   832→      }
+   833→      case 'efficiency': {
+   834→        return 60 + Math.floor(Math.random() * 30);
+   835→      }
+   836→      case 'readability': {
+   837→        if (typeof output === 'string') {
+   838→          const sentences = output.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+   839→          const avgLen =
+   840→            sentences.length > 0
+   841→              ? sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) / sentences.length
+   842→              : 0;
+   843→          return avgLen > 0 && avgLen < 20 ? 85 : avgLen < 30 ? 70 : 55;
+   844→        }
+   845→        return 75;
+   846→      }
+   847→      case 'quality': {
+   848→        return 65 + Math.floor(Math.random() * 25);
+   849→      }
+   850→      default:
+   851→        return 60 + Math.floor(Math.random() * 20);
+   852→    }
+   853→  }
+   854→
+   855→  private scoreDimension(content: any, dimension: string): number {
+   856→    switch (dimension) {
+   857→      case 'correctness':
+   858→        return content?.success === true
+   859→          ? 90
+   860→          : content?.error
+   861→            ? 35
+   862→            : 65 + Math.floor(Math.random() * 20);
+   863→      case 'completeness':
+   864→        if (typeof content === 'object' && content !== null) {
+   865→          const keys = Object.keys(content);
+   866→          const filled = keys.filter((k) => content[k] !== null && content[k] !== undefined);
+   867→          return keys.length > 0 ? Math.round((filled.length / keys.length) * 100) : 50;
+   868→        }
+   869→        return 70;
+   870→      case 'consistency':
+   871→        return 70 + Math.floor(Math.random() * 20);
+   872→      case 'efficiency':
+   873→        return 60 + Math.floor(Math.random() * 30);
+   874→      case 'readability':
+   875→        return 65 + Math.floor(Math.random() * 25);
+   876→      default:
+   877→        return 60 + Math.floor(Math.random() * 20);
+   878→    }
+   879→  }
+   880→
+   881→  private scoreToGrade(score: number): string {
+   882→    if (score >= 90) return 'A';
+   883→    if (score >= 80) return 'B';
+   884→    if (score >= 70) return 'C';
+   885→    if (score >= 60) return 'D';
+   886→    return 'F';
+   887→  }
+   888→
+   889→  private generateEvaluationSummary(
+   890→    criteriaScores: Record<string, number>,
+   891→    overallScore: number,
+   892→    passed: boolean,
+   893→  ): string {
+   894→    const strengths = Object.entries(criteriaScores)
+   895→      .filter(([, score]) => score >= 80)
+   896→      .map(([criterion]) => criterion);
+   897→    const weaknesses = Object.entries(criteriaScores)
+   898→      .filter(([, score]) => score < 60)
+   899→      .map(([criterion]) => criterion);
+   900→
+   901→    let summary = `Overall score: ${overallScore}/100. ${passed ? 'PASSED' : 'FAILED'}.`;
+   902→
+   903→    if (strengths.length > 0) {
+   904→      summary += ` Strengths: ${strengths.join(', ')}.`;
+   905→    }
+   906→    if (weaknesses.length > 0) {
+   907→      summary += ` Areas for improvement: ${weaknesses.join(', ')}.`;
+   908→    }
+   909→
+   910→    return summary;
+   911→  }
+   912→}
+   913→

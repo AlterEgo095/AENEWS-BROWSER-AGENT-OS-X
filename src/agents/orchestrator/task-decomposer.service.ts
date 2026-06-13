@@ -6,7 +6,7 @@
  * and execution order determination (parallel vs sequential).
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import {
   AgentInput,
@@ -16,6 +16,7 @@ import {
   TaskStatus,
 } from '../interfaces/agent.interface';
 import { MemoryService } from '../memory/memory.service';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Decomposition Strategy ───────────────────────────────────────
 export enum DecompositionStrategy {
@@ -77,7 +78,10 @@ export class TaskDecomposerService {
   private readonly logger = new Logger(TaskDecomposerService.name);
   private readonly config: DecompositionConfig = { ...DEFAULT_DECOMPOSITION_CONFIG };
 
-  constructor(private readonly memoryService: MemoryService) {}
+  constructor(
+    private readonly memoryService: MemoryService,
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {}
 
   /**
    * Decompose a task into subtasks based on the input payload.
@@ -88,25 +92,42 @@ export class TaskDecomposerService {
     this.logger.log(`Decomposing task ${input.taskId}`);
 
     try {
-      // Check if similar tasks have been decomposed before
-      let subtasks: TaskDefinition[];
+      // Try LLM decomposition first when bridge is available
+      let subtasks: TaskDefinition[] | null = null;
 
-      if (this.config.enableHistoricalLookup) {
-        const historicalDecomposition = await this.findHistoricalDecomposition(input);
+      if (this.bridge) {
+        try {
+          subtasks = await this.llmDecompose(input);
+          if (subtasks && subtasks.length > 0) {
+            this.logger.log(`LLM decomposition succeeded for task ${input.taskId}`);
+          }
+        } catch (error) {
+          this.logger.warn(
+            `LLM decomposition failed for task ${input.taskId}, falling back to rule-based: ${(error as Error).message}`,
+          );
+          subtasks = null;
+        }
+      }
 
-        if (historicalDecomposition) {
-          this.logger.log(`Found historical decomposition for task similar to ${input.taskId}`);
-          subtasks = this.adaptHistoricalDecomposition(input, historicalDecomposition);
+      // Fall back to rule-based decomposition if LLM didn't produce results
+      if (!subtasks || subtasks.length === 0) {
+        if (this.config.enableHistoricalLookup) {
+          const historicalDecomposition = await this.findHistoricalDecomposition(input);
+
+          if (historicalDecomposition) {
+            this.logger.log(`Found historical decomposition for task similar to ${input.taskId}`);
+            subtasks = this.adaptHistoricalDecomposition(input, historicalDecomposition);
+          } else {
+            // Analyze the task and create decomposition
+            const complexity = this.assessComplexity(input);
+            const strategy = this.selectStrategy(complexity, input);
+            subtasks = this.performDecomposition(input, strategy, complexity);
+          }
         } else {
-          // Analyze the task and create decomposition
           const complexity = this.assessComplexity(input);
           const strategy = this.selectStrategy(complexity, input);
           subtasks = this.performDecomposition(input, strategy, complexity);
         }
-      } else {
-        const complexity = this.assessComplexity(input);
-        const strategy = this.selectStrategy(complexity, input);
-        subtasks = this.performDecomposition(input, strategy, complexity);
       }
 
       // Apply recursive decomposition if enabled and subtasks are still complex
@@ -319,6 +340,70 @@ export class TaskDecomposerService {
     }
 
     return order;
+  }
+
+  /**
+   * LLM-powered decomposition: uses the AgentConnectorBridge to intelligently
+   * decompose tasks via an LLM call. Falls back gracefully on any error.
+   */
+  async llmDecompose(input: AgentInput): Promise<TaskDefinition[]> {
+    if (!this.bridge) {
+      return [];
+    }
+
+    const userPrompt = JSON.stringify({
+      taskId: input.taskId,
+      payload: input.payload,
+      context: input.context,
+      priority: input.priority,
+      parentTaskId: input.parentTaskId,
+    });
+
+    const result = await this.bridge.callLLM({
+      systemPrompt:
+        'You are an expert task decomposer for an AI agent platform. Break down the mission into atomic subtasks. ' +
+        'Available clusters: browser, computer, coding, office, marketing, business, infrastructure, security, meta_intelligence. ' +
+        'Available capabilities: dev.*, browser.*, office.*, business.*, cert.*, delivery.*. ' +
+        'Output JSON: {subtasks: [{id, description, cluster, capability, parameters, dependencies[], priority}], executionGroups: [[subtask ids that can run in parallel]]}',
+      userPrompt,
+      temperature: 0.3,
+      maxTokens: 4096,
+    });
+
+    const parsed = JSON.parse(result.content);
+    const rawSubtasks = parsed.subtasks || [];
+
+    return rawSubtasks.map((raw: any, index: number) => ({
+      id: raw.id || uuidv4(),
+      parentId: input.taskId,
+      cluster: raw.cluster as AgentCluster | undefined,
+      status: TaskStatus.PENDING,
+      priority: raw.priority || input.priority || TaskPriority.NORMAL,
+      input: {
+        taskId: raw.id || uuidv4(),
+        payload: raw.parameters || { description: raw.description },
+        context: {
+          ...input.context,
+          stepIndex: index,
+          stepDescription: raw.description,
+        },
+        parentTaskId: input.taskId,
+        priority: raw.priority || input.priority || TaskPriority.NORMAL,
+      },
+      subtasks: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      correlationId: input.context?.correlationId || uuidv4(),
+      metadata: {
+        stepIndex: index,
+        stepDescription: raw.description,
+        dependencies: raw.dependencies || [],
+        capability: raw.capability,
+        llmGenerated: true,
+      },
+    }));
   }
 
   // ─── Private Methods ─────────────────────────────────────────────

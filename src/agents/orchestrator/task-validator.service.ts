@@ -5,10 +5,11 @@
  * Produces a detailed validation report.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { AgentOutput } from '../interfaces/agent.interface';
 import { StepExecutionResult } from './task-executor.service';
 import { OrchestrationRequest } from './orchestrator.service';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Validation Result ────────────────────────────────────────────
 export interface ValidationResult {
@@ -41,6 +42,10 @@ interface SchemaValidationResult {
 @Injectable()
 export class TaskValidatorService {
   private readonly logger = new Logger(TaskValidatorService.name);
+
+  constructor(
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {}
 
   /**
    * Validate execution results against the original request requirements.
@@ -114,6 +119,55 @@ export class TaskValidatorService {
     );
 
     return result;
+  }
+
+  /**
+   * LLM-powered validation: uses the AgentConnectorBridge to contextually
+   * validate deliverables against requirements.
+   */
+  async llmValidate(results: any, requirements: any): Promise<ValidationResult | null> {
+    if (!this.bridge) {
+      return null;
+    }
+
+    const userPrompt = JSON.stringify({
+      results,
+      requirements,
+    });
+
+    const result = await this.bridge.callLLM({
+      systemPrompt:
+        'You are an expert deliverable validator. Validate the results against the requirements. ' +
+        'Output JSON: {isValid, errors: [], warnings: []}',
+      userPrompt,
+      temperature: 0.2,
+      maxTokens: 4096,
+    });
+
+    const parsed = JSON.parse(result.content);
+
+    const totalSteps = Array.isArray(results) ? results.length : 0;
+    const successfulSteps = Array.isArray(results)
+      ? results.filter((r: any) => r.success).length
+      : 0;
+
+    return {
+      isValid: parsed.isValid ?? false,
+      score: parsed.isValid ? 100 : 0,
+      errors: parsed.errors || [],
+      warnings: parsed.warnings || [],
+      details: {
+        totalSteps,
+        successfulSteps,
+        failedSteps: totalSteps - successfulSteps,
+        completenessScore: parsed.isValid ? 100 : 50,
+        qualityScore: parsed.isValid ? 100 : 50,
+        performanceScore: 100,
+        complianceScore: parsed.isValid ? 100 : 50,
+        integrityScore: parsed.isValid ? 100 : 50,
+        schemaValidationScore: parsed.isValid ? 100 : 50,
+      },
+    };
   }
 
   /**

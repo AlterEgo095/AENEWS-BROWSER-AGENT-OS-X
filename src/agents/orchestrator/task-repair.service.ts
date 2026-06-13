@@ -5,7 +5,7 @@
  * and suggestion-based improvements.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import {
   OrchestrationPlan,
@@ -17,6 +17,7 @@ import { CritiqueResult, CritiqueIssue, CritiqueCategory } from './task-critic.s
 import { StepExecutionResult } from './task-executor.service';
 import { OrchestrationRequest } from './orchestrator.service';
 import { TaskPlannerService } from './task-planner.service';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Repair Result ────────────────────────────────────────────────
 export interface RepairResult {
@@ -75,7 +76,10 @@ export class TaskRepairService {
   private readonly config: RepairConfig = { ...DEFAULT_REPAIR_CONFIG };
   private readonly repairHistory: Map<string, RepairHistoryEntry[]> = new Map();
 
-  constructor(private readonly plannerService: TaskPlannerService) {}
+  constructor(
+    private readonly plannerService: TaskPlannerService,
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {}
 
   /**
    * Attempt to repair execution results based on critique issues.
@@ -89,6 +93,25 @@ export class TaskRepairService {
     const startTime = Date.now();
     this.logger.log(`Repairing ${critique.issues.length} issues from ${results.length} results`);
 
+    // Try LLM repair first when bridge is available
+    if (this.bridge) {
+      try {
+        const llmResult = await this.llmRepair(results, critique, request);
+        if (llmResult) {
+          this.logger.log(
+            `LLM repair completed: ${llmResult.repairedSteps.length} repaired, ` +
+              `${llmResult.failedRepairs.length} failed in ${Date.now() - startTime}ms`,
+          );
+          return llmResult;
+        }
+      } catch (error) {
+        this.logger.warn(
+          `LLM repair failed, falling back to rule-based: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    // Rule-based repair (original logic)
     const repairedSteps: string[] = [];
     const failedRepairs: string[] = [];
     const repairedPlanSteps: OrchestrationStep[] = [];
@@ -228,6 +251,98 @@ export class TaskRepairService {
           ? `${failedRepairs.length} step(s) could not be repaired`
           : undefined,
       history: historyEntries,
+    };
+  }
+
+  /**
+   * LLM-powered repair: uses the AgentConnectorBridge to diagnose root cause
+   * and propose targeted fixes.
+   */
+  async llmRepair(
+    results: StepExecutionResult[],
+    critique: CritiqueResult,
+    request: OrchestrationRequest,
+  ): Promise<RepairResult | null> {
+    if (!this.bridge) {
+      return null;
+    }
+
+    const userPrompt = JSON.stringify({
+      failedResults: results
+        .filter((r) => !r.success)
+        .map((r) => ({
+          stepId: r.stepId,
+          error: r.output.error,
+          retryCount: r.retryCount,
+          executionTimeMs: r.executionTimeMs,
+        })),
+      critique: {
+        passed: critique.passed,
+        score: critique.score,
+        issues: critique.issues.map((i) => ({
+          stepId: i.stepId,
+          severity: i.severity,
+          category: i.category,
+          message: i.message,
+          autoRepairable: i.autoRepairable,
+        })),
+      },
+      requestPayload: request.payload,
+      requestContext: request.context,
+    });
+
+    const result = await this.bridge.callLLM({
+      systemPrompt:
+        'You are an expert repair strategist. Given failed execution results and critique, determine the best repair approach. ' +
+        'Output JSON: {repairedSteps: [{stepId, strategy, modifiedParameters}], failedRepairs: [], overallStrategy: string}',
+      userPrompt,
+      temperature: 0.3,
+      maxTokens: 4096,
+    });
+
+    const parsed = JSON.parse(result.content);
+    const repairedSteps: string[] = (parsed.repairedSteps || []).map((s: any) => s.stepId);
+    const failedRepairs: string[] = parsed.failedRepairs || [];
+
+    const repairedPlanSteps: OrchestrationStep[] = (parsed.repairedSteps || []).map(
+      (step: any, index: number) => ({
+        id: uuidv4(),
+        order: index,
+        status: TaskStatus.PENDING,
+        retryCount: 0,
+        input: {
+          taskId: step.stepId || uuidv4(),
+          payload: step.modifiedParameters || request.payload,
+          context: {
+            isRetry: true,
+            repairStrategy: step.strategy,
+            llmRepair: true,
+          },
+        },
+      }),
+    );
+
+    let repairedPlan: OrchestrationPlan | null = null;
+    if (repairedPlanSteps.length > 0) {
+      repairedPlan = {
+        id: uuidv4(),
+        taskId: request.taskId || 'unknown',
+        steps: repairedPlanSteps,
+        dependencies: [],
+        createdAt: new Date(),
+        estimatedDurationMs: repairedPlanSteps.length * 5000,
+      };
+    }
+
+    return {
+      repairedPlan,
+      repairedSteps,
+      failedRepairs,
+      error:
+        failedRepairs.length > 0
+          ? `${failedRepairs.length} step(s) could not be repaired`
+          : undefined,
+      history: [],
     };
   }
 

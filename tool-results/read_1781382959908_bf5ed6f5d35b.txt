@@ -1,0 +1,965 @@
+     1→/**
+     2→ * AENEWS Agent OS X - Meta Repair Agent
+     3→ * Fix and repair failed or suboptimal outputs for the Meta Intelligence cluster.
+     4→ * Handles failure diagnosis, output repair, retry with modifications, patch application,
+     5→ * repair verification, and learning from failures.
+     6→ */
+     7→
+     8→import { Injectable, Optional, Inject } from '@nestjs/common';
+     9→import { BaseAgentService } from '../../base/base-agent.service';
+    10→import {
+    11→  AgentConfig,
+    12→  AgentCluster,
+    13→  AgentInput,
+    14→  AgentOutput,
+    15→} from '../../interfaces/agent.interface';
+    16→import { AgentConnectorBridge } from '../../bridge';
+    17→import { CertCapability } from '../../../software-factory/interfaces';
+    18→
+    19→// ─── Agent Configuration ──────────────────────────────────────────
+    20→
+    21→export const META_REPAIR_AGENT_CONFIG: AgentConfig = {
+    22→  id: 'meta-repair',
+    23→  name: 'MetaRepair',
+    24→  cluster: AgentCluster.META_INTELLIGENCE,
+    25→  version: '1.0.0',
+    26→  description:
+    27→    'Repair agent that diagnoses failures, repairs outputs, retries with modifications, applies patches, verifies repairs, and learns from failures across the Meta Intelligence cluster.',
+    28→  capabilities: [
+    29→    {
+    30→      name: 'diagnoseFailure',
+    31→      description: 'Diagnose the root cause of a failure in agent output',
+    32→      inputSchema: {
+    33→        type: 'object',
+    34→        properties: {
+    35→          failedOutput: { type: 'object', description: 'The failed output to diagnose' },
+    36→          errorMessage: {
+    37→            type: 'string',
+    38→            description: 'Error message associated with the failure',
+    39→          },
+    40→          context: { type: 'object', description: 'Context in which the failure occurred' },
+    41→        },
+    42→        required: ['failedOutput'],
+    43→      },
+    44→      outputSchema: {
+    45→        type: 'object',
+    46→        properties: {
+    47→          diagnosisId: { type: 'string' },
+    48→          rootCauses: { type: 'array', items: { type: 'object' } },
+    49→          severity: { type: 'string' },
+    50→          repairable: { type: 'boolean' },
+    51→        },
+    52→      },
+    53→    },
+    54→    {
+    55→      name: 'repairOutput',
+    56→      description: 'Repair a failed or suboptimal output',
+    57→      inputSchema: {
+    58→        type: 'object',
+    59→        properties: {
+    60→          output: { type: 'any', description: 'Output to repair' },
+    61→          diagnosis: { type: 'object', description: 'Diagnosis from diagnoseFailure' },
+    62→          strategy: {
+    63→            type: 'string',
+    64→            enum: ['conservative', 'moderate', 'aggressive'],
+    65→            description: 'Repair strategy',
+    66→          },
+    67→        },
+    68→        required: ['output'],
+    69→      },
+    70→      outputSchema: {
+    71→        type: 'object',
+    72→        properties: {
+    73→          repairedOutput: { type: 'any' },
+    74→          repairId: { type: 'string' },
+    75→          changesApplied: { type: 'array', items: { type: 'object' } },
+    76→          confidence: { type: 'number' },
+    77→        },
+    78→      },
+    79→    },
+    80→    {
+    81→      name: 'retryWithModifications',
+    82→      description: 'Retry a failed task with modifications based on failure analysis',
+    83→      inputSchema: {
+    84→        type: 'object',
+    85→        properties: {
+    86→          originalInput: { type: 'object', description: 'Original task input' },
+    87→          modifications: { type: 'object', description: 'Modifications to apply' },
+    88→          maxRetries: { type: 'number', description: 'Maximum retry attempts' },
+    89→        },
+    90→        required: ['originalInput'],
+    91→      },
+    92→      outputSchema: {
+    93→        type: 'object',
+    94→        properties: {
+    95→          retryId: { type: 'string' },
+    96→          modifiedInput: { type: 'object' },
+    97→          attemptNumber: { type: 'number' },
+    98→          modifications: { type: 'array', items: { type: 'object' } },
+    99→        },
+   100→      },
+   101→    },
+   102→    {
+   103→      name: 'applyPatch',
+   104→      description: 'Apply a specific patch to fix an issue in output',
+   105→      inputSchema: {
+   106→        type: 'object',
+   107→        properties: {
+   108→          output: { type: 'any', description: 'Output to patch' },
+   109→          patch: { type: 'object', description: 'Patch specification' },
+   110→          validateAfter: { type: 'boolean', description: 'Validate after applying patch' },
+   111→        },
+   112→        required: ['output', 'patch'],
+   113→      },
+   114→      outputSchema: {
+   115→        type: 'object',
+   116→        properties: {
+   117→          patchedOutput: { type: 'any' },
+   118→          patchApplied: { type: 'boolean' },
+   119→          validationResult: { type: 'object' },
+   120→        },
+   121→      },
+   122→    },
+   123→    {
+   124→      name: 'verifyRepair',
+   125→      description: 'Verify that a repair was successful',
+   126→      inputSchema: {
+   127→        type: 'object',
+   128→        properties: {
+   129→          originalOutput: { type: 'any', description: 'Original failed output' },
+   130→          repairedOutput: { type: 'any', description: 'Repaired output to verify' },
+   131→          criteria: {
+   132→            type: 'array',
+   133→            items: { type: 'string' },
+   134→            description: 'Verification criteria',
+   135→          },
+   136→        },
+   137→        required: ['originalOutput', 'repairedOutput'],
+   138→      },
+   139→      outputSchema: {
+   140→        type: 'object',
+   141→        properties: {
+   142→          verified: { type: 'boolean' },
+   143→          score: { type: 'number' },
+   144→          remainingIssues: { type: 'array', items: { type: 'string' } },
+   145→          improvements: { type: 'array', items: { type: 'string' } },
+   146→        },
+   147→      },
+   148→    },
+   149→    {
+   150→      name: 'learnFromFailure',
+   151→      description: 'Extract lessons from a failure for future prevention',
+   152→      inputSchema: {
+   153→        type: 'object',
+   154→        properties: {
+   155→          failureRecord: { type: 'object', description: 'Record of the failure' },
+   156→          repairRecord: { type: 'object', description: 'Record of the repair attempt' },
+   157→        },
+   158→        required: ['failureRecord'],
+   159→      },
+   160→      outputSchema: {
+   161→        type: 'object',
+   162→        properties: {
+   163→          lessonId: { type: 'string' },
+   164→          patterns: { type: 'array', items: { type: 'string' } },
+   165→          preventions: { type: 'array', items: { type: 'string' } },
+   166→          knowledgeUpdate: { type: 'object' },
+   167→        },
+   168→      },
+   169→    },
+   170→  ],
+   171→  permissions: ['execute:task', 'read:output', 'write:repair', 'read:diagnosis', 'write:patch'],
+   172→  maxConcurrentTasks: 4,
+   173→  timeout: 90000,
+   174→  retryPolicy: {
+   175→    maxRetries: 3,
+   176→    backoffMs: 2000,
+   177→    exponentialBackoff: true,
+   178→  },
+   179→};
+   180→
+   181→// ─── Internal Types ───────────────────────────────────────────────
+   182→
+   183→interface FailureDiagnosis {
+   184→  id: string;
+   185→  rootCauses: Array<{ cause: string; confidence: number; category: string }>;
+   186→  severity: 'low' | 'medium' | 'high' | 'critical';
+   187→  repairable: boolean;
+   188→}
+   189→
+   190→interface RepairRecord {
+   191→  id: string;
+   192→  originalOutput: any;
+   193→  repairedOutput: any;
+   194→  changesApplied: Array<{ field: string; type: string; description: string }>;
+   195→  confidence: number;
+   196→  timestamp: Date;
+   197→}
+   198→
+   199→interface FailureLesson {
+   200→  id: string;
+   201→  pattern: string;
+   202→  prevention: string;
+   203→  category: string;
+   204→  timestamp: Date;
+   205→}
+   206→
+   207→// ─── Agent Service ────────────────────────────────────────────────
+   208→
+   209→@Injectable()
+   210→export class RepairAgentService extends BaseAgentService {
+   211→  constructor(
+   212→    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+   213→  ) {
+   214→    super();
+   215→  }
+   216→
+   217→  private repairHistory: RepairRecord[] = [];
+   218→  private failureLessons: FailureLesson[] = [];
+   219→
+   220→  protected defineConfig(): AgentConfig {
+   221→    return META_REPAIR_AGENT_CONFIG;
+   222→  }
+   223→
+   224→  protected async onInitialize(): Promise<void> {
+   225→    this.registerTool({
+   226→      name: 'diagnoseFailure',
+   227→      description: 'Diagnose the root cause of a failure in agent output',
+   228→      execute: async (params: {
+   229→        failedOutput: any;
+   230→        errorMessage?: string;
+   231→        context?: Record<string, any>;
+   232→      }) => this.diagnoseFailure(params),
+   233→    });
+   234→
+   235→    this.registerTool({
+   236→      name: 'repairOutput',
+   237→      description: 'Repair a failed or suboptimal output',
+   238→      execute: async (params: { output: any; diagnosis?: any; strategy?: string }) =>
+   239→        this.repairOutput(params),
+   240→    });
+   241→
+   242→    this.registerTool({
+   243→      name: 'retryWithModifications',
+   244→      description: 'Retry a failed task with modifications based on failure analysis',
+   245→      execute: async (params: {
+   246→        originalInput: any;
+   247→        modifications?: Record<string, any>;
+   248→        maxRetries?: number;
+   249→      }) => this.retryWithModifications(params),
+   250→    });
+   251→
+   252→    this.registerTool({
+   253→      name: 'applyPatch',
+   254→      description: 'Apply a specific patch to fix an issue in output',
+   255→      execute: async (params: {
+   256→        output: any;
+   257→        patch: { field: string; value: any; operation: string };
+   258→        validateAfter?: boolean;
+   259→      }) => this.applyPatch(params),
+   260→    });
+   261→
+   262→    this.registerTool({
+   263→      name: 'verifyRepair',
+   264→      description: 'Verify that a repair was successful',
+   265→      execute: async (params: { originalOutput: any; repairedOutput: any; criteria?: string[] }) =>
+   266→        this.verifyRepair(params),
+   267→    });
+   268→
+   269→    this.registerTool({
+   270→      name: 'learnFromFailure',
+   271→      description: 'Extract lessons from a failure for future prevention',
+   272→      execute: async (params: {
+   273→        failureRecord: Record<string, any>;
+   274→        repairRecord?: Record<string, any>;
+   275→      }) => this.learnFromFailure(params),
+   276→    });
+   277→
+   278→    await this.storeInWorkingMemory('repair:initializedAt', new Date().toISOString(), 600000);
+   279→    this.logger.log('MetaRepair agent initialized with 6 tools');
+   280→  }
+   281→
+   282→  protected async onExecute(input: AgentInput): Promise<AgentOutput> {
+   283→    const startTime = Date.now();
+   284→
+   285→    // Bridge: try CertCapability.REGRESSION + LLM for repair analysis
+   286→    if (this.bridge) {
+   287→      try {
+   288→        // First try capability delegation for regression data
+   289→        const capResult = await this.bridge.executeCapability(CertCapability.REGRESSION, {
+   290→          missionId: input.taskId,
+   291→          instruction: JSON.stringify(input.payload),
+   292→          workspaceDir: `/tmp/aenews-workspace/${input.taskId}`,
+   293→          parameters: input.payload,
+   294→        });
+   295→        // Then use LLM for intelligent repair reasoning
+   296→        const llmResult = await this.bridge.callLLM({
+   297→          systemPrompt: `You are the ${this.config.name} agent in the Meta-Intelligence cluster. Analyze the regression data and provide a detailed repair strategy.`,
+   298→          userPrompt: JSON.stringify({ payload: input.payload, regressionData: capResult.output }),
+   299→          temperature: 0.3,
+   300→          maxTokens: 2048,
+   301→        });
+   302→        return this.createAgentOutput(
+   303→          input.taskId,
+   304→          true,
+   305→          {
+   306→            regressionData: capResult.output,
+   307→            repairAnalysis: llmResult.content,
+   308→            costUsd: (capResult.costUsd || 0) + (llmResult.costUsd || 0),
+   309→            tokensUsed: llmResult.tokenCount,
+   310→          },
+   311→          undefined,
+   312→          startTime,
+   313→        );
+   314→      } catch (error) {
+   315→        this.logger.warn(`Bridge failed, fallback: ${(error as Error).message}`);
+   316→      }
+   317→    }
+   318→
+   319→    const { action, ...params } = input.payload;
+   320→
+   321→    if (!action) {
+   322→      return this.createAgentOutput(
+   323→        input.taskId,
+   324→        false,
+   325→        null,
+   326→        'Missing required parameter: action',
+   327→        startTime,
+   328→      );
+   329→    }
+   330→
+   331→    const supportedActions = [
+   332→      'diagnoseFailure',
+   333→      'repairOutput',
+   334→      'retryWithModifications',
+   335→      'applyPatch',
+   336→      'verifyRepair',
+   337→      'learnFromFailure',
+   338→    ];
+   339→
+   340→    if (!supportedActions.includes(action)) {
+   341→      return this.createAgentOutput(
+   342→        input.taskId,
+   343→        false,
+   344→        null,
+   345→        `Unknown repair action: ${action}. Supported: ${supportedActions.join(', ')}`,
+   346→        startTime,
+   347→      );
+   348→    }
+   349→
+   350→    try {
+   351→      const tool = this.getTool(action);
+   352→      if (!tool) {
+   353→        return this.createAgentOutput(
+   354→          input.taskId,
+   355→          false,
+   356→          null,
+   357→          `Tool not found: ${action}`,
+   358→          startTime,
+   359→        );
+   360→      }
+   361→
+   362→      const result = await tool.execute(params);
+   363→      await this.storeInWorkingMemory(
+   364→        `repair:last:${action}`,
+   365→        { params, result, timestamp: new Date() },
+   366→        300000,
+   367→      );
+   368→      return this.createAgentOutput(input.taskId, true, result, undefined, startTime);
+   369→    } catch (error) {
+   370→      const msg = (error as Error).message;
+   371→      this.logger.error(`MetaRepair execution failed for ${action}: ${msg}`);
+   372→      return this.createAgentOutput(input.taskId, false, null, msg, startTime);
+   373→    }
+   374→  }
+   375→
+   376→  protected async onDestroy(): Promise<void> {
+   377→    this.repairHistory = [];
+   378→    this.failureLessons = [];
+   379→    this.logger.log('MetaRepair agent destroyed, repair history and lessons cleared');
+   380→  }
+   381→
+   382→  // ─── Tool Implementations ──────────────────────────────────────
+   383→
+   384→  private async diagnoseFailure(params: {
+   385→    failedOutput: any;
+   386→    errorMessage?: string;
+   387→    context?: Record<string, any>;
+   388→  }): Promise<{
+   389→    diagnosisId: string;
+   390→    rootCauses: Array<{ cause: string; confidence: number; category: string }>;
+   391→    severity: string;
+   392→    repairable: boolean;
+   393→  }> {
+   394→    const { failedOutput, errorMessage = '', context = {} } = params;
+   395→
+   396→    if (failedOutput === null || failedOutput === undefined) {
+   397→      throw new Error('Failed output cannot be null or undefined for diagnosis');
+   398→    }
+   399→
+   400→    const diagnosisId = this.generateId();
+   401→    const rootCauses: Array<{ cause: string; confidence: number; category: string }> = [];
+   402→
+   403→    // Analyze error message
+   404→    if (errorMessage) {
+   405→      rootCauses.push({
+   406→        cause: `Error reported: ${errorMessage.substring(0, 200)}`,
+   407→        confidence: 0.9,
+   408→        category: 'explicit-error',
+   409→      });
+   410→    }
+   411→
+   412→    // Analyze output structure
+   413→    if (typeof failedOutput === 'object' && failedOutput !== null) {
+   414→      if (failedOutput.success === false) {
+   415→        rootCauses.push({
+   416→          cause: 'Output explicitly indicates failure',
+   417→          confidence: 0.95,
+   418→          category: 'output-failure',
+   419→        });
+   420→      }
+   421→
+   422→      if (failedOutput.error) {
+   423→        rootCauses.push({
+   424→          cause: `Error field present: ${String(failedOutput.error).substring(0, 150)}`,
+   425→          confidence: 0.85,
+   426→          category: 'error-field',
+   427→        });
+   428→      }
+   429→
+   430→      const keys = Object.keys(failedOutput);
+   431→      const nullFields = keys.filter(
+   432→        (k) => failedOutput[k] === null || failedOutput[k] === undefined,
+   433→      );
+   434→      if (nullFields.length > 0) {
+   435→        rootCauses.push({
+   436→          cause: `Missing or null fields: ${nullFields.join(', ')}`,
+   437→          confidence: 0.7,
+   438→          category: 'incomplete-data',
+   439→        });
+   440→      }
+   441→
+   442→      if (keys.length === 0) {
+   443→        rootCauses.push({
+   444→          cause: 'Output object is empty',
+   445→          confidence: 0.8,
+   446→          category: 'empty-output',
+   447→        });
+   448→      }
+   449→    }
+   450→
+   451→    if (typeof failedOutput === 'string' && failedOutput.trim().length === 0) {
+   452→      rootCauses.push({
+   453→        cause: 'Output is an empty string',
+   454→        confidence: 0.9,
+   455→        category: 'empty-output',
+   456→      });
+   457→    }
+   458→
+   459→    // If no specific causes found, add a generic one
+   460→    if (rootCauses.length === 0) {
+   461→      rootCauses.push({
+   462→        cause: 'No specific root cause identified; output may be suboptimal rather than failing',
+   463→        confidence: 0.4,
+   464→        category: 'unknown',
+   465→      });
+   466→    }
+   467→
+   468→    // Determine severity
+   469→    const hasExplicitError = rootCauses.some(
+   470→      (c) => c.category === 'explicit-error' || c.category === 'error-field',
+   471→    );
+   472→    const hasMissingData = rootCauses.some(
+   473→      (c) => c.category === 'incomplete-data' || c.category === 'empty-output',
+   474→    );
+   475→    const severity = hasExplicitError ? 'high' : hasMissingData ? 'medium' : 'low';
+   476→
+   477→    const repairable = !rootCauses.some((c) => c.cause.includes('irrecoverable'));
+   478→
+   479→    this.logger.log(
+   480→      `Failure diagnosed: id=${diagnosisId}, causes=${rootCauses.length}, severity=${severity}, repairable=${repairable}`,
+   481→    );
+   482→
+   483→    return { diagnosisId, rootCauses, severity, repairable };
+   484→  }
+   485→
+   486→  private async repairOutput(params: { output: any; diagnosis?: any; strategy?: string }): Promise<{
+   487→    repairedOutput: any;
+   488→    repairId: string;
+   489→    changesApplied: Array<{ field: string; type: string; description: string }>;
+   490→    confidence: number;
+   491→  }> {
+   492→    const { output, diagnosis, strategy = 'moderate' } = params;
+   493→
+   494→    if (output === null || output === undefined) {
+   495→      throw new Error('Output cannot be null or undefined for repair');
+   496→    }
+   497→
+   498→    const repairId = this.generateId();
+   499→    const changesApplied: Array<{ field: string; type: string; description: string }> = [];
+   500→    let repairedOutput = JSON.parse(JSON.stringify(output));
+   501→    let confidence = 0.5;
+   502→
+   503→    if (typeof repairedOutput === 'object' && repairedOutput !== null) {
+   504→      // Fix null/undefined fields
+   505→      for (const [key, value] of Object.entries(repairedOutput)) {
+   506→        if (value === null || value === undefined) {
+   507→          repairedOutput[key] = this.getDefaultValueForKey(key, strategy);
+   508→          changesApplied.push({
+   509→            field: key,
+   510→            type: 'null-replacement',
+   511→            description: `Replaced null/undefined field "${key}" with default value`,
+   512→          });
+   513→          confidence += 0.05;
+   514→        }
+   515→      }
+   516→
+   517→      // Fix error field
+   518→      if (repairedOutput.error) {
+   519→        delete repairedOutput.error;
+   520→        repairedOutput.success = true;
+   521→        changesApplied.push({
+   522→          field: 'error',
+   523→          type: 'error-removal',
+   524→          description: 'Removed error field and set success to true',
+   525→        });
+   526→        confidence += 0.1;
+   527→      }
+   528→
+   529→      // Fix success flag
+   530→      if (repairedOutput.success === false) {
+   531→        repairedOutput.success = true;
+   532→        changesApplied.push({
+   533→          field: 'success',
+   534→          type: 'flag-correction',
+   535→          description: 'Corrected success flag from false to true',
+   536→        });
+   537→        confidence += 0.08;
+   538→      }
+   539→
+   540→      // Ensure result field exists
+   541→      if (!('result' in repairedOutput)) {
+   542→        repairedOutput.result = { repaired: true, originalOutput: output };
+   543→        changesApplied.push({
+   544→          field: 'result',
+   545→          type: 'field-addition',
+   546→          description: 'Added missing result field with repaired data',
+   547→        });
+   548→        confidence += 0.05;
+   549→      }
+   550→    }
+   551→
+   552→    if (typeof repairedOutput === 'string' && repairedOutput.trim().length === 0) {
+   553→      repairedOutput =
+   554→        'Output has been repaired: placeholder content generated for empty string output.';
+   555→      changesApplied.push({
+   556→        field: 'content',
+   557→        type: 'content-generation',
+   558→        description: 'Generated placeholder content for empty string output',
+   559→      });
+   560→      confidence += 0.1;
+   561→    }
+   562→
+   563→    // Apply diagnosis-based repairs
+   564→    if (diagnosis?.rootCauses) {
+   565→      for (const cause of diagnosis.rootCauses) {
+   566→        if (cause.category === 'incomplete-data') {
+   567→          repairedOutput._repairNote = 'Repaired based on incomplete data diagnosis';
+   568→          confidence += 0.03;
+   569→        }
+   570→      }
+   571→    }
+   572→
+   573→    repairedOutput._repairId = repairId;
+   574→    repairedOutput._repairTimestamp = new Date().toISOString();
+   575→    repairedOutput._repairStrategy = strategy;
+   576→
+   577→    confidence = Math.min(0.95, confidence);
+   578→
+   579→    const record: RepairRecord = {
+   580→      id: repairId,
+   581→      originalOutput: output,
+   582→      repairedOutput,
+   583→      changesApplied,
+   584→      confidence,
+   585→      timestamp: new Date(),
+   586→    };
+   587→    this.repairHistory.push(record);
+   588→
+   589→    this.logger.log(
+   590→      `Output repaired: repairId=${repairId}, changes=${changesApplied.length}, confidence=${confidence.toFixed(2)}`,
+   591→    );
+   592→
+   593→    return { repairedOutput, repairId, changesApplied, confidence };
+   594→  }
+   595→
+   596→  private async retryWithModifications(params: {
+   597→    originalInput: any;
+   598→    modifications?: Record<string, any>;
+   599→    maxRetries?: number;
+   600→  }): Promise<{
+   601→    retryId: string;
+   602→    modifiedInput: any;
+   603→    attemptNumber: number;
+   604→    modifications: Array<{ field: string; original: any; modified: any; reason: string }>;
+   605→  }> {
+   606→    const { originalInput, modifications = {}, maxRetries = 3 } = params;
+   607→
+   608→    if (!originalInput || typeof originalInput !== 'object') {
+   609→      throw new Error('Valid originalInput object is required');
+   610→    }
+   611→
+   612→    const retryId = this.generateId();
+   613→    const modifiedInput = JSON.parse(JSON.stringify(originalInput));
+   614→    const appliedModifications: Array<{
+   615→      field: string;
+   616→      original: any;
+   617→      modified: any;
+   618→      reason: string;
+   619→    }> = [];
+   620→
+   621→    // Apply modifications
+   622→    for (const [field, value] of Object.entries(modifications)) {
+   623→      const original = modifiedInput[field];
+   624→      modifiedInput[field] = value;
+   625→      appliedModifications.push({
+   626→        field,
+   627→        original,
+   628→        modified: value,
+   629→        reason: `Modified ${field} to address failure`,
+   630→      });
+   631→    }
+   632→
+   633→    // Auto-modifications for common issues
+   634→    if (!modifiedInput.timeout || modifiedInput.timeout < 30000) {
+   635→      modifiedInput.timeout = 60000;
+   636→      appliedModifications.push({
+   637→        field: 'timeout',
+   638→        original: originalInput.timeout || 'not set',
+   639→        modified: 60000,
+   640→        reason: 'Increased timeout to prevent premature failure',
+   641→      });
+   642→    }
+   643→
+   644→    if (!modifiedInput.retryPolicy) {
+   645→      modifiedInput.retryPolicy = { maxRetries: 2, backoffMs: 3000, exponentialBackoff: true };
+   646→      appliedModifications.push({
+   647→        field: 'retryPolicy',
+   648→        original: 'not set',
+   649→        modified: 'added default retry policy',
+   650→        reason: 'Added retry policy for resilience',
+   651→      });
+   652→    }
+   653→
+   654→    const attemptNumber = (originalInput.attemptNumber || 0) + 1;
+   655→    modifiedInput.attemptNumber = attemptNumber;
+   656→
+   657→    this.logger.log(
+   658→      `Retry prepared: retryId=${retryId}, attempt=${attemptNumber}, modifications=${appliedModifications.length}`,
+   659→    );
+   660→
+   661→    return { retryId, modifiedInput, attemptNumber, modifications: appliedModifications };
+   662→  }
+   663→
+   664→  private async applyPatch(params: {
+   665→    output: any;
+   666→    patch: { field: string; value: any; operation: string };
+   667→    validateAfter?: boolean;
+   668→  }): Promise<{
+   669→    patchedOutput: any;
+   670→    patchApplied: boolean;
+   671→    validationResult?: { valid: boolean; issues: string[] };
+   672→  }> {
+   673→    const { output, patch, validateAfter = true } = params;
+   674→
+   675→    if (output === null || output === undefined) {
+   676→      throw new Error('Output cannot be null or undefined for patching');
+   677→    }
+   678→    if (!patch || !patch.field || !patch.operation) {
+   679→      throw new Error('Patch must include field, value, and operation');
+   680→    }
+   681→
+   682→    const patchedOutput = JSON.parse(JSON.stringify(output));
+   683→    let patchApplied = false;
+   684→
+   685→    switch (patch.operation) {
+   686→      case 'replace':
+   687→        if (patch.field in patchedOutput) {
+   688→          patchedOutput[patch.field] = patch.value;
+   689→          patchApplied = true;
+   690→        } else if (typeof patchedOutput === 'object') {
+   691→          patchedOutput[patch.field] = patch.value;
+   692→          patchApplied = true;
+   693→        }
+   694→        break;
+   695→      case 'add':
+   696→        if (typeof patchedOutput === 'object') {
+   697→          patchedOutput[patch.field] = patch.value;
+   698→          patchApplied = true;
+   699→        }
+   700→        break;
+   701→      case 'remove':
+   702→        if (patch.field in patchedOutput) {
+   703→          delete patchedOutput[patch.field];
+   704→          patchApplied = true;
+   705→        }
+   706→        break;
+   707→      case 'merge':
+   708→        if (typeof patchedOutput[patch.field] === 'object' && typeof patch.value === 'object') {
+   709→          patchedOutput[patch.field] = { ...patchedOutput[patch.field], ...patch.value };
+   710→          patchApplied = true;
+   711→        }
+   712→        break;
+   713→      default:
+   714→        throw new Error(
+   715→          `Unknown patch operation: ${patch.operation}. Supported: replace, add, remove, merge`,
+   716→        );
+   717→    }
+   718→
+   719→    let validationResult: { valid: boolean; issues: string[] } | undefined;
+   720→
+   721→    if (validateAfter) {
+   722→      const issues: string[] = [];
+   723→
+   724→      if (typeof patchedOutput === 'object' && patchedOutput !== null) {
+   725→        for (const [key, value] of Object.entries(patchedOutput)) {
+   726→          if (value === null || value === undefined) {
+   727→            issues.push(`Field "${key}" is still null/undefined after patch`);
+   728→          }
+   729→        }
+   730→      }
+   731→
+   732→      validationResult = { valid: issues.length === 0, issues };
+   733→    }
+   734→
+   735→    this.logger.log(
+   736→      `Patch applied: field=${patch.field}, operation=${patch.operation}, success=${patchApplied}`,
+   737→    );
+   738→
+   739→    return { patchedOutput, patchApplied, validationResult };
+   740→  }
+   741→
+   742→  private async verifyRepair(params: {
+   743→    originalOutput: any;
+   744→    repairedOutput: any;
+   745→    criteria?: string[];
+   746→  }): Promise<{
+   747→    verified: boolean;
+   748→    score: number;
+   749→    remainingIssues: string[];
+   750→    improvements: string[];
+   751→  }> {
+   752→    const {
+   753→      originalOutput,
+   754→      repairedOutput,
+   755→      criteria = ['completeness', 'correctness', 'consistency'],
+   756→    } = params;
+   757→
+   758→    if (originalOutput === null || originalOutput === undefined) {
+   759→      throw new Error('Original output cannot be null or undefined');
+   760→    }
+   761→    if (repairedOutput === null || repairedOutput === undefined) {
+   762→      throw new Error('Repaired output cannot be null or undefined');
+   763→    }
+   764→
+   765→    const remainingIssues: string[] = [];
+   766→    const improvements: string[] = [];
+   767→    let score = 0;
+   768→    let maxScore = 0;
+   769→
+   770→    // Check completeness
+   771→    if (criteria.includes('completeness')) {
+   772→      maxScore += 30;
+   773→      if (typeof repairedOutput === 'object' && repairedOutput !== null) {
+   774→        const origKeys = Object.keys(originalOutput || {});
+   775→        const repairedKeys = Object.keys(repairedOutput);
+   776→        const nullInOriginal = origKeys.filter(
+   777→          (k) => originalOutput[k] === null || originalOutput[k] === undefined,
+   778→        );
+   779→        const nullInRepaired = repairedKeys.filter(
+   780→          (k) => repairedOutput[k] === null || repairedOutput[k] === undefined,
+   781→        );
+   782→
+   783→        if (nullInOriginal.length > nullInRepaired.length) {
+   784→          improvements.push(
+   785→            `Reduced null/undefined fields from ${nullInOriginal.length} to ${nullInRepaired.length}`,
+   786→          );
+   787→          score += 25;
+   788→        } else if (nullInRepaired.length === 0) {
+   789→          improvements.push('All fields are populated in repaired output');
+   790→          score += 30;
+   791→        } else {
+   792→          remainingIssues.push(`${nullInRepaired.length} fields still null/undefined`);
+   793→          score += 15;
+   794→        }
+   795→      } else {
+   796→        score += 20;
+   797→      }
+   798→    }
+   799→
+   800→    // Check correctness
+   801→    if (criteria.includes('correctness')) {
+   802→      maxScore += 30;
+   803→      if (repairedOutput?.success === true && originalOutput?.success !== true) {
+   804→        improvements.push('Success flag corrected from false to true');
+   805→        score += 30;
+   806→      } else if (repairedOutput?.success === true) {
+   807→        score += 25;
+   808→      } else if (!repairedOutput?.error) {
+   809→        improvements.push('Error field removed');
+   810→        score += 20;
+   811→      } else {
+   812→        remainingIssues.push('Output still contains errors');
+   813→        score += 10;
+   814→      }
+   815→    }
+   816→
+   817→    // Check consistency
+   818→    if (criteria.includes('consistency')) {
+   819→      maxScore += 20;
+   820→      if (typeof repairedOutput === 'object' && typeof originalOutput === 'object') {
+   821→        const origKeys = Object.keys(originalOutput || {});
+   822→        const repairedKeys = Object.keys(repairedOutput);
+   823→        const addedKeys = repairedKeys
+   824→          .filter((k) => !origKeys.includes(k))
+   825→          .filter((k) => !k.startsWith('_'));
+   826→        if (addedKeys.length > 0) {
+   827→          improvements.push(`Added fields: ${addedKeys.join(', ')}`);
+   828→        }
+   829→        score += 15;
+   830→      } else {
+   831→        score += 10;
+   832→      }
+   833→    }
+   834→
+   835→    // Check for repair metadata
+   836→    if (repairedOutput?._repairId) {
+   837→      maxScore += 20;
+   838→      improvements.push('Repair metadata properly attached');
+   839→      score += 20;
+   840→    } else {
+   841→      maxScore += 20;
+   842→      score += 10;
+   843→    }
+   844→
+   845→    const normalizedScore = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+   846→    const verified = normalizedScore >= 60 && remainingIssues.length === 0;
+   847→
+   848→    this.logger.log(
+   849→      `Repair verified: score=${normalizedScore}, verified=${verified}, issues=${remainingIssues.length}`,
+   850→    );
+   851→
+   852→    return { verified, score: normalizedScore, remainingIssues, improvements };
+   853→  }
+   854→
+   855→  private async learnFromFailure(params: {
+   856→    failureRecord: Record<string, any>;
+   857→    repairRecord?: Record<string, any>;
+   858→  }): Promise<{
+   859→    lessonId: string;
+   860→    patterns: string[];
+   861→    preventions: string[];
+   862→    knowledgeUpdate: Record<string, any>;
+   863→  }> {
+   864→    const { failureRecord, repairRecord } = params;
+   865→
+   866→    if (!failureRecord || typeof failureRecord !== 'object') {
+   867→      throw new Error('Valid failureRecord object is required');
+   868→    }
+   869→
+   870→    const lessonId = this.generateId();
+   871→    const patterns: string[] = [];
+   872→    const preventions: string[] = [];
+   873→
+   874→    // Extract patterns from failure
+   875→    if (failureRecord.error) {
+   876→      patterns.push(`Error pattern: ${String(failureRecord.error).substring(0, 100)}`);
+   877→      preventions.push('Add pre-execution validation to catch similar errors early');
+   878→    }
+   879→
+   880→    if (failureRecord.success === false) {
+   881→      patterns.push('Explicit failure indicator in output');
+   882→      preventions.push('Implement fallback strategies for common failure modes');
+   883→    }
+   884→
+   885→    if (failureRecord.timeout) {
+   886→      patterns.push('Timeout-related failure');
+   887→      preventions.push('Increase timeout thresholds and implement incremental processing');
+   888→    }
+   889→
+   890→    if (Object.keys(failureRecord).filter((k) => failureRecord[k] === null).length > 0) {
+   891→      patterns.push('Incomplete output with null fields');
+   892→      preventions.push('Add output validation before returning results');
+   893→    }
+   894→
+   895→    // Extract patterns from repair
+   896→    if (repairRecord?.changesApplied) {
+   897→      for (const change of repairRecord.changesApplied) {
+   898→        patterns.push(`Repair pattern: ${change.type} on field "${change.field}"`);
+   899→      }
+   900→      preventions.push('Pre-populate default values to avoid null field issues');
+   901→    }
+   902→
+   903→    if (patterns.length === 0) {
+   904→      patterns.push('Generic failure pattern without specific indicators');
+   905→    }
+   906→
+   907→    if (preventions.length === 0) {
+   908→      preventions.push('Add more comprehensive error handling and validation');
+   909→    }
+   910→
+   911→    const knowledgeUpdate: Record<string, any> = {
+   912→      lessonId,
+   913→      failureType: failureRecord.error ? 'explicit' : 'implicit',
+   914→      repairSuccessful: repairRecord?.confidence ? repairRecord.confidence > 0.6 : false,
+   915→      timestamp: new Date().toISOString(),
+   916→      patternCount: patterns.length,
+   917→      preventionCount: preventions.length,
+   918→    };
+   919→
+   920→    // Store lesson
+   921→    for (const pattern of patterns) {
+   922→      this.failureLessons.push({
+   923→        id: this.generateId(),
+   924→        pattern,
+   925→        prevention: preventions[0] || 'General improvement needed',
+   926→        category: 'failure-prevention',
+   927→        timestamp: new Date(),
+   928→      });
+   929→    }
+   930→
+   931→    await this.storeInLongTermMemory(`lesson:${lessonId}`, knowledgeUpdate);
+   932→
+   933→    this.logger.log(
+   934→      `Lessons learned: id=${lessonId}, patterns=${patterns.length}, preventions=${preventions.length}`,
+   935→    );
+   936→
+   937→    return { lessonId, patterns, preventions, knowledgeUpdate };
+   938→  }
+   939→
+   940→  // ─── Private Helpers ───────────────────────────────────────────
+   941→
+   942→  private getDefaultValueForKey(key: string, strategy: string): any {
+   943→    const keyLower = key.toLowerCase();
+   944→
+   945→    // Type-based defaults
+   946→    if (keyLower.includes('id') || keyLower.includes('uuid')) return this.generateId();
+   947→    if (keyLower.includes('name') || keyLower.includes('title'))
+   948→      return strategy === 'aggressive' ? 'Generated Value' : '';
+   949→    if (keyLower.includes('count') || keyLower.includes('number') || keyLower.includes('size'))
+   950→      return 0;
+   951→    if (keyLower.includes('success') || keyLower.includes('valid') || keyLower.includes('active'))
+   952→      return true;
+   953→    if (keyLower.includes('date') || keyLower.includes('time') || keyLower.includes('timestamp'))
+   954→      return new Date().toISOString();
+   955→    if (keyLower.includes('list') || keyLower.includes('items') || keyLower.includes('array'))
+   956→      return [];
+   957→    if (keyLower.includes('score') || keyLower.includes('rating')) return 0;
+   958→    if (keyLower.includes('status')) return 'repaired';
+   959→    if (keyLower.includes('message') || keyLower.includes('description'))
+   960→      return 'Auto-generated placeholder';
+   961→
+   962→    return strategy === 'aggressive' ? {} : null;
+   963→  }
+   964→}
+   965→

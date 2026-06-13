@@ -5,7 +5,7 @@
  * resource constraints, and duration estimation.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import {
   TaskDefinition,
@@ -16,9 +16,11 @@ import {
   StepDependency,
   AgentCluster,
   AgentInput,
+  ExecutionPlan,
 } from '../interfaces/agent.interface';
 import { AgentRegistryService, RoutingStrategy } from '../registry/agent-registry.service';
 import { OrchestrationRequest } from './orchestrator.service';
+import { AgentConnectorBridge } from '../bridge';
 
 // ─── Planning Constraints ─────────────────────────────────────────
 export interface PlanningConstraints {
@@ -63,7 +65,10 @@ interface StepEstimation {
 export class TaskPlannerService {
   private readonly logger = new Logger(TaskPlannerService.name);
 
-  constructor(private readonly agentRegistry: AgentRegistryService) {}
+  constructor(
+    private readonly agentRegistry: AgentRegistryService,
+    @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
+  ) {}
 
   /**
    * Create an execution plan from decomposed subtasks.
@@ -146,6 +151,51 @@ export class TaskPlannerService {
     );
 
     return plan;
+  }
+
+  /**
+   * LLM-powered planning: uses the AgentConnectorBridge to create an optimal
+   * execution plan via an LLM call. Returns an ExecutionPlan or null on error.
+   */
+  async llmPlan(input: AgentInput, subtasks: TaskDefinition[]): Promise<ExecutionPlan | null> {
+    if (!this.bridge) {
+      return null;
+    }
+
+    const userPrompt = JSON.stringify({
+      taskId: input.taskId,
+      payload: input.payload,
+      subtasks: subtasks.map((s) => ({
+        id: s.id,
+        cluster: s.cluster,
+        priority: s.priority,
+        dependencies: s.metadata?.dependencies || [],
+        description: s.metadata?.stepDescription || s.input?.context?.stepDescription,
+      })),
+    });
+
+    const result = await this.bridge.callLLM({
+      systemPrompt:
+        'You are an expert execution planner. Given subtasks and their dependencies, create an optimal execution plan. ' +
+        'Output JSON: {steps: [{taskId, agentId, dependsOn[], estimatedDurationMs, retryCount}], totalEstimatedDurationMs, parallelizable: boolean}',
+      userPrompt,
+      temperature: 0.2,
+      maxTokens: 4096,
+    });
+
+    const parsed = JSON.parse(result.content);
+
+    return {
+      steps: (parsed.steps || []).map((step: any) => ({
+        taskId: step.taskId,
+        agentId: step.agentId || '',
+        dependsOn: step.dependsOn || [],
+        estimatedDurationMs: step.estimatedDurationMs || 5000,
+        retryCount: step.retryCount || 0,
+      })),
+      totalEstimatedDurationMs: parsed.totalEstimatedDurationMs || 0,
+      parallelizable: parsed.parallelizable ?? false,
+    };
   }
 
   // ─── Step Building ───────────────────────────────────────────────

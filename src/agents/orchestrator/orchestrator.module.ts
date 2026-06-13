@@ -16,9 +16,10 @@ import { TaskDeliveryService } from './task-delivery.service';
 import { EventsModule } from '../events/events.module';
 import { MemoryModule } from '../memory/memory.module';
 import { AgentRegistryModule } from '../registry/agent-registry.module';
+import { AgentConnectorBridgeModule } from '../bridge';
 
 @Module({
-  imports: [EventsModule, MemoryModule, AgentRegistryModule],
+  imports: [EventsModule, MemoryModule, AgentRegistryModule, AgentConnectorBridgeModule],
   providers: [
     OrchestratorService,
     TaskDecomposerService,
