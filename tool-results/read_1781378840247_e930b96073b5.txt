@@ -1,0 +1,743 @@
+     1→/**
+     2→ * AENEWS Software Factory — Browser Connector
+     3→ *
+     4→ * Maps browser.* capabilities to real Playwright invocations:
+     5→ *   browser.login      → Playwright: navigate + fill credentials + submit
+     6→ *   browser.navigation → Playwright: goto URL, wait for load
+     7→ *   browser.search     → Playwright: navigate to search engine + type query
+     8→ *   browser.form       → Playwright: fill form fields + submit
+     9→ *   browser.upload     → Playwright: file upload via input[type=file]
+    10→ *   browser.download   → Playwright: download file
+    11→ *   browser.screenshot → Playwright: take full-page screenshot
+    12→ *   browser.vision     → Playwright: screenshot + LLM visual analysis
+    13→ *   browser.session    → Playwright: manage cookies/storage
+    14→ *   browser.cookie     → Playwright: get/set cookies
+    15→ *   browser.popup      → Playwright: handle popup/new tab
+    16→ *   browser.ocr        → Playwright: screenshot + OCR via LLM
+    17→ *
+    18→ * Tools: playwright, z-ai-web-dev-sdk (for vision/OCR)
+    19→ */
+    20→
+    21→import { Injectable, Logger } from '@nestjs/common';
+    22→import * as fs from 'fs';
+    23→import * as path from 'path';
+    24→import {
+    25→  CapabilityId,
+    26→  CapabilityPack,
+    27→  BrowserCapability,
+    28→} from '../interfaces';
+    29→import {
+    30→  ICapabilityConnector,
+    31→  ConnectorInput,
+    32→  ConnectorOutput,
+    33→  GeneratedArtifact,
+    34→} from './connector.interface';
+    35→import { LLMHelper } from './llm-helper';
+    36→import { BrowserPool } from './browser-pool';
+    37→
+    38→@Injectable()
+    39→export class BrowserConnector implements ICapabilityConnector {
+    40→  readonly supportedPack = CapabilityPack.BROWSER;
+    41→  private readonly logger = new Logger(BrowserConnector.name);
+    42→  private readonly llm = new LLMHelper();
+    43→
+    44→  /** Shared browser pool — reuses a single Playwright browser instance */
+    45→  private static readonly browserPool = new BrowserPool({ maxContexts: 5, idleTimeoutMs: 60000 });
+    46→
+    47→  private static readonly BROWSER_CAPABILITIES = new Set<string>(Object.values(BrowserCapability));
+    48→
+    49→  supports(capabilityId: CapabilityId): boolean {
+    50→    return BrowserConnector.BROWSER_CAPABILITIES.has(capabilityId as string);
+    51→  }
+    52→
+    53→  async execute(capabilityId: CapabilityId, input: ConnectorInput): Promise<ConnectorOutput> {
+    54→    const startTime = Date.now();
+    55→    const capId = capabilityId as BrowserCapability;
+    56→
+    57→    this.logger.log(`Browser connector executing: ${capId} for mission ${input.missionId}`);
+    58→
+    59→    try {
+    60→      let result: ConnectorOutput;
+    61→
+    62→      switch (capId) {
+    63→        case BrowserCapability.SCREENSHOT:
+    64→          result = await this.executeScreenshot(input);
+    65→          break;
+    66→        case BrowserCapability.NAVIGATION:
+    67→          result = await this.executeNavigation(input);
+    68→          break;
+    69→        case BrowserCapability.LOGIN:
+    70→          result = await this.executeLogin(input);
+    71→          break;
+    72→        case BrowserCapability.SEARCH:
+    73→          result = await this.executeSearch(input);
+    74→          break;
+    75→        case BrowserCapability.FORM:
+    76→          result = await this.executeForm(input);
+    77→          break;
+    78→        case BrowserCapability.VISION:
+    79→          result = await this.executeVision(input);
+    80→          break;
+    81→        case BrowserCapability.OCR:
+    82→          result = await this.executeOCR(input);
+    83→          break;
+    84→        case BrowserCapability.DOWNLOAD:
+    85→          result = await this.executeDownload(input);
+    86→          break;
+    87→        case BrowserCapability.UPLOAD:
+    88→          result = await this.executeUpload(input);
+    89→          break;
+    90→        case BrowserCapability.SESSION:
+    91→          result = await this.executeSession(input);
+    92→          break;
+    93→        case BrowserCapability.COOKIE:
+    94→          result = await this.executeCookie(input);
+    95→          break;
+    96→        case BrowserCapability.POPUP:
+    97→          result = await this.executePopup(input);
+    98→          break;
+    99→        default:
+   100→          result = await this.executeGenericBrowser(capId, input);
+   101→      }
+   102→
+   103→      result.durationMs = Date.now() - startTime;
+   104→      return result;
+   105→    } catch (error: any) {
+   106→      this.logger.error(`Browser connector failed for ${capId}: ${error.message}`);
+   107→      return {
+   108→        success: false,
+   109→        artifacts: [],
+   110→        output: { error: error.message },
+   111→        costUsd: 0,
+   112→        durationMs: Date.now() - startTime,
+   113→        error: error.message,
+   114→      };
+   115→    }
+   116→  }
+   117→
+   118→  // ═══════════════════════════════════════════════════════════
+   119→  //  browser.screenshot → Playwright full-page screenshot
+   120→  // ═══════════════════════════════════════════════════════════
+   121→
+   122→  private async executeScreenshot(input: ConnectorInput): Promise<ConnectorOutput> {
+   123→    const url = input.parameters.url || input.parameters.target;
+   124→    if (!url) {
+   125→      return {
+   126→        success: false,
+   127→        artifacts: [],
+   128→        output: { error: 'No URL provided for screenshot' },
+   129→        costUsd: 0,
+   130→        durationMs: 0,
+   131→        error: 'Missing url parameter',
+   132→      };
+   133→    }
+   134→
+   135→    const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+   136→    fs.mkdirSync(screenshotDir, { recursive: true });
+   137→    const screenshotPath = path.join(screenshotDir, `screenshot-${Date.now()}.png`);
+   138→
+   139→    try {
+   140→      const sizeBytes = await BrowserConnector.browserPool.screenshot(url, screenshotPath, true);
+   141→
+   142→      this.logger.log(`Screenshot saved: ${screenshotPath} (${sizeBytes} bytes)`);
+   143→
+   144→      return {
+   145→        success: true,
+   146→        artifacts: [this.makeArtifact(path.basename(screenshotPath), 'screenshot', screenshotPath, sizeBytes)],
+   147→        output: { url, screenshotPath, sizeBytes },
+   148→        costUsd: 0.01,
+   149→        durationMs: 0,
+   150→      };
+   151→    } catch (error: any) {
+   152→      this.logger.warn(`Playwright screenshot failed: ${error.message}`);
+   153→      const reportPath = path.join(input.workspaceDir, 'docs', 'browser-report.md');
+   154→      const report = `# Browser Screenshot Report\n\nURL: ${url}\nStatus: FAILED\nError: ${error.message}\n\nNote: Playwright may not be installed. Run: npx playwright install chromium\n`;
+   155→      fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+   156→      fs.writeFileSync(reportPath, report, 'utf-8');
+   157→
+   158→      return {
+   159→        success: false,
+   160→        artifacts: [this.makeArtifact('browser-report.md', 'report', reportPath, report)],
+   161→        output: { url, error: error.message },
+   162→        costUsd: 0,
+   163→        durationMs: 0,
+   164→        error: error.message,
+   165→      };
+   166→    }
+   167→  }
+   168→
+   169→  // ═══════════════════════════════════════════════════════════
+   170→  //  browser.navigation → Playwright navigate + extract content
+   171→  // ═══════════════════════════════════════════════════════════
+   172→
+   173→  private async executeNavigation(input: ConnectorInput): Promise<ConnectorOutput> {
+   174→    const url = input.parameters.url || input.parameters.target;
+   175→    if (!url) {
+   176→      return this.missingParamResult('url', 'navigation');
+   177→    }
+   178→
+   179→    try {
+   180→      return await BrowserConnector.browserPool.withPage(async (page) => {
+   181→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   182→
+   183→        const title = await page.title();
+   184→        const content = await page.content();
+   185→
+   186→        // Save page content
+   187→        const contentDir = path.join(input.workspaceDir, 'browser-data');
+   188→        fs.mkdirSync(contentDir, { recursive: true });
+   189→
+   190→        const htmlPath = path.join(contentDir, 'page.html');
+   191→        fs.writeFileSync(htmlPath, content, 'utf-8');
+   192→
+   193→        // Extract text content
+   194→        const textContent = await page.evaluate(() => document.body?.innerText || '');
+   195→        const textPath = path.join(contentDir, 'page-text.txt');
+   196→        fs.writeFileSync(textPath, textContent, 'utf-8');
+   197→
+   198→        return {
+   199→          success: true,
+   200→          artifacts: [
+   201→            this.makeArtifact('page.html', 'source', htmlPath, content),
+   202→            this.makeArtifact('page-text.txt', 'document', textPath, textContent),
+   203→          ],
+   204→          output: { url, title, textLength: textContent.length },
+   205→          costUsd: 0.01,
+   206→          durationMs: 0,
+   207→        };
+   208→      });
+   209→    } catch (error: any) {
+   210→      return this.playwrightFallback(input, 'navigation', url, error);
+   211→    }
+   212→  }
+   213→
+   214→  // ═══════════════════════════════════════════════════════════
+   215→  //  browser.login → Playwright login flow
+   216→  // ═══════════════════════════════════════════════════════════
+   217→
+   218→  private async executeLogin(input: ConnectorInput): Promise<ConnectorOutput> {
+   219→    const url = input.parameters.url || input.parameters.loginUrl;
+   220→    const username = input.parameters.username || input.parameters.email;
+   221→    const password = input.parameters.password;
+   222→
+   223→    if (!url || !username || !password) {
+   224→      return this.missingParamResult('url, username, password', 'login');
+   225→    }
+   226→
+   227→    try {
+   228→      return await BrowserConnector.browserPool.withPage(async (page) => {
+   229→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   230→
+   231→        // Try common selectors for username/email and password fields
+   232→        const usernameSelectors = ['input[type="email"]', 'input[name="username"]', 'input[name="email"]', 'input[id="username"]', 'input[id="email"]'];
+   233→        const passwordSelectors = ['input[type="password"]', 'input[name="password"]', 'input[id="password"]'];
+   234→
+   235→        let filledUsername = false;
+   236→        for (const selector of usernameSelectors) {
+   237→          try {
+   238→            const element = await page.$(selector);
+   239→            if (element) {
+   240→              await element.fill(username);
+   241→              filledUsername = true;
+   242→              break;
+   243→            }
+   244→          } catch { /* try next selector */ }
+   245→        }
+   246→
+   247→        let filledPassword = false;
+   248→        for (const selector of passwordSelectors) {
+   249→          try {
+   250→            const element = await page.$(selector);
+   251→            if (element) {
+   252→              await element.fill(password);
+   253→              filledPassword = true;
+   254→              break;
+   255→            }
+   256→          } catch { /* try next selector */ }
+   257→        }
+   258→
+   259→        // Submit form
+   260→        if (filledUsername && filledPassword) {
+   261→          await page.keyboard.press('Enter');
+   262→          await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+   263→        }
+   264→
+   265→        const resultTitle = await page.title();
+   266→        const resultUrl = page.url();
+   267→
+   268→        // Screenshot of post-login state
+   269→        const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+   270→        fs.mkdirSync(screenshotDir, { recursive: true });
+   271→        const screenshotPath = path.join(screenshotDir, 'post-login.png');
+   272→        await page.screenshot({ path: screenshotPath }).catch(() => {});
+   273→
+   274→        return {
+   275→          success: filledUsername && filledPassword,
+   276→          artifacts: [this.makeArtifact('post-login.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0)],
+   277→          output: { url, resultUrl, resultTitle, usernameFilled: filledUsername, passwordFilled: filledPassword },
+   278→          costUsd: 0.02,
+   279→          durationMs: 0,
+   280→        };
+   281→      });
+   282→    } catch (error: any) {
+   283→      return this.playwrightFallback(input, 'login', url, error);
+   284→    }
+   285→  }
+   286→
+   287→  // ═══════════════════════════════════════════════════════════
+   288→  //  browser.search → Playwright search
+   289→  // ═══════════════════════════════════════════════════════════
+   290→
+   291→  private async executeSearch(input: ConnectorInput): Promise<ConnectorOutput> {
+   292→    const query = input.parameters.query || input.parameters.searchQuery;
+   293→    const engine = input.parameters.engine || 'google';
+   294→
+   295→    if (!query) {
+   296→      return this.missingParamResult('query', 'search');
+   297→    }
+   298→
+   299→    const searchUrls: Record<string, string> = {
+   300→      google: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+   301→      duckduckgo: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
+   302→      bing: `https://www.bing.com/search?q=${encodeURIComponent(query)}`,
+   303→    };
+   304→
+   305→    const url = searchUrls[engine.toLowerCase()] || searchUrls.google;
+   306→
+   307→    try {
+   308→      return await BrowserConnector.browserPool.withPage(async (page) => {
+   309→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   310→
+   311→        // Extract search results
+   312→        const results = await page.evaluate(() => {
+   313→          const items: any[] = [];
+   314→          document.querySelectorAll('h3').forEach((h3, i) => {
+   315→            if (i < 10) {
+   316→              const link = h3.closest('a');
+   317→              items.push({
+   318→                title: h3.textContent || '',
+   319→                url: link?.href || '',
+   320→              });
+   321→            }
+   322→          });
+   323→          return items;
+   324→        });
+   325→
+   326→        // Save results
+   327→        const dataDir = path.join(input.workspaceDir, 'browser-data');
+   328→        fs.mkdirSync(dataDir, { recursive: true });
+   329→        const resultsPath = path.join(dataDir, 'search-results.json');
+   330→        fs.writeFileSync(resultsPath, JSON.stringify(results, null, 2), 'utf-8');
+   331→
+   332→        // Screenshot
+   333→        const screenshotDir = path.join(input.workspaceDir, 'screenshots');
+   334→        fs.mkdirSync(screenshotDir, { recursive: true });
+   335→        const screenshotPath = path.join(screenshotDir, 'search-results.png');
+   336→        await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+   337→
+   338→        return {
+   339→          success: results.length > 0,
+   340→          artifacts: [
+   341→            this.makeArtifact('search-results.json', 'source', resultsPath, JSON.stringify(results)),
+   342→            this.makeArtifact('search-results.png', 'screenshot', screenshotPath, fs.existsSync(screenshotPath) ? fs.statSync(screenshotPath).size : 0),
+   343→          ],
+   344→          output: { query, engine, resultCount: results.length, results: results.slice(0, 5) },
+   345→          costUsd: 0.02,
+   346→          durationMs: 0,
+   347→        };
+   348→      });
+   349→    } catch (error: any) {
+   350→      return this.playwrightFallback(input, 'search', url, error);
+   351→    }
+   352→  }
+   353→
+   354→  // ═══════════════════════════════════════════════════════════
+   355→  //  browser.form → Playwright fill form
+   356→  // ═══════════════════════════════════════════════════════════
+   357→
+   358→  private async executeForm(input: ConnectorInput): Promise<ConnectorOutput> {
+   359→    const url = input.parameters.url;
+   360→    const fields = input.parameters.fields || {};
+   361→
+   362→    if (!url) {
+   363→      return this.missingParamResult('url', 'form');
+   364→    }
+   365→
+   366→    try {
+   367→      return await BrowserConnector.browserPool.withPage(async (page) => {
+   368→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   369→
+   370→        // Fill each field
+   371→        const filledFields: string[] = [];
+   372→        for (const [selector, value] of Object.entries(fields)) {
+   373→          try {
+   374→            await page.fill(selector, value as string);
+   375→            filledFields.push(selector);
+   376→          } catch {
+   377→            // Try by name attribute
+   378→            try {
+   379→              await page.fill(`[name="${selector}"]`, value as string);
+   380→              filledFields.push(`[name="${selector}"]`);
+   381→            } catch { /* skip this field */ }
+   382→          }
+   383→        }
+   384→
+   385→        // Submit
+   386→        if (input.parameters.submit !== false) {
+   387→          await page.keyboard.press('Enter');
+   388→          await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+   389→        }
+   390→
+   391→        const resultUrl = page.url();
+   392→
+   393→        return {
+   394→          success: filledFields.length > 0,
+   395→          artifacts: [],
+   396→          output: { url, resultUrl, filledFields, totalFields: Object.keys(fields).length },
+   397→          costUsd: 0.01,
+   398→          durationMs: 0,
+   399→        };
+   400→      });
+   401→    } catch (error: any) {
+   402→      return this.playwrightFallback(input, 'form', url, error);
+   403→    }
+   404→  }
+   405→
+   406→  // ═══════════════════════════════════════════════════════════
+   407→  //  browser.vision → Screenshot + LLM visual analysis
+   408→  // ═══════════════════════════════════════════════════════════
+   409→
+   410→  private async executeVision(input: ConnectorInput): Promise<ConnectorOutput> {
+   411→    const url = input.parameters.url || input.parameters.target;
+   412→    if (!url) {
+   413→      return this.missingParamResult('url', 'vision');
+   414→    }
+   415→
+   416→    // First take a screenshot
+   417→    const screenshotResult = await this.executeScreenshot(input);
+   418→
+   419→    if (!screenshotResult.success) {
+   420→      return screenshotResult;
+   421→    }
+   422→
+   423→    // Then analyze with LLM
+   424→    try {
+   425→      const llmResult = await this.llm.call({
+   426→        systemPrompt: 'You are a visual UI/UX analyst. Describe what you see in a webpage screenshot and provide insights.',
+   427→        userPrompt: `Analyze this webpage screenshot from ${url}. The mission is: "${input.instruction}". Describe the layout, identify any UI issues, and suggest improvements.`,
+   428→        maxTokens: 2048,
+   429→      });
+   430→
+   431→      const analysisPath = path.join(input.workspaceDir, 'browser-data', 'visual-analysis.md');
+   432→      fs.mkdirSync(path.dirname(analysisPath), { recursive: true });
+   433→      fs.writeFileSync(analysisPath, llmResult.content, 'utf-8');
+   434→
+   435→      return {
+   436→        success: true,
+   437→        artifacts: [
+   438→          ...screenshotResult.artifacts,
+   439→          this.makeArtifact('visual-analysis.md', 'document', analysisPath, llmResult.content),
+   440→        ],
+   441→        output: { url, analysis: llmResult.content.substring(0, 1000) },
+   442→        costUsd: screenshotResult.costUsd + llmResult.costUsd,
+   443→        durationMs: 0,
+   444→      };
+   445→    } catch (error: any) {
+   446→      return {
+   447→        ...screenshotResult,
+   448→        output: { ...screenshotResult.output, visionError: error.message },
+   449→      };
+   450→    }
+   451→  }
+   452→
+   453→  // ═══════════════════════════════════════════════════════════
+   454→  //  browser.ocr → Screenshot + LLM text extraction
+   455→  // ═══════════════════════════════════════════════════════════
+   456→
+   457→  private async executeOCR(input: ConnectorInput): Promise<ConnectorOutput> {
+   458→    const url = input.parameters.url || input.parameters.target;
+   459→    if (!url) {
+   460→      return this.missingParamResult('url', 'ocr');
+   461→    }
+   462→
+   463→    // Use navigation to get text content (more reliable than OCR for web pages)
+   464→    const navResult = await this.executeNavigation(input);
+   465→
+   466→    if (navResult.success && navResult.output?.textLength > 0) {
+   467→      return {
+   468→        success: true,
+   469→        artifacts: navResult.artifacts,
+   470→        output: {
+   471→          url,
+   472→          extractedText: navResult.output.textContent?.substring(0, 2000),
+   473→          method: 'DOM extraction (more reliable than OCR for web)',
+   474→        },
+   475→        costUsd: navResult.costUsd,
+   476→        durationMs: 0,
+   477→      };
+   478→    }
+   479→
+   480→    return navResult;
+   481→  }
+   482→
+   483→  // ═══════════════════════════════════════════════════════════
+   484→  //  browser.download → Playwright download file
+   485→  // ═══════════════════════════════════════════════════════════
+   486→
+   487→  private async executeDownload(input: ConnectorInput): Promise<ConnectorOutput> {
+   488→    const url = input.parameters.url;
+   489→    const outputPath = input.parameters.outputPath;
+   490→
+   491→    if (!url) {
+   492→      return this.missingParamResult('url', 'download');
+   493→    }
+   494→
+   495→    try {
+   496→      return await BrowserConnector.browserPool.withPage(async (page) => {
+   497→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   498→
+   499→        const downloadDir = path.join(input.workspaceDir, 'downloads');
+   500→        fs.mkdirSync(downloadDir, { recursive: true });
+   501→
+   502→        const download = await page.waitForEvent('download', { timeout: 30000 });
+   503→        const fileName = outputPath || download.suggestedFilename() || `download-${Date.now()}`;
+   504→        const savePath = path.join(downloadDir, fileName);
+   505→        await download.saveAs(savePath);
+   506→
+   507→        const stats = fs.statSync(savePath);
+   508→        return {
+   509→          success: true,
+   510→          artifacts: [this.makeArtifact(fileName, 'source', savePath, stats.size)],
+   511→          output: { url, savedTo: savePath, sizeBytes: stats.size },
+   512→          costUsd: 0.01,
+   513→          durationMs: 0,
+   514→        };
+   515→      });
+   516→    } catch (error: any) {
+   517→      return this.playwrightFallback(input, 'download', url, error);
+   518→    }
+   519→  }
+   520→
+   521→  // ═══════════════════════════════════════════════════════════
+   522→  //  browser.upload → Playwright file upload
+   523→  // ═══════════════════════════════════════════════════════════
+   524→
+   525→  private async executeUpload(input: ConnectorInput): Promise<ConnectorOutput> {
+   526→    const url = input.parameters.url;
+   527→    const filePath = input.parameters.filePath;
+   528→    const selector = input.parameters.selector || 'input[type="file"]';
+   529→
+   530→    if (!url || !filePath) {
+   531→      return this.missingParamResult('url, filePath', 'upload');
+   532→    }
+   533→
+   534→    try {
+   535→      return await BrowserConnector.browserPool.withPage(async (page) => {
+   536→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   537→
+   538→        await page.setInputFiles(selector, filePath);
+   539→
+   540→        // Submit if auto-submit not triggered
+   541→        if (input.parameters.autoSubmit !== true) {
+   542→          await page.keyboard.press('Enter').catch(() => {});
+   543→        }
+   544→
+   545→        await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+   546→
+   547→        return {
+   548→          success: true,
+   549→          artifacts: [],
+   550→          output: { url, uploadedFile: filePath },
+   551→          costUsd: 0.01,
+   552→          durationMs: 0,
+   553→        };
+   554→      });
+   555→    } catch (error: any) {
+   556→      return this.playwrightFallback(input, 'upload', url, error);
+   557→    }
+   558→  }
+   559→
+   560→  // ═══════════════════════════════════════════════════════════
+   561→  //  browser.session → Manage browser session
+   562→  // ═══════════════════════════════════════════════════════════
+   563→
+   564→  private async executeSession(input: ConnectorInput): Promise<ConnectorOutput> {
+   565→    const url = input.parameters.url;
+   566→    if (!url) {
+   567→      return this.missingParamResult('url', 'session');
+   568→    }
+   569→
+   570→    try {
+   571→      return await BrowserConnector.browserPool.withPage(async (page, context) => {
+   572→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   573→
+   574→        // Save storage state (cookies, localStorage)
+   575→        const stateDir = path.join(input.workspaceDir, 'browser-data');
+   576→        fs.mkdirSync(stateDir, { recursive: true });
+   577→        const statePath = path.join(stateDir, 'session-state.json');
+   578→        await context.storageState({ path: statePath });
+   579→
+   580→        const stateContent = fs.readFileSync(statePath, 'utf-8');
+   581→        return {
+   582→          success: true,
+   583→          artifacts: [this.makeArtifact('session-state.json', 'config', statePath, stateContent)],
+   584→          output: { url, statePath },
+   585→          costUsd: 0.01,
+   586→          durationMs: 0,
+   587→        };
+   588→      });
+   589→    } catch (error: any) {
+   590→      return this.playwrightFallback(input, 'session', url, error);
+   591→    }
+   592→  }
+   593→
+   594→  // ═══════════════════════════════════════════════════════════
+   595→  //  browser.cookie → Get/set cookies
+   596→  // ═══════════════════════════════════════════════════════════
+   597→
+   598→  private async executeCookie(input: ConnectorInput): Promise<ConnectorOutput> {
+   599→    const url = input.parameters.url;
+   600→    if (!url) {
+   601→      return this.missingParamResult('url', 'cookie');
+   602→    }
+   603→
+   604→    try {
+   605→      return await BrowserConnector.browserPool.withPage(async (page, context) => {
+   606→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   607→
+   608→        // Set cookies if provided
+   609→        if (input.parameters.cookies) {
+   610→          await context.addCookies(input.parameters.cookies);
+   611→        }
+   612→
+   613→        // Get all cookies
+   614→        const cookies = await context.cookies();
+   615→
+   616→        const dataDir = path.join(input.workspaceDir, 'browser-data');
+   617→        fs.mkdirSync(dataDir, { recursive: true });
+   618→        const cookiesPath = path.join(dataDir, 'cookies.json');
+   619→        fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2), 'utf-8');
+   620→
+   621→        return {
+   622→          success: true,
+   623→          artifacts: [this.makeArtifact('cookies.json', 'config', cookiesPath, JSON.stringify(cookies))],
+   624→          output: { url, cookieCount: cookies.length },
+   625→          costUsd: 0.01,
+   626→          durationMs: 0,
+   627→        };
+   628→      });
+   629→    } catch (error: any) {
+   630→      return this.playwrightFallback(input, 'cookie', url, error);
+   631→    }
+   632→  }
+   633→
+   634→  // ═══════════════════════════════════════════════════════════
+   635→  //  browser.popup → Handle popup/new tab
+   636→  // ═══════════════════════════════════════════════════════════
+   637→
+   638→  private async executePopup(input: ConnectorInput): Promise<ConnectorOutput> {
+   639→    const url = input.parameters.url;
+   640→    if (!url) {
+   641→      return this.missingParamResult('url', 'popup');
+   642→    }
+   643→
+   644→    try {
+   645→      return await BrowserConnector.browserPool.withPage(async (page) => {
+   646→        await BrowserConnector.browserPool.navigate(page, url, 'domcontentloaded');
+   647→
+   648→        // Listen for popups
+   649→        const popupPromise = page.waitForEvent('popup', { timeout: 10000 }).catch(() => null);
+   650→
+   651→        // Click the trigger if provided
+   652→        if (input.parameters.triggerSelector) {
+   653→          await page.click(input.parameters.triggerSelector).catch(() => {});
+   654→        }
+   655→
+   656→        const popup = await popupPromise;
+   657→        let popupUrl = '';
+   658→        let popupTitle = '';
+   659→
+   660→        if (popup) {
+   661→          popupUrl = popup.url();
+   662→          popupTitle = await popup.title();
+   663→        }
+   664→
+   665→        return {
+   666→          success: true,
+   667→          artifacts: [],
+   668→          output: { url, popupUrl, popupTitle, popupDetected: !!popup },
+   669→          costUsd: 0.01,
+   670→          durationMs: 0,
+   671→        };
+   672→      });
+   673→    } catch (error: any) {
+   674→      return this.playwrightFallback(input, 'popup', url, error);
+   675→    }
+   676→  }
+   677→
+   678→  // ═══════════════════════════════════════════════════════════
+   679→  //  Generic fallback
+   680→  // ═══════════════════════════════════════════════════════════
+   681→
+   682→  private async executeGenericBrowser(capId: BrowserCapability, input: ConnectorInput): Promise<ConnectorOutput> {
+   683→    const url = input.parameters.url;
+   684→    if (url) {
+   685→      // Default: navigate + screenshot
+   686→      return this.executeScreenshot(input);
+   687→    }
+   688→
+   689→    return {
+   690→      success: false,
+   691→      artifacts: [],
+   692→      output: { message: `Browser capability ${capId} requires a url parameter` },
+   693→      costUsd: 0,
+   694→      durationMs: 0,
+   695→      error: `Missing url parameter for ${capId}`,
+   696→    };
+   697→  }
+   698→
+   699→  // ═══════════════════════════════════════════════════════════
+   700→  //  Helpers
+   701→  // ═══════════════════════════════════════════════════════════
+   702→
+   703→  private makeArtifact(name: string, type: GeneratedArtifact['type'], fullPath: string, contentOrSize: string | number): GeneratedArtifact {
+   704→    const isString = typeof contentOrSize === 'string';
+   705→    return {
+   706→      name,
+   707→      type,
+   708→      path: fullPath,
+   709→      size: isString ? Buffer.byteLength(contentOrSize as string) : (contentOrSize as number),
+   710→      content: isString ? (contentOrSize as string).substring(0, 500) : undefined,
+   711→    };
+   712→  }
+   713→
+   714→  private missingParamResult(params: string, action: string): ConnectorOutput {
+   715→    return {
+   716→      success: false,
+   717→      artifacts: [],
+   718→      output: { error: `Missing required parameters: ${params}` },
+   719→      costUsd: 0,
+   720→      durationMs: 0,
+   721→      error: `Missing required parameters: ${params} for ${action}`,
+   722→    };
+   723→  }
+   724→
+   725→  private playwrightFallback(input: ConnectorInput, action: string, url: string, error: Error): ConnectorOutput {
+   726→    this.logger.warn(`Playwright ${action} failed for ${url}: ${error.message}`);
+   727→
+   728→    const reportPath = path.join(input.workspaceDir, 'docs', `browser-${action}-report.md`);
+   729→    fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+   730→    const report = `# Browser ${action} Report\n\nURL: ${url}\nAction: ${action}\nStatus: FAILED\nError: ${error.message}\n\n## Troubleshooting\n1. Ensure Playwright is installed: \`npx playwright install chromium\`\n2. Check if the URL is accessible\n3. Verify network connectivity\n`;
+   731→    fs.writeFileSync(reportPath, report, 'utf-8');
+   732→
+   733→    return {
+   734→      success: false,
+   735→      artifacts: [this.makeArtifact(`browser-${action}-report.md`, 'report', reportPath, report)],
+   736→      output: { url, action, error: error.message },
+   737→      costUsd: 0,
+   738→      durationMs: 0,
+   739→      error: error.message,
+   740→    };
+   741→  }
+   742→}
+   743→
