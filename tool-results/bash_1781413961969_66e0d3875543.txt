@@ -1,0 +1,652 @@
+error TS5103: Invalid value for '--ignoreDeprecations'.
+src/app.module.ts:92:5 - error TS2322: Type 'DynamicModule' is not assignable to type 'Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>'.
+  Type 'import("/home/z/my-project/node_modules/@nestjs/common/interfaces/modules/dynamic-module.interface").DynamicModule' is not assignable to type 'import("/home/z/my-project/backend/node_modules/@nestjs/common/interfaces/modules/dynamic-module.interface").DynamicModule'.
+    Types of property 'imports' are incompatible.
+      Type '(DynamicModule | Type<any> | Promise<DynamicModule> | ForwardReference<any>)[]' is not assignable to type '(Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>)[]'.
+        Type 'DynamicModule | Type<any> | Promise<DynamicModule> | ForwardReference<any>' is not assignable to type 'Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>'.
+          Type 'Promise<DynamicModule>' is not assignable to type 'Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>'.
+
+ 92     EventEmitterModule.forRoot({
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 93       wildcard: true,
+    ~~~~~~~~~~~~~~~~~~~~~
+... 
+ 98       verboseMemoryLeak: true,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 99     }),
+    ~~~~~~
+src/app.module.ts:120:5 - error TS2322: Type 'DynamicModule' is not assignable to type 'Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>'.
+  Type 'import("/home/z/my-project/node_modules/@nestjs/common/interfaces/modules/dynamic-module.interface").DynamicModule' is not assignable to type 'import("/home/z/my-project/backend/node_modules/@nestjs/common/interfaces/modules/dynamic-module.interface").DynamicModule'.
+    Types of property 'imports' are incompatible.
+      Type '(DynamicModule | Type<any> | Promise<DynamicModule> | ForwardReference<any>)[]' is not assignable to type '(Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>)[]'.
+        Type 'DynamicModule | Type<any> | Promise<DynamicModule> | ForwardReference<any>' is not assignable to type 'Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>'.
+          Type 'Promise<DynamicModule>' is not assignable to type 'Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference<any>'.
+
+120     BullModule.forRootAsync({
+        ~~~~~~~~~~~~~~~~~~~~~~~~~
+121       imports: [ConfigModule],
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+... 
+130       }),
+    ~~~~~~~~~
+131     }),
+    ~~~~~~
+src/modules/agent-framework/agent-framework.module.ts:16:30 - error TS2307: Cannot find module '../../../src/agents/agents.module' or its corresponding type declarations.
+
+16 import { AgentsModule } from '../../../src/agents/agents.module';
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/modules/agent-framework/agent-framework.module.ts:19:39 - error TS2307: Cannot find module '../../../src/software-factory/software-factory.module' or its corresponding type declarations.
+
+19 import { SoftwareFactoryModule } from '../../../src/software-factory/software-factory.module';
+                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/decorators/index.ts:12:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+12   AgentMetadata,
+     ~~~~~~~~~~~~~
+../src/agents/decorators/index.ts:13:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+13   AgentDecoratorOptions,
+     ~~~~~~~~~~~~~~~~~~~~~
+../src/agents/decorators/index.ts:30:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+30   ToolMetadata,
+     ~~~~~~~~~~~~
+../src/agents/decorators/index.ts:31:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+31   ToolDecoratorOptions,
+     ~~~~~~~~~~~~~~~~~~~~
+../src/agents/decorators/index.ts:48:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+48   PermissionRequirement,
+     ~~~~~~~~~~~~~~~~~~~~~
+../src/agents/decorators/index.ts:49:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+49   RequirePermissionOptions,
+     ~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/decorators/index.ts:69:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+69   EventHandlerMetadata,
+     ~~~~~~~~~~~~~~~~~~~~
+../src/agents/decorators/index.ts:70:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+70   OnAgentEventOptions,
+     ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:16:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+16   AgentCapability,
+     ~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:17:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+17   AgentRetryPolicy,
+     ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:18:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+18   RetryPolicy,
+     ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:19:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+19   AgentConfig,
+     ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:20:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+20   AgentInput,
+     ~~~~~~~~~~
+../src/agents/interfaces/index.ts:21:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+21   AgentOutput,
+     ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:22:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+22   AgentMetrics,
+     ~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:23:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+23   AgentHealthState,
+     ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:24:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+24   AgentHealth,
+     ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:25:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+25   AgentState,
+     ~~~~~~~~~~
+../src/agents/interfaces/index.ts:26:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+26   AgentTool,
+     ~~~~~~~~~
+../src/agents/interfaces/index.ts:27:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+27   AgentPermission,
+     ~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:28:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+28   SimpleAgentEvent,
+     ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:29:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+29   DecompositionResult,
+     ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:30:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+30   PlanStep,
+     ~~~~~~~~
+../src/agents/interfaces/index.ts:31:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+31   ExecutionPlan,
+     ~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:32:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+32   CritiqueResult,
+     ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:33:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+33   ValidationResult,
+     ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:34:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+34   TaskDefinition,
+     ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:35:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+35   OrchestrationPlan,
+     ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:36:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+36   OrchestrationStep,
+     ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:37:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+37   StepDependency,
+     ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:49:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+49   LifecycleContext,
+     ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:50:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+50   LifecycleHookResult,
+     ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:51:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+51   LifecycleTransitionRule,
+     ~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:52:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+52   IAgentLifecycleController,
+     ~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:53:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+53   IAgentLifecycle,
+     ~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:56:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+56   LifecycleHook,
+     ~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:71:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+71   PermissionDefinition,
+     ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:72:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+72   PermissionCondition,
+     ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:73:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+73   PermissionCheckResult,
+     ~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:74:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+74   PermissionSet,
+     ~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:75:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+75   RoleDefinition,
+     ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:76:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+76   IPermissionEvaluator,
+     ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:77:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+77   IAgentPermissionManager,
+     ~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:90:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+90   MemoryEntry,
+     ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:91:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+91   MemoryMetadata,
+     ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:92:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+92   MemoryQuery,
+     ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:93:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+93   MemoryQueryResult,
+     ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:94:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+94   MemoryStoreOptions,
+     ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:95:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+95   WorkingMemoryEntry,
+     ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:96:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+96   SessionMemoryEntry,
+     ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:97:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+97   LongTermMemoryEntry,
+     ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:98:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+98   KnowledgeNode,
+     ~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:99:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+99   KnowledgeRelationship,
+     ~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:100:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+100   KnowledgeRelation,
+      ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:101:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+101   KnowledgeGraphQuery,
+      ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:102:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+102   KnowledgeGraphResult,
+      ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:103:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+103   VectorSearchEntry,
+      ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:104:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+104   VectorSearchQuery,
+      ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:105:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+105   VectorSearchResult,
+      ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:106:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+106   SimpleVectorSearchResult,
+      ~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:107:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+107   RAGQuery,
+      ~~~~~~~~
+../src/agents/interfaces/index.ts:108:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+108   RAGResult,
+      ~~~~~~~~~
+../src/agents/interfaces/index.ts:109:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+109   IMemoryService,
+      ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:110:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+110   MemoryStats,
+      ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:111:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+111   IWorkingMemoryService,
+      ~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:112:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+112   ISessionMemoryService,
+      ~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:113:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+113   ILongTermMemoryService,
+      ~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:114:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+114   IKnowledgeGraphService,
+      ~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:115:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+115   IVectorSearchService,
+      ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:116:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+116   IRAGService,
+      ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:117:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+117   IAgentMemory,
+      ~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:128:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+128   AgentEvent,
+      ~~~~~~~~~~
+../src/agents/interfaces/index.ts:129:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+129   AgentStatusChangedPayload,
+      ~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:130:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+130   AgentHealthChangedPayload,
+      ~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:131:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+131   TaskCreatedPayload,
+      ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:132:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+132   TaskCompletedPayload,
+      ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:133:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+133   TaskProgressPayload,
+      ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:134:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+134   OrchestrationStartedPayload,
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:135:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+135   OrchestrationCompletedPayload,
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:136:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+136   AgentErrorPayload,
+      ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:137:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+137   SystemAlertPayload,
+      ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:138:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+138   CircuitBreakerPayload,
+      ~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:139:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+139   EventSubscription,
+      ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:140:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+140   EventFilter,
+      ~~~~~~~~~~~
+../src/agents/interfaces/index.ts:141:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+141   EventStoreEntry,
+      ~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:142:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+142   DeadLetterEntry,
+      ~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:143:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+143   EventReplayRequest,
+      ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:144:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+144   EventReplayResult,
+      ~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:145:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+145   IEventBusService,
+      ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:146:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+146   IEventStoreService,
+      ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:147:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+147   IDeadLetterQueueService,
+      ~~~~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:148:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+148   DeadLetterQueueStats,
+      ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:149:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+149   IEventReplayService,
+      ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:150:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+150   IAgentEventBus,
+      ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:153:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+153   EventHandler,
+      ~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:163:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+163   ToolDefinition,
+      ~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:164:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+164   ToolSchema,
+      ~~~~~~~~~~
+../src/agents/interfaces/index.ts:165:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+165   ToolSchemaProperty,
+      ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:166:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+166   ToolRateLimit,
+      ~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:167:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+167   ToolExecutionContext,
+      ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:168:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+168   ToolInput,
+      ~~~~~~~~~
+../src/agents/interfaces/index.ts:169:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+169   ToolOutput,
+      ~~~~~~~~~~
+../src/agents/interfaces/index.ts:170:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+170   ToolError,
+      ~~~~~~~~~
+../src/agents/interfaces/index.ts:171:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+171   ToolRegistration,
+      ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:172:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+172   ToolValidationResult,
+      ~~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:173:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+173   ToolValidationError,
+      ~~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:174:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+174   ToolUsageMetrics,
+      ~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:175:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+175   IToolRegistry,
+      ~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:176:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+176   IAgentToolRegistry,
+      ~~~~~~~~~~~~~~~~~~
+../src/agents/interfaces/index.ts:179:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+179   ToolHandler,
+      ~~~~~~~~~~~
+../src/app.controller.ts:17:14 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+17   getInfo(): AppInfo {
+                ~~~~~~~
+
+  ../src/app.controller.ts:3:22
+    3 import { AppService, AppInfo } from './app.service';
+                           ~~~~~~~
+    'AppInfo' was imported here.
+../src/queues/event-queue.processor.ts:41:30 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+41   async processEventJob(job: Job<EventJobData>): Promise<any> {
+                                ~~~
+
+  ../src/queues/event-queue.processor.ts:13:10
+    13 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/event-queue.processor.ts:148:17 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+148   onActive(job: Job): void {
+                    ~~~
+
+  ../src/queues/event-queue.processor.ts:13:10
+    13 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/event-queue.processor.ts:153:20 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+153   onCompleted(job: Job): void {
+                       ~~~
+
+  ../src/queues/event-queue.processor.ts:13:10
+    13 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/event-queue.processor.ts:158:17 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+158   onFailed(job: Job, error: Error): void {
+                    ~~~
+
+  ../src/queues/event-queue.processor.ts:13:10
+    13 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/mission-queue.processor.ts:62:29 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+62   async processMission(job: Job<MissionJobData>): Promise<MissionJobResult> {
+                               ~~~
+
+  ../src/queues/mission-queue.processor.ts:15:10
+    15 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/mission-queue.processor.ts:180:17 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+180   onActive(job: Job<MissionJobData>): void {
+                    ~~~
+
+  ../src/queues/mission-queue.processor.ts:15:10
+    15 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/mission-queue.processor.ts:189:20 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+189   onCompleted(job: Job<MissionJobData>, result: MissionJobResult): void {
+                       ~~~
+
+  ../src/queues/mission-queue.processor.ts:15:10
+    15 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/mission-queue.processor.ts:197:17 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+197   onFailed(job: Job<MissionJobData>, error: Error): void {
+                    ~~~
+
+  ../src/queues/mission-queue.processor.ts:15:10
+    15 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/task-queue.processor.ts:55:26 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+55   async processTask(job: Job<TaskJobData>): Promise<TaskJobResult> {
+                            ~~~
+
+  ../src/queues/task-queue.processor.ts:14:10
+    14 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/task-queue.processor.ts:163:17 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+163   onActive(job: Job<TaskJobData>): void {
+                    ~~~
+
+  ../src/queues/task-queue.processor.ts:14:10
+    14 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/task-queue.processor.ts:168:20 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+168   onCompleted(job: Job<TaskJobData>, result: TaskJobResult): void {
+                       ~~~
+
+  ../src/queues/task-queue.processor.ts:14:10
+    14 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/queues/task-queue.processor.ts:175:17 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+175   onFailed(job: Job<TaskJobData>, error: Error): void {
+                    ~~~
+
+  ../src/queues/task-queue.processor.ts:14:10
+    14 import { Job } from 'bull';
+                ~~~
+    'Job' was imported here.
+../src/software-factory/connectors/index.ts:13:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+13   ICapabilityConnector,
+     ~~~~~~~~~~~~~~~~~~~~
+../src/software-factory/connectors/index.ts:14:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+14   ConnectorInput,
+     ~~~~~~~~~~~~~~
+../src/software-factory/connectors/index.ts:15:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+15   ConnectorOutput,
+     ~~~~~~~~~~~~~~~
+../src/software-factory/connectors/index.ts:16:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+16   GeneratedArtifact,
+     ~~~~~~~~~~~~~~~~~
+../src/software-factory/connectors/index.ts:17:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+17   LLMCallOptions,
+     ~~~~~~~~~~~~~~
+../src/software-factory/connectors/index.ts:18:3 - error TS1205: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'.
+
+18   LLMCallResult,
+     ~~~~~~~~~~~~~
+../src/software-factory/runtime/standalone-runner.ts:830:43 - error TS2339: Property 'create' does not exist on type 'typeof import("/home/z/my-project/node_modules/z-ai-web-dev-sdk/dist/index", { with: { "resolution-mode": "import" } }) | typeof ZAI'.
+  Property 'create' does not exist on type 'typeof import("/home/z/my-project/node_modules/z-ai-web-dev-sdk/dist/index", { with: { "resolution-mode": "import" } })'.
+
+830         this.zaiInstance = await ZAIClass.create();
+                                              ~~~~~~
+../src/software-factory/software-factory.controller.ts:131:17 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+131     @Res() res: Response,
+                    ~~~~~~~~
+
+  ../src/software-factory/software-factory.controller.ts:19:10
+    19 import { Response } from 'express';
+                ~~~~~~~~
+    'Response' was imported here.
+../src/software-factory/software-factory.controller.ts:161:52 - error TS1272: A type referenced in a decorated signature must be imported with 'import type' or a namespace import when 'isolatedModules' and 'emitDecoratorMetadata' are enabled.
+
+161   downloadZip(@Param('id') id: string, @Res() res: Response) {
+                                                       ~~~~~~~~
+
+  ../src/software-factory/software-factory.controller.ts:19:10
+    19 import { Response } from 'express';
+                ~~~~~~~~
+    'Response' was imported here.
+
+Found 137 error(s).
+
+EXIT=1
+backend
+src
+tsconfig.build.tsbuildinfo

@@ -39,6 +39,7 @@ import { IntelligentOrchestrationClusterModule } from './clusters/intelligent-or
 import { WatchdogClusterModule } from './clusters/watchdog/watchdog.module';
 import { SelfEvolutionClusterModule } from './clusters/self-evolution/self-evolution-cluster.module';
 import { CertificationClusterModule } from './clusters/certification/certification-cluster.module';
+import { AgentFrameworkModule } from './modules/agent-framework/agent-framework.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -161,6 +162,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     WatchdogClusterModule,
     SelfEvolutionClusterModule,
     CertificationClusterModule,
+
+    // ─── Extended Agent Framework + Software Factory (from src/) ───
+    // Provides: memory, events, bridge, orchestrator, 80+ agents (BaseAgentService pattern),
+    // Software Factory (mission runtime, connectors, metrics)
+    AgentFrameworkModule,
   ],
   controllers: [AppController],
   providers: [
