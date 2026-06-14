@@ -831,11 +831,12 @@ export class KnowledgeGraphService implements OnModuleInit {
       for (const record of results) {
         for (const [, value] of Object.entries(record)) {
           if (value && typeof value === 'object') {
-            if (value.labels || value.identity) {
+            const v = value as Record<string, any>;
+            if (v.labels || v.identity) {
               nodes.push({
-                id: value.properties?.id || value.identity?.toString() || 'unknown',
-                label: value.labels?.[0] || 'Unknown',
-                properties: value.properties || {},
+                id: v.properties?.id || v.identity?.toString() || 'unknown',
+                label: v.labels?.[0] || 'Unknown',
+                properties: v.properties || {},
               });
             }
           }

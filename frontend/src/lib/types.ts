@@ -474,3 +474,189 @@ export interface ActionItem {
   estimatedImpact: number;
   createdAt: number;
 }
+
+// Phase 10 — Swarm Intelligence Types
+
+export type SwarmTopologyType = 'star' | 'mesh' | 'ring' | 'tree' | 'custom';
+
+export interface SwarmInfo {
+  id: string;
+  name: string;
+  objective: string;
+  topology: SwarmTopologyType;
+  agentIds: string[];
+  status: 'initializing' | 'active' | 'converging' | 'completed' | 'failed';
+  convergenceScore: number;
+  emergentBehaviors: string[];
+  pheromoneTrails: Record<string, number>;
+  iterationsCompleted: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SwarmMetrics {
+  totalSwarms: number;
+  activeSwarms: number;
+  avgConvergenceScore: number;
+  totalEmergentBehaviors: number;
+  totalPheromoneTrails: number;
+  topologyDistribution: Record<SwarmTopologyType, number>;
+}
+
+export interface ConsensusSession {
+  id: string;
+  topic: string;
+  proposerId: string;
+  participantIds: string[];
+  status: 'pending' | 'voting' | 'completed' | 'failed' | 'timeout';
+  consensusThreshold: number;
+  votesFor: number;
+  votesAgainst: number;
+  abstentions: number;
+  byzantineDetected: boolean;
+  byzantineAgents: string[];
+  result: Record<string, unknown> | null;
+  dissentRecords: DissentRecord[];
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface DissentRecord {
+  agentId: string;
+  reason: string;
+  alternativeProposal: string | null;
+  timestamp: string;
+}
+
+export interface CollaborationSession {
+  id: string;
+  name: string;
+  participantIds: string[];
+  status: 'active' | 'paused' | 'completed' | 'failed';
+  sharedWorkspace: Record<string, unknown>;
+  checkpoints: Checkpoint[];
+  lastActivityAt: string;
+  createdAt: string;
+}
+
+export interface Checkpoint {
+  id: string;
+  label: string;
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface WorkingMemorySession {
+  id: string;
+  name: string;
+  participants: string[];
+  blackboard: Record<string, unknown>;
+  scratchpads: Record<string, Record<string, unknown>>;
+  sharedWorkspace: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedbackLoopParams {
+  id: string;
+  version: number;
+  parameters: Record<string, number>;
+  learningRate: number;
+  decayRate: number;
+  momentum: number;
+  lastAdjustmentAt: string;
+}
+
+export interface FeedbackCycleResult {
+  cycleId: string;
+  adjustmentsCount: number;
+  improvementScore: number;
+  appliedAt: string;
+}
+
+export interface FeedbackAdjustment {
+  id: string;
+  parameter: string;
+  oldValue: number;
+  newValue: number;
+  reason: string;
+  cycleId: string;
+  appliedAt: string;
+  rolledBack: boolean;
+}
+
+export interface TopologyInfo {
+  id: string;
+  name: string;
+  type: SwarmTopologyType;
+  nodes: TopologyNode[];
+  edges: TopologyEdge[];
+  metrics: TopologyMetrics;
+  createdAt: string;
+}
+
+export interface TopologyNode {
+  id: string;
+  agentId: string;
+  isolated: boolean;
+  isolatedAt: string | null;
+}
+
+export interface TopologyEdge {
+  source: string;
+  target: string;
+  weight: number;
+}
+
+export interface TopologyMetrics {
+  avgDegree: number;
+  clusteringCoeff: number;
+  diameter: number;
+  isConnected: boolean;
+  isolatedNodes: number;
+}
+
+export interface DAGExecution {
+  id: string;
+  name: string;
+  nodes: DAGNode[];
+  edges: DAGEdge[];
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'partial';
+  startedAt: string | null;
+  completedAt: string | null;
+  result: Record<string, unknown> | null;
+}
+
+export interface DAGNode {
+  id: string;
+  label: string;
+  agentId: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  startedAt: string | null;
+  completedAt: string | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+}
+
+export interface DAGEdge {
+  source: string;
+  target: string;
+  condition?: string;
+}
+
+export interface DAGTrace {
+  executionId: string;
+  steps: DAGTraceStep[];
+  totalDurationMs: number;
+}
+
+export interface DAGTraceStep {
+  nodeId: string;
+  nodeLabel: string;
+  agentId: string | null;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number;
+  output: Record<string, unknown> | null;
+}

@@ -28,6 +28,16 @@
  *   - FeedbackAggregationService: Multi-source feedback collection and analysis
  *   - IntelligenceController: REST API for all Phase 9 services
  *
+ * Phase 10 — Advanced Swarm Intelligence & Production Hardening:
+ *   - SwarmIntelligenceService: True swarm with stigmergy, dynamic spawning, emergent behavior
+ *   - AdvancedConsensusProtocol: Weighted voting, BFT, multi-round deliberation
+ *   - CollaborationPersistenceService: DB-backed state, crash recovery
+ *   - SharedWorkingMemoryService: Multi-agent collaboration context store
+ *   - AdaptiveFeedbackLoopService: PID-inspired feedback from Phase 9 to Phase 8
+ *   - DynamicAgentTopologyService: Runtime agent topology reconfiguration
+ *   - AdvancedDAGOrchestratorService: Conditional DAG with branching, retry, re-planning
+ *   - SwarmController: REST API for all Phase 10 services
+ *
  * Core services:
  *   - AgentMemoryService: Unified memory facade (Redis + Qdrant)
  *   - AgentEventBusService: Enhanced event bus for agent-specific patterns
@@ -74,6 +84,16 @@ import { ExperienceReplayService } from './services/experience-replay.service';
 import { FeedbackAggregationService } from './services/feedback-aggregation.service';
 import { IntelligenceController } from './controllers/intelligence.controller';
 
+// Phase 10 — Advanced Swarm Intelligence & Production Hardening
+import { SwarmIntelligenceService } from './services/swarm-intelligence.service';
+import { AdvancedConsensusProtocol } from './services/advanced-consensus-protocol.service';
+import { CollaborationPersistenceService } from './services/collaboration-persistence.service';
+import { SharedWorkingMemoryService } from './services/shared-working-memory.service';
+import { AdaptiveFeedbackLoopService } from './services/adaptive-feedback-loop.service';
+import { DynamicAgentTopologyService } from './services/dynamic-agent-topology.service';
+import { AdvancedDAGOrchestratorService } from './services/advanced-dag-orchestrator.service';
+import { SwarmController } from './controllers/swarm.controller';
+
 @Global()
 @Module({
   imports: [
@@ -85,6 +105,7 @@ import { IntelligenceController } from './controllers/intelligence.controller';
   controllers: [
     OrchestrationController,
     IntelligenceController,
+    SwarmController,
   ],
   providers: [
     // ── Core Framework Services ──────────────────────────────────
@@ -114,6 +135,14 @@ import { IntelligenceController } from './controllers/intelligence.controller';
     AdaptiveStrategyService,
     ExperienceReplayService,
     FeedbackAggregationService,
+    // ── Phase 10 — Advanced Swarm Intelligence & Production Hardening
+    SwarmIntelligenceService,
+    AdvancedConsensusProtocol,
+    CollaborationPersistenceService,
+    SharedWorkingMemoryService,
+    AdaptiveFeedbackLoopService,
+    DynamicAgentTopologyService,
+    AdvancedDAGOrchestratorService,
   ],
   exports: [
     // ── Core Framework Services ──────────────────────────────────
@@ -143,6 +172,14 @@ import { IntelligenceController } from './controllers/intelligence.controller';
     AdaptiveStrategyService,
     ExperienceReplayService,
     FeedbackAggregationService,
+    // ── Phase 10 — Advanced Swarm Intelligence & Production Hardening
+    SwarmIntelligenceService,
+    AdvancedConsensusProtocol,
+    CollaborationPersistenceService,
+    SharedWorkingMemoryService,
+    AdaptiveFeedbackLoopService,
+    DynamicAgentTopologyService,
+    AdvancedDAGOrchestratorService,
   ],
 })
 export class AgentFrameworkModule {

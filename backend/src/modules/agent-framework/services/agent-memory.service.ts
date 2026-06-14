@@ -8,6 +8,7 @@ import { QdrantService } from '../../qdrant/qdrant.service';
 export enum MemoryTier {
   WORKING = 'working',
   SESSION = 'session',
+  SHORT_TERM = 'short-term',
   LONG_TERM = 'long-term',
 }
 
@@ -19,6 +20,7 @@ export enum MemoryTier {
 const DEFAULT_TTL: Record<MemoryTier, number | null> = {
   [MemoryTier.WORKING]: 60 * 5, // 5 minutes
   [MemoryTier.SESSION]: 60 * 60, // 1 hour
+  [MemoryTier.SHORT_TERM]: 60 * 60, // 1 hour
   [MemoryTier.LONG_TERM]: null, // no expiry
 };
 
@@ -44,16 +46,37 @@ export class AgentMemoryService {
   /**
    * Store a value in the specified memory tier for a given agent.
    * For vector-searchable content, pass `embedding` alongside the value.
+   *
+   * Supports two calling conventions:
+   *   1. store(agentId, tier, key, value, ttl?, embedding?)
+   *   2. store(key, value, tier, ttl?) — legacy/Phase 10 shorthand
    */
   async store(
-    agentId: string,
-    tier: MemoryTier,
-    key: string,
-    value: any,
+    agentIdOrKey: string,
+    tierOrValue: MemoryTier | any,
+    keyOrUndefined?: string,
+    valueOrUndefined?: any,
     ttl?: number,
     embedding?: number[],
   ): Promise<void> {
-    const cacheKey = this.buildKey(agentId, tier, key);
+    let cacheKey: string;
+    let tier: MemoryTier;
+    let value: any;
+
+    // Detect calling convention
+    if (typeof tierOrValue === 'string' && Object.values(MemoryTier).includes(tierOrValue as MemoryTier)) {
+      // Convention 1: store(agentId, tier, key, value, ttl?)
+      cacheKey = this.buildKey(agentIdOrKey, tierOrValue as MemoryTier, keyOrUndefined!);
+      tier = tierOrValue as MemoryTier;
+      value = valueOrUndefined;
+    } else {
+      // Convention 2: store(key, value, tier, ttl?)
+      cacheKey = agentIdOrKey;
+      tier = keyOrUndefined as unknown as MemoryTier ?? MemoryTier.SHORT_TERM;
+      value = tierOrValue;
+      ttl = valueOrUndefined ?? ttl;
+    }
+
     const effectiveTtl = ttl ?? DEFAULT_TTL[tier] ?? undefined;
     const serialized = JSON.stringify(value);
 
@@ -70,7 +93,7 @@ export class AgentMemoryService {
           {
             id: cacheKey,
             vector: embedding,
-            payload: { agentId, tier, key, value, storedAt: Date.now() },
+            payload: { agentId: agentIdOrKey, tier, value, storedAt: Date.now() },
           },
         ]);
       } catch (err) {
@@ -83,9 +106,24 @@ export class AgentMemoryService {
 
   /**
    * Retrieve a value from the specified memory tier for a given agent.
+   *
+   * Supports two calling conventions:
+   *   1. retrieve(agentId, tier, key)
+   *   2. retrieve(key, tier) — legacy/Phase 10 shorthand
    */
-  async retrieve(agentId: string, tier: MemoryTier, key: string): Promise<any> {
-    const cacheKey = this.buildKey(agentId, tier, key);
+  async retrieve(
+    agentIdOrKey: string,
+    tier: MemoryTier,
+    key?: string,
+  ): Promise<any> {
+    let cacheKey: string;
+    if (key !== undefined) {
+      // Convention 1: retrieve(agentId, tier, key)
+      cacheKey = this.buildKey(agentIdOrKey, tier, key);
+    } else {
+      // Convention 2: retrieve(key, tier) — key is the full cache key
+      cacheKey = agentIdOrKey;
+    }
     const raw = await this.cacheManager.get(cacheKey);
     if (raw === null || raw === undefined) {
       return null;

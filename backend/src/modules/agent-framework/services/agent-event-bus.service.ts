@@ -16,6 +16,7 @@ export enum AgentEventType {
   TOOL_EXECUTED = 'tool.executed',
   MEMORY_ACCESSED = 'memory.accessed',
   COMMUNICATION_SENT = 'communication.sent',
+  CUSTOM = 'agent.custom',
 }
 
 /**
@@ -342,5 +343,36 @@ export class AgentEventBusService {
     this.logger.debug(
       `Connector ${connectorName}.${action}: ${success ? 'ok' : 'failed'} (${durationMs}ms)`,
     );
+  }
+
+  /**
+   * Publish a custom structured event (used by Phase 10+ services).
+   * Emits the event via the internal EventEmitter2 and broadcasts
+   * to WebSocket clients if the gateway is available.
+   */
+  async publish(event: {
+    type: AgentEventType | string;
+    source: string;
+    data: any;
+    timestamp: Date;
+  }): Promise<void> {
+    const eventType = typeof event.type === 'string' ? event.type : event.type as string;
+    const payload = {
+      agentId: event.source,
+      eventType,
+      timestamp: event.timestamp.getTime(),
+      data: event.data,
+    };
+
+    // Emit namespaced event
+    this.emitter.emit(`${event.source}.${eventType}`, payload);
+
+    // Emit global event type
+    this.emitter.emit(eventType, payload);
+
+    // Broadcast over WebSocket
+    this.broadcastToClients('agent:custom', payload);
+
+    this.logger.debug(`Published custom event from ${event.source}: ${eventType}`);
   }
 }

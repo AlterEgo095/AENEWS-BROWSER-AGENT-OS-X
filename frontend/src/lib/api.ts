@@ -415,6 +415,138 @@ class ApiClient {
     getFeedbackStats: () =>
       this.request<{ success: boolean; data: import('./types').FeedbackStatistics }>('/intelligence/feedback/stats'),
   };
+
+  // Phase 10 — Swarm Intelligence
+  swarm = {
+    // Swarm Service
+    createSwarm: (data: { name: string; objective: string; topology: import('./types').SwarmTopologyType; agentIds: string[] }) =>
+      this.request<{ success: boolean; data: import('./types').SwarmInfo }>('/swarm/create', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getSwarms: () =>
+      this.request<{ success: boolean; data: import('./types').SwarmInfo[] }>('/swarm/list'),
+
+    executeSwarm: (id: string) =>
+      this.request<{ success: boolean; data: import('./types').SwarmInfo }>(`/swarm/${id}/execute`, {
+        method: 'POST',
+      }),
+
+    getSwarmMetrics: () =>
+      this.request<{ success: boolean; data: import('./types').SwarmMetrics }>('/swarm/metrics'),
+
+    // Consensus Service
+    initiateConsensus: (data: { topic: string; proposerId: string; participantIds: string[]; consensusThreshold?: number }) =>
+      this.request<{ success: boolean; data: import('./types').ConsensusSession }>('/swarm/consensus/initiate', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    runConsensus: (id: string) =>
+      this.request<{ success: boolean; data: import('./types').ConsensusSession }>(`/swarm/consensus/${id}/run`, {
+        method: 'POST',
+      }),
+
+    getConsensusResults: () =>
+      this.request<{ success: boolean; data: import('./types').ConsensusSession[] }>('/swarm/consensus/results'),
+
+    // Persistence Service
+    getCollaborations: () =>
+      this.request<{ success: boolean; data: import('./types').CollaborationSession[] }>('/swarm/persistence/collaborations'),
+
+    getCollaborationHistory: () =>
+      this.request<{ success: boolean; data: import('./types').CollaborationSession[] }>('/swarm/persistence/history'),
+
+    createCheckpoint: (collaborationId: string, label: string) =>
+      this.request<{ success: boolean; data: import('./types').Checkpoint }>(`/swarm/persistence/${collaborationId}/checkpoint`, {
+        method: 'POST',
+        body: JSON.stringify({ label }),
+      }),
+
+    recoverCheckpoint: (collaborationId: string, checkpointId: string) =>
+      this.request<{ success: boolean; data: import('./types').CollaborationSession }>(`/swarm/persistence/${collaborationId}/recover`, {
+        method: 'POST',
+        body: JSON.stringify({ checkpointId }),
+      }),
+
+    // Working Memory Service
+    createMemorySession: (data: { name: string; participants: string[] }) =>
+      this.request<{ success: boolean; data: import('./types').WorkingMemorySession }>('/swarm/memory/sessions', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getMemorySessions: () =>
+      this.request<{ success: boolean; data: import('./types').WorkingMemorySession[] }>('/swarm/memory/sessions'),
+
+    writeToWorkspace: (sessionId: string, key: string, value: unknown) =>
+      this.request<{ success: boolean; data: { message: string } }>(`/swarm/memory/sessions/${sessionId}/workspace`, {
+        method: 'PUT',
+        body: JSON.stringify({ key, value }),
+      }),
+
+    // Feedback Loop Service
+    getFeedbackParams: () =>
+      this.request<{ success: boolean; data: import('./types').FeedbackLoopParams }>('/swarm/feedback/params'),
+
+    runFeedbackCycle: () =>
+      this.request<{ success: boolean; data: import('./types').FeedbackCycleResult }>('/swarm/feedback/cycle', {
+        method: 'POST',
+      }),
+
+    getFeedbackAdjustments: () =>
+      this.request<{ success: boolean; data: import('./types').FeedbackAdjustment[] }>('/swarm/feedback/adjustments'),
+
+    rollbackAdjustment: (adjustmentId: string) =>
+      this.request<{ success: boolean; data: { message: string } }>(`/swarm/feedback/adjustments/${adjustmentId}/rollback`, {
+        method: 'POST',
+      }),
+
+    // Topology Service
+    createTopology: (data: { name: string; type: import('./types').SwarmTopologyType; nodeCount: number }) =>
+      this.request<{ success: boolean; data: import('./types').TopologyInfo }>('/swarm/topology/create', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getTopologies: () =>
+      this.request<{ success: boolean; data: import('./types').TopologyInfo[] }>('/swarm/topology/list'),
+
+    addTopologyNode: (topologyId: string, agentId: string) =>
+      this.request<{ success: boolean; data: import('./types').TopologyInfo }>(`/swarm/topology/${topologyId}/nodes`, {
+        method: 'POST',
+        body: JSON.stringify({ agentId }),
+      }),
+
+    removeTopologyNode: (topologyId: string, nodeId: string) =>
+      this.request<{ success: boolean; data: import('./types').TopologyInfo }>(`/swarm/topology/${topologyId}/nodes/${nodeId}`, {
+        method: 'DELETE',
+      }),
+
+    isolateNode: (topologyId: string, nodeId: string) =>
+      this.request<{ success: boolean; data: { message: string } }>(`/swarm/topology/${topologyId}/nodes/${nodeId}/isolate`, {
+        method: 'POST',
+      }),
+
+    restoreNode: (topologyId: string, nodeId: string) =>
+      this.request<{ success: boolean; data: { message: string } }>(`/swarm/topology/${topologyId}/nodes/${nodeId}/restore`, {
+        method: 'POST',
+      }),
+
+    // DAG Orchestrator Service
+    executeDAG: (data: { name: string; nodes: Array<{ id: string; label: string; agentId?: string }>; edges: Array<{ source: string; target: string; condition?: string }> }) =>
+      this.request<{ success: boolean; data: import('./types').DAGExecution }>('/swarm/dag/execute', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getDAGResults: () =>
+      this.request<{ success: boolean; data: import('./types').DAGExecution[] }>('/swarm/dag/results'),
+
+    getDAGTrace: (executionId: string) =>
+      this.request<{ success: boolean; data: import('./types').DAGTrace }>(`/swarm/dag/${executionId}/trace`),
+  };
 }
 
 export const api = new ApiClient();

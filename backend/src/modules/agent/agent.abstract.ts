@@ -12,7 +12,10 @@ import {
 export interface AgentContext {
   agentId: string;
   tenantId: string;
+  missionId?: string;
   taskId?: string;
+  taskDescription?: string;
+  parameters?: Record<string, any>;
   config: Record<string, any>;
   metadata?: Record<string, any>;
 }

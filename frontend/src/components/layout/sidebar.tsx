@@ -14,6 +14,7 @@ import {
   Rocket,
   Network,
   BrainCircuit,
+  Bug,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/missions', label: 'Missions', icon: Rocket },
   { href: '/orchestration', label: 'Orchestration', icon: Network },
   { href: '/intelligence', label: 'Intelligence', icon: BrainCircuit },
+  { href: '/swarm', label: 'Swarm', icon: Bug },
   { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/events', label: 'Events', icon: Activity },
   { href: '/login', label: 'Login', icon: LogIn },
