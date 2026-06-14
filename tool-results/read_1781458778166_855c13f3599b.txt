@@ -1,0 +1,585 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState } from 'react';
+     4→import {
+     5→  Bot, Brain, Wrench, Eye, MessageSquare, ArrowRight, Zap, Clock,
+     6→  CheckCircle2, XCircle, Loader2, Radio, Activity, ChevronDown,
+     7→  ChevronRight, Sparkles, GitBranch, Shield, Cpu, Timer, Hash,
+     8→  AlertTriangle, Play, Pause, Square, Users, TrendingUp,
+     9→} from 'lucide-react';
+    10→import { cn } from '@/lib/utils';
+    11→import { useLiveMonitor, type AgentSession, type AgentStep } from '@/hooks/use-live-monitor';
+    12→import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+    13→
+    14→// ─── Step Type Icons & Colors ────────────────────────────────────
+    15→const stepTypeConfig: Record<string, { icon: React.ElementType; color: string; bgColor: string; label: string }> = {
+    16→  thinking: { icon: Brain, color: 'text-violet-400', bgColor: 'bg-violet-500/15', label: 'Thinking' },
+    17→  tool_call: { icon: Wrench, color: 'text-amber-400', bgColor: 'bg-amber-500/15', label: 'Tool Call' },
+    18→  tool_result: { icon: CheckCircle2, color: 'text-emerald-400', bgColor: 'bg-emerald-500/15', label: 'Result' },
+    19→  action: { icon: Zap, color: 'text-cyan-400', bgColor: 'bg-cyan-500/15', label: 'Action' },
+    20→  output: { icon: Sparkles, color: 'text-primary', bgColor: 'bg-primary/15', label: 'Output' },
+    21→  error: { icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/15', label: 'Error' },
+    22→  waiting: { icon: Clock, color: 'text-slate-400', bgColor: 'bg-slate-500/15', label: 'Waiting' },
+    23→  collaborating: { icon: Users, color: 'text-pink-400', bgColor: 'bg-pink-500/15', label: 'Collaborating' },
+    24→  decision: { icon: GitBranch, color: 'text-teal-400', bgColor: 'bg-teal-500/15', label: 'Decision' },
+    25→};
+    26→
+    27→// ─── Status Badge ────────────────────────────────────────────────
+    28→function StatusBadge({ status }: { status: string }) {
+    29→  const config: Record<string, { color: string; dot: string; pulse: boolean }> = {
+    30→    idle: { color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', dot: 'bg-slate-400', pulse: false },
+    31→    thinking: { color: 'bg-violet-500/20 text-violet-400 border-violet-500/30', dot: 'bg-violet-400', pulse: true },
+    32→    executing: { color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', dot: 'bg-amber-400', pulse: true },
+    33→    waiting: { color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', dot: 'bg-slate-400', pulse: false },
+    34→    collaborating: { color: 'bg-pink-500/20 text-pink-400 border-pink-500/30', dot: 'bg-pink-400', pulse: true },
+    35→    completed: { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400', pulse: false },
+    36→    error: { color: 'bg-red-500/20 text-red-400 border-red-500/30', dot: 'bg-red-400', pulse: false },
+    37→  };
+    38→  const c = config[status] || config.idle;
+    39→
+    40→  return (
+    41→    <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase', c.color)}>
+    42→      <div className={cn('h-1.5 w-1.5 rounded-full', c.dot, c.pulse && 'animate-pulse')} />
+    43→      {status}
+    44→    </span>
+    45→  );
+    46→}
+    47→
+    48→// ─── Step Timeline Item ──────────────────────────────────────────
+    49→function StepTimelineItem({ step, isLatest }: { step: AgentStep; isLatest: boolean }) {
+    50→  const config = stepTypeConfig[step.type] || stepTypeConfig.action;
+    51→  const Icon = config.icon;
+    52→
+    53→  return (
+    54→    <div className={cn(
+    55→      'relative flex gap-3 pb-4',
+    56→      isLatest && 'pb-2'
+    57→    )}>
+    58→      {/* Connector line */}
+    59→      {!isLatest && (
+    60→        <div className="absolute left-[15px] top-8 h-full w-px bg-border" />
+    61→      )}
+    62→
+    63→      {/* Icon */}
+    64→      <div className={cn(
+    65→        'relative z-10 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg',
+    66→        config.bgColor,
+    67→        step.status === 'running' && 'ring-2 ring-violet-400/30'
+    68→      )}>
+    69→        {step.status === 'running' ? (
+    70→          <Loader2 className={cn('h-4 w-4 animate-spin', config.color)} />
+    71→        ) : (
+    72→          <Icon className={cn('h-4 w-4', config.color)} />
+    73→        )}
+    74→      </div>
+    75→
+    76→      {/* Content */}
+    77→      <div className="flex-1 min-w-0 pt-0.5">
+    78→        <div className="flex items-center gap-2">
+    79→          <span className={cn('text-xs font-semibold text-foreground', config.color)}>
+    80→            {config.label}
+    81→          </span>
+    82→          {step.duration && (
+    83→            <span className="text-[10px] text-muted-foreground">
+    84→              <Timer className="inline h-3 w-3 mr-0.5" />{step.duration}ms
+    85→            </span>
+    86→          )}
+    87→          <span className="text-[10px] text-muted-foreground">
+    88→            {new Date(step.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+    89→          </span>
+    90→        </div>
+    91→        <p className="mt-0.5 text-xs font-medium text-foreground">{step.title}</p>
+    92→        {step.detail && (
+    93→          <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">{step.detail}</p>
+    94→        )}
+    95→        {step.metadata && typeof step.metadata['tool'] === 'string' && (
+    96→          <div className="mt-1 flex items-center gap-1.5">
+    97→            <Wrench className="h-3 w-3 text-amber-400" />
+    98→            <code className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+    99→              {String(step.metadata['tool'])}
+   100→            </code>
+   101→          </div>
+   102→        )}
+   103→      </div>
+   104→    </div>
+   105→  );
+   106→}
+   107→
+   108→// ─── Agent Card (Left Panel) ─────────────────────────────────────
+   109→function AgentCard({ session, isSelected, onClick }: { session: AgentSession; isSelected: boolean; onClick: () => void }) {
+   110→  const isActive = session.status !== 'idle' && session.status !== 'completed';
+   111→  const clusterEmojis: Record<string, string> = {
+   112→    browser: '🌐', computer: '💻', coding: '🔧', office: '📋',
+   113→    marketing: '📢', business: '💼', infrastructure: '🏗️',
+   114→    security: '🔒', 'meta-intelligence': '🧠', 'llm-intelligence': '🤖',
+   115→    'intelligent-orchestration': '🎛️', watchdog: '👁️',
+   116→    'self-evolution': '🧬', certification: '✅',
+   117→  };
+   118→
+   119→  return (
+   120→    <button
+   121→      onClick={onClick}
+   122→      className={cn(
+   123→        'w-full text-left rounded-xl border p-3 transition-all duration-200',
+   124→        isSelected
+   125→          ? 'border-primary/50 bg-primary/10 shadow-lg shadow-primary/5'
+   126→          : 'border-border bg-card hover:border-primary/30',
+   127→        isActive && !isSelected && 'border-amber-500/30 bg-amber-500/5'
+   128→      )}
+   129→    >
+   130→      <div className="flex items-center justify-between">
+   131→        <div className="flex items-center gap-2 min-w-0">
+   132→          <span className="text-base">{clusterEmojis[session.cluster] || '🤖'}</span>
+   133→          <div className="min-w-0">
+   134→            <p className="text-xs font-semibold text-foreground truncate">{session.agentName}</p>
+   135→            <p className="text-[10px] text-muted-foreground capitalize">{session.cluster.replace(/-/g, ' ')}</p>
+   136→          </div>
+   137→        </div>
+   138→        <StatusBadge status={session.status} />
+   139→      </div>
+   140→
+   141→      {/* Progress bar for active agents */}
+   142→      {isActive && session.progress > 0 && (
+   143→        <div className="mt-2">
+   144→          <div className="h-1 rounded-full bg-border overflow-hidden">
+   145→            <div
+   146→              className={cn(
+   147→                'h-full rounded-full transition-all duration-500',
+   148→                session.status === 'thinking' ? 'bg-violet-400' :
+   149→                session.status === 'executing' ? 'bg-amber-400' :
+   150→                session.status === 'collaborating' ? 'bg-pink-400' : 'bg-primary'
+   151→              )}
+   152→              style={{ width: `${session.progress}%` }}
+   153→            />
+   154→          </div>
+   155→        </div>
+   156→      )}
+   157→
+   158→      {/* Current step */}
+   159→      {session.currentStep && (
+   160→        <div className="mt-1.5 flex items-center gap-1.5">
+   161→          {session.status === 'thinking' ? (
+   162→            <Brain className="h-3 w-3 text-violet-400 animate-pulse" />
+   163→          ) : session.status === 'executing' ? (
+   164→            <Loader2 className="h-3 w-3 text-amber-400 animate-spin" />
+   165→          ) : (
+   166→            <Activity className="h-3 w-3 text-pink-400" />
+   167→          )}
+   168→          <p className="text-[10px] text-muted-foreground truncate">{session.currentStep}</p>
+   169→        </div>
+   170→      )}
+   171→
+   172→      {/* Metrics */}
+   173→      {(session.tokensUsed || session.toolCalls || session.llmCalls) && (
+   174→        <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
+   175→          {session.tokensUsed && <span><Hash className="inline h-3 w-3 mr-0.5" />{session.tokensUsed} tokens</span>}
+   176→          {session.llmCalls && <span><Brain className="inline h-3 w-3 mr-0.5" />{session.llmCalls} LLM</span>}
+   177→          {session.toolCalls && <span><Wrench className="inline h-3 w-3 mr-0.5" />{session.toolCalls} tools</span>}
+   178→        </div>
+   179→      )}
+   180→    </button>
+   181→  );
+   182→}
+   183→
+   184→// ─── Activity Feed Item ──────────────────────────────────────────
+   185→function FeedItem({ step }: { step: AgentStep }) {
+   186→  const config = stepTypeConfig[step.type] || stepTypeConfig.action;
+   187→  const Icon = config.icon;
+   188→
+   189→  return (
+   190→    <div className="flex items-start gap-2.5 py-1.5 border-b border-border/50 last:border-0">
+   191→      <div className={cn('mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md', config.bgColor)}>
+   192→        <Icon className={cn('h-3 w-3', config.color)} />
+   193→      </div>
+   194→      <div className="flex-1 min-w-0">
+   195→        <div className="flex items-center gap-1.5">
+   196→          <span className="text-[10px] font-semibold text-foreground truncate">{step.agentName}</span>
+   197→          <span className={cn('text-[9px] font-medium', config.color)}>{config.label}</span>
+   198→        </div>
+   199→        <p className="text-[10px] text-muted-foreground truncate">{step.title}</p>
+   200→      </div>
+   201→      <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+   202→        {new Date(step.timestamp).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+   203→      </span>
+   204→    </div>
+   205→  );
+   206→}
+   207→
+   208→// ═══════════════════════════════════════════════════════════════════
+   209→// MAIN LIVE MONITOR PAGE
+   210→// ═══════════════════════════════════════════════════════════════════
+   211→export default function LiveMonitorPage() {
+   212→  const {
+   213→    connected, sessions, recentSteps, selectedAgentId,
+   214→    totalTokens, totalLlmCalls, totalToolCalls, activeCount,
+   215→    setSelectedAgent, connect, disconnect,
+   216→  } = useLiveMonitor();
+   217→
+   218→  const [showFeed, setShowFeed] = useState(true);
+   219→  const sessionsArray = Array.from(sessions.values());
+   220→  const selectedSession = selectedAgentId ? sessions.get(selectedAgentId) : null;
+   221→  const activeSessions = sessionsArray.filter((s) => s.status !== 'idle');
+   222→  const idleSessions = sessionsArray.filter((s) => s.status === 'idle');
+   223→
+   224→  // Connect on mount
+   225→  useEffect(() => {
+   226→    connect();
+   227→    return () => disconnect();
+   228→  }, [connect, disconnect]);
+   229→
+   230→  // Activity chart data
+   231→  const activityData = Array.from({ length: 30 }, (_, i) => ({
+   232→    time: `${30 - i}s`,
+   233→    steps: recentSteps.filter(
+   234→      (s) => s.timestamp > Date.now() - (30 - i) * 1000 && s.timestamp <= Date.now() - (29 - i) * 1000
+   235→    ).length,
+   236→  })).reverse();
+   237→
+   238→  return (
+   239→    <div className="space-y-4 animate-slide-in h-[calc(100vh-8rem)] flex flex-col">
+   240→      {/* Top Bar */}
+   241→      <div className="flex items-center justify-between">
+   242→        <div className="flex items-center gap-3">
+   243→          <div className="flex items-center gap-2">
+   244→            {connected ? (
+   245→              <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1">
+   246→                <Radio className="h-3 w-3 text-emerald-400 animate-pulse" />
+   247→                <span className="text-[10px] font-bold text-emerald-400">LIVE</span>
+   248→              </div>
+   249→            ) : (
+   250→              <div className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1">
+   251→                <div className="h-2 w-2 rounded-full bg-red-400" />
+   252→                <span className="text-[10px] font-bold text-red-400">DISCONNECTED</span>
+   253→              </div>
+   254→            )}
+   255→          </div>
+   256→          <h2 className="text-lg font-bold text-foreground">Agent Live Monitor</h2>
+   257→        </div>
+   258→
+   259→        {/* KPIs */}
+   260→        <div className="flex items-center gap-4 text-xs">
+   261→          <div className="flex items-center gap-1.5">
+   262→            <Bot className="h-3.5 w-3.5 text-primary" />
+   263→            <span className="text-muted-foreground">Active:</span>
+   264→            <span className="font-bold text-foreground">{activeCount}</span>
+   265→          </div>
+   266→          <div className="flex items-center gap-1.5">
+   267→            <Hash className="h-3.5 w-3.5 text-violet-400" />
+   268→            <span className="text-muted-foreground">Tokens:</span>
+   269→            <span className="font-bold text-foreground">{totalTokens.toLocaleString()}</span>
+   270→          </div>
+   271→          <div className="flex items-center gap-1.5">
+   272→            <Brain className="h-3.5 w-3.5 text-amber-400" />
+   273→            <span className="text-muted-foreground">LLM Calls:</span>
+   274→            <span className="font-bold text-foreground">{totalLlmCalls}</span>
+   275→          </div>
+   276→          <div className="flex items-center gap-1.5">
+   277→            <Wrench className="h-3.5 w-3.5 text-cyan-400" />
+   278→            <span className="text-muted-foreground">Tools:</span>
+   279→            <span className="font-bold text-foreground">{totalToolCalls}</span>
+   280→          </div>
+   281→        </div>
+   282→      </div>
+   283→
+   284→      {/* Main Content — 3 columns */}
+   285→      <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
+   286→        {/* Left — Agent List */}
+   287→        <div className="col-span-3 flex flex-col min-h-0">
+   288→          <div className="flex items-center justify-between mb-2">
+   289→            <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+   290→              Agents ({sessionsArray.length})
+   291→            </h3>
+   292→            <span className="text-[10px] text-emerald-400">{activeCount} active</span>
+   293→          </div>
+   294→          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+   295→            {/* Active agents first */}
+   296→            {activeSessions.map((session) => (
+   297→              <AgentCard
+   298→                key={session.agentId}
+   299→                session={session}
+   300→                isSelected={selectedAgentId === session.agentId}
+   301→                onClick={() => setSelectedAgent(session.agentId)}
+   302→              />
+   303→            ))}
+   304→            {/* Idle agents */}
+   305→            {idleSessions.length > 0 && (
+   306→              <>
+   307→                <p className="text-[10px] text-muted-foreground uppercase tracking-wider px-1 pt-2">
+   308→                  Idle ({idleSessions.length})
+   309→                </p>
+   310→                {idleSessions.map((session) => (
+   311→                  <AgentCard
+   312→                    key={session.agentId}
+   313→                    session={session}
+   314→                    isSelected={selectedAgentId === session.agentId}
+   315→                    onClick={() => setSelectedAgent(session.agentId)}
+   316→                  />
+   317→                ))}
+   318→              </>
+   319→            )}
+   320→          </div>
+   321→        </div>
+   322→
+   323→        {/* Center — Agent Detail / Step Timeline */}
+   324→        <div className="col-span-6 flex flex-col min-h-0">
+   325→          {selectedSession ? (
+   326→            <>
+   327→              {/* Agent Header */}
+   328→              <div className="rounded-xl border border-border bg-card p-4 mb-3">
+   329→                <div className="flex items-center justify-between">
+   330→                  <div className="flex items-center gap-3">
+   331→                    <div className={cn(
+   332→                      'flex h-10 w-10 items-center justify-center rounded-xl',
+   333→                      selectedSession.status === 'thinking' ? 'bg-violet-500/15' :
+   334→                      selectedSession.status === 'executing' ? 'bg-amber-500/15' :
+   335→                      selectedSession.status === 'collaborating' ? 'bg-pink-500/15' :
+   336→                      'bg-primary/15'
+   337→                    )}>
+   338→                      {selectedSession.status === 'thinking' ? (
+   339→                        <Brain className="h-5 w-5 text-violet-400 animate-pulse" />
+   340→                      ) : selectedSession.status === 'executing' ? (
+   341→                        <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
+   342→                      ) : (
+   343→                        <Bot className="h-5 w-5 text-primary" />
+   344→                      )}
+   345→                    </div>
+   346→                    <div>
+   347→                      <h3 className="text-sm font-bold text-foreground">{selectedSession.agentName}</h3>
+   348→                      <p className="text-[10px] text-muted-foreground capitalize">{selectedSession.cluster.replace(/-/g, ' ')}</p>
+   349→                    </div>
+   350→                  </div>
+   351→                  <div className="flex items-center gap-2">
+   352→                    <StatusBadge status={selectedSession.status} />
+   353→                    {selectedSession.missionName && (
+   354→                      <span className="text-[10px] text-muted-foreground bg-background/50 px-2 py-0.5 rounded-full">
+   355→                        🚀 {selectedSession.missionName}
+   356→                      </span>
+   357→                    )}
+   358→                  </div>
+   359→                </div>
+   360→
+   361→                {/* Progress */}
+   362→                {selectedSession.progress > 0 && (
+   363→                  <div className="mt-3">
+   364→                    <div className="flex items-center justify-between text-[10px] mb-1">
+   365→                      <span className="text-muted-foreground">Progress</span>
+   366→                      <span className="text-foreground font-bold">{selectedSession.progress}%</span>
+   367→                    </div>
+   368→                    <div className="h-2 rounded-full bg-border overflow-hidden">
+   369→                      <div
+   370→                        className={cn(
+   371→                          'h-full rounded-full transition-all duration-700',
+   372→                          selectedSession.status === 'thinking' ? 'bg-violet-400' :
+   373→                          selectedSession.status === 'executing' ? 'bg-amber-400' :
+   374→                          selectedSession.status === 'collaborating' ? 'bg-pink-400' : 'bg-primary'
+   375→                        )}
+   376→                        style={{ width: `${selectedSession.progress}%` }}
+   377→                      />
+   378→                    </div>
+   379→                  </div>
+   380→                )}
+   381→
+   382→                {/* Metrics Row */}
+   383→                <div className="mt-3 grid grid-cols-4 gap-2">
+   384→                  <div className="rounded-lg bg-background/50 p-2 text-center">
+   385→                    <p className="text-[9px] text-muted-foreground">Tokens</p>
+   386→                    <p className="text-xs font-bold text-violet-400">{selectedSession.tokensUsed || 0}</p>
+   387→                  </div>
+   388→                  <div className="rounded-lg bg-background/50 p-2 text-center">
+   389→                    <p className="text-[9px] text-muted-foreground">LLM Calls</p>
+   390→                    <p className="text-xs font-bold text-amber-400">{selectedSession.llmCalls || 0}</p>
+   391→                  </div>
+   392→                  <div className="rounded-lg bg-background/50 p-2 text-center">
+   393→                    <p className="text-[9px] text-muted-foreground">Tool Calls</p>
+   394→                    <p className="text-xs font-bold text-cyan-400">{selectedSession.toolCalls || 0}</p>
+   395→                  </div>
+   396→                  <div className="rounded-lg bg-background/50 p-2 text-center">
+   397→                    <p className="text-[9px] text-muted-foreground">Steps</p>
+   398→                    <p className="text-xs font-bold text-foreground">{selectedSession.steps.length}</p>
+   399→                  </div>
+   400→                </div>
+   401→              </div>
+   402→
+   403→              {/* Step Timeline */}
+   404→              <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-card p-4">
+   405→                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">
+   406→                  Execution Timeline
+   407→                </h4>
+   408→                {selectedSession.steps.length > 0 ? (
+   409→                  <div>
+   410→                    {selectedSession.steps.slice(-20).map((step, i, arr) => (
+   411→                      <StepTimelineItem
+   412→                        key={step.id}
+   413→                        step={step}
+   414→                        isLatest={i === arr.length - 1}
+   415→                      />
+   416→                    ))}
+   417→                  </div>
+   418→                ) : (
+   419→                  <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+   420→                    <Eye className="h-8 w-8 mb-2 opacity-30" />
+   421→                    <p className="text-xs">Waiting for agent activity...</p>
+   422→                    <p className="text-[10px] mt-1">Steps will appear here as the agent works</p>
+   423→                  </div>
+   424→                )}
+   425→              </div>
+   426→            </>
+   427→          ) : (
+   428→            /* No agent selected — overview */
+   429→            <div className="flex-1 flex flex-col min-h-0">
+   430→              {/* Activity Chart */}
+   431→              <div className="rounded-xl border border-border bg-card p-4 mb-3">
+   432→                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-2">
+   433→                  Platform Activity (last 30s)
+   434→                </h4>
+   435→                <ResponsiveContainer width="100%" height={120}>
+   436→                  <AreaChart data={activityData}>
+   437→                    <defs>
+   438→                      <linearGradient id="activityGrad" x1="0" y1="0" x2="0" y2="1">
+   439→                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+   440→                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+   441→                      </linearGradient>
+   442→                    </defs>
+   443→                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   444→                    <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 8 }} tickLine={false} />
+   445→                    <YAxis tick={{ fill: '#94a3b8', fontSize: 8 }} tickLine={false} />
+   446→                    <Area type="monotone" dataKey="steps" stroke="#3b82f6" fill="url(#activityGrad)" strokeWidth={2} />
+   447→                  </AreaChart>
+   448→                </ResponsiveContainer>
+   449→              </div>
+   450→
+   451→              {/* All active agents quick view */}
+   452→              <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-card p-4">
+   453→                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">
+   454→                  All Active Agents
+   455→                </h4>
+   456→                {activeSessions.length > 0 ? (
+   457→                  <div className="space-y-3">
+   458→                    {activeSessions.map((session) => (
+   459→                      <div
+   460→                        key={session.agentId}
+   461→                        onClick={() => setSelectedAgent(session.agentId)}
+   462→                        className="cursor-pointer rounded-lg border border-border bg-background/50 p-3 transition-all hover:border-primary/30"
+   463→                      >
+   464→                        <div className="flex items-center justify-between mb-2">
+   465→                          <div className="flex items-center gap-2">
+   466→                            {session.status === 'thinking' ? (
+   467→                              <Brain className="h-4 w-4 text-violet-400 animate-pulse" />
+   468→                            ) : session.status === 'executing' ? (
+   469→                              <Loader2 className="h-4 w-4 text-amber-400 animate-spin" />
+   470→                            ) : (
+   471→                              <Bot className="h-4 w-4 text-primary" />
+   472→                            )}
+   473→                            <span className="text-xs font-semibold text-foreground">{session.agentName}</span>
+   474→                          </div>
+   475→                          <StatusBadge status={session.status} />
+   476→                        </div>
+   477→                        {session.currentStep && (
+   478→                          <div className="flex items-center gap-2">
+   479→                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+   480→                            <span className="text-[10px] text-muted-foreground">{session.currentStep}</span>
+   481→                          </div>
+   482→                        )}
+   483→                        {/* Last 3 steps mini-timeline */}
+   484→                        {session.steps.length > 0 && (
+   485→                          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+   486→                            {session.steps.slice(-5).map((step) => {
+   487→                              const cfg = stepTypeConfig[step.type] || stepTypeConfig.action;
+   488→                              return (
+   489→                                <span key={step.id} className={cn('inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px]', cfg.bgColor, cfg.color)}>
+   490→                                  <cfg.icon className="h-2.5 w-2.5" />
+   491→                                  {cfg.label}
+   492→                                </span>
+   493→                              );
+   494→                            })}
+   495→                          </div>
+   496→                        )}
+   497→                      </div>
+   498→                    ))}
+   499→                  </div>
+   500→                ) : (
+   501→                  <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+   502→                    <Radio className="h-8 w-8 mb-2 opacity-30" />
+   503→                    <p className="text-xs">No active agents</p>
+   504→                    <p className="text-[10px] mt-1">Agents will appear when they start working</p>
+   505→                  </div>
+   506→                )}
+   507→              </div>
+   508→            </div>
+   509→          )}
+   510→        </div>
+   511→
+   512→        {/* Right — Live Feed */}
+   513→        <div className="col-span-3 flex flex-col min-h-0">
+   514→          <div className="flex items-center justify-between mb-2">
+   515→            <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+   516→              Live Feed
+   517→            </h3>
+   518→            <button
+   519→              onClick={() => setShowFeed(!showFeed)}
+   520→              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+   521→            >
+   522→              {showFeed ? 'Hide' : 'Show'}
+   523→            </button>
+   524→          </div>
+   525→
+   526→          {showFeed && (
+   527→            <div className="flex-1 overflow-y-auto rounded-xl border border-border bg-card p-3">
+   528→              {recentSteps.length > 0 ? (
+   529→                recentSteps.slice(0, 50).map((step) => (
+   530→                  <FeedItem key={step.id} step={step} />
+   531→                ))
+   532→              ) : (
+   533→                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+   534→                  <Activity className="h-8 w-8 mb-2 opacity-30" />
+   535→                  <p className="text-xs">No activity yet</p>
+   536→                </div>
+   537→              )}
+   538→            </div>
+   539→          )}
+   540→
+   541→          {/* Step type legend */}
+   542→          <div className="mt-3 rounded-xl border border-border bg-card p-3">
+   543→            <h4 className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Step Types</h4>
+   544→            <div className="grid grid-cols-2 gap-1.5">
+   545→              {Object.entries(stepTypeConfig).map(([type, cfg]) => (
+   546→                <div key={type} className="flex items-center gap-1.5">
+   547→                  <div className={cn('flex h-5 w-5 items-center justify-center rounded', cfg.bgColor)}>
+   548→                    <cfg.icon className={cn('h-3 w-3', cfg.color)} />
+   549→                  </div>
+   550→                  <span className="text-[10px] text-muted-foreground">{cfg.label}</span>
+   551→                </div>
+   552→              ))}
+   553→            </div>
+   554→          </div>
+   555→
+   556→          {/* Quick Stats */}
+   557→          <div className="mt-3 rounded-xl border border-border bg-card p-3">
+   558→            <h4 className="text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2">Session Stats</h4>
+   559→            <div className="space-y-1.5">
+   560→              <div className="flex items-center justify-between text-[10px]">
+   561→                <span className="text-muted-foreground">Total Sessions</span>
+   562→                <span className="font-bold text-foreground">{sessionsArray.length}</span>
+   563→              </div>
+   564→              <div className="flex items-center justify-between text-[10px]">
+   565→                <span className="text-muted-foreground">Active Now</span>
+   566→                <span className="font-bold text-emerald-400">{activeCount}</span>
+   567→              </div>
+   568→              <div className="flex items-center justify-between text-[10px]">
+   569→                <span className="text-muted-foreground">Total Steps</span>
+   570→                <span className="font-bold text-foreground">{recentSteps.length}</span>
+   571→              </div>
+   572→              <div className="flex items-center justify-between text-[10px]">
+   573→                <span className="text-muted-foreground">Avg Steps/Agent</span>
+   574→                <span className="font-bold text-foreground">
+   575→                  {sessionsArray.length > 0 ? Math.round(recentSteps.length / sessionsArray.length) : 0}
+   576→                </span>
+   577→              </div>
+   578→            </div>
+   579→          </div>
+   580→        </div>
+   581→      </div>
+   582→    </div>
+   583→  );
+   584→}
+   585→
