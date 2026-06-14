@@ -23,9 +23,27 @@ import {
 import type { Agent, ClusterType, AgentStatus } from '@/lib/types';
 import { ClusterType as CT, AgentStatus as AS } from '@/lib/types';
 
+const clusterLabels: Record<ClusterType, string> = {
+  [CT.BROWSER]: 'Browser',
+  [CT.COMPUTER]: 'Computer',
+  [CT.CODING]: 'Coding',
+  [CT.OFFICE]: 'Office',
+  [CT.MARKETING]: 'Marketing',
+  [CT.BUSINESS]: 'Business',
+  [CT.INFRASTRUCTURE]: 'Infrastructure',
+  [CT.SECURITY]: 'Security',
+  [CT.META_INTELLIGENCE]: 'Meta Intelligence',
+  // Phase 2
+  [CT.LLM_INTELLIGENCE]: 'LLM Intelligence',
+  [CT.INTELLIGENT_ORCHESTRATION]: 'Intelligent Orchestration',
+  [CT.WATCHDOG]: 'Watchdog',
+  [CT.SELF_EVOLUTION]: 'Self Evolution',
+  [CT.CERTIFICATION]: 'Certification',
+};
+
 const clusterOptions: { value: ClusterType | ''; label: string }[] = [
   { value: '', label: 'All Clusters' },
-  ...Object.values(CT).map((c) => ({ value: c, label: c.replace('-', ' ') })),
+  ...Object.values(CT).map((c) => ({ value: c, label: clusterLabels[c] })),
 ];
 
 const statusOptions: { value: AgentStatus | ''; label: string }[] = [
@@ -222,7 +240,7 @@ export default function AgentsPage() {
                   {showExecuteModal.name}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Cluster: {showExecuteModal.cluster} • Status: {showExecuteModal.status}
+                  Cluster: {clusterLabels[showExecuteModal.cluster]} • Status: {showExecuteModal.status}
                 </p>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -300,11 +318,11 @@ function AgentCard({
       <div className="mt-3 flex items-center gap-2">
         <span
           className={cn(
-            'rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize',
+            'rounded-full border px-2 py-0.5 text-[10px] font-semibold',
             clusterColors[agent.cluster]
           )}
         >
-          {agent.cluster.replace('-', ' ')}
+          {clusterLabels[agent.cluster] || agent.cluster.replace(/-/g, ' ')}
         </span>
       </div>
 

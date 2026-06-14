@@ -11,11 +11,14 @@ import {
   HardDrive,
   Cpu,
   Wifi,
+  Rocket,
 } from 'lucide-react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
-import { mockClusterStats, mockHealth, mockAgents, mockEvents } from '@/lib/mock-data';
-import { cn, clusterColors, clusterIcons, formatRelativeTime } from '@/lib/utils';
-import type { ClusterStats, HealthCheckResult, Agent, Event } from '@/lib/types';
+import { mockClusterStats, mockHealth, mockAgents, mockEvents, mockMissions } from '@/lib/mock-data';
+import { cn, clusterColors, clusterIcons, formatRelativeTime, missionStateColors, missionStateDotColors } from '@/lib/utils';
+import type { ClusterStats, HealthCheckResult, Agent, Event, Mission } from '@/lib/types';
+import { MissionState as MS } from '@/lib/types';
 
 // Stat Card Component
 function StatCard({
@@ -61,7 +64,7 @@ function ClusterCard({ stat }: { stat: ClusterStats }) {
           <span className="text-lg">{clusterIcons[stat.cluster]}</span>
           <div>
             <h4 className="text-sm font-semibold capitalize text-foreground">
-              {stat.cluster.replace('-', ' ')}
+              {stat.cluster.replace(/-/g, ' ')}
             </h4>
             <p className="text-xs text-muted-foreground">
               {stat.totalAgents} agent{stat.totalAgents !== 1 ? 's' : ''}
@@ -74,7 +77,7 @@ function ClusterCard({ stat }: { stat: ClusterStats }) {
             clusterColors[stat.cluster]
           )}
         >
-          {stat.cluster}
+          {stat.cluster.replace(/-/g, ' ')}
         </span>
       </div>
       <div className="mt-3 flex gap-3">
@@ -163,11 +166,38 @@ function ActivityItem({ event }: { event: Event }) {
   );
 }
 
+// Recent Mission Item
+function RecentMissionItem({ mission }: { mission: Mission }) {
+  return (
+    <Link
+      href="/missions"
+      className="flex items-center justify-between rounded-lg border border-border bg-background/50 px-3 py-2.5 transition-colors hover:border-primary/30"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={cn('h-2 w-2 shrink-0 rounded-full', missionStateDotColors[mission.state])} />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{mission.name}</p>
+          <p className="text-[10px] text-muted-foreground">{mission.progress}% complete</p>
+        </div>
+      </div>
+      <span
+        className={cn(
+          'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase',
+          missionStateColors[mission.state]
+        )}
+      >
+        {mission.state}
+      </span>
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const [clusterStats, setClusterStats] = useState<ClusterStats[]>([]);
   const [health, setHealth] = useState<HealthCheckResult | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [recentEvents, setRecentEvents] = useState<Event[]>([]);
+  const [recentMissions, setRecentMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -178,6 +208,7 @@ export default function DashboardPage() {
           api.getHealth(),
           api.getAgents({ limit: 20 }),
           api.getEvents({ limit: 10 }),
+          api.getMissions({ limit: 5 }),
         ]);
 
         if (results[0].status === 'fulfilled') setClusterStats(results[0].value);
@@ -191,11 +222,15 @@ export default function DashboardPage() {
 
         if (results[3].status === 'fulfilled') setRecentEvents(results[3].value.data || []);
         else setRecentEvents(mockEvents);
+
+        if (results[4].status === 'fulfilled') setRecentMissions(results[4].value.data || []);
+        else setRecentMissions(mockMissions.slice(0, 5));
       } catch {
         setClusterStats(mockClusterStats);
         setHealth(mockHealth);
         setAgents(mockAgents);
         setRecentEvents(mockEvents);
+        setRecentMissions(mockMissions.slice(0, 5));
       } finally {
         setLoading(false);
       }
@@ -207,6 +242,9 @@ export default function DashboardPage() {
   const totalAgents = agents.length;
   const activeAgents = agents.filter((a) => a.status === 'running').length;
   const errorAgents = agents.filter((a) => a.status === 'error').length;
+  const activeMissions = recentMissions.filter(
+    (m) => ![MS.DRAFT, MS.COMPLETED, MS.CANCELLED, MS.ARCHIVED, MS.FAILED].includes(m.state)
+  ).length;
   const healthyServices = health
     ? Object.values(health.info || {}).filter((s) => s.status === 'up').length
     : 0;
@@ -249,11 +287,11 @@ export default function DashboardPage() {
           color="text-emerald-400"
         />
         <StatCard
-          title="Errors"
-          value={errorAgents}
-          subtitle="Require attention"
-          icon={AlertTriangle}
-          color="text-red-400"
+          title="Active Missions"
+          value={activeMissions}
+          subtitle="In progress"
+          icon={Rocket}
+          color="text-orange-400"
         />
         <StatCard
           title="Services UP"
@@ -300,6 +338,32 @@ export default function DashboardPage() {
                   <HealthIndicator name="Agent System" status={health.info.agent_system?.status || 'unknown'} icon={Cpu} />
                   <HealthIndicator name="Network" status="up" icon={Wifi} />
                 </>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Missions */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+                Recent Missions
+              </h3>
+              <Link
+                href="/missions"
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                View all
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {recentMissions.map((mission) => (
+                <RecentMissionItem key={mission.id} mission={mission} />
+              ))}
+              {recentMissions.length === 0 && (
+                <div className="rounded-xl border border-border bg-card p-4 text-center">
+                  <Rocket className="mx-auto h-6 w-6 text-muted-foreground/30" />
+                  <p className="mt-2 text-xs text-muted-foreground">No missions yet</p>
+                </div>
               )}
             </div>
           </div>

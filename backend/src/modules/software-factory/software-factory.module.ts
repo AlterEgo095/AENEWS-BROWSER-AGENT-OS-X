@@ -14,12 +14,24 @@
  *   - ExecutionTeamService: Code generation, browser ops, deployment
  *   - CertificationTeamService: Testing, auditing, certification
  *
+ * Controllers:
+ *   - SoftwareFactoryController: Mission CRUD, lifecycle, contracts
+ *   - ConnectorController: Connector listing and execution
+ *
  * Imports: AgentFrameworkModule (for AgentOrchestratorService, AgentEventBusService, AgentRegistryService)
  * Exports: MissionOrchestratorService, ConnectorRegistryService, team services
  */
 
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentFrameworkModule } from '../agent-framework/agent-framework.module';
+
+// Entities
+import { Mission } from './entities/mission.entity';
+import { MissionContract } from './entities/mission-contract.entity';
+
+// Controllers
+import { SoftwareFactoryController, ConnectorController } from './software-factory.controller';
 
 // Services
 import { MissionContractService } from './services/mission-contract.service';
@@ -38,7 +50,11 @@ import { ExecutionTeamService } from './services/teams/execution-team.service';
 import { CertificationTeamService } from './services/teams/certification-team.service';
 
 @Module({
-  imports: [AgentFrameworkModule],
+  imports: [
+    AgentFrameworkModule,
+    TypeOrmModule.forFeature([Mission, MissionContract]),
+  ],
+  controllers: [SoftwareFactoryController, ConnectorController],
   providers: [
     // Core Services
     MissionContractService,

@@ -9,6 +9,12 @@ export enum ClusterType {
   INFRASTRUCTURE = 'infrastructure',
   SECURITY = 'security',
   META_INTELLIGENCE = 'meta-intelligence',
+  // Phase 2 — Intelligence Clusters
+  LLM_INTELLIGENCE = 'llm-intelligence',
+  INTELLIGENT_ORCHESTRATION = 'intelligent-orchestration',
+  WATCHDOG = 'watchdog',
+  SELF_EVOLUTION = 'self-evolution',
+  CERTIFICATION = 'certification',
 }
 
 export enum AgentStatus {
@@ -131,6 +137,48 @@ export interface AuthResponse {
     firstName: string;
     lastName: string;
   };
+}
+
+// Mission Types
+export enum MissionState {
+  DRAFT = 'DRAFT',
+  PLANNED = 'PLANNED',
+  RESEARCH = 'RESEARCH',
+  BUILDING = 'BUILDING',
+  TESTING = 'TESTING',
+  AUDITING = 'AUDITING',
+  CERTIFYING = 'CERTIFYING',
+  DELIVERING = 'DELIVERING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+export enum MissionPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export interface Mission {
+  id: string;
+  name: string;
+  description: string;
+  state: MissionState;
+  priority: MissionPriority;
+  progress: number;
+  objectives: any[];
+  constraints: string[];
+  requiredCapabilities: string[];
+  result: any;
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  deadline: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Pagination

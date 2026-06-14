@@ -83,4 +83,21 @@ export default () => ({
     sentryDsn: process.env.SENTRY_DSN || undefined,
     prometheusPort: parseInt(process.env.PROMETHEUS_PORT || '9090', 10),
   },
+  llm: {
+    defaultProvider: process.env.LLM_DEFAULT_PROVIDER || 'openai',
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY || '',
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '4096', 10),
+    },
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY || '',
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+      maxTokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10),
+    },
+    fallback: {
+      enabled: process.env.LLM_FALLBACK_ENABLED === 'true',
+      secondaryProvider: process.env.LLM_SECONDARY_PROVIDER || 'anthropic',
+    },
+  },
 });

@@ -8,11 +8,16 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TaskService } from './task.service';
 import { TaskStatus } from './entities/task.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../user/entities/user.entity';
+import { TenantScoped } from '../tenant/decorators/tenant-scoped.decorator';
 import {
   IsString,
   IsEnum,
@@ -65,17 +70,21 @@ class CreateTaskDto {
 @ApiTags('Tasks')
 @ApiBearerAuth()
 @Controller('tasks')
+@Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR)
+@TenantScoped()
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new task' })
-  async create(@Body() dto: CreateTaskDto) {
+  async create(@Body() dto: CreateTaskDto, @Req() req: Request & { user?: any; tenantId?: string }) {
+    // Enforce tenant: non-SUPER_ADMIN must create tasks in their own tenant
+    const tenantId = req.tenantId ?? dto.tenantId;
     return this.taskService.create({
       type: dto.type,
       agentId: dto.agentId,
-      tenantId: dto.tenantId,
+      tenantId,
       priority: dto.priority,
       input: dto.input,
       maxRetries: dto.maxRetries,
@@ -84,12 +93,16 @@ export class TaskController {
   }
 
   @Get()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'List all tasks with optional filters' })
   async findAll(
     @Query() pagination: PaginationDto,
-    @Query('tenantId') tenantId?: string,
+    @Query('tenantId') tenantIdQueryParam?: string,
     @Query('status') status?: TaskStatus,
+    @Req() req?: Request & { user?: any; tenantId?: string },
   ) {
+    // Tenant isolation: non-SUPER_ADMIN can only see their own tenant's data
+    const tenantId = req.tenantId ?? tenantIdQueryParam;
     return this.taskService.findAll(
       tenantId,
       status,
@@ -99,6 +112,7 @@ export class TaskController {
   }
 
   @Get(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get task by ID' })
   async findOne(@Param('id') id: string) {
     return this.taskService.findOne(id);

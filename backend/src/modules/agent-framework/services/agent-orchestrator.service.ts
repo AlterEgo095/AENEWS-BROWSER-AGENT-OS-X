@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AgentRegistryService } from '../../agent/registry/agent-registry.service';
 import {
   AgentEventBusService,
@@ -6,6 +6,7 @@ import {
 } from './agent-event-bus.service';
 import { AgentMemoryService, MemoryTier } from './agent-memory.service';
 import { ClusterType } from '../../agent/entities/agent.entity';
+import { LLMService } from '../../llm/llm.service';
 
 // ─── Pipeline Types ──────────────────────────────────────────
 
@@ -96,6 +97,10 @@ export type PipelineState =
  *
  * Each step uses the AgentRegistryService to discover capable agents
  * and emits events via AgentEventBusService for observability.
+ *
+ * When LLM is available, the orchestrator uses it for intelligent
+ * decomposition, planning, critiquing, and repair. When LLM is
+ * unavailable, it falls back to heuristic methods.
  */
 @Injectable()
 export class AgentOrchestratorService {
@@ -106,6 +111,7 @@ export class AgentOrchestratorService {
     private readonly registry: AgentRegistryService,
     private readonly eventBus: AgentEventBusService,
     private readonly memory: AgentMemoryService,
+    @Optional() private readonly llmService: LLMService,
   ) {}
 
   // ─── Full Pipeline ──────────────────────────────────────────
@@ -237,54 +243,48 @@ export class AgentOrchestratorService {
 
   /**
    * Step 1: Decompose a mission into subtasks.
-   * For now this uses a simple heuristic — in production this would
-   * be powered by an LLM.
+   * Uses LLM when available for intelligent decomposition,
+   * falls back to simple heuristic when LLM is unavailable.
    */
   async decompose(mission: Mission): Promise<Subtask[]> {
     this.logger.debug(`Decomposing mission: ${mission.id}`);
 
-    // Simple decomposition: create one subtask per required capability
-    // In a real system, this would use an LLM to break down the mission
-    const subtasks: Subtask[] = [
-      {
-        id: `${mission.id}:sub-1`,
-        description: mission.description,
-        requiredCapabilities: mission.constraints?.capabilities || ['general'],
-        preferredCluster: mission.constraints?.cluster,
-        priority: 1,
-      },
-    ];
+    // Try LLM-powered decomposition first
+    if (this.llmService?.isAnyAvailable()) {
+      try {
+        return await this.decomposeWithLLM(mission);
+      } catch (error: any) {
+        this.logger.warn(
+          `LLM decomposition failed, falling back to heuristic: ${error.message}`,
+        );
+      }
+    }
 
-    return subtasks;
+    // Fallback: simple heuristic decomposition
+    return this.decomposeHeuristic(mission);
   }
 
   /**
    * Step 2: Create an execution plan from subtasks.
-   * Orders subtasks respecting dependencies and groups parallelizable work.
+   * Uses LLM when available for intelligent planning,
+   * falls back to simple topological ordering.
    */
   async plan(subtasks: Subtask[]): Promise<ExecutionPlan> {
     this.logger.debug(`Planning execution for ${subtasks.length} subtasks`);
 
-    // Simple topological ordering — for now, just execute in order
-    // and group everything that has no dependencies into a single wave
-    const executionOrder: string[][] = [];
+    // Try LLM-powered planning first
+    if (this.llmService?.isAnyAvailable()) {
+      try {
+        return await this.planWithLLM(subtasks);
+      } catch (error: any) {
+        this.logger.warn(
+          `LLM planning failed, falling back to heuristic: ${error.message}`,
+        );
+      }
+    }
 
-    // Group: all subtasks without dependencies first, then dependency chains
-    const noDeps = subtasks
-      .filter((s) => !s.dependencies || s.dependencies.length === 0)
-      .map((s) => s.id);
-    const withDeps = subtasks
-      .filter((s) => s.dependencies && s.dependencies.length > 0)
-      .map((s) => s.id);
-
-    if (noDeps.length > 0) executionOrder.push(noDeps);
-    withDeps.forEach((id) => executionOrder.push([id]));
-
-    return {
-      missionId: subtasks[0]?.id?.split(':sub-')[0] || 'unknown',
-      subtasks,
-      executionOrder,
-    };
+    // Fallback: simple topological ordering
+    return this.planHeuristic(subtasks);
   }
 
   /**
@@ -322,43 +322,31 @@ export class AgentOrchestratorService {
 
   /**
    * Step 4: Critique execution results for quality and correctness.
+   * Uses LLM when available for intelligent critique,
+   * falls back to rule-based evaluation.
    */
   async critique(results: ExecutionResult[]): Promise<CritiqueResult[]> {
     this.logger.debug(`Critiquing ${results.length} execution result(s)`);
 
-    return results.map((result) => {
-      const issues: string[] = [];
-      const suggestions: string[] = [];
-
-      if (!result.success) {
-        issues.push(`Execution failed: ${result.error || 'unknown error'}`);
-        suggestions.push('Retry with alternative agent or parameters');
+    // Try LLM-powered critique first
+    if (this.llmService?.isAnyAvailable()) {
+      try {
+        return await this.critiqueWithLLM(results);
+      } catch (error: any) {
+        this.logger.warn(
+          `LLM critique failed, falling back to heuristic: ${error.message}`,
+        );
       }
+    }
 
-      if (result.duration && result.duration > 30000) {
-        issues.push('Execution took longer than 30s threshold');
-        suggestions.push('Consider optimizing or breaking down the task');
-      }
-
-      const severity: 'low' | 'medium' | 'high' = !result.success
-        ? 'high'
-        : issues.length > 0
-          ? 'medium'
-          : 'low';
-
-      return {
-        subtaskId: result.subtaskId,
-        passed: issues.length === 0,
-        issues,
-        suggestions,
-        severity,
-      };
-    });
+    // Fallback: rule-based critique
+    return this.critiqueHeuristic(results);
   }
 
   /**
    * Step 5: Repair issues identified during critique.
-   * Re-executes failed subtasks with adjusted parameters.
+   * Uses LLM when available for intelligent repair suggestions,
+   * falls back to re-execution.
    */
   async repair(context: {
     critiques: CritiqueResult[];
@@ -368,54 +356,19 @@ export class AgentOrchestratorService {
       `Repairing ${context.critiques.length} critiqued subtask(s)`,
     );
 
-    const repairResults: RepairResult[] = [];
-
-    for (const critique of context.critiques) {
-      if (critique.passed) continue;
-
-      const originalResult = context.results.find(
-        (r) => r.subtaskId === critique.subtaskId,
-      );
-
-      let attempts = 0;
-      let repaired = false;
-      let remainingIssues = [...critique.issues];
-      let data: any = undefined;
-
-      // Attempt repair up to 3 times
-      for (let i = 0; i < 3 && !repaired; i++) {
-        attempts++;
-        try {
-          // Try to re-execute with a different agent or adjusted parameters
-          const subtask: Subtask = {
-            id: critique.subtaskId,
-            description: `Repair attempt ${attempts} for ${critique.subtaskId}`,
-            requiredCapabilities: originalResult?.agentKey
-              ? ['general']
-              : ['general'],
-          };
-
-          const retryResult = await this.executeSubtask(subtask);
-          if (retryResult.success) {
-            repaired = true;
-            remainingIssues = [];
-            data = retryResult.data;
-          }
-        } catch {
-          remainingIssues.push(`Repair attempt ${attempts} failed`);
-        }
+    // Try LLM-powered repair first
+    if (this.llmService?.isAnyAvailable()) {
+      try {
+        return await this.repairWithLLM(context);
+      } catch (error: any) {
+        this.logger.warn(
+          `LLM repair failed, falling back to heuristic: ${error.message}`,
+        );
       }
-
-      repairResults.push({
-        subtaskId: critique.subtaskId,
-        repaired,
-        attempts,
-        data,
-        remainingIssues,
-      });
     }
 
-    return repairResults;
+    // Fallback: simple re-execution repair
+    return this.repairHeuristic(context);
   }
 
   /**
@@ -510,6 +463,414 @@ export class AgentOrchestratorService {
   private setState(missionId: string, state: PipelineState): void {
     this.pipelineStates.set(missionId, state);
     this.logger.debug(`Mission ${missionId} → ${state}`);
+  }
+
+  // ─── LLM-powered Pipeline Steps ─────────────────────────────
+
+  /**
+   * Decompose a mission using LLM for intelligent task breakdown.
+   */
+  private async decomposeWithLLM(mission: Mission): Promise<Subtask[]> {
+    const systemPrompt = `You are an expert task decomposition agent. Your job is to break down a mission description into a list of concrete, executable subtasks.
+
+For each subtask, provide:
+- description: A clear, actionable description of what needs to be done
+- requiredCapabilities: An array of capability strings needed (e.g., "general", "web-search", "data-analysis", "code-generation")
+- preferredCluster: The most suitable agent cluster (one of: browser, computer, coding, office, marketing, business, infrastructure, security, llm-intelligence)
+- dependencies: An array of subtask indices (0-based) that must complete before this subtask can start
+- priority: A number from 1 (highest) to 10 (lowest)
+
+Respond with valid JSON only, in this format:
+{
+  "subtasks": [
+    {
+      "description": "...",
+      "requiredCapabilities": ["..."],
+      "preferredCluster": "...",
+      "dependencies": [],
+      "priority": 1
+    }
+  ]
+}`;
+
+    const userMessage = `Decompose the following mission into subtasks:
+
+Mission ID: ${mission.id}
+Description: ${mission.description}
+Priority: ${mission.priority || 'medium'}
+Constraints: ${JSON.stringify(mission.constraints || {})}
+Metadata: ${JSON.stringify(mission.metadata || {})}`;
+
+    const response = await this.llmService!.chatWithSystem(
+      systemPrompt,
+      userMessage,
+      { responseFormat: 'json', temperature: 0.3 },
+    );
+
+    const parsed = JSON.parse(response.content);
+    const subtasks: Subtask[] = (parsed.subtasks || []).map(
+      (s: any, index: number) => ({
+        id: `${mission.id}:sub-${index + 1}`,
+        description: s.description,
+        requiredCapabilities: s.requiredCapabilities || ['general'],
+        preferredCluster: s.preferredCluster as ClusterType | undefined,
+        dependencies: (s.dependencies || []).map(
+          (depIdx: number) => `${mission.id}:sub-${depIdx + 1}`,
+        ),
+        priority: s.priority ?? index + 1,
+      }),
+    );
+
+    // If LLM returned no subtasks, fall back
+    if (subtasks.length === 0) {
+      throw new Error('LLM returned empty decomposition');
+    }
+
+    this.logger.log(
+      `LLM decomposed mission ${mission.id} into ${subtasks.length} subtask(s)`,
+    );
+    return subtasks;
+  }
+
+  /**
+   * Plan execution order using LLM for intelligent scheduling.
+   */
+  private async planWithLLM(subtasks: Subtask[]): Promise<ExecutionPlan> {
+    const systemPrompt = `You are an expert execution planner. Given a list of subtasks with dependencies, determine the optimal execution order.
+
+Group subtasks into waves where all subtasks in a wave can execute in parallel (no dependencies between them).
+Subtasks in later waves depend on subtasks from earlier waves.
+
+Respond with valid JSON only, in this format:
+{
+  "executionOrder": [
+    ["subtask-id-1", "subtask-id-2"],
+    ["subtask-id-3"]
+  ],
+  "estimatedDuration": 30000
+}`;
+
+    const userMessage = `Plan the execution order for these subtasks:
+
+${subtasks.map((s) => `- ID: ${s.id}, Description: ${s.description}, Dependencies: ${JSON.stringify(s.dependencies || [])}, Priority: ${s.priority}`).join('\n')}`;
+
+    const response = await this.llmService!.chatWithSystem(
+      systemPrompt,
+      userMessage,
+      { responseFormat: 'json', temperature: 0.2 },
+    );
+
+    const parsed = JSON.parse(response.content);
+    const missionId = subtasks[0]?.id?.split(':sub-')[0] || 'unknown';
+
+    return {
+      missionId,
+      subtasks,
+      executionOrder: parsed.executionOrder || [],
+      estimatedDuration: parsed.estimatedDuration,
+    };
+  }
+
+  /**
+   * Critique execution results using LLM for intelligent quality evaluation.
+   */
+  private async critiqueWithLLM(
+    results: ExecutionResult[],
+  ): Promise<CritiqueResult[]> {
+    const systemPrompt = `You are an expert quality critic. Evaluate the execution results of subtasks and identify issues.
+
+For each subtask result, provide:
+- passed: boolean indicating if the result is acceptable
+- issues: array of strings describing problems found
+- suggestions: array of strings with improvement recommendations
+- severity: "low", "medium", or "high"
+
+Respond with valid JSON only, in this format:
+{
+  "critiques": [
+    {
+      "subtaskId": "...",
+      "passed": true,
+      "issues": [],
+      "suggestions": [],
+      "severity": "low"
+    }
+  ]
+}`;
+
+    const userMessage = `Critique these execution results:
+
+${results.map((r) => `- Subtask: ${r.subtaskId}, Success: ${r.success}, Duration: ${r.duration}ms, Error: ${r.error || 'none'}, Data: ${r.data ? JSON.stringify(r.data).slice(0, 200) : 'none'}`).join('\n')}`;
+
+    const response = await this.llmService!.chatWithSystem(
+      systemPrompt,
+      userMessage,
+      { responseFormat: 'json', temperature: 0.3 },
+    );
+
+    const parsed = JSON.parse(response.content);
+
+    // Merge LLM critiques with any results not covered
+    const llmCritiques = new Map<string, CritiqueResult>();
+    for (const c of parsed.critiques || []) {
+      llmCritiques.set(c.subtaskId, {
+        subtaskId: c.subtaskId,
+        passed: c.passed,
+        issues: c.issues || [],
+        suggestions: c.suggestions || [],
+        severity: c.severity || 'low',
+      });
+    }
+
+    // Fill in any missing subtasks with heuristic results
+    const heuristicResults = this.critiqueHeuristic(results);
+    for (const hr of heuristicResults) {
+      if (!llmCritiques.has(hr.subtaskId)) {
+        llmCritiques.set(hr.subtaskId, hr);
+      }
+    }
+
+    return Array.from(llmCritiques.values());
+  }
+
+  /**
+   * Repair using LLM for intelligent fix suggestions.
+   */
+  private async repairWithLLM(context: {
+    critiques: CritiqueResult[];
+    results: ExecutionResult[];
+  }): Promise<RepairResult[]> {
+    const systemPrompt = `You are an expert repair agent. Given failed subtask critiques and their original execution results, suggest repair strategies.
+
+For each failed subtask, provide:
+- repaired: boolean indicating if the issue can likely be resolved
+- remainingIssues: array of strings describing issues that cannot be resolved
+- repairStrategy: a description of the recommended repair approach
+
+Respond with valid JSON only, in this format:
+{
+  "repairs": [
+    {
+      "subtaskId": "...",
+      "repaired": true,
+      "remainingIssues": [],
+      "repairStrategy": "..."
+    }
+  ]
+}`;
+
+    const userMessage = `Analyze these failed subtask critiques and suggest repairs:
+
+${context.critiques.map((c) => `Subtask: ${c.subtaskId}
+Issues: ${c.issues.join('; ')}
+Suggestions: ${c.suggestions.join('; ')}
+Severity: ${c.severity}`).join('\n\n')}
+
+Original results:
+${context.results.map((r) => `Subtask: ${r.subtaskId}, Success: ${r.success}, Error: ${r.error || 'none'}`).join('\n')}`;
+
+    const response = await this.llmService!.chatWithSystem(
+      systemPrompt,
+      userMessage,
+      { responseFormat: 'json', temperature: 0.3 },
+    );
+
+    const parsed = JSON.parse(response.content);
+
+    // Build repair results from LLM suggestions, then attempt re-execution
+    const repairResults: RepairResult[] = [];
+
+    for (const repair of parsed.repairs || []) {
+      const critique = context.critiques.find(
+        (c) => c.subtaskId === repair.subtaskId,
+      );
+      const originalResult = context.results.find(
+        (r) => r.subtaskId === repair.subtaskId,
+      );
+
+      let attempts = 0;
+      let repaired = repair.repaired ?? false;
+      let data: any = undefined;
+      const remainingIssues = repair.remainingIssues || [];
+
+      // If LLM suggests the issue is repairable, attempt re-execution
+      if (repaired && critique) {
+        const subtask: Subtask = {
+          id: critique.subtaskId,
+          description: `LLM-guided repair for ${critique.subtaskId}: ${repair.repairStrategy || 're-execute'}`,
+          requiredCapabilities: ['general'],
+        };
+
+        try {
+          attempts++;
+          const retryResult = await this.executeSubtask(subtask);
+          if (retryResult.success) {
+            repaired = true;
+            data = retryResult.data;
+          } else {
+            remainingIssues.push(
+              `Re-execution failed: ${retryResult.error || 'unknown'}`,
+            );
+          }
+        } catch {
+          remainingIssues.push('Re-execution threw an exception');
+        }
+      }
+
+      repairResults.push({
+        subtaskId: repair.subtaskId,
+        repaired,
+        attempts,
+        data,
+        remainingIssues,
+      });
+    }
+
+    // Handle any critiques not covered by LLM response
+    const coveredIds = new Set(
+      (parsed.repairs || []).map((r: any) => r.subtaskId),
+    );
+    const uncovered = context.critiques.filter((c) => !coveredIds.has(c.subtaskId));
+    if (uncovered.length > 0) {
+      const heuristicRepairs = await this.repairHeuristic({
+        critiques: uncovered,
+        results: context.results,
+      });
+      repairResults.push(...heuristicRepairs);
+    }
+
+    return repairResults;
+  }
+
+  // ─── Heuristic Fallback Methods ─────────────────────────────
+
+  /**
+   * Simple heuristic decomposition: create one subtask per required capability.
+   */
+  private decomposeHeuristic(mission: Mission): Subtask[] {
+    const subtasks: Subtask[] = [
+      {
+        id: `${mission.id}:sub-1`,
+        description: mission.description,
+        requiredCapabilities: mission.constraints?.capabilities || ['general'],
+        preferredCluster: mission.constraints?.cluster,
+        priority: 1,
+      },
+    ];
+    return subtasks;
+  }
+
+  /**
+   * Simple topological ordering for execution planning.
+   */
+  private planHeuristic(subtasks: Subtask[]): ExecutionPlan {
+    const executionOrder: string[][] = [];
+
+    const noDeps = subtasks
+      .filter((s) => !s.dependencies || s.dependencies.length === 0)
+      .map((s) => s.id);
+    const withDeps = subtasks
+      .filter((s) => s.dependencies && s.dependencies.length > 0)
+      .map((s) => s.id);
+
+    if (noDeps.length > 0) executionOrder.push(noDeps);
+    withDeps.forEach((id) => executionOrder.push([id]));
+
+    return {
+      missionId: subtasks[0]?.id?.split(':sub-')[0] || 'unknown',
+      subtasks,
+      executionOrder,
+    };
+  }
+
+  /**
+   * Rule-based critique: check for failures and slow executions.
+   */
+  private critiqueHeuristic(results: ExecutionResult[]): CritiqueResult[] {
+    return results.map((result) => {
+      const issues: string[] = [];
+      const suggestions: string[] = [];
+
+      if (!result.success) {
+        issues.push(`Execution failed: ${result.error || 'unknown error'}`);
+        suggestions.push('Retry with alternative agent or parameters');
+      }
+
+      if (result.duration && result.duration > 30000) {
+        issues.push('Execution took longer than 30s threshold');
+        suggestions.push('Consider optimizing or breaking down the task');
+      }
+
+      const severity: 'low' | 'medium' | 'high' = !result.success
+        ? 'high'
+        : issues.length > 0
+          ? 'medium'
+          : 'low';
+
+      return {
+        subtaskId: result.subtaskId,
+        passed: issues.length === 0,
+        issues,
+        suggestions,
+        severity,
+      };
+    });
+  }
+
+  /**
+   * Simple re-execution repair strategy.
+   */
+  private async repairHeuristic(context: {
+    critiques: CritiqueResult[];
+    results: ExecutionResult[];
+  }): Promise<RepairResult[]> {
+    const repairResults: RepairResult[] = [];
+
+    for (const critique of context.critiques) {
+      if (critique.passed) continue;
+
+      const originalResult = context.results.find(
+        (r) => r.subtaskId === critique.subtaskId,
+      );
+
+      let attempts = 0;
+      let repaired = false;
+      let remainingIssues = [...critique.issues];
+      let data: any = undefined;
+
+      // Attempt repair up to 3 times
+      for (let i = 0; i < 3 && !repaired; i++) {
+        attempts++;
+        try {
+          const subtask: Subtask = {
+            id: critique.subtaskId,
+            description: `Repair attempt ${attempts} for ${critique.subtaskId}`,
+            requiredCapabilities: originalResult?.agentKey
+              ? ['general']
+              : ['general'],
+          };
+
+          const retryResult = await this.executeSubtask(subtask);
+          if (retryResult.success) {
+            repaired = true;
+            remainingIssues = [];
+            data = retryResult.data;
+          }
+        } catch {
+          remainingIssues.push(`Repair attempt ${attempts} failed`);
+        }
+      }
+
+      repairResults.push({
+        subtaskId: critique.subtaskId,
+        repaired,
+        attempts,
+        data,
+        remainingIssues,
+      });
+    }
+
+    return repairResults;
   }
 
   // ─── Internal helpers ───────────────────────────────────────

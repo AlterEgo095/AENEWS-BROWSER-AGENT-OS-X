@@ -41,9 +41,14 @@ import { SelfEvolutionClusterModule } from './clusters/self-evolution/self-evolu
 import { CertificationClusterModule } from './clusters/certification/certification-cluster.module';
 import { AgentFrameworkModule } from './modules/agent-framework/agent-framework.module';
 import { SoftwareFactoryModule } from './modules/software-factory/software-factory.module';
+import { GatewayModule } from './modules/gateway/gateway.module';
+import { LLMModule } from './modules/llm/llm.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/guards/roles.guard';
+import { TenantGuard } from './modules/tenant/guards/tenant.guard';
 
 @Module({
   imports: [
@@ -146,6 +151,11 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     AuthModule,
     UserModule,
 
+    // ─── LLM Provider Module (Global) ──────────────────────────
+    // Provides: LLMService, OpenAIProvider, AnthropicProvider
+    // Must be loaded before agent clusters so LLM is available to all
+    LLMModule,
+
     // ─── Agent Clusters (9 original + 5 Phase 2 Intelligence) ───
     ComputerClusterModule,
     BrowserClusterModule,
@@ -172,6 +182,10 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     // ─── Software Factory Module ───
     // Provides: Mission orchestration, connectors, teams, runtime engine
     SoftwareFactoryModule,
+
+    // ─── WebSocket Gateway Module ───
+    // Provides: Real-time event broadcasting over Socket.IO
+    GatewayModule,
   ],
   controllers: [AppController],
   providers: [
@@ -179,6 +193,18 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: TenantGuard,
     },
   ],
 })

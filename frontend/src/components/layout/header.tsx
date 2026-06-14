@@ -6,6 +6,7 @@ import { Bell, Search, User } from 'lucide-react';
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
   '/agents': 'Agent Management',
+  '/missions': 'Mission Control',
   '/tasks': 'Task Management',
   '/events': 'Event Stream',
   '/login': 'Authentication',

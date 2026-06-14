@@ -9,12 +9,17 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AgentService } from './agent.service';
 import { ClusterType } from './entities/agent.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { AgentContext } from './agent.abstract';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../user/entities/user.entity';
+import { TenantScoped } from '../tenant/decorators/tenant-scoped.decorator';
 import {
   IsString,
   IsEnum,
@@ -97,23 +102,32 @@ class ExecuteAgentDto {
 @ApiTags('Agents')
 @ApiBearerAuth()
 @Controller('agents')
+@Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR)
+@TenantScoped()
 export class AgentController {
   constructor(private readonly agentService: AgentService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new agent' })
-  async create(@Body() dto: CreateAgentDto) {
-    return this.agentService.create(dto);
+  async create(@Body() dto: CreateAgentDto, @Req() req: Request & { user?: any; tenantId?: string }) {
+    // Enforce tenant: non-SUPER_ADMIN must create agents in their own tenant
+    const tenantId = req.tenantId ?? dto.tenantId;
+    return this.agentService.create({ ...dto, tenantId });
   }
 
   @Get()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'List all agents with optional filters' })
   async findAll(
     @Query() pagination: PaginationDto,
-    @Query('tenantId') tenantId?: string,
+    @Query('tenantId') tenantIdQueryParam?: string,
     @Query('cluster') cluster?: ClusterType,
+    @Req() req?: Request & { user?: any; tenantId?: string },
   ) {
+    // Tenant isolation: non-SUPER_ADMIN can only see their own tenant's data
+    // SUPER_ADMIN (tenantId=null) can optionally filter by tenantId query param
+    const tenantId = req.tenantId ?? tenantIdQueryParam;
     return this.agentService.findAll(
       tenantId,
       cluster,
@@ -123,12 +137,14 @@ export class AgentController {
   }
 
   @Get('stats')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get cluster statistics' })
   async getStats() {
     return this.agentService.getClusterStats();
   }
 
   @Get(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get agent by ID' })
   async findOne(@Param('id') id: string) {
     return this.agentService.findOne(id);
@@ -149,10 +165,16 @@ export class AgentController {
 
   @Post(':id/execute')
   @ApiOperation({ summary: 'Execute an agent with the given context' })
-  async execute(@Param('id') id: string, @Body() dto: ExecuteAgentDto) {
+  async execute(
+    @Param('id') id: string,
+    @Body() dto: ExecuteAgentDto,
+    @Req() req: Request & { user?: any; tenantId?: string },
+  ) {
+    // Enforce tenant: non-SUPER_ADMIN must execute agents in their own tenant
+    const tenantId = req.tenantId ?? dto.tenantId;
     const context: AgentContext = {
       agentId: id,
-      tenantId: dto.tenantId,
+      tenantId,
       taskId: dto.taskId,
       config: dto.config,
       metadata: dto.metadata,
@@ -161,6 +183,7 @@ export class AgentController {
   }
 
   @Get(':id/executions')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get agent execution history' })
   async getExecutions(
     @Param('id') id: string,

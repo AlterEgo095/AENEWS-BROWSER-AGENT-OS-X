@@ -148,6 +148,81 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  // Missions
+  async getMissions(params?: { state?: string; priority?: string; page?: number; limit?: number }) {
+    const searchParams = new URLSearchParams();
+    if (params?.state) searchParams.set('state', params.state);
+    if (params?.priority) searchParams.set('priority', params.priority);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return this.request<{ data: import('./types').Mission[]; total: number }>(
+      `/missions${query ? `?${query}` : ''}`
+    );
+  }
+
+  async getMission(id: string) {
+    return this.request<import('./types').Mission>(`/missions/${id}`);
+  }
+
+  async createMission(data: {
+    name: string;
+    description: string;
+    priority: import('./types').MissionPriority;
+    requiredCapabilities?: string[];
+    constraints?: string[];
+    deadline?: string;
+  }) {
+    return this.request<import('./types').Mission>('/missions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async startMission(id: string) {
+    return this.request<import('./types').Mission>(`/missions/${id}/start`, {
+      method: 'POST',
+    });
+  }
+
+  async pauseMission(id: string) {
+    return this.request<import('./types').Mission>(`/missions/${id}/pause`, {
+      method: 'POST',
+    });
+  }
+
+  async resumeMission(id: string) {
+    return this.request<import('./types').Mission>(`/missions/${id}/resume`, {
+      method: 'POST',
+    });
+  }
+
+  async cancelMission(id: string) {
+    return this.request<import('./types').Mission>(`/missions/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getMissionProgress(id: string) {
+    return this.request<{ progress: number; state: import('./types').MissionState; updatedAt: string }>(
+      `/missions/${id}/progress`
+    );
+  }
+
+  // Connectors
+  async getConnectors() {
+    return this.request<{ name: string; type: string; status: string; capabilities: string[] }[]>(
+      '/connectors'
+    );
+  }
+
+  async executeConnector(name: string, action: string, params?: Record<string, unknown>) {
+    return this.request<unknown>(`/connectors/${name}/execute`, {
+      method: 'POST',
+      body: JSON.stringify({ action, params }),
+    });
+  }
 }
 
 export const api = new ApiClient();

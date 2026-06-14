@@ -2,24 +2,59 @@ import { Controller, Get, Post, Put, Param, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../user/entities/user.entity';
+import { IsString, IsOptional, IsObject, IsInt, Min, Max, IsNotEmpty } from 'class-validator';
+import { Type } from 'class-transformer';
 
 class CreateTenantDto {
+  @IsString()
+  @IsNotEmpty()
   name: string;
+
+  @IsString()
+  @IsNotEmpty()
   slug: string;
+
+  @IsOptional()
+  @IsString()
   plan?: string;
+
+  @IsOptional()
+  @IsObject()
   config?: Record<string, any>;
 }
 
 class UpdateQuotasDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   maxAgents?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   maxTasks?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   maxStorage?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
   maxConcurrentExecutions?: number;
 }
 
 @ApiTags('Tenants')
 @ApiBearerAuth()
 @Controller('tenants')
+@Roles(UserRole.SUPER_ADMIN)
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 

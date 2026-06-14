@@ -8,6 +8,13 @@
  * Uses AgentOrchestratorService for the Decompose→Plan→Execute pipeline,
  * MissionStateMachineService for lifecycle management, and
  * AgentEventBusService for event emission.
+ *
+ * WebSocket integration:
+ *   All mission events are broadcast via the AgentEventBusService which
+ *   internally routes them through the EventsGateway:
+ *     - mission:state    — State machine transitions
+ *     - mission:progress — Progress percentage updates
+ *     - mission:step     — Individual pipeline step completion
  */
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -68,6 +75,14 @@ export class MissionOrchestratorService {
       const execution = this.createExecution(missionId, contract.id, MissionState.DRAFT);
       execution.errors = negotiation.warnings;
       execution.warnings = negotiation.warnings;
+
+      // Emit rejected state over WebSocket
+      await this.eventBus.emitStateChange(missionId, MissionState.DRAFT, MissionState.ARCHIVED, {
+        reason: 'contract_rejected',
+        feasibilityScore: negotiation.feasibilityScore,
+        warnings: negotiation.warnings,
+      });
+
       return execution;
     }
 
@@ -81,6 +96,13 @@ export class MissionOrchestratorService {
     // Step 4: Create Execution Record
     const execution = this.createExecution(missionId, contract.id, MissionState.DRAFT);
     execution.warnings = negotiation.warnings;
+
+    // Emit mission started state over WebSocket
+    await this.eventBus.emitStateChange(missionId, '', MissionState.DRAFT, {
+      instruction: request.instruction,
+      contractId: contract.id,
+      createdBy: request.createdBy,
+    });
 
     // Step 5: Auto-start Pipeline (async)
     this.executePipeline(missionId, request, contract).catch((err) => {
@@ -97,12 +119,19 @@ export class MissionOrchestratorService {
     const execution = this.executions.get(missionId);
     if (!execution) return false;
 
+    const previousPhase = execution.currentPhase;
     const paused = this.stateMachine.pause(missionId);
     if (paused) {
       execution.currentPhase = 'Paused';
       this.executions.set(missionId, execution);
 
       await this.eventBus.emitProgress(missionId, execution.progress, 'Paused');
+
+      // Emit step event for the pause action
+      await this.eventBus.emitStepComplete(missionId, 'paused', {
+        previousPhase,
+      });
+
       this.logger.log(`Mission ${missionId} paused`);
     }
     return paused;
@@ -122,6 +151,12 @@ export class MissionOrchestratorService {
       this.executions.set(missionId, execution);
 
       await this.eventBus.emitProgress(missionId, execution.progress, `Resumed at ${resumedState}`);
+
+      // Emit step event for the resume action
+      await this.eventBus.emitStepComplete(missionId, 'resumed', {
+        resumedState,
+      });
+
       this.logger.log(`Mission ${missionId} resumed at state ${resumedState}`);
     }
     return resumedState !== null;
@@ -134,6 +169,7 @@ export class MissionOrchestratorService {
     const execution = this.executions.get(missionId);
     if (!execution) return false;
 
+    const previousState = execution.status;
     execution.status = MissionState.ARCHIVED;
     execution.errors = [...execution.errors, 'Mission cancelled by user'];
     execution.currentPhase = 'Cancelled';
@@ -141,7 +177,7 @@ export class MissionOrchestratorService {
 
     this.stateMachine.archiveMission(missionId);
 
-    await this.eventBus.emitStateChange(missionId, execution.status, MissionState.ARCHIVED, {
+    await this.eventBus.emitStateChange(missionId, previousState, MissionState.ARCHIVED, {
       reason: 'cancelled',
     });
 
@@ -230,6 +266,9 @@ export class MissionOrchestratorService {
       }, contract);
 
       await this.eventBus.emitProgress(missionId, 5, 'Planning');
+      await this.eventBus.emitStepComplete(missionId, 'planning', {
+        planId: plan?.missionId,
+      });
 
       // Phase 2: RESEARCH
       await this.transitionTo(missionId, TransitionTrigger.START_RESEARCH);
@@ -240,6 +279,9 @@ export class MissionOrchestratorService {
       const research = await this.planningTeam.executeResearch(missionId, plan);
 
       await this.eventBus.emitProgress(missionId, 15, 'Research');
+      await this.eventBus.emitStepComplete(missionId, 'research', {
+        researchComplete: true,
+      });
 
       // Phase 3: BUILDING
       await this.transitionTo(missionId, TransitionTrigger.START_BUILD);
@@ -253,6 +295,9 @@ export class MissionOrchestratorService {
         : 5;
 
       await this.eventBus.emitProgress(missionId, 30, 'Building');
+      await this.eventBus.emitStepComplete(missionId, 'building', {
+        artifacts: buildResults.codeArtifacts,
+      });
 
       // Phase 4: TESTING
       await this.transitionTo(missionId, TransitionTrigger.START_TESTING);
@@ -263,6 +308,9 @@ export class MissionOrchestratorService {
       const testResults = await this.certificationTeam.runTests(missionId, buildResults);
 
       await this.eventBus.emitProgress(missionId, 50, 'Testing');
+      await this.eventBus.emitStepComplete(missionId, 'testing', {
+        passed: testResults?.passed,
+      });
 
       // Phase 5: AUDITING
       await this.transitionTo(missionId, TransitionTrigger.START_AUDIT);
@@ -273,6 +321,9 @@ export class MissionOrchestratorService {
       const auditResults = await this.certificationTeam.runAudit(missionId);
 
       await this.eventBus.emitProgress(missionId, 65, 'Auditing');
+      await this.eventBus.emitStepComplete(missionId, 'auditing', {
+        auditPassed: auditResults?.passed,
+      });
 
       // Phase 6: CERTIFYING
       await this.transitionTo(missionId, TransitionTrigger.START_CERTIFICATION);
@@ -287,6 +338,10 @@ export class MissionOrchestratorService {
       }
 
       await this.eventBus.emitProgress(missionId, 80, 'Certifying');
+      await this.eventBus.emitStepComplete(missionId, 'certification', {
+        certified: certResult.certified,
+        score: certResult.qualityScore,
+      });
 
       // Phase 7: DELIVERING
       await this.transitionTo(missionId, TransitionTrigger.START_DELIVERY);
@@ -295,6 +350,9 @@ export class MissionOrchestratorService {
       this.executions.set(missionId, execution);
 
       await this.eventBus.emitProgress(missionId, 90, 'Delivering');
+      await this.eventBus.emitStepComplete(missionId, 'delivery', {
+        delivered: true,
+      });
 
       // Phase 8: COMPLETION
       await this.transitionTo(missionId, TransitionTrigger.MARK_COMPLETE);
@@ -305,6 +363,18 @@ export class MissionOrchestratorService {
 
       await this.eventBus.emitProgress(missionId, 100, 'Completed');
 
+      // Emit mission:state for completion
+      await this.eventBus.emitStateChange(missionId, MissionState.DELIVERING, MissionState.COMPLETED, {
+        totalCost: execution.totalCost,
+        warnings: execution.warnings.length,
+      });
+
+      // Emit final mission:step
+      await this.eventBus.emitStepComplete(missionId, 'completed', {
+        totalCost: execution.totalCost,
+        progress: 100,
+      });
+
       this.logger.log(`Mission ${missionId} completed successfully!`);
     } catch (error) {
       this.logger.error(`Pipeline error for ${missionId}: ${(error as Error).message}`);
@@ -314,6 +384,13 @@ export class MissionOrchestratorService {
 
       await this.eventBus.emitStateChange(missionId, execution.status, MissionState.ARCHIVED, {
         error: (error as Error).message,
+        failedPhase: execution.currentPhase,
+      });
+
+      // Emit mission:step for failure
+      await this.eventBus.emitStepComplete(missionId, 'failed', {
+        error: (error as Error).message,
+        phase: execution.currentPhase,
       });
     }
   }

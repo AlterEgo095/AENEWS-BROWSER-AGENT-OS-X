@@ -2,7 +2,9 @@ import { Controller, Get, Header } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { HealthCheck, HealthCheckResult } from '@nestjs/terminus';
 import { HealthService } from './health.service';
+import { Public } from '../auth/decorators/public.decorator';
 
+@Public()
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {

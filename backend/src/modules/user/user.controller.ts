@@ -1,33 +1,60 @@
-import { Controller, Get, Put, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, Query, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { UserRole } from './entities/user.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { IsString, IsOptional, IsEnum, MinLength } from 'class-validator';
+import { TenantScoped } from '../tenant/decorators/tenant-scoped.decorator';
 
 class UpdateUserDto {
+  @IsOptional()
+  @IsString()
   firstName?: string;
+
+  @IsOptional()
+  @IsString()
   lastName?: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
   role?: UserRole;
 }
 
 class UpdatePasswordDto {
+  @IsString()
+  @MinLength(1)
   currentPassword: string;
+
+  @IsString()
+  @MinLength(8)
   newPassword: string;
 }
 
 @ApiTags('Users')
 @ApiBearerAuth()
 @Controller('users')
+@Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN)
+@TenantScoped()
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'List users' })
-  async findAll(@Query() pagination: PaginationDto, @Query('tenantId') tenantId?: string) {
+  async findAll(
+    @Query() pagination: PaginationDto,
+    @Query('tenantId') tenantIdQueryParam?: string,
+    @Req() req?: Request & { user?: any; tenantId?: string },
+  ) {
+    // Tenant isolation: non-SUPER_ADMIN can only see their own tenant's users
+    const tenantId = req.tenantId ?? tenantIdQueryParam;
     return this.userService.findAll(tenantId, pagination.page, pagination.limit);
   }
 
   @Get(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get user by ID' })
   async findOne(@Param('id') id: string) {
     return this.userService.findOne(id);
