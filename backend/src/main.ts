@@ -3,6 +3,7 @@ import './modules/observability/tracing';
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -14,6 +15,9 @@ import { CorsSecurityMiddleware } from './modules/security/middleware/cors-secur
 import { CorrelationIdMiddleware } from './modules/security/middleware/correlation-id.middleware';
 import { IpAccessControlMiddleware } from './modules/security/middleware/ip-access-control.middleware';
 import { SentryIntegrationService } from './modules/security-monitoring/services/sentry-integration.service';
+import { CompressionInterceptor } from './modules/performance/interceptors/compression.interceptor';
+import { ResponseCacheInterceptor } from './modules/performance/interceptors/response-cache.interceptor';
+import { PerformanceProfilingService } from './modules/performance/services/performance-profiling.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -94,7 +98,9 @@ async function bootstrap() {
 
   // Global interceptors (order matters: outermost first)
   app.useGlobalInterceptors(
+    new CompressionInterceptor(app.get(ConfigService) as ConfigService),
     new LoggingInterceptor(),
+    new ResponseCacheInterceptor(app.get(ConfigService) as ConfigService),
     new TimeoutInterceptor(),
     new TransformInterceptor(),
   );
@@ -135,6 +141,7 @@ async function bootstrap() {
   console.log(`📖 API Docs: http://localhost:${port}/docs`);
   console.log(`🔑 API Prefix: /${apiPrefix}`);
   console.log(`🛡️  Security: helmet + explicit CORS + IP access control + correlation IDs`);
+  console.log(`⚡ Performance: compression + response cache + pool monitoring + profiling`);
 }
 
 bootstrap();

@@ -1,0 +1,143 @@
+# AENEWS Agent OS X — Phase 13: Performance Alert Rules
+# Prometheus alerting rules for performance monitoring
+
+groups:
+  - name: performance.api
+    rules:
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API latency P95 above 2 seconds"
+          description: "API P95 latency is {{ $value }}s, exceeding the 2s threshold."
+
+      - alert: CriticalAPILatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 10
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "API latency P95 above 10 seconds"
+          description: "API P95 latency is {{ $value }}s, critically exceeding the 10s threshold."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_failed_total[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API error rate above 5%"
+          description: "Error rate is {{ $value | humanizePercentage }}, exceeding the 5% threshold."
+
+  - name: performance.database
+    rules:
+      - alert: SlowQuerySpike
+        expr: rate(aenews_slow_queries_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High rate of slow database queries"
+          description: "Slow query rate is {{ $value }}/s in schema {{ $labels.schema }}."
+
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: aenews_pool_active_connections{pool="postgresql"} / 20 > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "PostgreSQL connection pool near exhaustion"
+          description: "PostgreSQL pool utilization is {{ $value | humanizePercentage }}."
+
+      - alert: ConnectionLeakDetected
+        expr: (aenews_pool_acquired_total - aenews_pool_released_total) > 50
+        for: 10m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Possible connection leak detected"
+          description: "Pool {{ $labels.pool }} has {{ $value }} more acquisitions than releases."
+
+  - name: performance.memory
+    rules:
+      - alert: HighHeapUtilization
+        expr: aenews_heap_used_bytes / nodejs_heap_size_total_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Heap utilization above 85%"
+          description: "Heap is at {{ $value | humanizePercentage }} utilization."
+
+      - alert: MemoryLeakSuspected
+        expr: deriv(aenews_heap_used_bytes[30m]) > 1000000
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Memory appears to be growing monotonically"
+          description: "Heap is growing at {{ $value }} bytes/second over the last 30 minutes."
+
+      - alert: ProcessOOMRisk
+        expr: process_resident_memory_bytes > 1.5e9
+        for: 10m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Process memory approaching OOM threshold"
+          description: "RSS memory is {{ $value | humanize }}B, approaching the 1.5GB threshold."
+
+  - name: performance.event_loop
+    rules:
+      - alert: HighEventLoopLag
+        expr: aenews_event_loop_lag_ms > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Event loop lag above 100ms"
+          description: "Event loop lag is {{ $value }}ms, indicating blocking operations."
+
+      - alert: CriticalEventLoopLag
+        expr: aenews_event_loop_lag_ms > 500
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Event loop lag above 500ms"
+          description: "Event loop lag is {{ $value }}ms, severely impacting request processing."
+
+  - name: performance.agent_pipeline
+    rules:
+      - alert: SlowAgentExecutions
+        expr: histogram_quantile(0.95, sum(rate(aenews_agent_execution_duration_seconds_bucket[5m])) by (le, cluster)) > 120
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Agent execution P95 above 2 minutes"
+          description: "Cluster {{ $labels.cluster }} agent P95 execution time is {{ $value }}s."
+
+      - alert: PipelineBottleneck
+        expr: histogram_quantile(0.95, sum(rate(aenews_pipeline_step_duration_seconds_bucket[5m])) by (le, step)) > 60
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pipeline step P95 above 60 seconds"
+          description: "Step {{ $labels.step }} P95 duration is {{ $value }}s."

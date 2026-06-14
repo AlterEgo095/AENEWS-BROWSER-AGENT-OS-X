@@ -15,6 +15,7 @@ import {
   Network,
   BrainCircuit,
   Bug,
+  Gauge,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/orchestration', label: 'Orchestration', icon: Network },
   { href: '/intelligence', label: 'Intelligence', icon: BrainCircuit },
   { href: '/swarm', label: 'Swarm', icon: Bug },
+  { href: '/performance', label: 'Performance', icon: Gauge },
   { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/events', label: 'Events', icon: Activity },
   { href: '/login', label: 'Login', icon: LogIn },
@@ -107,7 +109,7 @@ export function Sidebar() {
         <div className="absolute bottom-14 left-0 right-0 px-4">
           <div className="rounded-lg border border-border bg-white/5 px-3 py-2">
             <p className="text-[10px] font-medium text-muted-foreground">SYSTEM VERSION</p>
-            <p className="text-xs font-bold text-foreground">v3.0.0-alpha</p>
+            <p className="text-xs font-bold text-foreground">v3.1.0-alpha</p>
           </div>
         </div>
       )}

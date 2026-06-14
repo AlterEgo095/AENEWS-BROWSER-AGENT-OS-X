@@ -660,3 +660,84 @@ export interface DAGTraceStep {
   durationMs: number;
   output: Record<string, unknown> | null;
 }
+
+// ─── Phase 13: Performance Types ────────────────────────────
+
+export interface PerformanceOverview {
+  profiling: PerformanceReport;
+  slowQueries: SlowQueryStats;
+  pools: PoolStats[];
+  cache: CacheStats;
+  compression: CompressionStats;
+  poolRecommendations: PoolRecommendation[];
+}
+
+export interface PerformanceReport {
+  timestamp: string;
+  uptime: number;
+  memory: {
+    heapUsed: string;
+    heapTotal: string;
+    rss: string;
+    external: string;
+    heapUtilization: string;
+    gcPauseEstimate: string;
+  };
+  cpu: {
+    userMs: number;
+    systemMs: number;
+    utilizationPercent: string;
+  };
+  eventLoop: {
+    currentLagMs: number;
+    p50LagMs: number;
+    p95LagMsMs: number;
+    p99LagMs: number;
+  };
+  activeSpans: number;
+  topSlowSpans: Array<{ name: string; avgMs: number; count: number }>;
+  recommendations: string[];
+}
+
+export interface SlowQueryStats {
+  totalSlowQueries: number;
+  averageDurationMs: number;
+  maxDurationMs: number;
+  p95DurationMs: number;
+  bySchema: Record<string, { count: number; avgMs: number }>;
+  thresholdMs: number;
+}
+
+export interface PoolStats {
+  name: string;
+  active: number;
+  idle: number;
+  max: number;
+  waiting: number;
+  totalAcquired: number;
+  totalReleased: number;
+  totalTimeouts: number;
+}
+
+export interface CacheStats {
+  hits: number;
+  misses: number;
+  sets: number;
+  evictions: number;
+  hitRate: string;
+  memorySize: number;
+}
+
+export interface CompressionStats {
+  totalCompressed: number;
+  totalBytesSaved: number;
+  averageRatio: number;
+  enabled: boolean;
+  threshold: number;
+}
+
+export interface PoolRecommendation {
+  pool: string;
+  recommendation: string;
+  severity: 'info' | 'warning' | 'critical';
+}

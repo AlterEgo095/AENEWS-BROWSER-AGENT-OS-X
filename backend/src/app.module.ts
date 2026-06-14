@@ -44,6 +44,7 @@ import { SoftwareFactoryModule } from './modules/software-factory/software-facto
 import { CodingConnectorModule } from './modules/connectors/coding/coding-connector.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { SecurityModule } from './modules/security/security.module';
+import { PerformanceModule } from './modules/performance/performance.module';
 import { BrowserConnectorModule } from './modules/connectors/browser/browser-connector.module';
 import { OfficeConnectorModule } from './modules/connectors/office/office-connector.module';
 import { InfrastructureConnectorModule } from './modules/connectors/infrastructure/infrastructure-connector.module';
@@ -81,6 +82,19 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
         password: configService.get<string>('database.password'),
         synchronize: configService.get<boolean>('database.synchronize'),
         logging: configService.get<boolean>('database.logging'),
+        // ─── Phase 13: Connection Pool Optimization ───
+        poolSize: configService.get<number>('database.poolSize') ?? 20,
+        extra: {
+          // Connection pool settings
+          max: configService.get<number>('database.poolMax') ?? 20,
+          min: configService.get<number>('database.poolMin') ?? 5,
+          idleTimeoutMillis: configService.get<number>('database.poolIdleTimeout') ?? 30000,
+          connectionTimeoutMillis: configService.get<number>('database.poolConnectionTimeout') ?? 5000,
+          // Statement timeout (prevent runaway queries)
+          statement_timeout: configService.get<number>('database.statementTimeout') ?? 30000,
+          // Query optimization
+          application_name: 'aenews-agent-os-x',
+        },
         autoLoadEntities: true,
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
@@ -233,6 +247,11 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
     // Provides: Account lockout, refresh tokens, CORS, IP access control,
     // security metrics, threat intelligence, Sentry integration
     SecurityModule,
+
+    // ─── Performance Module (Phase 13) ───
+    // Provides: Slow query logger, response caching, compression,
+    // connection pool monitoring, performance profiling
+    PerformanceModule,
   ],
   controllers: [AppController],
   providers: [

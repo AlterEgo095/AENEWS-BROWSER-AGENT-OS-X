@@ -14,6 +14,13 @@ export default () => ({
     password: process.env.DB_PASSWORD || '',
     synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
+    // Phase 13: Connection Pool
+    poolSize: parseInt(process.env.DB_POOL_SIZE || '20', 10),
+    poolMax: parseInt(process.env.DB_POOL_MAX || '20', 10),
+    poolMin: parseInt(process.env.DB_POOL_MIN || '5', 10),
+    poolIdleTimeout: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '30000', 10),
+    poolConnectionTimeout: parseInt(process.env.DB_POOL_CONNECTION_TIMEOUT || '5000', 10),
+    statementTimeout: parseInt(process.env.DB_STATEMENT_TIMEOUT || '30000', 10),
   },
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
@@ -145,5 +152,30 @@ export default () => ({
       rateLimitPerMin: parseInt(process.env.SECURITY_WS_RATE_LIMIT_PER_MIN || '60', 10),
       sanitizeEvents: process.env.SECURITY_WS_SANITIZE_EVENTS !== 'false',
     },
+  },
+  // ─── Phase 13: Performance Configuration ───
+  performance: {
+    // Slow Query Logger
+    slowQueryEnabled: process.env.PERF_SLOW_QUERY_ENABLED !== 'false',
+    slowQueryThresholdMs: parseInt(process.env.PERF_SLOW_QUERY_THRESHOLD_MS || '500', 10),
+    slowQueryMaxEntries: parseInt(process.env.PERF_SLOW_QUERY_MAX_ENTRIES || '1000', 10),
+
+    // Response Cache
+    responseCacheEnabled: process.env.PERF_RESPONSE_CACHE_ENABLED !== 'false',
+    responseCacheTtl: parseInt(process.env.PERF_RESPONSE_CACHE_TTL || '30', 10),
+    responseCacheMaxSize: parseInt(process.env.PERF_RESPONSE_CACHE_MAX_SIZE || '5000', 10),
+
+    // Compression
+    compressionEnabled: process.env.PERF_COMPRESSION_ENABLED !== 'false',
+    compressionThreshold: parseInt(process.env.PERF_COMPRESSION_THRESHOLD || '1024', 10),
+    compressionLevel: parseInt(process.env.PERF_COMPRESSION_LEVEL || '6', 10),
+
+    // Profiling
+    profilingEnabled: process.env.PERF_PROFILING_ENABLED !== 'false',
+    profilingIntervalMs: parseInt(process.env.PERF_PROFILING_INTERVAL_MS || '10000', 10),
+
+    // Pool Monitoring
+    poolMonitoringEnabled: process.env.PERF_POOL_MONITORING_ENABLED !== 'false',
+    httpPoolMax: parseInt(process.env.PERF_HTTP_POOL_MAX || '50', 10),
   },
 });
