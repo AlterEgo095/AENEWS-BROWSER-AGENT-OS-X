@@ -88,6 +88,27 @@ export function useWebSocket() {
       if (handlers) handlers.forEach((handler) => handler(event));
     });
 
+    // Orchestration events
+    socket.on('orchestration:collaboration', (data: WebSocketEvent) => {
+      const event = { ...data, type: 'orchestration:collaboration', timestamp: new Date().toISOString() };
+      setLastEvent(event);
+      const handlers = handlersRef.current.get('orchestration:collaboration');
+      if (handlers) handlers.forEach((handler) => handler(event));
+      // Also notify wildcard handlers
+      const wildcardHandlers = handlersRef.current.get('*');
+      if (wildcardHandlers) wildcardHandlers.forEach((handler) => handler(event));
+    });
+
+    socket.on('orchestration:coordination', (data: WebSocketEvent) => {
+      const event = { ...data, type: 'orchestration:coordination', timestamp: new Date().toISOString() };
+      setLastEvent(event);
+      const handlers = handlersRef.current.get('orchestration:coordination');
+      if (handlers) handlers.forEach((handler) => handler(event));
+      // Also notify wildcard handlers
+      const wildcardHandlers = handlersRef.current.get('*');
+      if (wildcardHandlers) wildcardHandlers.forEach((handler) => handler(event));
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;

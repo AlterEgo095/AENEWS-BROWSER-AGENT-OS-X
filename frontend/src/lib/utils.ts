@@ -1,4 +1,4 @@
-import { AgentStatus, ClusterType, EventSeverity, MissionState, MissionPriority, TaskStatus } from './types';
+import { AgentStatus, ClusterType, EventSeverity, MissionState, MissionPriority, TaskStatus, CollaborationPattern } from './types';
 
 export const clusterColors: Record<ClusterType, string> = {
   [ClusterType.BROWSER]: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
@@ -134,3 +134,49 @@ export function formatPriority(priority: number): { label: string; color: string
 export function cn(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(' ');
 }
+
+// Orchestration — Collaboration Pattern Colors
+export const collaborationPatternColors: Record<CollaborationPattern, string> = {
+  delegation: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
+  handoff: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+  parallel: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  pipeline: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  consensus: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  swarm: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
+};
+
+export const collaborationPatternIcons: Record<CollaborationPattern, string> = {
+  delegation: '🎯',
+  handoff: '🤝',
+  parallel: '⚡',
+  pipeline: '🔄',
+  consensus: '🗳️',
+  swarm: '🐝',
+};
+
+export const clusterHealthStatusColors: Record<string, string> = {
+  healthy: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  degraded: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  critical: 'bg-red-500/20 text-red-400 border-red-500/30',
+  offline: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+};
+
+export const clusterHealthDotColors: Record<string, string> = {
+  healthy: 'bg-emerald-400',
+  degraded: 'bg-amber-400',
+  critical: 'bg-red-400',
+  offline: 'bg-gray-500',
+};
+
+export const connectorStatusColors: Record<string, string> = {
+  connected: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  disconnected: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  error: 'bg-red-500/20 text-red-400 border-red-500/30',
+  initializing: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+};
+
+export const connectorModeColors: Record<string, string> = {
+  active: 'bg-emerald-500/15 text-emerald-400',
+  passive: 'bg-slate-500/15 text-slate-400',
+  hybrid: 'bg-cyan-500/15 text-cyan-400',
+};

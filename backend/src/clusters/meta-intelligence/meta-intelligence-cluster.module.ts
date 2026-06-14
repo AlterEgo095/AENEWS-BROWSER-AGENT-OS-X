@@ -3,6 +3,7 @@ import { AgentRegistryService } from '../../modules/agent/registry/agent-registr
 import { LLMService } from '../../modules/llm/llm.service';
 import { AgentBridgeService } from '../../modules/agent-framework/services/agent-bridge.service';
 import { AgentEventBusService } from '../../modules/agent-framework/services/agent-event-bus.service';
+import { AgentCollaborationService } from '../../modules/agent-framework/services/agent-collaboration.service';
 import { OrchestrationAgent } from './agents/orchestration.agent';
 import { LearningAgent } from './agents/learning.agent';
 import { ReasoningAgent } from './agents/reasoning.agent';
@@ -22,6 +23,7 @@ function createMetaIntelligenceAgents(
   llmService?: LLMService,
   bridgeService?: AgentBridgeService,
   eventBus?: AgentEventBusService,
+  collaborationService?: AgentCollaborationService,
 ) {
   const agents: BaseAgent[] = [
     new OrchestrationAgent(),
@@ -40,6 +42,10 @@ function createMetaIntelligenceAgents(
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });
+    // Phase 8: Inject collaboration service for meta-intelligence agents
+    if (collaborationService && 'setCollaborationService' in agent) {
+      (agent as any).setCollaborationService(collaborationService);
+    }
   }
   return agents;
 }
@@ -51,10 +57,16 @@ export class MetaIntelligenceClusterModule implements OnModuleInit {
     private readonly llmService: LLMService,
     private readonly bridgeService: AgentBridgeService,
     private readonly eventBus: AgentEventBusService,
+    private readonly collaborationService: AgentCollaborationService,
   ) {}
 
   onModuleInit() {
-    const agents = createMetaIntelligenceAgents(this.llmService, this.bridgeService, this.eventBus);
+    const agents = createMetaIntelligenceAgents(
+      this.llmService,
+      this.bridgeService,
+      this.eventBus,
+      this.collaborationService,
+    );
     for (const agent of agents) {
       this.registry.register(agent);
     }

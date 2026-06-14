@@ -3,6 +3,7 @@ import { AgentRegistryService } from '../../modules/agent/registry/agent-registr
 import { LLMService } from '../../modules/llm/llm.service';
 import { AgentBridgeService } from '../../modules/agent-framework/services/agent-bridge.service';
 import { AgentEventBusService } from '../../modules/agent-framework/services/agent-event-bus.service';
+import { ConnectorAwareExecutionService } from '../../modules/agent-framework/services/connector-aware-execution.service';
 import { CloudAgent } from './agents/cloud.agent';
 import { ContainerAgent } from './agents/container.agent';
 import { CIAgent } from './agents/ci.agent';
@@ -17,6 +18,7 @@ function createInfrastructureAgents(
   llmService?: LLMService,
   bridgeService?: AgentBridgeService,
   eventBus?: AgentEventBusService,
+  connectorExecution?: ConnectorAwareExecutionService,
 ) {
   const agents: BaseAgent[] = [
     new CloudAgent(),
@@ -30,6 +32,10 @@ function createInfrastructureAgents(
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });
+    // Phase 8: Inject connector-aware execution for real connector access
+    if (connectorExecution && 'setConnectorExecution' in agent) {
+      (agent as any).setConnectorExecution(connectorExecution);
+    }
   }
   return agents;
 }
@@ -41,10 +47,16 @@ export class InfrastructureClusterModule implements OnModuleInit {
     private readonly llmService: LLMService,
     private readonly bridgeService: AgentBridgeService,
     private readonly eventBus: AgentEventBusService,
+    private readonly connectorExecution: ConnectorAwareExecutionService,
   ) {}
 
   onModuleInit() {
-    const agents = createInfrastructureAgents(this.llmService, this.bridgeService, this.eventBus);
+    const agents = createInfrastructureAgents(
+      this.llmService,
+      this.bridgeService,
+      this.eventBus,
+      this.connectorExecution,
+    );
     for (const agent of agents) {
       this.registry.register(agent);
     }

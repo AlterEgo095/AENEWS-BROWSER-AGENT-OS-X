@@ -12,7 +12,14 @@
  *   3. This module serves as the integration point, ensuring both agent
  *      registries coexist and the Software Factory's connectors are available.
  *
- * Services provided:
+ * Phase 8 — Intelligent Orchestration additions:
+ *   - UnifiedConnectorRegistryService: Merges Bridge + Capability connectors
+ *   - AgentCollaborationService: Multi-agent collaboration patterns
+ *   - MissionDecompositionService: AI-powered mission decomposition
+ *   - CrossClusterCoordinatorService: Cross-cluster agent coordination
+ *   - ConnectorAwareExecutionService: Connector-first execution with LLM fallback
+ *
+ * Core services:
  *   - AgentMemoryService: Unified memory facade (Redis + Qdrant)
  *   - AgentEventBusService: Enhanced event bus for agent-specific patterns
  *   - AgentOrchestratorService: Decompose→Plan→Execute→Critique→Repair→Validate→Deliver
@@ -41,6 +48,14 @@ import { HumanApprovalGuard } from './guards/human-approval.guard';
 import { AgentModule } from '../agent/agent.module';
 import { QdrantModule } from '../qdrant/qdrant.module';
 
+// Phase 8 — Intelligent Orchestration
+import { UnifiedConnectorRegistryService } from './services/unified-connector-registry.service';
+import { AgentCollaborationService } from './services/agent-collaboration.service';
+import { MissionDecompositionService } from './services/mission-decomposition.service';
+import { CrossClusterCoordinatorService } from './services/cross-cluster-coordinator.service';
+import { ConnectorAwareExecutionService } from './services/connector-aware-execution.service';
+import { OrchestrationController } from './controllers/orchestration.controller';
+
 @Global()
 @Module({
   imports: [
@@ -49,7 +64,11 @@ import { QdrantModule } from '../qdrant/qdrant.module';
     // QdrantModule provides QdrantService (used optionally by Memory)
     QdrantModule,
   ],
+  controllers: [
+    OrchestrationController,
+  ],
   providers: [
+    // ── Core Framework Services ──────────────────────────────────
     AgentMemoryService,
     AgentEventBusService,
     AgentOrchestratorService,
@@ -60,11 +79,18 @@ import { QdrantModule } from '../qdrant/qdrant.module';
     CircuitBreakerService,
     RateLimiterService,
     RateLimitGuard,
-    // ── Self-Evolution Safety ──────────────────────────────────────
+    // ── Self-Evolution Safety ────────────────────────────────────
     HumanApprovalGuard,
     SandboxService,
+    // ── Phase 8 — Intelligent Orchestration ──────────────────────
+    UnifiedConnectorRegistryService,
+    AgentCollaborationService,
+    MissionDecompositionService,
+    CrossClusterCoordinatorService,
+    ConnectorAwareExecutionService,
   ],
   exports: [
+    // ── Core Framework Services ──────────────────────────────────
     AgentMemoryService,
     AgentEventBusService,
     AgentOrchestratorService,
@@ -75,9 +101,15 @@ import { QdrantModule } from '../qdrant/qdrant.module';
     CircuitBreakerService,
     RateLimiterService,
     RateLimitGuard,
-    // ── Self-Evolution Safety ──────────────────────────────────────
+    // ── Self-Evolution Safety ────────────────────────────────────
     HumanApprovalGuard,
     SandboxService,
+    // ── Phase 8 — Intelligent Orchestration ──────────────────────
+    UnifiedConnectorRegistryService,
+    AgentCollaborationService,
+    MissionDecompositionService,
+    CrossClusterCoordinatorService,
+    ConnectorAwareExecutionService,
   ],
 })
 export class AgentFrameworkModule {

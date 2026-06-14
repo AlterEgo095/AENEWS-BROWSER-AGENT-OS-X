@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Hexagon,
   Rocket,
+  Network,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/agents', label: 'Agents', icon: Bot },
   { href: '/missions', label: 'Missions', icon: Rocket },
+  { href: '/orchestration', label: 'Orchestration', icon: Network },
   { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/events', label: 'Events', icon: Activity },
   { href: '/login', label: 'Login', icon: LogIn },

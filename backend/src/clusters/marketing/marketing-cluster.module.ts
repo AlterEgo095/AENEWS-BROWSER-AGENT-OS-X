@@ -3,6 +3,7 @@ import { AgentRegistryService } from '../../modules/agent/registry/agent-registr
 import { LLMService } from '../../modules/llm/llm.service';
 import { AgentBridgeService } from '../../modules/agent-framework/services/agent-bridge.service';
 import { AgentEventBusService } from '../../modules/agent-framework/services/agent-event-bus.service';
+import { ConnectorAwareExecutionService } from '../../modules/agent-framework/services/connector-aware-execution.service';
 import { ContentCreationAgent } from './agents/content-creation.agent';
 import { SEOAgent } from './agents/seo.agent';
 import { SocialMediaAgent } from './agents/social-media.agent';
@@ -17,6 +18,7 @@ function createMarketingAgents(
   llmService?: LLMService,
   bridgeService?: AgentBridgeService,
   eventBus?: AgentEventBusService,
+  connectorExecution?: ConnectorAwareExecutionService,
 ) {
   const agents: BaseAgent[] = [
     new ContentCreationAgent(),
@@ -30,6 +32,10 @@ function createMarketingAgents(
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });
+    // Phase 8: Inject connector-aware execution for real connector access
+    if (connectorExecution && 'setConnectorExecution' in agent) {
+      (agent as any).setConnectorExecution(connectorExecution);
+    }
   }
   return agents;
 }
@@ -41,10 +47,16 @@ export class MarketingClusterModule implements OnModuleInit {
     private readonly llmService: LLMService,
     private readonly bridgeService: AgentBridgeService,
     private readonly eventBus: AgentEventBusService,
+    private readonly connectorExecution: ConnectorAwareExecutionService,
   ) {}
 
   onModuleInit() {
-    const agents = createMarketingAgents(this.llmService, this.bridgeService, this.eventBus);
+    const agents = createMarketingAgents(
+      this.llmService,
+      this.bridgeService,
+      this.eventBus,
+      this.connectorExecution,
+    );
     for (const agent of agents) {
       this.registry.register(agent);
     }

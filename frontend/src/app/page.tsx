@@ -12,6 +12,7 @@ import {
   Cpu,
   Wifi,
   Rocket,
+  Network,
 } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -367,6 +368,24 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Orchestration Quick Link */}
+          <Link
+            href="/orchestration"
+            className="group rounded-xl border border-border bg-gradient-to-br from-teal-500/10 via-card to-violet-500/10 p-4 transition-all duration-200 hover:border-primary/30 hover:from-teal-500/15 hover:to-violet-500/15"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15">
+                <Network className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                  Intelligent Orchestration
+                </h4>
+                <p className="text-[11px] text-muted-foreground">Phase 8 — Cluster health, connectors & collaboration</p>
+              </div>
+            </div>
+          </Link>
 
           {/* Recent Activity */}
           <div>

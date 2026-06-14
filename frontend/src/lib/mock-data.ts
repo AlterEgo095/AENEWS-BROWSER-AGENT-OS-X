@@ -1,4 +1,4 @@
-import { Agent, AgentStatus, ClusterType, ClusterStats, Task, TaskStatus, Event, EventSeverity, Mission, MissionState, MissionPriority } from './types';
+import { Agent, AgentStatus, ClusterType, ClusterStats, Task, TaskStatus, Event, EventSeverity, Mission, MissionState, MissionPriority, CollaborationPattern, ClusterHealthInfo, UnifiedConnectorInfo, OrchestrationStatistics, OrchestrationHistoryItem, DecompositionResult, CoordinationResult, CollaborationResult } from './types';
 
 export const mockAgents: Agent[] = [
   { id: '1', name: 'Navigation Agent', cluster: ClusterType.BROWSER, status: AgentStatus.RUNNING, config: {}, capabilities: ['navigate', 'interact'], tenantId: 't1', version: '1.0.0', description: 'Handles web navigation and page traversal', isEnabled: true, lastExecutionAt: '2026-03-10T10:30:00Z', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-03-10T10:30:00Z' },
@@ -239,4 +239,137 @@ export const mockHealth = {
     disk: { status: 'up' },
     agent_system: { status: 'up' },
   },
+};
+
+// Phase 8 — Orchestration Mock Data
+export const mockClusterHealth: ClusterHealthInfo[] = Object.values(ClusterType).map((cluster, index) => {
+  const statuses: ClusterHealthInfo['status'][] = ['healthy', 'healthy', 'healthy', 'healthy', 'healthy', 'healthy', 'healthy', 'degraded', 'healthy', 'healthy', 'healthy', 'healthy', 'healthy', 'critical'];
+  const status = statuses[index % statuses.length];
+  const health = status === 'healthy' ? 90 + Math.floor(Math.random() * 10) : status === 'degraded' ? 50 + Math.floor(Math.random() * 30) : 10 + Math.floor(Math.random() * 25);
+  const totalAgents = Math.floor(Math.random() * 8) + 2;
+  const activeAgents = Math.floor(Math.random() * totalAgents);
+  return {
+    cluster,
+    status,
+    health,
+    activeAgents,
+    totalAgents,
+    activeTasks: Math.floor(Math.random() * 12),
+    completedTasks: Math.floor(Math.random() * 50) + 10,
+    failedTasks: Math.floor(Math.random() * 3),
+    avgResponseTime: Math.floor(Math.random() * 400) + 50,
+    lastCheckedAt: '2026-03-10T12:30:00Z',
+  };
+});
+
+export const mockConnectors: UnifiedConnectorInfo[] = [
+  { id: 'c1', name: 'Web Scraper', type: 'browser', mode: 'active', status: 'connected', health: 98, capabilities: ['scrape', 'navigate', 'extract'], lastActivityAt: '2026-03-10T12:28:00Z', metadata: { version: '2.1.0' }, hitRate: 87, totalExecutions: 1243, successRate: 96 },
+  { id: 'c2', name: 'Code Engine', type: 'coding', mode: 'active', status: 'connected', health: 95, capabilities: ['generate', 'review', 'refactor'], lastActivityAt: '2026-03-10T12:25:00Z', metadata: { version: '3.0.1' }, hitRate: 92, totalExecutions: 856, successRate: 94 },
+  { id: 'c3', name: 'Terminal Bridge', type: 'computer', mode: 'active', status: 'connected', health: 91, capabilities: ['execute', 'shell', 'monitor'], lastActivityAt: '2026-03-10T12:30:00Z', metadata: { version: '1.5.0' }, hitRate: 78, totalExecutions: 2341, successRate: 89 },
+  { id: 'c4', name: 'Doc Processor', type: 'office', mode: 'passive', status: 'connected', health: 88, capabilities: ['create', 'edit', 'convert'], lastActivityAt: '2026-03-10T12:15:00Z', metadata: { version: '1.2.0' }, hitRate: 65, totalExecutions: 432, successRate: 97 },
+  { id: 'c5', name: 'Security Scanner', type: 'security', mode: 'hybrid', status: 'connected', health: 99, capabilities: ['scan', 'detect', 'alert'], lastActivityAt: '2026-03-10T12:29:00Z', metadata: { version: '2.3.0' }, hitRate: 71, totalExecutions: 3187, successRate: 99 },
+  { id: 'c6', name: 'Infra Manager', type: 'infrastructure', mode: 'active', status: 'connected', health: 94, capabilities: ['deploy', 'scale', 'monitor'], lastActivityAt: '2026-03-10T12:20:00Z', metadata: { version: '1.8.0' }, hitRate: 55, totalExecutions: 678, successRate: 91 },
+  { id: 'c7', name: 'Marketing Hub', type: 'marketing', mode: 'passive', status: 'disconnected', health: 0, capabilities: ['campaign', 'analytics', 'seo'], lastActivityAt: '2026-03-10T10:00:00Z', metadata: { version: '1.1.0' }, hitRate: 42, totalExecutions: 156, successRate: 88 },
+  { id: 'c8', name: 'LLM Router', type: 'llm-intelligence', mode: 'hybrid', status: 'connected', health: 97, capabilities: ['route', 'select-model', 'optimize'], lastActivityAt: '2026-03-10T12:30:00Z', metadata: { version: '1.0.0' }, hitRate: 95, totalExecutions: 5621, successRate: 98 },
+  { id: 'c9', name: 'Orchestrator Core', type: 'intelligent-orchestration', mode: 'active', status: 'connected', health: 96, capabilities: ['plan', 'decompose', 'schedule'], lastActivityAt: '2026-03-10T12:30:00Z', metadata: { version: '1.0.0' }, hitRate: 100, totalExecutions: 4523, successRate: 93 },
+  { id: 'c10', name: 'Watchdog Sensor', type: 'watchdog', mode: 'hybrid', status: 'connected', health: 93, capabilities: ['monitor', 'alert', 'diagnose'], lastActivityAt: '2026-03-10T12:30:00Z', metadata: { version: '1.0.0' }, hitRate: 88, totalExecutions: 8934, successRate: 99 },
+  { id: 'c11', name: 'Evolution Engine', type: 'self-evolution', mode: 'passive', status: 'initializing', health: 45, capabilities: ['learn', 'adapt', 'improve'], lastActivityAt: '2026-03-10T06:00:00Z', metadata: { version: '1.0.0' }, hitRate: 23, totalExecutions: 87, successRate: 76 },
+  { id: 'c12', name: 'Certification Gate', type: 'certification', mode: 'passive', status: 'connected', health: 90, capabilities: ['audit', 'certify', 'validate'], lastActivityAt: '2026-03-10T09:00:00Z', metadata: { version: '1.0.0' }, hitRate: 34, totalExecutions: 213, successRate: 95 },
+];
+
+export const mockOrchestrationStats: OrchestrationStatistics = {
+  totalCollaborations: 847,
+  activeCollaborations: 12,
+  totalDecompositions: 324,
+  totalCoordinations: 1205,
+  avgDecompositionTime: 1450,
+  avgCoordinationTime: 890,
+  connectorStats: mockConnectors.map((c) => ({
+    connectorId: c.id,
+    connectorName: c.name,
+    hitRate: c.hitRate,
+    totalExecutions: c.totalExecutions,
+    successRate: c.successRate,
+    avgResponseTime: Math.floor(Math.random() * 300) + 50,
+  })),
+  patternUsage: {
+    delegation: 234,
+    handoff: 156,
+    parallel: 198,
+    pipeline: 312,
+    consensus: 89,
+    swarm: 67,
+  },
+};
+
+export const mockOrchestrationHistory: OrchestrationHistoryItem[] = [
+  { id: 'oh1', type: 'collaboration', description: 'Deploy microservice with full CI/CD pipeline', status: 'completed', pattern: 'pipeline' as CollaborationPattern, createdAt: '2026-03-10T11:00:00Z', completedAt: '2026-03-10T11:45:00Z' },
+  { id: 'oh2', type: 'decomposition', description: 'Break down Q2 marketing campaign into sub-tasks', status: 'completed', createdAt: '2026-03-10T10:30:00Z', completedAt: '2026-03-10T10:32:00Z' },
+  { id: 'oh3', type: 'coordination', description: 'Coordinate security audit across 4 clusters', status: 'running', createdAt: '2026-03-10T12:00:00Z', completedAt: null },
+  { id: 'oh4', type: 'collaboration', description: 'Parallel code review and testing', status: 'completed', pattern: 'parallel' as CollaborationPattern, createdAt: '2026-03-10T09:00:00Z', completedAt: '2026-03-10T09:30:00Z' },
+  { id: 'oh5', type: 'decomposition', description: 'Decompose infrastructure migration plan', status: 'completed', createdAt: '2026-03-10T08:00:00Z', completedAt: '2026-03-10T08:05:00Z' },
+  { id: 'oh6', type: 'collaboration', description: 'Swarm-based threat analysis', status: 'failed', pattern: 'swarm' as CollaborationPattern, createdAt: '2026-03-10T07:00:00Z', completedAt: '2026-03-10T07:12:00Z' },
+  { id: 'oh7', type: 'coordination', description: 'Multi-agent document generation', status: 'completed', createdAt: '2026-03-09T16:00:00Z', completedAt: '2026-03-09T16:20:00Z' },
+  { id: 'oh8', type: 'collaboration', description: 'Consensus-based architecture decision', status: 'running', pattern: 'consensus' as CollaborationPattern, createdAt: '2026-03-10T12:15:00Z', completedAt: null },
+];
+
+export const mockDecompositionResult: DecompositionResult = {
+  id: 'dec1',
+  missionId: 'm1',
+  description: 'Deploy Authentication Microservice',
+  objectives: ['Design API schema', 'Implement OAuth2 flow', 'Write unit tests', 'Security audit'],
+  subTasks: [
+    { id: 'st1', title: 'Design API Schema', description: 'Create OpenAPI 3.1 spec for authentication endpoints', cluster: ClusterType.CODING, priority: MissionPriority.HIGH, dependencies: [], estimatedEffort: '4h', status: 'completed' },
+    { id: 'st2', title: 'Implement OAuth2 Flow', description: 'Build OAuth2 authorization code flow with PKCE', cluster: ClusterType.CODING, priority: MissionPriority.HIGH, dependencies: ['st1'], estimatedEffort: '8h', status: 'running' },
+    { id: 'st3', title: 'Security Review', description: 'Review OAuth2 implementation for security vulnerabilities', cluster: ClusterType.SECURITY, priority: MissionPriority.CRITICAL, dependencies: ['st2'], estimatedEffort: '3h', status: 'pending' },
+    { id: 'st4', title: 'Write Unit Tests', description: 'Cover all authentication endpoints with 90%+ coverage', cluster: ClusterType.CODING, priority: MissionPriority.HIGH, dependencies: ['st2'], estimatedEffort: '6h', status: 'pending' },
+    { id: 'st5', title: 'Deploy to Staging', description: 'Deploy service to staging environment for integration testing', cluster: ClusterType.INFRASTRUCTURE, priority: MissionPriority.MEDIUM, dependencies: ['st3', 'st4'], estimatedEffort: '2h', status: 'pending' },
+    { id: 'st6', title: 'Generate Documentation', description: 'Create API documentation and integration guide', cluster: ClusterType.OFFICE, priority: MissionPriority.LOW, dependencies: ['st1'], estimatedEffort: '3h', status: 'pending' },
+  ],
+  strategy: 'dependency-first',
+  estimatedDuration: '26h',
+  createdAt: '2026-03-10T12:00:00Z',
+};
+
+export const mockCollaborationResult: CollaborationResult = {
+  id: 'col1',
+  pattern: 'pipeline',
+  description: 'Deploy microservice with full CI/CD pipeline',
+  objectives: ['Build', 'Test', 'Security Scan', 'Deploy'],
+  status: 'running',
+  participants: ['c2', 'c5', 'c6'],
+  result: null,
+  error: null,
+  startedAt: '2026-03-10T12:00:00Z',
+  completedAt: null,
+  createdAt: '2026-03-10T12:00:00Z',
+  updatedAt: '2026-03-10T12:15:00Z',
+};
+
+export const mockCoordinationResult: CoordinationResult = {
+  id: 'cor1',
+  taskIds: ['st1', 'st2', 'st3', 'st4', 'st5', 'st6'],
+  strategy: 'dependency-graph',
+  status: 'coordinating',
+  assignments: [
+    { taskId: 'st1', agentId: '5', cluster: ClusterType.CODING, scheduledAt: '2026-03-10T12:00:00Z', startedAt: '2026-03-10T12:00:00Z', completedAt: '2026-03-10T12:30:00Z', status: 'completed' },
+    { taskId: 'st2', agentId: '6', cluster: ClusterType.CODING, scheduledAt: '2026-03-10T12:30:00Z', startedAt: '2026-03-10T12:30:00Z', completedAt: null, status: 'running' },
+    { taskId: 'st3', agentId: '10', cluster: ClusterType.SECURITY, scheduledAt: '2026-03-10T14:30:00Z', startedAt: null, completedAt: null, status: 'pending' },
+    { taskId: 'st4', agentId: '5', cluster: ClusterType.CODING, scheduledAt: '2026-03-10T14:30:00Z', startedAt: null, completedAt: null, status: 'pending' },
+    { taskId: 'st5', agentId: '12', cluster: ClusterType.INFRASTRUCTURE, scheduledAt: '2026-03-10T17:30:00Z', startedAt: null, completedAt: null, status: 'pending' },
+    { taskId: 'st6', agentId: '7', cluster: ClusterType.OFFICE, scheduledAt: '2026-03-10T13:00:00Z', startedAt: null, completedAt: null, status: 'pending' },
+  ],
+  timeline: {
+    phases: [
+      { name: 'Design & Schema', taskIds: ['st1', 'st6'], startAfter: null, estimatedDuration: '4h' },
+      { name: 'Core Implementation', taskIds: ['st2', 'st4'], startAfter: 'st1', estimatedDuration: '14h' },
+      { name: 'Security & Validation', taskIds: ['st3'], startAfter: 'st2', estimatedDuration: '3h' },
+      { name: 'Deployment', taskIds: ['st5'], startAfter: 'st3,st4', estimatedDuration: '2h' },
+    ],
+    estimatedTotalDuration: '23h',
+  },
+  result: null,
+  error: null,
+  createdAt: '2026-03-10T12:00:00Z',
+  updatedAt: '2026-03-10T12:15:00Z',
 };

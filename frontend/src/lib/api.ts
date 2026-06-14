@@ -223,6 +223,56 @@ class ApiClient {
       body: JSON.stringify({ action, params }),
     });
   }
+
+  // Orchestration
+  orchestration = {
+    collaborate: (
+      pattern: import('./types').CollaborationPattern,
+      description: string,
+      objectives: string[],
+      options?: Record<string, unknown>
+    ) =>
+      this.request<import('./types').CollaborationResult>('/orchestration/collaborate', {
+        method: 'POST',
+        body: JSON.stringify({ pattern, description, objectives, ...options }),
+      }),
+
+    decompose: (
+      missionId: string | null,
+      description: string,
+      objectives: string[],
+      options?: Record<string, unknown>
+    ) =>
+      this.request<import('./types').DecompositionResult>('/orchestration/decompose', {
+        method: 'POST',
+        body: JSON.stringify({ missionId, description, objectives, ...options }),
+      }),
+
+    coordinate: (tasks: string[]) =>
+      this.request<import('./types').CoordinationResult>('/orchestration/coordinate', {
+        method: 'POST',
+        body: JSON.stringify({ taskIds: tasks }),
+      }),
+
+    getClusterHealth: () =>
+      this.request<import('./types').ClusterHealthInfo[]>('/orchestration/cluster-health'),
+
+    getConnectors: () =>
+      this.request<import('./types').UnifiedConnectorInfo[]>('/orchestration/connectors'),
+
+    getStatistics: () =>
+      this.request<import('./types').OrchestrationStatistics>('/orchestration/statistics'),
+
+    getHistory: (type?: string, limit?: number) => {
+      const searchParams = new URLSearchParams();
+      if (type) searchParams.set('type', type);
+      if (limit) searchParams.set('limit', String(limit));
+      const query = searchParams.toString();
+      return this.request<import('./types').OrchestrationHistoryItem[]>(
+        `/orchestration/history${query ? `?${query}` : ''}`
+      );
+    },
+  };
 }
 
 export const api = new ApiClient();
