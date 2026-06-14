@@ -1,0 +1,68 @@
+# ─── Build Stage ──────────────────────────────────────────────────────
+# Multi-stage build for AENEWS Agent OS X Frontend
+# Next.js 16 standalone output for minimal production image
+# ─────────────────────────────────────────────────────────────────────
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files first for Docker layer caching
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy frontend source
+COPY frontend ./
+
+# Set build-time environment variables
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Build the Next.js application
+RUN npm run build
+
+# ─── Production Stage ────────────────────────────────────────────────
+FROM node:20-alpine AS production
+
+LABEL maintainer="AENEWS Agent OS X"
+LABEL description="AENEWS Agent OS X - Frontend Dashboard"
+LABEL version="1.0.0"
+
+WORKDIR /app
+
+# Install security updates and dumb-init
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache wget dumb-init && \
+    rm -rf /var/cache/apk/*
+
+# Create non-root user
+RUN addgroup -g 1001 -S aenews && \
+    adduser -S aenews -u 1001 -G aenews -h /app
+
+# Set environment
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3001
+
+# Copy standalone output from builder
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+# Fix ownership
+RUN chown -R aenews:aenews /app
+
+USER aenews
+
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
+
+CMD ["node", "server.js"]

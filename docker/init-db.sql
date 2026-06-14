@@ -186,3 +186,51 @@ INSERT INTO tenant.tenants (name, slug, plan, is_active, config) VALUES
 -- Default super admin user (password: admin123 - change in production!)
 INSERT INTO tenant.users (email, password_hash, first_name, last_name, role, tenant_id) VALUES
     ('admin@aenews-osx.io', '$2b$10$K7L1OJ45/4Y2nIvhRVpCe.FSmhDdWoXehVzJptJ/op0lSsvqNu6GK', 'System', 'Admin', 'super_admin', (SELECT id FROM tenant.tenants WHERE slug = 'system'));
+
+-- ─── Software Factory Schema ──────────────────────────────────────
+CREATE SCHEMA IF NOT EXISTS software_factory;
+
+CREATE TYPE mission_status AS ENUM ('draft', 'planned', 'building', 'testing', 'certifying', 'delivering', 'completed', 'failed', 'cancelled');
+CREATE TYPE mission_priority AS ENUM ('low', 'medium', 'high', 'critical');
+
+CREATE TABLE IF NOT EXISTS software_factory.missions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    status mission_status DEFAULT 'draft',
+    priority mission_priority DEFAULT 'medium',
+    config JSONB DEFAULT '{}',
+    input JSONB DEFAULT '{}',
+    output JSONB,
+    error TEXT,
+    tenant_id UUID NOT NULL REFERENCES tenant.tenants(id) ON DELETE CASCADE,
+    progress INTEGER DEFAULT 0,
+    metadata JSONB DEFAULT '{}',
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS software_factory.mission_contracts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    mission_id UUID NOT NULL REFERENCES software_factory.missions(id) ON DELETE CASCADE,
+    contract_type VARCHAR(100) NOT NULL,
+    terms JSONB DEFAULT '{}',
+    status VARCHAR(50) DEFAULT 'pending',
+    signed_by VARCHAR(255),
+    signed_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Software Factory Indexes
+CREATE INDEX idx_missions_status ON software_factory.missions(status);
+CREATE INDEX idx_missions_tenant ON software_factory.missions(tenant_id);
+CREATE INDEX idx_missions_priority ON software_factory.missions(priority);
+CREATE INDEX idx_contracts_mission ON software_factory.mission_contracts(mission_id);
+
+-- Software Factory Triggers
+CREATE TRIGGER update_missions_updated_at BEFORE UPDATE ON software_factory.missions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_contracts_updated_at BEFORE UPDATE ON software_factory.mission_contracts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

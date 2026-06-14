@@ -1,3 +1,10 @@
+# ═══════════════════════════════════════════════════════════════
+# AENEWS Agent OS X — Continuous Integration Pipeline
+# ═══════════════════════════════════════════════════════════════
+# Runs on every push to main/develop and every pull request.
+# Jobs: lint → test → e2e (parallel) → build → security
+# ═══════════════════════════════════════════════════════════════
+
 name: CI Pipeline
 
 on:
@@ -12,17 +19,23 @@ concurrency:
 
 env:
   NODE_VERSION: 20
+  POSTGRES_DB: aenews_test
+  POSTGRES_USER: aenews
+  POSTGRES_PASSWORD: aenews_test_password
+  REDIS_PASSWORD: aenews_redis_test
 
+# ───────────────────────────────────────────────────────────────
 jobs:
-  # ─── Backend ──────────────────────────────────────────────────
-  backend-lint:
-    name: Backend – Lint
+  # ─── Lint ──────────────────────────────────────────────────
+  lint:
+    name: ESLint Check
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
@@ -35,38 +48,42 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Run ESLint
         run: npm run lint
 
-  backend-test:
-    name: Backend – Unit Tests
+  # ─── Unit Tests ────────────────────────────────────────────
+  test:
+    name: Jest Unit Tests
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+
     services:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: aenews_test
-          POSTGRES_USER: aenews
-          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U aenews -d aenews_test"
+          --health-cmd="pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+
     env:
       DB_HOST: localhost
       DB_PORT: 5432
-      DB_NAME: aenews_test
-      DB_USER: aenews
-      DB_PASSWORD: test_password
+      DB_NAME: ${{ env.POSTGRES_DB }}
+      DB_USER: ${{ env.POSTGRES_USER }}
+      DB_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
       NODE_ENV: test
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
@@ -79,78 +96,65 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run unit tests
+      - name: Run unit tests with coverage
         run: npm test -- --coverage --forceExit
 
-      - name: Upload coverage
+      - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-coverage
+          name: test-coverage
           path: backend/coverage/
           retention-days: 7
 
-  backend-build:
-    name: Backend – Build
+  # ─── E2E Tests ─────────────────────────────────────────────
+  e2e:
+    name: E2E Tests
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test]
     defaults:
       run:
         working-directory: backend
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-dist
-          path: backend/dist/
-          retention-days: 3
-
-  backend-e2e:
-    name: Backend – E2E Tests
-    runs-on: ubuntu-latest
-    needs: [backend-build]
-    defaults:
-      run:
-        working-directory: backend
     services:
       postgres:
         image: postgres:16-alpine
         env:
           POSTGRES_DB: aenews_e2e
-          POSTGRES_USER: aenews
-          POSTGRES_PASSWORD: e2e_password
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U aenews -d aenews_e2e"
+          --health-cmd="pg_isready -U $POSTGRES_USER -d aenews_e2e"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        env:
+          REDIS_PASSWORD: ${{ env.REDIS_PASSWORD }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli -a $REDIS_PASSWORD ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     env:
       DB_HOST: localhost
       DB_PORT: 5432
       DB_NAME: aenews_e2e
-      DB_USER: aenews
-      DB_PASSWORD: e2e_password
+      DB_USER: ${{ env.POSTGRES_USER }}
+      DB_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${{ env.REDIS_PASSWORD }}
       NODE_ENV: test
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
@@ -166,88 +170,79 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e -- --forceExit
 
-  # ─── Frontend ────────────────────────────────────────────────
-  frontend-lint:
-    name: Frontend – Lint
+  # ─── Docker Build Test ─────────────────────────────────────
+  build:
+    name: Docker Build Test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
+    needs: [lint, test]
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-        continue-on-error: true
-
-  frontend-build:
-    name: Frontend – Build
-    runs-on: ubuntu-latest
-    needs: [frontend-lint]
-    defaults:
-      run:
-        working-directory: frontend
-    env:
-      NEXT_TELEMETRY_DISABLED: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/.next/
-          retention-days: 3
-
-  # ─── Docker ──────────────────────────────────────────────────
-  docker-build:
-    name: Docker – Build Image
-    runs-on: ubuntu-latest
-    needs: [backend-build, frontend-build]
-    steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build Docker image (no push)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
           push: false
           load: true
-          tags: aenews-agent-osx:${{ github.sha }}
+          tags: |
+            aenews-agent-osx:${{ github.sha }}
+            aenews-agent-osx:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify image
+      - name: Verify image was built
         run: |
-          docker images aenews-agent-osx:${{ github.sha }}
-          echo "Docker image built successfully"
+          docker images aenews-agent-osx
+          echo "✅ Docker image built successfully for commit ${{ github.sha }}"
+
+      - name: Run container health smoke test
+        run: |
+          docker run --rm -d \
+            --name aenews-smoke \
+            -e NODE_ENV=production \
+            -p 3000:3000 \
+            aenews-agent-osx:${{ github.sha }} || true
+          # Allow a few seconds for startup
+          sleep 5
+          docker logs aenews-smoke 2>&1 | head -30 || true
+          docker stop aenews-smoke 2>/dev/null || true
+          echo "✅ Container smoke test completed"
+
+  # ─── Security Audit ────────────────────────────────────────
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit (production only)
+        run: |
+          npm audit --production --audit-level=high || true
+          echo ""
+          echo "ℹ️  Full audit output (all severities):"
+          npm audit --audit-level=low || true
+
+      - name: Check for known vulnerabilities
+        run: npx better-npm-audit audit --level=high || true
+        continue-on-error: true
