@@ -41,7 +41,13 @@ import { SelfEvolutionClusterModule } from './clusters/self-evolution/self-evolu
 import { CertificationClusterModule } from './clusters/certification/certification-cluster.module';
 import { AgentFrameworkModule } from './modules/agent-framework/agent-framework.module';
 import { SoftwareFactoryModule } from './modules/software-factory/software-factory.module';
+import { CodingConnectorModule } from './modules/connectors/coding/coding-connector.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { BrowserConnectorModule } from './modules/connectors/browser/browser-connector.module';
+import { OfficeConnectorModule } from './modules/connectors/office/office-connector.module';
+import { InfrastructureConnectorModule } from './modules/connectors/infrastructure/infrastructure-connector.module';
+import { SecurityConnectorModule } from './modules/connectors/security/security-connector.module';
+import { ConnectorHealthModule } from './modules/connectors/health/connector-health.module';
 import { LLMModule } from './modules/llm/llm.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -187,6 +193,36 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
     // ─── Software Factory Module ───
     // Provides: Mission orchestration, connectors, teams, runtime engine
     SoftwareFactoryModule,
+
+    // ─── Real Browser Connector Module ───
+    // Provides: Playwright-based browser automation with pool management
+    // Must be loaded after AgentFrameworkModule so it can override the simulation browser connector
+    BrowserConnectorModule,
+
+    // ─── Coding Connector Module ───
+    // Provides: GitHub API, Git Local, Filesystem connectors
+    // Must be loaded after AgentFrameworkModule so it can override the simulation coding connector
+    CodingConnectorModule,
+
+    // ─── Office Connector Module ───
+    // Provides: Document generation, email, calendar, spreadsheets, tasks
+    // Must be loaded after AgentFrameworkModule so it can override the simulation office connector
+    OfficeConnectorModule,
+
+    // ─── Infrastructure Connector Module ───
+    // Provides: Docker, processes, system monitoring, deployment
+    // Registers new 'infrastructure' connector with AgentBridge
+    InfrastructureConnectorModule,
+
+    // ─── Security Connector Module ───
+    // Provides: Authentication, encryption, vulnerability scanning, audit, threat detection
+    // Registers new 'security' connector with AgentBridge
+    SecurityConnectorModule,
+
+    // ─── Connector Health Module ───
+    // Provides: Periodic health checks for all connectors
+    // Exposes: /api/v1/connectors/health, /api/v1/connectors/status
+    ConnectorHealthModule,
 
     // ─── WebSocket Gateway Module ───
     // Provides: Real-time event broadcasting over Socket.IO

@@ -145,7 +145,7 @@ export class CircuitBreakerService implements OnModuleInit {
     }
 
     // Connectors
-    for (const connector of ['browser', 'computer', 'coding', 'office', 'marketing', 'business']) {
+    for (const connector of ['browser', 'computer', 'coding', 'office', 'marketing', 'business', 'github', 'git-local', 'filesystem']) {
       this.registerCircuit(`${CIRCUIT_KEY_PREFIX.CONNECTOR}:${connector}`);
     }
 

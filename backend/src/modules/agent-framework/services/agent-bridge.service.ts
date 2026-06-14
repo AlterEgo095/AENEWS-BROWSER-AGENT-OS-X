@@ -50,7 +50,16 @@ export class AgentBridgeService implements OnModuleInit {
   ) {}
 
   /**
+   * Track which connectors have been overridden by real implementations.
+   * Key = connector name, Value = 'simulation' | 'real'
+   */
+  private readonly connectorMode = new Map<string, 'simulation' | 'real'>();
+
+  /**
    * On module init, register the built-in simulation connectors.
+   *
+   * Note: The BrowserConnectorModule will override the 'browser' simulation
+   * connector with the real Playwright-based connector during its own init.
    */
   async onModuleInit(): Promise<void> {
     this.registerSimulationConnectors();
@@ -64,15 +73,19 @@ export class AgentBridgeService implements OnModuleInit {
 
   /**
    * Register a connector in the bridge.
+   * If the connector was previously registered (e.g. simulation),
+   * it will be overwritten and the mode will be updated.
    */
-  registerConnector(name: string, connector: SoftwareFactoryConnector): void {
+  registerConnector(name: string, connector: SoftwareFactoryConnector, mode: 'simulation' | 'real' = 'simulation'): void {
     if (this.connectors.has(name)) {
+      const previousMode = this.connectorMode.get(name);
       this.logger.warn(
-        `Connector "${name}" is already registered. Overwriting.`,
+        `Connector "${name}" is already registered (${previousMode ?? 'unknown'} mode). Overwriting with ${mode} mode.`,
       );
     }
     this.connectors.set(name, connector);
-    this.logger.debug(`Registered connector: ${name}`);
+    this.connectorMode.set(name, mode);
+    this.logger.debug(`Registered connector: ${name} (${mode} mode)`);
   }
 
   /**
@@ -87,6 +100,20 @@ export class AgentBridgeService implements OnModuleInit {
    */
   getConnectorNames(): string[] {
     return Array.from(this.connectors.keys());
+  }
+
+  /**
+   * Get the mode (simulation/real) of a connector.
+   */
+  getConnectorMode(name: string): 'simulation' | 'real' | undefined {
+    return this.connectorMode.get(name);
+  }
+
+  /**
+   * Check if a connector is running in real mode.
+   */
+  isRealConnector(name: string): boolean {
+    return this.connectorMode.get(name) === 'real';
   }
 
   /**
@@ -218,10 +245,10 @@ export class AgentBridgeService implements OnModuleInit {
   // ─── Simulation Connectors ──────────────────────────────────
 
   private registerSimulationConnectors(): void {
-    // Browser connector
+    // Browser connector (simulation — will be overridden by BrowserConnectorModule if Playwright is available)
     this.registerConnector('browser', {
       name: 'browser',
-      description: 'Browser automation — navigate, scrape, interact with web pages',
+      description: 'Browser automation — navigate, scrape, interact with web pages (simulation)',
       actions: ['navigate', 'scrape', 'click', 'type', 'screenshot', 'evaluate'],
       execute: async (action, params) => ({
         action,
@@ -229,7 +256,7 @@ export class AgentBridgeService implements OnModuleInit {
         result: `[simulation] browser.${action} executed`,
         timestamp: Date.now(),
       }),
-    });
+    }, 'simulation');
 
     // Computer connector
     this.registerConnector('computer', {
