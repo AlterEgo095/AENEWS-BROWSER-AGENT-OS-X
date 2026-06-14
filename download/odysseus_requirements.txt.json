@@ -1,0 +1,18 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "<html><head><meta name=\"color-scheme\" content=\"light dark\"></head><body><pre style=\"word-wrap: break-word; white-space: pre-wrap;\">fastapi\nuvicorn\npython-multipart\npython-dotenv\nhttpx\npydantic>=2.0\npydantic-settings>=2.0\nSQLAlchemy\npypdf\nbeautifulsoup4\ncharset-normalizer\nnumpy\n# Vector store + local embeddings for RAG, semantic memory, and tool\n# selection. Used on core agent paths, so installed by default — the app\n# still degrades to keyword fallback if they're ever missing.\n# chromadb-client is the lightweight HTTP client (talks to a standalone\n# ChromaDB service); fastembed runs local ONNX embeddings.\nchromadb-client\nfastembed\nyoutube-transcript-api\n# Markdown rendering for research reports (src/visual_report.py).\n# Imported at module-top so it's a hard core dep, not optional.\nmarkdown\n# HTML sanitizer for rendered research reports (src/visual_report.py). Report\n# content is untrusted (LLM output over crawled pages) and report pages run\n# under a relaxed CSP, so the rendered HTML is allowlist-sanitized.\nnh3\n# Calendar .ics import/export (routes/calendar_routes.py).\nicalendar\n# Recurrence rule expansion for calendar events (routes/calendar_routes.py).\n# Imported directly as dateutil.rrule — make it explicit even though caldav\n# pulls it in transitively.\npython-dateutil\n# CalDAV sync (src/caldav_sync.py). Handles PROPFIND discovery + REPORT\n# fetch across Radicale, Nextcloud, Apple, Fastmail; we'd be reinventing\n# the protocol without it.\ncaldav\ncryptography\nbcrypt\nmcp\npyotp\nqrcode[pil]\ncroniter\npytest\npytest-asyncio\n</pre></body></html>",
+    "title": "",
+    "url": "https://raw.githubusercontent.com/pewdiepie-archdaemon/odysseus/main/requirements.txt",
+    "usage": {
+      "tokens": 402
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 402
+    }
+  },
+  "status": 20000
+}

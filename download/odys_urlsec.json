@@ -1,0 +1,18 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "<html><head><meta name=\"color-scheme\" content=\"light dark\"></head><body><pre style=\"word-wrap: break-word; white-space: pre-wrap;\">\"\"\"URL validation helpers for server-side outbound requests.\"\"\"\n\nfrom __future__ import annotations\n\nimport ipaddress\nimport socket\nfrom urllib.parse import urlparse\n\n\n_INTERNAL_HOSTNAMES = {\n    \"localhost\",\n    \"metadata\",\n    \"metadata.google.internal\",\n}\n\n_INTERNAL_SUFFIXES = (\n    \".localhost\",\n    \".local\",\n    \".internal\",\n    \".lan\",\n    \".intranet\",\n)\n\n_BLOCKED_NETWORKS = (\n    ipaddress.ip_network(\"0.0.0.0/8\"),\n    ipaddress.ip_network(\"10.0.0.0/8\"),\n    ipaddress.ip_network(\"100.64.0.0/10\"),\n    ipaddress.ip_network(\"127.0.0.0/8\"),\n    ipaddress.ip_network(\"169.254.0.0/16\"),\n    ipaddress.ip_network(\"172.16.0.0/12\"),\n    ipaddress.ip_network(\"192.168.0.0/16\"),\n    ipaddress.ip_network(\"::/128\"),\n    ipaddress.ip_network(\"::1/128\"),\n    ipaddress.ip_network(\"fc00::/7\"),\n    ipaddress.ip_network(\"fe80::/10\"),\n)\n\n\ndef _resolve_hostname_ips(hostname: str) -> list[ipaddress._BaseAddress]:\n    ips: list[ipaddress._BaseAddress] = []\n    for family, _, _, _, sockaddr in socket.getaddrinfo(hostname, None):\n        if family in (socket.AF_INET, socket.AF_INET6):\n            ips.append(ipaddress.ip_address(sockaddr[0]))\n    return ips\n\n\ndef _blocked_ip(addr: ipaddress._BaseAddress) -> bool:\n    return (\n        any(addr in net for net in _BLOCKED_NETWORKS)\n        or addr.is_private\n        or addr.is_loopback\n        or addr.is_link_local\n        or addr.is_multicast\n        or addr.is_unspecified\n        or addr.is_reserved\n    )\n\n\ndef _host_resolves_publicly(hostname: str) -> bool:\n    host = hostname.strip().lower()\n    if host in _INTERNAL_HOSTNAMES or host.endswith(_INTERNAL_SUFFIXES):\n        return False\n    try:\n        return not _blocked_ip(ipaddress.ip_address(host))\n    except ValueError:\n        pass\n    try:\n        addrs = _resolve_hostname_ips(host)\n    except OSError:\n        return False\n    return bool(addrs) and all(not _blocked_ip(addr) for addr in addrs)\n\n\ndef is_public_http_url(url: str) -> bool:\n    parsed = urlparse((url or \"\").strip())\n    if parsed.scheme not in (\"http\", \"https\") or not parsed.hostname:\n        return False\n    return _host_resolves_publicly(parsed.hostname)\n\n\ndef validate_public_http_url(url: str, *, max_length: int = 2048) -> str:\n    \"\"\"Validate a user/API-token supplied server-side HTTP(S) endpoint.\n\n    This is for untrusted outbound URLs, not admin-created model endpoints\n    that are intentionally allowed to point at private model providers. DNS\n    failures fail closed, and DNS checks reduce obvious private-network\n    targets but do not eliminate every DNS rebinding race by themselves.\n    \"\"\"\n    cleaned = (url or \"\").strip()\n    if len(cleaned) > max_length:\n        raise ValueError(\"URL is too long\")\n    if not is_public_http_url(cleaned):\n        raise ValueError(\"URL must point to a public HTTP(S) endpoint\")\n    return cleaned\n</pre></body></html>",
+    "title": "",
+    "url": "https://raw.githubusercontent.com/pewdiepie-archdaemon/odysseus/main/src/url_security.py",
+    "usage": {
+      "tokens": 747
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 747
+    }
+  },
+  "status": 20000
+}

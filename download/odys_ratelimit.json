@@ -1,0 +1,18 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "<html><head><meta name=\"color-scheme\" content=\"light dark\"></head><body><pre style=\"word-wrap: break-word; white-space: pre-wrap;\"># src/rate_limiter.py\n\"\"\"Generic in-memory rate limiter — sliding window, keyed by IP.\"\"\"\n\nimport threading\nimport time\nfrom typing import Dict, List\n\n\nclass RateLimiter:\n    \"\"\"Sliding-window rate limiter.\n\n    Usage:\n        limiter = RateLimiter(max_requests=5, window_seconds=60)\n        if not limiter.check(ip):\n            raise HTTPException(429, \"Too many requests\")\n    \"\"\"\n\n    def __init__(self, max_requests: int, window_seconds: int):\n        self.max_requests = max_requests\n        self.window = window_seconds\n        self._log: Dict[str, List[float]] = {}\n        self._lock = threading.Lock()\n        self._last_cleanup = time.monotonic()\n        self._cleanup_interval = max(window_seconds * 2, 120)\n\n    def check(self, key: str) -> bool:\n        \"\"\"Return True if the request is allowed, False if rate-limited.\"\"\"\n        now = time.monotonic()\n        with self._lock:\n            self._maybe_cleanup(now)\n            timestamps = self._log.get(key, [])\n            cutoff = now - self.window\n            timestamps = [t for t in timestamps if t > cutoff]\n            if len(timestamps) >= self.max_requests:\n                self._log[key] = timestamps\n                return False\n            timestamps.append(now)\n            self._log[key] = timestamps\n            return True\n\n    def _maybe_cleanup(self, now: float) -> None:\n        \"\"\"Periodically purge stale entries.\"\"\"\n        if now - self._last_cleanup < self._cleanup_interval:\n            return\n        self._last_cleanup = now\n        cutoff = now - self.window\n        stale = [k for k, v in self._log.items() if not v or v[-1] <= cutoff]\n        for k in stale:\n            del self._log[k]\n</pre></body></html>",
+    "title": "",
+    "url": "https://raw.githubusercontent.com/pewdiepie-archdaemon/odysseus/main/src/rate_limiter.py",
+    "usage": {
+      "tokens": 431
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 431
+    }
+  },
+  "status": 20000
+}
