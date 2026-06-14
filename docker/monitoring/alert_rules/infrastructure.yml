@@ -1,0 +1,144 @@
+# ═══════════════════════════════════════════════════════════════
+# AENEWS Agent OS X — Infrastructure Alert Rules (Phase 6)
+# ═══════════════════════════════════════════════════════════════
+# Prometheus alerting rules for infrastructure health monitoring.
+# Covers: service availability, error rates, memory usage, and
+# container health.
+# ═══════════════════════════════════════════════════════════════
+
+groups:
+  # ─── Service Availability Alerts ──────────────────────────────
+  - name: infrastructure.service
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "The Prometheus target {{ $labels.instance }} for job {{ $labels.job }} has been unreachable for more than 1 minute."
+
+      - alert: HighTargetScrapeErrorRate
+        expr: rate(scrape_duration_seconds_count[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High scrape error rate detected"
+          description: "Prometheus is experiencing scrape failures. {{ $value }} failures per second."
+
+  # ─── API Health Alerts ───────────────────────────────────────
+  - name: infrastructure.api
+    rules:
+      - alert: HighAPIErrorRate
+        expr: |
+          (
+            sum(rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+            /
+            sum(rate(http_request_duration_seconds_count[5m]))
+          ) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API 5xx error rate above 5%"
+          description: "API 5xx error rate is {{ $value | humanizePercentage }}. Investigate backend service health."
+
+      - alert: CriticalAPIErrorRate
+        expr: |
+          (
+            sum(rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+            /
+            sum(rate(http_request_duration_seconds_count[5m]))
+          ) > 0.15
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "API 5xx error rate above 15%"
+          description: "API 5xx error rate is {{ $value | humanizePercentage }}. Immediate investigation required."
+
+      - alert: APIRequestRateDrop
+        expr: |
+          deriv(sum(rate(http_request_duration_seconds_count[10m]))[30m]) < -10
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API request rate has dropped significantly"
+          description: "API request rate is declining rapidly. Possible upstream issue or client-side failure."
+
+  # ─── Memory Alerts ──────────────────────────────────────────
+  - name: infrastructure.memory
+    rules:
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / (1024 * 1024 * 1024) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Process memory usage above 1.5 GB"
+          description: "Service {{ $labels.job }} is using {{ $value | humanize }}B of resident memory."
+
+      - alert: CriticalMemoryUsage
+        expr: process_resident_memory_bytes / (1024 * 1024 * 1024) > 3.0
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Process memory usage above 3 GB — OOM risk"
+          description: "Service {{ $labels.job }} is using {{ $value | humanize }}B of resident memory. Risk of OOM kill."
+
+  # ─── Agent Execution Alerts ─────────────────────────────────
+  - name: infrastructure.agents
+    rules:
+      - alert: AgentExecutionFailureSpike
+        expr: rate(aenews_agent_execution_failures_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Agent execution failures spiking"
+          description: "Agent execution failure rate is {{ $value }}/s. Check LLM provider health and circuit breaker state."
+
+      - alert: NoAvailableAgents
+        expr: aenews_agent_registry_size == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "No agents registered in the agent registry"
+          description: "The agent registry is empty. No agents are available for task execution."
+
+  # ─── Infrastructure Service Health ──────────────────────────
+  - name: infrastructure.dependencies
+    rules:
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Prometheus target missing: {{ $labels.job }}"
+          description: "The target {{ $labels.instance }} for job {{ $labels.job }} has been down for more than 5 minutes."
+
+      - alert: TooManyRestartingContainers
+        expr: rate(container_restart_count[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Container {{ $labels.name }} is restarting"
+          description: "Container has restarted {{ $value }} times in the last 5 minutes. Check application logs for crash loops."

@@ -60,6 +60,7 @@ async function bootstrap() {
   );
 
   // ─── CORS ─────────────────────────────────────────────────
+  // SECURITY: Never use origin: true (wildcard). Always use explicit origin list.
   const corsEnabled = process.env.CORS_ENABLED !== 'false';
   if (corsEnabled) {
     const corsOrigins = process.env.CORS_ORIGINS;
@@ -70,14 +71,19 @@ async function bootstrap() {
             'Wildcard CORS is not allowed in production. Example: CORS_ORIGINS=https://app.example.com,https://admin.example.com',
         );
       }
+      // In development, use explicit default origins instead of wildcard
       console.warn(
-        '⚠️  WARNING: CORS_ORIGINS not set. Using wildcard CORS for development only. ' +
-          'NEVER use this in production!',
+        '⚠️  WARNING: CORS_ORIGINS not set. Using development defaults (localhost only). ' +
+          'Set CORS_ORIGINS explicitly for all environments!',
       );
     }
+    // Explicit origin list — never fall back to `true` (wildcard)
+    const allowedOrigins = corsOrigins
+      ? corsOrigins.split(',').map((o) => o.trim())
+      : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000'];
     const corsMethods = process.env.CORS_METHODS || 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
     app.enableCors({
-      origin: corsOrigins ? corsOrigins.split(',').map((o) => o.trim()) : true,
+      origin: allowedOrigins,
       methods: corsMethods.split(','),
       credentials: true,
       allowedHeaders: 'Content-Type, Authorization, X-Request-Id, X-Correlation-Id',

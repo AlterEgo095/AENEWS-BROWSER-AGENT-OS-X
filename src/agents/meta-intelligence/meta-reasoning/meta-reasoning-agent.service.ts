@@ -649,16 +649,27 @@ export class MetaReasoningAgentService extends BaseAgentService {
       });
 
       const parsed = this.parseLLMResponse(response);
-      if (parsed?.alternatives && Array.isArray(parsed.alternatives) && parsed.alternatives.length > 0) {
-        this.logger.log(`LLM alternatives generated: count=${parsed.alternatives.length}, best=${parsed.bestAlternative}, diversity=${parsed.diversityScore}`);
+      if (
+        parsed?.alternatives &&
+        Array.isArray(parsed.alternatives) &&
+        parsed.alternatives.length > 0
+      ) {
+        this.logger.log(
+          `LLM alternatives generated: count=${parsed.alternatives.length}, best=${parsed.bestAlternative}, diversity=${parsed.diversityScore}`,
+        );
         return {
           alternatives: parsed.alternatives,
           bestAlternative: parsed.bestAlternative || parsed.alternatives[0]?.id || 'alt-0',
-          diversityScore: typeof parsed.diversityScore === 'number' ? parsed.diversityScore : Math.min(1.0, (parsed.alternatives.length / 3) * 0.7 + 0.3),
+          diversityScore:
+            typeof parsed.diversityScore === 'number'
+              ? parsed.diversityScore
+              : Math.min(1.0, (parsed.alternatives.length / 3) * 0.7 + 0.3),
         };
       }
     } catch (error) {
-      this.logger.warn(`LLM alternative generation failed, using heuristic: ${(error as Error).message}`);
+      this.logger.warn(
+        `LLM alternative generation failed, using heuristic: ${(error as Error).message}`,
+      );
     }
 
     // Heuristic fallback
@@ -699,7 +710,9 @@ export class MetaReasoningAgentService extends BaseAgentService {
 
       const parsed = this.parseLLMResponse(response);
       if (parsed && typeof parsed.valid === 'boolean') {
-        this.logger.log(`LLM inference validated: valid=${parsed.valid}, confidence=${parsed.confidence}, issues=${parsed.issues?.length || 0}`);
+        this.logger.log(
+          `LLM inference validated: valid=${parsed.valid}, confidence=${parsed.confidence}, issues=${parsed.issues?.length || 0}`,
+        );
         return {
           valid: parsed.valid,
           confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
@@ -708,7 +721,9 @@ export class MetaReasoningAgentService extends BaseAgentService {
         };
       }
     } catch (error) {
-      this.logger.warn(`LLM inference validation failed, using heuristic: ${(error as Error).message}`);
+      this.logger.warn(
+        `LLM inference validation failed, using heuristic: ${(error as Error).message}`,
+      );
     }
 
     // Heuristic fallback

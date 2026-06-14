@@ -128,7 +128,17 @@ export default () => ({
   // ─── Phase 12: Security Configuration ───
   security: {
     cors: {
-      origins: process.env.SECURITY_CORS_ORIGINS || '',
+      origins: process.env.SECURITY_CORS_ORIGINS || process.env.CORS_ORIGINS || '',
+    },
+    headersEnabled: process.env.SECURITY_HEADERS_ENABLED !== 'false',
+    requestMaxBodySizeMb: parseInt(process.env.SECURITY_REQUEST_MAX_BODY_SIZE_MB || '10', 10),
+    requestMaxUrlEncodedSizeMb: parseInt(process.env.SECURITY_REQUEST_MAX_URL_ENCODED_SIZE_MB || '10', 10),
+    ip: {
+      blacklist: process.env.SECURITY_IP_BLACKLIST || '',
+      adminWhitelist: process.env.SECURITY_IP_ADMIN_WHITELIST || '',
+      metricsWhitelist: process.env.SECURITY_IP_METRICS_WHITELIST || '',
+      internalWhitelist: process.env.SECURITY_IP_INTERNAL_WHITELIST || '',
+      privateBypass: process.env.SECURITY_IP_PRIVATE_BYPASS !== 'false',
     },
     lockout: {
       maxAttempts: parseInt(process.env.SECURITY_LOCKOUT_MAX_ATTEMPTS || '5', 10),
@@ -141,12 +151,6 @@ export default () => ({
     refreshToken: {
       maxFamilies: parseInt(process.env.SECURITY_REFRESH_TOKEN_MAX_FAMILIES || '5', 10),
       reuseWindowMin: parseInt(process.env.SECURITY_REFRESH_TOKEN_REUSE_WINDOW_MIN || '5', 10),
-    },
-    ip: {
-      adminWhitelist: process.env.SECURITY_IP_ADMIN_WHITELIST || '',
-      metricsWhitelist: process.env.SECURITY_IP_METRICS_WHITELIST || '',
-      internalWhitelist: process.env.SECURITY_IP_INTERNAL_WHITELIST || '',
-      privateBypass: process.env.SECURITY_IP_PRIVATE_BYPASS !== 'false',
     },
     audit: {
       batchSize: parseInt(process.env.SECURITY_AUDIT_BATCH_SIZE || '50', 10),

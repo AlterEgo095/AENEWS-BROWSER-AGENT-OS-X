@@ -304,9 +304,10 @@ export class SystemMonitorAgentService extends BaseAgentService {
       totalMemoryMb: os.totalmem?.() ? Math.round(os.totalmem() / (1024 * 1024)) : 8192,
       bootTime: new Date(Date.now() - (os.uptime?.() ?? Math.random() * 30 * 86400000) * 1000),
       currentCpuUsage: 12 + Math.random() * 15,
-      currentMemoryUsedMb: os.totalmem?.() && os.freemem?.()
-        ? Math.round((os.totalmem() - os.freemem()) / (1024 * 1024))
-        : 2048 + Math.random() * 2048,
+      currentMemoryUsedMb:
+        os.totalmem?.() && os.freemem?.()
+          ? Math.round((os.totalmem() - os.freemem()) / (1024 * 1024))
+          : 2048 + Math.random() * 2048,
       currentSwapUsedMb: Math.random() * 512,
       networkBytesReceived: Math.random() * 1000000000,
       networkBytesSent: Math.random() * 500000000,

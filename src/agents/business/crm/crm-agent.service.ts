@@ -747,8 +747,12 @@ export class CRMAgentService extends BaseAgentService {
     try {
       const dealSummary = {
         totalDeals: allDeals.length,
-        stages: allDeals.reduce((acc: Record<string, number>, d) => { acc[d.stage] = (acc[d.stage] || 0) + 1; return acc; }, {}),
-        period, source,
+        stages: allDeals.reduce((acc: Record<string, number>, d) => {
+          acc[d.stage] = (acc[d.stage] || 0) + 1;
+          return acc;
+        }, {}),
+        period,
+        source,
       };
       const systemPrompt = `You are a CRM conversion analysis expert. Analyze conversion rates and provide insights. Return JSON: { "overallConversionRate": 0-100, "stageConversions": [{ "from": "string", "to": "string", "rate": 0-100, "dealCount": number }], "insights": ["string"] }. Be specific and actionable.`;
       const userPrompt = `Deal data: ${JSON.stringify(dealSummary)}\\nPeriod: ${period}\\nSource: ${source || 'all'}\\nAnalyze conversion rates.`;
@@ -760,16 +764,21 @@ export class CRMAgentService extends BaseAgentService {
 
       const parsed = this.parseLLMResponse(response);
       if (parsed?.stageConversions && Array.isArray(parsed.stageConversions)) {
-        this.logger.log(`LLM conversion analysis: ${analysisId}, rate=${parsed.overallConversionRate}%`);
+        this.logger.log(
+          `LLM conversion analysis: ${analysisId}, rate=${parsed.overallConversionRate}%`,
+        );
         return {
           analysisId,
-          overallConversionRate: typeof parsed.overallConversionRate === 'number' ? parsed.overallConversionRate : 0,
+          overallConversionRate:
+            typeof parsed.overallConversionRate === 'number' ? parsed.overallConversionRate : 0,
           stageConversions: parsed.stageConversions,
           insights: parsed.insights || ['Review conversion data for optimization opportunities'],
         };
       }
     } catch (error) {
-      this.logger.warn(`LLM conversion analysis failed, using heuristic: ${(error as Error).message}`);
+      this.logger.warn(
+        `LLM conversion analysis failed, using heuristic: ${(error as Error).message}`,
+      );
     }
 
     // Heuristic fallback

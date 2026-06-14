@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import * as http from 'http';
+import * as https from 'https';
 import {
   ILLMProvider,
   LLMMessage,
@@ -16,6 +18,7 @@ import {
  * - Supports GPT-4o and other OpenAI models
  * - JSON mode via `response_format: { type: 'json_object' }`
  * - Retry logic with exponential backoff (3 retries)
+ * - HTTP connection pooling for improved performance
  * - Graceful error handling — never throws on LLM unavailability
  */
 @Injectable()
@@ -28,6 +31,10 @@ export class OpenAIProvider implements ILLMProvider {
   private readonly maxRetries = 3;
   private readonly baseRetryDelay = 1000; // 1 second
 
+  // HTTP Agent with connection pooling
+  private readonly httpAgent: http.Agent;
+  private readonly httpsAgent: https.Agent;
+
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('llm.openai.apiKey', '');
     this.defaultModel = this.configService.get<string>(
@@ -39,9 +46,32 @@ export class OpenAIProvider implements ILLMProvider {
       4096,
     );
 
+    // ─── HTTP Connection Pooling ────────────────────────────────
+    // Reuse TCP connections to OpenAI API, reducing latency and
+    // avoiding the overhead of TLS handshake per request.
+    const poolMax = this.configService.get<number>('performance.httpPoolMax', 50);
+    this.httpAgent = new http.Agent({
+      keepAlive: true,
+      maxSockets: Math.min(poolMax, 20), // Cap at 20 for OpenAI
+      maxFreeSockets: 5,
+      timeout: 60000,
+    });
+    this.httpsAgent = new https.Agent({
+      keepAlive: true,
+      maxSockets: Math.min(poolMax, 20),
+      maxFreeSockets: 5,
+      timeout: 60000,
+    });
+
     if (apiKey) {
-      this.client = new OpenAI({ apiKey });
-      this.logger.log(`OpenAI provider initialized with model: ${this.defaultModel}`);
+      this.client = new OpenAI({
+        apiKey,
+        timeout: 120000, // 2 minute timeout per request
+        ...({ httpAgent: this.httpsAgent } as any),
+      });
+      this.logger.log(
+        `OpenAI provider initialized with model: ${this.defaultModel}, connection pooling enabled (maxSockets: ${Math.min(poolMax, 20)})`,
+      );
     } else {
       this.client = null;
       this.logger.warn('OpenAI API key not configured — provider unavailable');

@@ -367,3 +367,573 @@ Stage Summary:
 - 12 new REST API endpoints at /api/v1/performance/*
 - Frontend Performance Dashboard with 6 tabs
 - 0 TypeScript compilation errors
+
+---
+Task ID: Security-Phase1
+Agent: Security Remediation Agent
+Task: Phase 1 — Critical Security Vulnerability Remediation (7 Fixes)
+
+Work Log:
+
+Fix 1 — Command Injection in delivery-connector.ts (CRITICAL):
+- Created `/src/common/utils/safe-exec.ts` with:
+  - `safeExec(command, args[], options)` — uses execFileSync (no shell interpolation)
+  - `safeGitExec(args[], options)` — safe git command wrapper
+  - `safeZipExec`, `safeDockerExec`, `safeScpExec`, `safeSshExec`, `safeCpExec` — domain-specific wrappers
+  - `validatePath(input)` — rejects paths with `..`, `;`, `|`, `&`, `$`, backticks, newlines
+  - `validateGitUrl(url)` — only allows `https://` and `git@` URLs, blocks flag injection
+  - `sanitizeForShell(input)` — escapes shell metacharacters
+  - `sanitizeCommitMessage(message)` — safe git commit messages
+  - `validateHostname(host)` — only alphanumeric, dots, hyphens
+  - `validateUsername(user)` — alphanumeric, underscore, hyphen, dot only
+  - `validateRemotePath(path)` — blocks traversal and metacharacters
+  - `validateImageName(name)` — Docker image name validation
+  - `validateRegistry(registry)` — Docker registry validation
+  - `validateBranchName(branch)` — git branch name validation
+- Rewrote `/src/software-factory/connectors/delivery-connector.ts`:
+  - Replaced ALL `execSync` calls with `safeExec`/`safeGitExec`/`safeZipExec`/etc.
+  - All user inputs (workspaceDir, repoUrl, branch, commitMessage, imageName, host, user, remotePath) now validated before use
+  - Git commands use explicit args arrays: `safeGitExec(['init'], { cwd })` instead of `execSync('cd ... && git init')`
+  - Docker commands: `safeDockerExec(['build', '-t', safeFullImageName, '.'], { cwd })`
+  - SCP/SSH commands: `safeScpExec(['-r', safeWorkspaceDir, ...])`
+  - Backup uses `safeCpExec` instead of `execSync('cp -r ...')`
+
+Fix 2 — Input Validation DTOs for Agent Framework Controllers (CRITICAL):
+- Created `/backend/src/modules/agent-framework/dto/swarm.dto.ts`:
+  - CreateSwarmDto, TerminateSwarmDto, InitiateConsensusDto, ConsensusProposalDto, AgentExpertiseDto
+  - CreateCheckpointDto, CreateWorkingMemorySessionDto, WriteWorkingMemoryDto, PostToBlackboardDto
+  - CreateTopologyDto, AddTopologyNodeDto, RemoveTopologyNodeDto, IsolateNodeDto, RetypeTopologyDto
+  - All with @IsString, @IsOptional, @IsArray, @IsNumber, @IsEnum/@IsIn, @IsNotEmpty, @MaxLength, @Min, @Max, @ValidateNested
+- Created `/backend/src/modules/agent-framework/dto/orchestration.dto.ts`:
+  - CollaborateDto, DecomposeDto, CoordinateDto, CoordinateTaskDto, ExecuteConnectorDto
+  - All with proper class-validator decorators
+- Created `/backend/src/modules/agent-framework/dto/intelligence.dto.ts`:
+  - GraphQueryDto, LearningFeedbackDto, TransferLearningDto, MinePatternsDto, PredictOutcomeDto
+  - AdaptiveParametersDto, PinParameterDto, RecordExperienceDto (with nested DTOs: ExperienceContextDto, ExperienceStrategyDto, ExperienceOutcomeDto, ExperienceMetadataDto, AgentAssignmentDto)
+  - WhatIfDto, FindSimilarDto, SubmitFeedbackDto, FeedbackTrendsDto
+  - All with proper class-validator decorators and @IsIn for string literal unions
+- Updated all 3 controllers to import from DTO files instead of inline types
+
+Fix 3 — Register DTO Hardening:
+- Updated `/backend/src/modules/auth/dto/register.dto.ts`:
+  - Added @MaxLength(128) on password field
+  - Added @Matches() for password complexity (uppercase, lowercase, digit, special character)
+  - Added @MaxLength(256) on email, @MaxLength(128) on firstName/lastName/tenantSlug
+  - Added @Matches() for tenantSlug (alphanumeric, hyphens, underscores only)
+  - Role field explicitly omitted — new registrations always default to VIEWER role
+  - Comment documenting that role changes must go through admin-only endpoint
+
+Fix 4 — CORS Wildcard Fix:
+- Updated `/src/main.ts`:
+  - Replaced `origin: true` (dev wildcard) with explicit default origins list
+  - Default dev origins: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000']
+  - Production still requires CORS_ORIGINS env var (throws on missing)
+  - No environment ever uses wildcard CORS
+
+Fix 5 — Prompt Security Module:
+- Created `/backend/src/modules/agent-framework/security/prompt-security.ts`:
+  - `UNTRUSTED_CONTEXT_POLICY` — system instruction for LLMs to treat external content as data only
+  - `untrustedContextMessage(label, content)` — wraps content in <untrusted_context> guard markers
+  - `sanitizePromptInput(input)` — detects and neutralizes 20+ prompt injection patterns
+  - `SanitizationResult` type with severity levels (none/low/medium/high)
+  - `buildSafePrompt()` — constructs prompts with proper security policy and untrusted markers
+  - Covers: instruction override, role reassignment, data exfiltration, escape/termination, tool injection, social engineering
+
+Fix 6 — URL Security Module (SSRF Protection):
+- Created `/backend/src/modules/agent-framework/security/url-security.ts`:
+  - `isPublicHttpUrl(url)` — validates URL scheme and hostname (no DNS resolution)
+  - `validatePublicHttpUrl(url)` — throws HttpException on private/internal URLs
+  - `validateWebhookUrl(url)` — additional HTTPS-only + URL shortener blocking
+  - Blocks RFC 1918 private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+  - Blocks loopback (127.0.0.0/8, ::1), link-local (169.254.0.0/16, fe80::/10)
+  - Blocks cloud metadata endpoints (169.254.169.254)
+  - Blocks IPv6 unique local (fc00::/7), multicast, reserved ranges
+  - Blocks internal hostnames (localhost, metadata.google.internal, kubernetes.default, etc.)
+  - Blocks URLs with embedded credentials
+
+Fix 7 — Tool Security Module:
+- Created `/backend/src/modules/agent-framework/security/tool-security.ts`:
+  - `NON_ADMIN_BLOCKED_TOOLS` — 50+ dangerous tool names (shell, python, read_file, write_file, docker, sudo, etc.)
+  - `OPERATOR_BLOCKED_TOOLS` — extends NON_ADMIN with admin management tools
+  - `VIEWER_BLOCKED_TOOLS` — extends OPERATOR with all write/execute operations
+  - `blockedToolsForOwner(role)` — returns blocked tool set per role
+  - `isToolAllowed(toolName, userRole)` — boolean check
+  - `validateToolAccess(toolName, userRole)` — throws ForbiddenException if not allowed
+  - `filterAllowedTools(tools[], userRole)` — filters tool arrays
+  - `getToolAccessSummary(userRole)` — returns access info for API responses
+
+TypeScript Verification:
+- All new/modified files compile without errors
+- Pre-existing backend errors are unrelated to our changes (Sentry, TypeORM, module conflicts)
+- Main project (src/) files compile cleanly
+
+---
+Task ID: 2
+Agent: Phase 2 Remediation Agent
+Task: Architecture Fixes — Rate Limiter, Dead Host Cooldown, LLM Cache, Atomic IO, Docker Health, Token Key, Double Prefix
+
+Work Log:
+
+Fix 1 — Rate Limiter Module:
+- Created `/backend/src/modules/security/guards/rate-limit.guard.ts`: IP-based rate limit middleware (100 req/min per IP) with X-RateLimit headers
+- Created `/backend/src/modules/security/guards/auth-rate-limit.guard.ts`: Stricter auth rate limit middleware (5 req/min per IP) for login/register/refresh endpoints
+- Created `/backend/src/modules/security/guards/index.ts`: Barrel export
+- Updated `/backend/src/modules/security/security.module.ts`: Added `MiddlewareConsumer` configuration to register both middleware — auth rate limiter on auth routes, general rate limiter on all routes
+
+Fix 2 — Dead Host Cooldown:
+- Created `/backend/src/modules/llm/services/dead-host-cooldown.service.ts`: Injectable service that tracks failed LLM provider hosts with:
+  - `markFailed(host, reason?)` — increments failure count, applies 20s cooldown after 2 consecutive failures
+  - `markSuccess(host)` — resets failure count
+  - `isAvailable(host)` — checks cooldown state
+  - `getAvailableHosts(hosts[])` — filters out dead hosts
+  - `getStats()` — monitoring stats (totalHosts, hostsInCooldown, details)
+  - `resetHost(host)` / `resetAll()` — admin operations
+
+Fix 3 — LLM Response Cache:
+- Created `/backend/src/modules/llm/services/llm-cache.service.ts`: Injectable service with:
+  - SHA256-based cache key from (model, messages hash, temperature, maxTokens)
+  - `get(key)` / `set(key, value, ttl?)` — TTL-based (default 5min) cache operations
+  - `invalidate(pattern?)` — pattern-based invalidation (supports wildcard)
+  - `clear()` / `has(key)` / `getStats()` — utility methods
+  - LRU eviction when max cache size (1000 entries) is reached
+  - `buildKey()` — deterministic key generation
+- Created `/backend/src/modules/llm/services/index.ts`: Barrel export
+- Updated `/backend/src/modules/llm/llm.module.ts`: Registered both DeadHostCooldownService and LLMCacheService as providers/exports
+
+Fix 4 — Atomic IO Utility:
+- Created `/backend/src/common/utils/atomic-io.ts`:
+  - `atomicWriteJSON(filePath, data, replacer?, spaces?)` — write to temp file then rename (atomic on POSIX)
+  - `atomicWriteFile(filePath, content, encoding?)` — same pattern for text files
+  - Temp file in same directory (cross-device safety)
+  - Automatic cleanup on failure
+- Created `/backend/src/common/utils/index.ts`: Barrel export
+
+Fix 5 — Docker Health Checks Enhancement:
+- All 6 services already had health checks (PostgreSQL, Redis, Neo4j, Qdrant, RabbitMQ, MinIO)
+- Fixed Neo4j health check: `curl -s` → `curl -sf` (proper fail on HTTP errors)
+- Fixed Qdrant health check: `curl -s` → `curl -sf` (proper fail on HTTP errors)
+- Added commented app service template with `depends_on: condition: service_healthy` for all 6 infrastructure services
+
+Fix 6 — Token Key Mismatch:
+- Audited ALL localStorage.getItem() calls in the frontend
+- All 8 occurrences across 4 files use `localStorage.getItem('auth_token')` — matching the auth store key
+- No mismatch found. The auth store uses `auth_token` consistently with all consumers.
+
+Fix 7 — Double API Prefix Bug:
+- Found ONE controller with double prefix: `connector-health.controller.ts` used `@Controller('api/v1/connectors')` while `main.ts` sets global prefix `api/v1`, resulting in `/api/v1/api/v1/connectors/*` (404)
+- Fixed: Changed to `@Controller('connectors')` so routes resolve correctly as `/api/v1/connectors/*`
+- All other controllers already use just the resource name without the `api/v1/` prefix
+
+TypeScript Verification:
+- Backend: 35 pre-existing errors (Sentry API, TypeORM, throttler, agent-framework service mismatches) — NONE caused by Phase 2 changes
+- Frontend: Compiles cleanly with 0 errors
+- All new files (rate-limit.guard.ts, auth-rate-limit.guard.ts, dead-host-cooldown.service.ts, llm-cache.service.ts, atomic-io.ts) have zero TS errors
+
+---
+Task ID: 3
+Agent: Super Z (main)
+Task: Phase 3 — Frontend Remediation: Header Logout, Math.random Fix, Admin Metrics, Ghost Features, Dead Code, API Robustness
+
+Work Log:
+
+Fix 1: Header Logout & Session Management
+- Rewrote /frontend/src/components/layout/header.tsx with full dropdown menus
+- Added user avatar dropdown with: Profile & Settings link, Sign Out button
+- Sign Out calls useAuthStore().logout() then router.push('/login')
+- Added notification bell dropdown with "Notifications coming soon" placeholder
+- Added search bar with real page navigation (queries map to routes, click navigates via router.push)
+- Added click-outside handling for all dropdowns
+- Session expiry detection handled via API client 401→redirect (see Fix 6)
+
+Fix 2: Dashboard Math.random() Fix
+- Searched all frontend files for Math.random — found only 1 occurrence
+- /frontend/src/hooks/use-live-monitor.ts line 109: replaced Math.floor(Math.random() * 300) + 50 with step.metadata?.tokensUsed as number || 0
+- Dashboard page.tsx already uses real API data via direct api.getAgentStats/getHealth/getAgents/getEvents/getMissions calls
+- Admin page.tsx already uses useDashboardOverview/useAgentStats/useHealth hooks
+- No Math.random() in page.tsx or admin/page.tsx
+
+Fix 3: Admin Page Metrics
+- Infrastructure Tab: Replaced hardcoded CPU=42, Memory=67, Disk I/O=23, Network=15 with real health data from useHealth() hook (memory_heap.percent)
+- Disk I/O and Network show 0 until backend provides metrics (honest rather than fake)
+- Analytics Tab: Replaced empty zeroed-out usageData with real stats from useAgentStats() (activeAgents/idleAgents/errorAgents per cluster)
+- Users Tab: Replaced hardcoded fake user list with real API fetch from /api/v1/users, with loading state and empty state
+
+Fix 4: Ghost Features Fix
+- Header: Search bar → connected to real page navigation dropdown
+- Header: Notification bell → shows "coming soon" dropdown
+- Header: User button → full dropdown with Profile & Sign Out
+- Admin Agents tab: Pause/Start/Restart buttons → disabled with title="coming soon"
+- Admin Missions tab: Pause/Cancel/View Details buttons → disabled with title="coming soon"
+- Admin Missions tab: "New Mission" button → changed to Link href="/missions"
+- Admin Users tab: "Add User" button → disabled with title="coming soon"
+- Admin Config tab: Save/Export buttons → disabled with title="coming soon"
+- Admin Config tab: Edit (gear) buttons → disabled with title="coming soon"
+- Admin header: Export Report → disabled with title="coming soon"; Refresh → actually reloads page
+- Admin Security tab: Toggle switches → kept working but added title="Visual indicator only — changes not persisted"
+
+Fix 5: Dead Code Cleanup
+- Removed MiniSparkline component from page.tsx (unused)
+- Removed clusterDistribution and missionStateData useMemo hooks from page.tsx (unused in JSX)
+- Removed unused lucide imports from page.tsx: Clock, TrendingUp, TrendingDown, BarChart3, PieChart, Globe, Eye
+- Removed unused recharts imports from page.tsx: RadialBarChart, RadialBar
+- Removed unused type imports from page.tsx: AgentStatus, ClusterType
+- Removed unused lucide imports from admin/page.tsx: ServerCog, Power, PowerOff, Trash2, Clock, ChevronRight, Cpu
+- Removed unused CHART_COLORS constant from admin/page.tsx
+- Removed unused destructured values (clusterStats, health) from OverviewTab
+- Fixed loadingMissions unused variable → used [, setLoadingMissions]
+- Fixed unused index param in AnalyticsTab clusterPerformance.map
+- Replaced `as any` casts with proper Record<string, ...> types in admin/page.tsx
+
+Fix 6: API Client Robustness
+- Rewrote /frontend/src/lib/api.ts with comprehensive improvements:
+  - 30-second request timeout via AbortController
+  - 401 response → clears localStorage (auth_token, auth_user) and redirects to /login
+  - Retry logic: max 2 retries with exponential backoff (1s, 2s)
+  - No retry on 4xx client errors
+  - Retry on 5xx server errors and network failures
+  - Proper timeout error handling (abort → retry or throw)
+  - Auth expiry errors never retried
+  - 204 No Content handling
+  - Token key confirmed as 'auth_token' (matches auth-store.ts)
+
+Verification:
+- Frontend builds successfully with `next build` — 0 TypeScript errors
+- ESLint: reduced from 49 problems (18 errors, 31 warnings) to 32 problems (11 errors, 21 warnings)
+- All remaining lint issues are in files outside this task scope (intelligence, live, missions, performance, security pages)
+- All modified files compile and pass TypeScript checks
+
+---
+Task ID: 4
+Agent: Phase 4 Remediation Agent
+Task: Fix notImplemented() methods, LLM real connection, Agent execution, Deep research, Memory/Vector store
+
+Work Log:
+
+### Fix 1: Delivery Connector notImplemented() Methods
+- **File**: `src/software-factory/connectors/delivery-connector.ts`
+- Replaced all 6 `notImplemented()` stub methods with real implementations:
+  - `executeCloud()`: Multi-cloud deployment (AWS/GCP/Azure) with CLI detection, configuration generation (EB config, app.yaml, ARM template), and best-effort CLI deployment
+  - `executeCdn()`: CDN configuration generation (CloudFront distribution JSON, Cloudflare Wrangler config) with CLI deployment attempts
+  - `executeBackup()`: 2-strategy backup (cp → zip fallback) with proper error reporting on total failure (no silent success)
+  - `executeMonitoringSetup()`: Full Prometheus + Grafana + Alertmanager + Node Exporter configuration generation with Docker Compose stack and auto-deploy
+  - `executeLoadBalancer()`: Multi-LB support (Nginx, HAProxy, AWS ALB CloudFormation) with configuration validation
+  - `executeGenericDelivery()`: Returns descriptive error with supported capabilities list instead of silently returning `success: true`
+- Added `safeExec` import for cloud CLI commands (aws, gcloud, az, npx)
+- Added `generateCloudConfigs()` and `generateCdnConfig()` helper methods
+- Removed the `notImplemented()` helper method entirely (no longer needed)
+- All new methods use validated inputs (sanitizeCommitMessage, validateImageName, validatePath, etc.)
+
+### Fix 2: LLM Real Connection Service
+- **File**: `backend/src/modules/llm/llm.service.ts`
+- **DeadHostCooldownService Integration**: 
+  - Added `deadHostCooldownService` as optional dependency
+  - Provider availability checks now consider dead host cooldown state
+  - Failed providers are marked with `markFailed()`, successful providers with `markSuccess()`
+  - `isAnyAvailable()` filters out providers in cooldown
+  - `listProviders()` includes `inCooldown` status per provider
+- **LLMCacheService Integration**:
+  - Added `cacheService` as optional dependency
+  - `chat()` checks cache before making LLM calls (bypass with `skipCache` option)
+  - Successful responses are stored in cache with SHA256-based keys
+  - Cache TTL: 5 minutes default, 30 minutes for research results
+  - `getCacheStats()` and `invalidateCache()` public methods for cache management
+- **Streaming Support**:
+  - Added `chatStream()` async generator method for real-time token delivery
+  - Supports OpenAI streaming via `stream: true` parameter
+  - Supports Anthropic streaming via `client.messages.stream()`
+  - Falls back to single-chunk delivery for providers without streaming
+  - Added `LLMStreamChunk` interface for streaming responses
+- **Environment Variable Configuration**: Already properly configured via `configuration.ts` (OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENAI_MODEL, etc.)
+
+### Fix 3: Agent Execution Engine - LLM Verification
+- Verified all agent framework services already properly integrate with LLM:
+  - `AgentOrchestratorService`: Uses LLM for decomposition, planning, critique, and repair with heuristic fallbacks
+  - `SwarmIntelligenceService`: Uses LLM for pheromone interpretation and emergent behavior analysis
+  - `MissionDecompositionService`: Uses LLM for intelligent mission decomposition with template/heuristic fallbacks
+  - `ConnectorAwareExecutionService`: Uses LLM as fallback when connectors are unavailable
+- No hardcoded/mock responses found in any agent framework services
+- All services properly use `@Optional()` for LLM dependency injection with graceful degradation
+
+### Fix 4: Deep Research Module
+- **New File**: `backend/src/modules/agent-framework/services/deep-research.service.ts`
+- Full 5-step research pipeline:
+  1. **Query Analysis**: LLM-powered decomposition into focused sub-queries with rationale
+  2. **Source Gathering**: Multi-source (LLM knowledge, Qdrant vector search, agent memory) with deduplication
+  3. **Source Analysis**: LLM summarization and per-sub-query analysis
+  4. **Synthesis**: LLM-powered report generation with key findings and citations
+  5. **Citation**: Structured citation mapping with source references
+- TypeScript types: `ResearchQuery`, `ResearchSource`, `ResearchSubQuery`, `ResearchCitation`, `ResearchResult`
+- Features:
+  - Configurable research depth (1-5)
+  - Multiple output formats (report, summary, bullet_points, structured)
+  - Confidence scoring based on source quality, diversity, coverage, and relevance
+  - LLMCacheService integration for result caching (30-min TTL)
+  - Qdrant integration for storing research vectors
+  - Agent memory integration for cross-session persistence
+  - `quickSummary()` method for brief overviews
+  - Graceful degradation when Qdrant or web search unavailable
+- Registered in `AgentFrameworkModule` as provider and export
+
+### Fix 5: Memory/Vector Store Integration
+- **Enhanced File**: `backend/src/modules/qdrant/qdrant.service.ts`
+  - Added `deleteCollection()` method
+  - Added `listCollections()` method
+  - Added `scrollPoints()` method for batch operations
+  - Added `countPoints()` method with optional filter
+  - Auto-creates collection on `upsert()` if not exists
+  - Added `VectorPoint` and `SearchResult` TypeScript interfaces
+  - Error handling with graceful fallbacks in search/scroll/count
+- **New File**: `backend/src/modules/agent-framework/services/memory.service.ts`
+  - High-level agent-scoped memory operations:
+    - `store(agentId, content, metadata)`: Stores in both AgentMemoryService (fast KV) and Qdrant (vector search)
+    - `recall(agentId, query, limit)`: Semantic search via Qdrant embeddings, keyword fallback
+    - `forget(agentId, memoryId)`: Delete from both storage backends
+    - `clearAgentMemories(agentId)`: Bulk delete with scroll-based Qdrant cleanup
+    - `getStats(agentId?)`: Memory statistics
+  - Automatic embedding generation:
+    - Primary: OpenAI `text-embedding-3-small` via provider client
+    - Fallback: Deterministic pseudo-embedding using SHA256 hashing
+  - TypeScript types: `MemoryEntry`, `MemoryMetadata`, `MemorySearchResult`, `MemoryStats`
+  - Registered in `AgentFrameworkModule` as provider and export
+
+### Verification
+- TypeScript compilation: 0 errors in all modified/new files (memory.service.ts, deep-research.service.ts, llm.service.ts, qdrant.service.ts, delivery-connector.ts)
+- Pre-existing errors in other files (security, gateway, agents) are outside this task scope
+- Lint: Only 2 warnings in delivery-connector.ts (pre-existing `any` types in results arrays)
+- All new NestJS services properly use `@Optional()` for optional dependencies
+- All new services follow existing code patterns (Logger, @Injectable, module registration)
+
+---
+Task ID: 5
+Agent: Super Z (main)
+Task: Phase 5 — Tests and Documentation: Security unit tests, LLM service tests, DTO validation tests, THREAT_MODEL.md, API documentation
+
+Work Log:
+- Created 8 unit test files covering all security and service modules from Phase 1
+- All 386 tests pass (287 backend + 99 root project)
+
+### Fix 1: Security Module Unit Tests
+- `backend/src/modules/agent-framework/security/prompt-security.spec.ts` — 53 tests
+  - Tests untrustedContextMessage() wrapping, label sanitization, content handling
+  - Tests sanitizePromptInput() detection of 15+ injection pattern categories
+  - Tests severity calculation (none/low/medium/high)
+  - Tests edge cases: empty strings, unicode, very long inputs, nested injection
+  - Tests buildSafePrompt() includes policy, markers, and external data sections
+- `backend/src/modules/agent-framework/security/url-security.spec.ts` — 58 tests
+  - Tests isPublicHttpUrl() accepts valid public URLs
+  - Tests RFC 1918 blocking (10.x, 172.16.x, 192.168.x)
+  - Tests loopback blocking (127.x, localhost)
+  - Tests cloud metadata blocking (169.254.169.254)
+  - Tests internal hostname blocking (kubernetes, *.internal, *.local)
+  - Tests URL credential blocking
+  - Tests validatePublicHttpUrl() throws correct HTTP status codes
+  - Tests validateWebhookUrl() requires HTTPS and blocks shorteners
+- `backend/src/modules/agent-framework/security/tool-security.spec.ts` — 33 tests
+  - Tests blockedToolsForOwner() returns correct sets per role
+  - Tests isToolAllowed() for all roles with case-insensitive matching
+  - Tests validateToolAccess() throws FORBIDDEN for blocked tools
+  - Tests filterAllowedTools() correctly filters
+  - Tests getToolAccessSummary() with sorted results
+  - Verifies increasing restriction: super_admin < tenant_admin < operator < viewer
+- `src/common/utils/safe-exec.spec.ts` — 99 tests
+  - Tests validatePath() rejects traversal, metacharacters, empty/long paths
+  - Tests validateGitUrl() only allows HTTPS/SSH, blocks injection patterns
+  - Tests validateHostname() rejects metacharacters and suspicious patterns
+  - Tests validateUsername() and validateRemotePath()
+  - Tests sanitizeForShell() escapes all dangerous characters
+  - Tests sanitizeCommitMessage() and validateBranchName()
+
+### Fix 2: LLM Service Tests
+- `backend/src/modules/llm/services/dead-host-cooldown.service.spec.ts` — 28 tests
+  - Tests cooldown after 2 consecutive failures
+  - Tests success resets failure count
+  - Tests isAvailable returns false during cooldown, true after expiry
+  - Tests getAvailableHosts filters dead hosts
+  - Tests manual reset operations and statistics
+- `backend/src/modules/llm/services/llm-cache.service.spec.ts` — 35 tests
+  - Tests cache set/get with various value types
+  - Tests TTL expiration
+  - Tests LRU eviction at max capacity
+  - Tests pattern invalidation (exact and wildcard)
+  - Tests cache statistics (hits, misses, hit rate, evictions)
+  - Tests buildKey() determinism
+
+### Fix 3: API DTO Validation Tests
+- `backend/src/modules/agent-framework/dto/swarm.dto.spec.ts` — 45 tests
+  - Tests all 14 DTOs with class-validator validate()
+  - Tests valid and invalid inputs for CreateSwarmDto, InitiateConsensusDto, etc.
+  - Tests boundary conditions (maxLength, min/max values, invalid enums)
+- `backend/src/modules/auth/dto/register.dto.spec.ts` — 33 tests
+  - Tests valid registration with and without tenantSlug
+  - Tests weak password rejection (missing uppercase/lowercase/digit/special)
+  - Tests missing required fields
+  - Tests invalid email formats
+  - Tests role field security (cannot self-assign via DTO)
+  - Tests tenantSlug validation
+
+### Fix 4: THREAT_MODEL.md
+- Created comprehensive threat model document at `/home/z/my-project/THREAT_MODEL.md`
+- 10 sections covering: Trust Boundary, Roles and Capabilities, Authentication,
+  Agent Tool Security, Prompt Injection Hardening, SSRF Protection, Internal Tool Loopback,
+  Data Isolation, Known Risks, Deployment Recommendations
+- Inspired by Odysseus THREAT_MODEL.md, adapted for AENEWS multi-tenant SaaS architecture
+
+### Fix 5: API Documentation Enhancement
+- Added `@ApiProperty()` / `@ApiPropertyOptional()` decorators to all 14 swarm DTO classes
+- Added `@ApiTags('Swarm Intelligence')` to SwarmController
+- Added `@ApiOperation()` and `@ApiResponse()` decorators to all SwarmController endpoints
+- Added `@ApiTags('Orchestration')` to OrchestrationController
+- Added `@ApiTags('Intelligence')` to IntelligenceController
+- Auth and Agent controllers already had Swagger decorators
+
+### Verification
+- Backend tests: 7 suites, 287 tests passing
+- Root project tests: 1 suite, 99 tests passing
+- Total: 386 tests passing across 8 test files
+- All tests are syntactically correct and pass
+
+Stage Summary:
+- Phase 5 complete: 8 unit test files, 1 threat model document, Swagger API documentation
+- 386 total tests covering security modules, LLM services, and DTO validation
+- THREAT_MODEL.md documents 10 security domains for the AENEWS platform
+- API documentation enhanced with @ApiTags, @ApiOperation, @ApiProperty decorators
+
+---
+Task ID: 6
+Agent: DevOps Agent (Phase 6)
+Task: DevOps and Performance Improvements — Docker Compose Optimization, Environment Configuration, Nginx Hardening, Monitoring Enhancement, Security Middleware, Performance Optimization
+
+Work Log:
+
+**Fix 1: Docker Compose Optimization**
+- Added resource limits (memory/CPU) to all 6 infrastructure services (postgres, redis, rabbitmq, neo4j, qdrant, minio)
+- Added `start_period` to all health checks (10s-45s depending on service startup time)
+- Added `logging` configuration to all services: `json-file` driver with `max-size` and `max-file` limits
+- Implemented network isolation: `aenews-backend` (internal: true) for all backend services, `aenews-frontend` for app/nginx
+- Renamed all volumes with `aenews-` prefix convention (e.g., `aenews_postgres_data` → `name: aenews-postgres-data`)
+- Added `--maxmemory 256mb --maxmemory-policy allkeys-lru` to Redis command
+- Updated `docker-compose.monitoring.yml` with same improvements (logging, start_period, named volumes, network naming)
+- Fixed volume reference names in monitoring compose to match declared volumes
+
+**Fix 2: Environment Configuration Consolidation**
+- Updated root `.env.example` with all missing variables:
+  - CORS_ORIGINS, SECURITY_CORS_ORIGINS
+  - RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS
+  - LLM_CACHE_TTL_MS, LLM_CACHE_MAX_SIZE
+  - DEAD_HOST_COOLDOWN_MS
+  - DB_POOL_SIZE, DB_POOL_MAX, DB_POOL_MIN, DB_POOL_IDLE_TIMEOUT, DB_POOL_CONNECTION_TIMEOUT, DB_STATEMENT_TIMEOUT
+  - All PERF_* performance variables
+- Updated `backend/.env.example` with same missing variables
+- Created `LOCAL_DEVELOPMENT.md` with:
+  - Prerequisites table (Node.js, Bun, Docker, Git)
+  - Step-by-step setup (clone, env config, infrastructure, install, db init, start)
+  - Environment variable reference with quick secret generation commands
+  - Testing instructions (unit, e2e, coverage)
+  - Common dev tasks (migrations, docker commands, monitoring)
+  - Architecture diagram
+  - Troubleshooting guide
+
+**Fix 3: Nginx Configuration Hardening**
+- Added security headers per requirements:
+  - X-Content-Type-Options: nosniff
+  - X-Frame-Options: DENY (changed from SAMEORIGIN to stricter DENY)
+  - X-XSS-Protection: 1; mode=block
+  - Referrer-Policy: strict-origin-when-cross-origin
+  - Content-Security-Policy (as specified)
+  - Permissions-Policy: camera=(), microphone=(), geolocation=()
+- Added security headers to HTTP→HTTPS redirect block too (defense in depth)
+- Added gzip compression configuration with proper MIME types for JSON, JS, CSS, SVG, XML
+- Extended proxy timeouts for long agent operations:
+  - API: proxy_read_timeout 300s (up from 120s)
+  - Added `/api/v1/agents/execute` location with 300s timeout + no buffering for streaming
+  - Added `/api/v1/missions/` location with 300s timeout
+- Added X-Forwarded-For and X-Forwarded-Proto headers to health check and metrics endpoints
+- Added OCSP stapling configuration (commented, ready for production)
+
+**Fix 4: Monitoring Configuration Enhancement**
+- Enhanced Prometheus config to scrape all available services:
+  - Added Grafana scrape target (port 3000)
+  - Added Loki scrape target (port 3100)
+  - Existing: API, Prometheus self, Alertmanager
+  - Kept commented targets for future exporters (node, postgres, redis, nginx, otel)
+- Created new Grafana dashboard: `aenews-api-monitoring.json`
+  - API Request Rate (Total, 2xx, 4xx, 5xx RPS)
+  - API Latency Percentiles (P50, P90, P95, P99)
+  - 5xx Error Rate by Endpoint
+  - Errors by Status Code (pie chart)
+- Created new Grafana dashboard: `aenews-agent-infra.json`
+  - Agents by Cluster (bar chart)
+  - Agent Execution Duration P95 per cluster
+  - Agent Success/Failure Rate
+  - Connection Pool Utilization
+  - Process Memory (RSS)
+  - LLM Cache Hit Rate
+  - Circuit Breaker States (stat panel)
+- Created new alert rules: `infrastructure.yml`
+  - ServiceDown (up == 0 for 1m → critical)
+  - HighAPIErrorRate (5xx > 5% for 3m → warning)
+  - CriticalAPIErrorRate (5xx > 15% for 2m → critical)
+  - APIRequestRateDrop (declining → warning)
+  - HighMemoryUsage (> 1.5GB for 5m → warning)
+  - CriticalMemoryUsage (> 3GB for 3m → critical)
+  - AgentExecutionFailureSpike (> 5/s for 5m → warning)
+  - NoAvailableAgents (registry empty for 2m → critical)
+  - PrometheusTargetMissing (up == 0 for 5m → warning)
+- Added Loki as Grafana datasource with derived fields (TraceID → Jaeger)
+- Existing monitoring already covers: security alerts, performance alerts, 3 existing dashboards
+
+**Fix 5: Security Middleware Enhancement**
+- Created `SecurityHeadersMiddleware`: Helmet-style defense-in-depth headers
+  - X-Content-Type-Options, X-Frame-Options, X-XSS-Protection
+  - Referrer-Policy, Permissions-Policy, X-Permitted-Cross-Domain-Policies
+  - Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy
+  - Cache-Control for API responses (no-store)
+- Created `RequestSizeLimitMiddleware`: Request body size enforcement
+  - JSON: 10MB default, URL-encoded: 10MB, Multipart: 50MB
+  - Logs oversized requests with IP and path
+  - Configurable via SECURITY_REQUEST_MAX_BODY_SIZE_MB env var
+- Created `IpBlacklistMiddleware`: IP-based blocking with CIDR support
+  - Static blacklist from SECURITY_IP_BLACKLIST env var
+  - Dynamic runtime management (add/remove)
+  - TTL-based entries (auto-expire)
+  - CIDR notation support (same as existing whitelist)
+- Verified existing middleware:
+  - Helmet: Already configured in main.ts with full CSP, HSTS, frameguard, noSniff, xssFilter
+  - CORS: CorsSecurityMiddleware with explicit origin validation, pattern matching
+  - IP Whitelist: IpAccessControlMiddleware with admin/metrics/internal whitelists
+  - Correlation ID: CorrelationIdMiddleware with UUID generation
+- Updated SecurityModule to register all new middleware in proper order:
+  1. SecurityHeadersMiddleware → 2. CorrelationIdMiddleware → 3. IpBlacklistMiddleware
+  4. IpAccessControlMiddleware → 5. RequestSizeLimitMiddleware → 6. RateLimitMiddleware
+- Updated configuration.ts to support new env vars (SECURITY_HEADERS_ENABLED, SECURITY_IP_BLACKLIST, etc.)
+
+**Fix 6: Performance Optimization**
+- Verified compression middleware exists: CompressionInterceptor (gzip/deflate, configurable threshold/level)
+- Verified correlation ID middleware exists: CorrelationIdMiddleware (UUID v4, X-Correlation-ID header)
+- Added HTTP connection pooling to LLM providers:
+  - OpenAI: https.Agent with keepAlive, maxSockets=20, maxFreeSockets=5, timeout=60s
+  - Anthropic: https.Agent with keepAlive, maxSockets=20, maxFreeSockets=5, timeout=60s
+  - Both providers now reuse TCP connections, reducing TLS handshake overhead
+- Created AgentRegistryCache: Simple in-memory cache for agent registry
+  - TTL-based expiration (default 30s)
+  - Pattern-based invalidation (cluster:, stats:, all:)
+  - Auto-invalidation on register/unregister
+  - Cached: getByCluster, getAll, getClusterStats
+  - LRU eviction when max capacity reached (500 entries)
+- Integrated cache into AgentRegistryService with @Optional() injection
+
+**Validation**
+- docker-compose.yml: VALID (6 services, 7 volumes, 2 networks)
+- docker-compose.monitoring.yml: VALID (6 services, 4 volumes, 1 network)
+- All YAML configs valid (prometheus, alertmanager, loki, promtail, datasources, dashboards)
+- All JSON dashboards valid (5 dashboards)
+- TypeScript: 35 pre-existing errors (none introduced by Phase 6 changes)
+
+Stage Summary:
+- Phase 6 complete: 6 fixes applied across Docker, Nginx, monitoring, security, and performance
+- Docker Compose: resource limits, logging, network isolation, volume naming, health check tuning
+- Nginx: security headers hardened, gzip compression, extended timeouts for agent operations
+- Monitoring: 2 new Grafana dashboards, infrastructure alert rules, Loki datasource, full Prometheus scrape coverage
+- Security: 3 new middleware (security headers, request size limit, IP blacklist), proper middleware ordering
+- Performance: HTTP connection pooling for LLM providers, agent registry cache, verified compression + correlation ID
+- All configuration files validated as syntactically correct

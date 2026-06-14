@@ -597,10 +597,26 @@ export class StrategyAgentService extends BaseAgentService {
 
       const parsed = this.parseLLMResponse(response);
       if (parsed?.strengths && Array.isArray(parsed.strengths)) {
-        const analysis: SWOTAnalysis = { id: analysisId, subject, strengths: parsed.strengths, weaknesses: parsed.weaknesses || [], opportunities: parsed.opportunities || [], threats: parsed.threats || [] };
+        const analysis: SWOTAnalysis = {
+          id: analysisId,
+          subject,
+          strengths: parsed.strengths,
+          weaknesses: parsed.weaknesses || [],
+          opportunities: parsed.opportunities || [],
+          threats: parsed.threats || [],
+        };
         this.swotAnalyses.set(analysisId, analysis);
         this.logger.log(`LLM SWOT analysis: ${analysisId}, subject=${subject}`);
-        return { analysisId, subject, industry, strengths: parsed.strengths, weaknesses: parsed.weaknesses || [], opportunities: parsed.opportunities || [], threats: parsed.threats || [], strategicImplications: parsed.strategicImplications || [] };
+        return {
+          analysisId,
+          subject,
+          industry,
+          strengths: parsed.strengths,
+          weaknesses: parsed.weaknesses || [],
+          opportunities: parsed.opportunities || [],
+          threats: parsed.threats || [],
+          strategicImplications: parsed.strategicImplications || [],
+        };
       }
     } catch (error) {
       this.logger.warn(`LLM SWOT analysis failed, using heuristic: ${(error as Error).message}`);

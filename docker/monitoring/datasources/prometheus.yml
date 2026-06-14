@@ -1,5 +1,6 @@
 # ─── AENEWS Agent OS X — Grafana Datasource Auto-Provisioning ─
-# Automatically configures Prometheus as a datasource in Grafana.
+# Automatically configures Prometheus and Loki as datasources.
+# Phase 6: Added Loki for log aggregation queries.
 # ────────────────────────────────────────────────────────────────
 
 apiVersion: 1
@@ -18,6 +19,20 @@ datasources:
       manageAlerts: true
       prometheusType: Prometheus
       prometheusVersion: '2.51.0'
+
+  - name: Loki
+    type: loki
+    access: proxy
+    uid: loki-aenews
+    url: http://aenews-loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: 'jaeger-aenews'
+          matcherRegex: 'trace_id=(\\w+)'
+          name: 'TraceID'
+          url: '$${__value.raw}'
 
   - name: Jaeger
     type: jaeger

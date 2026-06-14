@@ -14,7 +14,7 @@ import { ConnectorHealthService } from './connector-health.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('Connectors')
-@Controller('api/v1/connectors')
+@Controller('connectors')
 export class ConnectorHealthController {
   constructor(private readonly healthService: ConnectorHealthService) {}
 

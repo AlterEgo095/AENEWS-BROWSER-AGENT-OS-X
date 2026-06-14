@@ -3,56 +3,8 @@
  *
  * Phase 9 — REST API endpoints for the Adaptive Intelligence & Knowledge System.
  *
- * Endpoints:
- *
- *   Knowledge Graph:
- *     GET    /api/v1/intelligence/graph/stats             — Graph statistics
- *     GET    /api/v1/intelligence/graph/agents/:id         — Agent knowledge profile
- *     GET    /api/v1/intelligence/graph/expertise          — Expertise ranking
- *     GET    /api/v1/intelligence/graph/recommendations    — Strategy recommendations
- *     POST   /api/v1/intelligence/graph/query             — Custom Cypher query
- *
- *   Learning Engine:
- *     POST   /api/v1/intelligence/learning/feedback       — Submit learning feedback
- *     GET    /api/v1/intelligence/learning/strategy/:agentId — Best strategy for agent
- *     GET    /api/v1/intelligence/learning/predict/:agentId  — Failure prediction
- *     POST   /api/v1/intelligence/learning/transfer        — Transfer learning
- *     GET    /api/v1/intelligence/learning/insights        — Learning insights
- *     GET    /api/v1/intelligence/learning/profile/:agentId — Agent learning profile
- *     GET    /api/v1/intelligence/learning/stats           — Learning statistics
- *
- *   Pattern Mining:
- *     POST   /api/v1/intelligence/patterns/mine           — Run pattern mining
- *     GET    /api/v1/intelligence/patterns                 — List discovered patterns
- *     POST   /api/v1/intelligence/patterns/predict         — Predict outcome from patterns
- *     GET    /api/v1/intelligence/patterns/correlations    — Correlation analysis
- *     GET    /api/v1/intelligence/patterns/stats           — Mining statistics
- *
- *   Adaptive Strategy:
- *     GET    /api/v1/intelligence/adaptive/config          — Current adaptive config
- *     POST   /api/v1/intelligence/adaptive/parameters      — Get adaptive parameters for context
- *     POST   /api/v1/intelligence/adaptive/adapt           — Run adaptation cycle
- *     POST   /api/v1/intelligence/adaptive/pin/:param      — Pin a parameter
- *     DELETE /api/v1/intelligence/adaptive/pin/:param      — Unpin a parameter
- *     POST   /api/v1/intelligence/adaptive/reset           — Emergency reset
- *     GET    /api/v1/intelligence/adaptive/history         — Adaptation history
- *     GET    /api/v1/intelligence/adaptive/stats           — Adaptation statistics
- *
- *   Experience Replay:
- *     POST   /api/v1/intelligence/experience/record        — Record an experience
- *     POST   /api/v1/intelligence/experience/replay/:id    — Replay an experience
- *     POST   /api/v1/intelligence/experience/what-if       — What-if analysis
- *     GET    /api/v1/intelligence/experience/similar       — Find similar experiences
- *     GET    /api/v1/intelligence/experience/stats         — Experience statistics
- *
- *   Feedback:
- *     POST   /api/v1/intelligence/feedback                 — Submit feedback
- *     POST   /api/v1/intelligence/feedback/bulk            — Submit bulk feedback
- *     GET    /api/v1/intelligence/feedback/mission/:id     — Aggregated feedback for mission
- *     GET    /api/v1/intelligence/feedback/summary         — Feedback summary
- *     GET    /api/v1/intelligence/feedback/trends           — Feedback trends
- *     GET    /api/v1/intelligence/feedback/actions          — Action items
- *     GET    /api/v1/intelligence/feedback/stats            — Feedback statistics
+ * SECURITY: All @Body() params use proper DTOs with class-validator decorators.
+ * NestJS ValidationPipe only validates class instances, not inline types.
  */
 
 import {
@@ -68,7 +20,7 @@ import {
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -81,136 +33,26 @@ import { AgentLearningEngine, LearningType } from '../services/agent-learning-en
 import { PatternMiningService, PatternCategory } from '../services/pattern-mining.service';
 import { AdaptiveStrategyService, AdaptationContext } from '../services/adaptive-strategy.service';
 import { ExperienceReplayService } from '../services/experience-replay.service';
-import { FeedbackAggregationService, FeedbackSource } from '../services/feedback-aggregation.service';
-
-// ─── DTOs ─────────────────────────────────────────────────────────
-
-// Knowledge Graph
-export class GraphQueryDto {
-  query: string;
-  params?: Record<string, any>;
-}
-
-// Learning
-export class LearningFeedbackDto {
-  agentId: string;
-  missionId: string;
-  outcome: 'success' | 'failure' | 'partial';
-  durationMs: number;
-  score?: number;
-  strategyUsed?: string;
-  capabilitiesUsed?: string[];
-  context: Record<string, any>;
-  errorType?: string;
-}
-
-export class TransferLearningDto {
-  sourceAgentId: string;
-  targetAgentId: string;
-}
-
-// Pattern Mining
-export class MinePatternsDto {
-  categories?: PatternCategory[];
-  minFrequency?: number;
-  minConfidence?: number;
-  maxPatterns?: number;
-  cluster?: ClusterType;
-}
-
-export class PredictOutcomeDto {
-  cluster: ClusterType;
-  strategy: string;
-  agents: string[];
-  capabilities: string[];
-  steps: string[];
-}
-
-// Adaptive Strategy
-export class AdaptiveParametersDto {
-  missionId: string;
-  cluster?: ClusterType;
-  priority?: 'low' | 'medium' | 'high' | 'critical';
-  capabilities?: string[];
-  agentCount?: number;
-  historicalOutcome?: 'success' | 'failure' | 'partial';
-}
-
-export class PinParameterDto {
-  reason?: string;
-}
-
-// Experience Replay
-export class RecordExperienceDto {
-  missionId: string;
-  context: {
-    description: string;
-    cluster: ClusterType;
-    priority: string;
-    objectives: string[];
-    requiredCapabilities: string[];
-    constraints: Record<string, any>;
-  };
-  strategy: {
-    name: string;
-    parameters: Record<string, any>;
-    agentAssignments: Array<{ agentId: string; role: string }>;
-  };
-  outcome: {
-    success: boolean;
-    durationMs: number;
-    score?: number;
-    errorType?: string;
-    errorMessage?: string;
-    artifacts: string[];
-  };
-  metadata: {
-    agentCount: number;
-    stepCount: number;
-    retryCount: number;
-    circuitBreakerTrips: number;
-    llmCalls: number;
-    estimatedCostUsd: number;
-  };
-}
-
-export class WhatIfDto {
-  experienceId: string;
-  modifiedStrategy: string;
-  modifications: Record<string, any>;
-}
-
-export class FindSimilarDto {
-  cluster?: ClusterType;
-  capabilities?: string[];
-  priority?: string;
-  outcome?: 'success' | 'failure';
-  limit?: number;
-}
-
-// Feedback
-export class SubmitFeedbackDto {
-  source: FeedbackSource;
-  missionId: string;
-  agentId?: string;
-  cluster?: ClusterType;
-  rating?: number;
-  score?: number;
-  success?: boolean;
-  durationMs?: number;
-  comment?: string;
-  tags?: string[];
-  context: Record<string, any>;
-}
-
-export class FeedbackTrendsDto {
-  metric?: string;
-  period?: string;
-}
+import { FeedbackAggregationService } from '../services/feedback-aggregation.service';
+import {
+  GraphQueryDto,
+  LearningFeedbackDto,
+  TransferLearningDto,
+  MinePatternsDto,
+  PredictOutcomeDto,
+  AdaptiveParametersDto,
+  PinParameterDto,
+  RecordExperienceDto,
+  WhatIfDto,
+  FindSimilarDto,
+  SubmitFeedbackDto,
+  FeedbackTrendsDto,
+} from '../dto/intelligence.dto';
 
 // ─── Controller ───────────────────────────────────────────────────
 
 @Controller('intelligence')
+@ApiTags('Intelligence')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR)
@@ -593,7 +435,7 @@ export class IntelligenceController {
       metadata: dto.metadata,
     };
 
-    await this.experienceReplay.recordExperience(experience);
+    await this.experienceReplay.recordExperience(experience as any);
     return { success: true, data: { experienceId: experience.id } };
   }
 

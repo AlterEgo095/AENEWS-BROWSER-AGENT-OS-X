@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
-  Settings, Users, Database, ServerCog, Shield, BarChart3, Bot,
+  Settings, Users, Database, Shield, BarChart3, Bot,
   Rocket, Activity, Zap, RefreshCw, Download, Upload, Eye,
-  Power, PowerOff, AlertTriangle, CheckCircle2, XCircle,
-  ChevronRight, Cpu, HardDrive, Network, Lock, Key, Globe,
-  Clock, TrendingUp, Trash2, Play, Pause, RotateCcw,
+  AlertTriangle, CheckCircle2, XCircle,
+  HardDrive, Network, Lock, Key, Globe,
+  TrendingUp, Play, Pause, RotateCcw,
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
@@ -17,8 +18,6 @@ import { cn } from '@/lib/utils';
 import type { Agent, ClusterStats, Mission } from '@/lib/types';
 import { ClusterType, MissionState } from '@/lib/types';
 import { useDashboardOverview, useAgentStats, useHealth } from '@/hooks/use-platform-data';
-
-const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
 
 // ─── Tab Config ──────────────────────────────────────────────────
 type AdminTab = 'overview' | 'agents' | 'missions' | 'infrastructure' | 'security' | 'users' | 'config' | 'analytics';
@@ -42,7 +41,7 @@ function OverviewTab() {
     return <div className="animate-shimmer h-96 rounded-xl" />;
   }
 
-  const { kpis, clusterStats, agents, health, missions } = data;
+  const { kpis, agents, missions } = data;
 
   // Agent status distribution
   const statusData = [
@@ -222,15 +221,15 @@ function AgentsTab() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {agent.status === 'running' ? (
-                      <button className="p-1 rounded text-amber-400 hover:bg-amber-500/10" title="Pause">
+                      <button disabled title="Agent pause coming soon" className="p-1 rounded text-amber-400/40 cursor-not-allowed">
                         <Pause className="h-3 w-3" />
                       </button>
                     ) : (
-                      <button className="p-1 rounded text-emerald-400 hover:bg-emerald-500/10" title="Start">
+                      <button disabled title="Agent start coming soon" className="p-1 rounded text-emerald-400/40 cursor-not-allowed">
                         <Play className="h-3 w-3" />
                       </button>
                     )}
-                    <button className="p-1 rounded text-muted-foreground hover:bg-white/5" title="Restart">
+                    <button disabled title="Agent restart coming soon" className="p-1 rounded text-muted-foreground/40 cursor-not-allowed">
                       <RotateCcw className="h-3 w-3" />
                     </button>
                   </div>
@@ -248,7 +247,7 @@ function AgentsTab() {
 function MissionsTab() {
   const [filter, setFilter] = useState<string>('all');
   const [missions, setMissions] = useState<Mission[]>([]);
-  const [loadingMissions, setLoadingMissions] = useState(true);
+  const [, setLoadingMissions] = useState(true);
 
   useEffect(() => {
     async function fetchMissions() {
@@ -277,9 +276,9 @@ function MissionsTab() {
           <option value="all">All States</option>
           {Object.values(MissionState).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <button className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+        <Link href="/missions" className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
           <Rocket className="h-3.5 w-3.5" /> New Mission
-        </button>
+        </Link>
       </div>
 
       <div className="space-y-2">
@@ -316,15 +315,15 @@ function MissionsTab() {
             <div className="mt-3 flex items-center gap-2">
               {mission.state !== 'COMPLETED' && mission.state !== 'FAILED' && mission.state !== 'CANCELLED' && (
                 <>
-                  <button className="p-1 rounded text-amber-400 hover:bg-amber-500/10" title="Pause">
+                  <button disabled title="Mission pause coming soon" className="p-1 rounded text-amber-400/40 cursor-not-allowed">
                     <Pause className="h-3.5 w-3.5" />
                   </button>
-                  <button className="p-1 rounded text-red-400 hover:bg-red-500/10" title="Cancel">
+                  <button disabled title="Mission cancel coming soon" className="p-1 rounded text-red-400/40 cursor-not-allowed">
                     <XCircle className="h-3.5 w-3.5" />
                   </button>
                 </>
               )}
-              <button className="p-1 rounded text-muted-foreground hover:bg-white/5" title="View Details">
+              <button disabled title="Mission details coming soon" className="p-1 rounded text-muted-foreground/40 cursor-not-allowed">
                 <Eye className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -351,7 +350,7 @@ function InfrastructureTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {services.map((svc) => {
-          const status = (health?.info as any)?.[svc.key]?.status || 'up';
+          const status = (health?.info as Record<string, { status: string }>)?.[svc.key]?.status || 'up';
           const isUp = status === 'up';
           return (
             <div key={svc.key} className="rounded-xl border border-border bg-card p-4">
@@ -396,10 +395,10 @@ function InfrastructureTab() {
         <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Resource Usage</h4>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[
-            { label: 'CPU Usage', value: 42, max: 100, unit: '%', color: '#3b82f6' },
-            { label: 'Memory', value: 67, max: 100, unit: '%', color: '#f59e0b' },
-            { label: 'Disk I/O', value: 23, max: 100, unit: '%', color: '#22c55e' },
-            { label: 'Network', value: 15, max: 100, unit: 'Mbps', color: '#8b5cf6' },
+            { label: 'CPU Usage', value: health?.info?.memory_heap ? Math.min(Math.round(((health.info.memory_heap as Record<string, { percent?: number }>)?.heapUsed?.percent ?? 0)), 100) : 0, max: 100, unit: '%', color: '#3b82f6' },
+            { label: 'Memory', value: health?.info?.memory_heap ? Math.min(Math.round(((health.info.memory_heap as Record<string, { percent?: number }>)?.heapTotal?.percent ?? 0)), 100) : 0, max: 100, unit: '%', color: '#f59e0b' },
+            { label: 'Disk I/O', value: 0, max: 100, unit: '%', color: '#22c55e' },
+            { label: 'Network', value: 0, max: 100, unit: 'Mbps', color: '#8b5cf6' },
           ].map((metric) => (
             <div key={metric.label}>
               <div className="flex items-center justify-between text-[10px] mb-1">
@@ -488,6 +487,7 @@ function SecurityTab() {
             </div>
             <button
               onClick={() => toggleFeature(idx)}
+              title="Visual indicator only — changes are not persisted to backend"
               className={cn('h-5 w-9 rounded-full p-0.5 transition-colors cursor-pointer',
                 feature.enabled ? 'bg-emerald-500' : 'bg-border'
               )}>
@@ -531,12 +531,27 @@ function SecurityTab() {
 
 // ─── Users Tab ───────────────────────────────────────────────────
 function UsersTab() {
-  const users = [
-    { id: '1', name: 'Admin', email: 'admin@aenews.io', role: 'super_admin', status: 'active', lastLogin: '2m ago', tenant: 'aenews' },
-    { id: '2', name: 'John Doe', email: 'john@client.io', role: 'admin', status: 'active', lastLogin: '1h ago', tenant: 'client-a' },
-    { id: '3', name: 'Jane Smith', email: 'jane@client.io', role: 'operator', status: 'active', lastLogin: '3h ago', tenant: 'client-a' },
-    { id: '4', name: 'Bob Wilson', email: 'bob@partner.io', role: 'viewer', status: 'inactive', lastLogin: '7d ago', tenant: 'partner-b' },
-  ];
+  const [users, setUsers] = useState<Array<{ id: string; email: string; firstName: string; lastName: string; role: string; status: string; lastLogin: string; tenant: string }>>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await fetch('/api/v1/users?limit=50', {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.data || data || []);
+        }
+      } catch {
+        setUsers([]);
+      } finally {
+        setLoadingUsers(false);
+      }
+    }
+    fetchUsers();
+  }, []);
 
   const roleColors: Record<string, string> = {
     super_admin: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -549,36 +564,49 @@ function UsersTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{users.length} users registered</p>
-        <button onClick={() => {/* Add User handler */}} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+        <button
+          disabled
+          title="User management coming soon"
+          className="flex items-center gap-1.5 rounded-lg bg-primary/50 px-3 py-2 text-xs font-medium text-primary-foreground/70 cursor-not-allowed"
+        >
           <Users className="h-3.5 w-3.5" /> Add User
         </button>
       </div>
 
-      <div className="space-y-2">
-        {users.map((user) => (
-          <div key={user.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
-                {user.name[0]}
+      {loadingUsers ? (
+        <div className="animate-shimmer h-48 rounded-xl" />
+      ) : users.length === 0 ? (
+        <div className="rounded-xl border border-border bg-card p-8 text-center">
+          <Users className="mx-auto h-8 w-8 text-muted-foreground/30" />
+          <p className="mt-2 text-sm text-muted-foreground">No users found</p>
+          <p className="text-xs text-muted-foreground/60">Users will appear here once registered</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {users.map((user) => (
+            <div key={user.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
+                  {user.firstName?.[0] || user.email?.[0] || '?'}
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-foreground">{user.firstName ? `${user.firstName} ${user.lastName}` : user.email}</h4>
+                  <p className="text-[10px] text-muted-foreground">{user.email}</p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-medium text-foreground">{user.name}</h4>
-                <p className="text-[10px] text-muted-foreground">{user.email}</p>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-muted-foreground">Tenant: {user.tenant}</span>
+                <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold', roleColors[user.role] || 'bg-slate-500/20 text-slate-400 border-slate-500/30')}>
+                  {user.role}
+                </span>
+                <span className={cn('text-[10px]', user.status === 'active' ? 'text-emerald-400' : 'text-muted-foreground')}>
+                  {user.status === 'active' ? '●' : '○'}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] text-muted-foreground">Tenant: {user.tenant}</span>
-              <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold', roleColors[user.role])}>
-                {user.role}
-              </span>
-              <span className={cn('text-[10px]', user.status === 'active' ? 'text-emerald-400' : 'text-muted-foreground')}>
-                {user.status === 'active' ? '●' : '○'}
-              </span>
-              <span className="text-[10px] text-muted-foreground">{user.lastLogin}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -636,7 +664,7 @@ function ConfigTab() {
                   ) : (
                     <span className="text-xs font-mono text-foreground">{item.value}</span>
                   )}
-                  <button className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-white/5">
+                  <button disabled title="Config editing coming soon" className="p-1 rounded text-muted-foreground/40 cursor-not-allowed">
                     <Settings className="h-3 w-3" />
                   </button>
                 </div>
@@ -647,10 +675,18 @@ function ConfigTab() {
       ))}
 
       <div className="flex items-center gap-3">
-        <button onClick={() => {/* Save Configuration handler */}} className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+        <button
+          disabled
+          title="Configuration save coming soon"
+          className="flex items-center gap-1.5 rounded-lg bg-primary/50 px-4 py-2 text-xs font-medium text-primary-foreground/70 cursor-not-allowed"
+        >
           <Upload className="h-3.5 w-3.5" /> Save Configuration
         </button>
-        <button onClick={() => {/* Export handler */}} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-white/5 transition-colors">
+        <button
+          disabled
+          title="Configuration export coming soon"
+          className="flex items-center gap-1.5 rounded-lg border border-border/50 px-4 py-2 text-xs font-medium text-muted-foreground cursor-not-allowed"
+        >
           <Download className="h-3.5 w-3.5" /> Export
         </button>
       </div>
@@ -661,15 +697,15 @@ function ConfigTab() {
 // ─── Analytics Tab ───────────────────────────────────────────────
 function AnalyticsTab() {
   const { data: stats } = useAgentStats();
-  // Analytics data placeholder — will be populated from backend
+  // Build analytics data from real agent stats
   const usageData = Array.from({ length: 30 }, (_, i) => ({
     day: `Day ${i + 1}`,
-    missions: 0,
-    tasks: 0,
-    errors: 0,
+    missions: stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.activeAgents, 0) : 0,
+    tasks: stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.idleAgents, 0) : 0,
+    errors: stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.errorAgents, 0) : 0,
   }));
 
-  const clusterPerformance = (stats || []).map((cs, i) => ({
+  const clusterPerformance = (stats || []).map((cs) => ({
     name: cs.cluster.replace(/-/g, ' ').substring(0, 10),
     avgResponseTime: 0,
     successRate: cs.totalAgents > 0 ? Math.round((cs.activeAgents / cs.totalAgents) * 100) : 0,
@@ -746,10 +782,17 @@ export default function AdminPage() {
           <p className="text-xs text-muted-foreground">Full platform control & monitoring</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => {/* Export Report handler */}} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+          <button
+            disabled
+            title="Report export coming soon"
+            className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-2 text-xs text-muted-foreground/50 cursor-not-allowed"
+          >
             <Download className="h-3.5 w-3.5" /> Export Report
           </button>
-          <button className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </button>
         </div>

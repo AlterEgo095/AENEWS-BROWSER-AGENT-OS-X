@@ -1,4 +1,6 @@
 const API_BASE = '/api/v1';
+const REQUEST_TIMEOUT_MS = 30000;
+const MAX_RETRIES = 2;
 
 class ApiClient {
   private baseUrl: string;
@@ -20,22 +22,98 @@ class ApiClient {
     return headers;
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options?.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+  /**
+   * Handle session expiry — redirect to /login on 401
+   */
+  private handleUnauthorized(): void {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      // Only redirect if not already on login page
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
+  }
 
-    return response.json();
+  /**
+   * Determine if a request should be retried.
+   * - 5xx: retry with backoff
+   * - 4xx: never retry (client error)
+   * - Network error: retry
+   */
+  private shouldRetry(status: number | null, attempt: number): boolean {
+    if (attempt >= MAX_RETRIES) return false;
+    // 4xx = client error, never retry
+    if (status !== null && status >= 400 && status < 500) return false;
+    // 5xx or network failure: retry
+    return true;
+  }
+
+  private async request<T>(endpoint: string, options?: RequestInit, _attempt: number = 0): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          ...this.getHeaders(),
+          ...options?.headers,
+        },
+      });
+
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      if (!response.ok) {
+        // Retry on 5xx
+        if (this.shouldRetry(response.status, _attempt)) {
+          const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return this.request<T>(endpoint, options, _attempt + 1);
+        }
+
+        const error = await response.json().catch(() => ({ message: 'Request failed' }));
+        throw new Error(error.message || `HTTP ${response.status}`);
+      }
+
+      // Handle 204 No Content
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      return response.json();
+    } catch (err) {
+      // Retry on network errors (abort, fetch failure) unless it's an auth redirect
+      if (err instanceof Error && err.message === 'Session expired. Please log in again.') {
+        throw err;
+      }
+
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        if (this.shouldRetry(null, _attempt)) {
+          const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return this.request<T>(endpoint, options, _attempt + 1);
+        }
+        throw new Error('Request timed out. Please try again.');
+      }
+
+      // Network error — retry
+      if (err instanceof TypeError && this.shouldRetry(null, _attempt)) {
+        const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.request<T>(endpoint, options, _attempt + 1);
+      }
+
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   // Agents

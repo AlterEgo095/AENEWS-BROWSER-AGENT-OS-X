@@ -7,6 +7,7 @@ import {
   CircuitState,
   CIRCUIT_KEY_PREFIX,
 } from '../../agent-framework/services/circuit-breaker.service';
+import { AgentRegistryCache } from './agent-registry-cache.service';
 
 // ─── Agent Selection Criteria ────────────────────────────────────
 
@@ -61,6 +62,7 @@ export class AgentRegistryService {
   constructor(
     private readonly moduleRef: ModuleRef,
     @Optional() private readonly circuitBreakerService: CircuitBreakerService,
+    @Optional() private readonly registryCache: AgentRegistryCache,
   ) {
     Object.values(ClusterType).forEach((cluster) => {
       this.clusterAgents.set(cluster as ClusterType, new Set());
@@ -138,6 +140,9 @@ export class AgentRegistryService {
     this.clusterAgents.get(agent.cluster)?.add(key);
     this.activeExecutions.set(key, 0);
     this.logger.log(`Registered agent: ${key} (v${agent.version})`);
+
+    // Invalidate cache on registration
+    this.registryCache?.invalidateAll();
   }
 
   /**
@@ -149,6 +154,9 @@ export class AgentRegistryService {
     this.clusterAgents.get(agent.cluster)?.delete(key);
     this.activeExecutions.delete(key);
     this.logger.log(`Unregistered agent: ${key}`);
+
+    // Invalidate cache on unregistration
+    this.registryCache?.invalidateAll();
   }
 
   // ─── Basic Lookup ──────────────────────────────────────────────
@@ -162,19 +170,33 @@ export class AgentRegistryService {
 
   /**
    * Retrieve all agents belonging to a specific cluster.
+   * Results are cached for performance.
    */
   getByCluster(cluster: ClusterType): BaseAgent[] {
+    const cacheKey = `cluster:${cluster}`;
+    const cached = this.registryCache?.get<BaseAgent[]>(cacheKey);
+    if (cached) return cached;
+
     const keys = this.clusterAgents.get(cluster) || new Set();
-    return Array.from(keys)
+    const result = Array.from(keys)
       .map((key) => this.agents.get(key))
       .filter((agent): agent is BaseAgent => agent !== undefined);
+
+    this.registryCache?.set(cacheKey, result);
+    return result;
   }
 
   /**
    * Retrieve all registered agents.
+   * Results are cached for performance.
    */
   getAll(): BaseAgent[] {
-    return Array.from(this.agents.values());
+    const cached = this.registryCache?.get<BaseAgent[]>('all:agents');
+    if (cached) return cached;
+
+    const result = Array.from(this.agents.values());
+    this.registryCache?.set('all:agents', result);
+    return result;
   }
 
   // ─── Best Agent Selection ──────────────────────────────────────
@@ -508,11 +530,15 @@ export class AgentRegistryService {
 
   /**
    * Compute per-cluster statistics: total agents, idle count, running count, error count.
+   * Results are cached for performance.
    */
   getClusterStats(): Record<
     string,
     { total: number; idle: number; running: number; error: number }
   > {
+    const cached = this.registryCache?.get<Record<string, { total: number; idle: number; running: number; error: number }>>('stats:clusters');
+    if (cached) return cached;
+
     const stats: Record<string, any> = {};
     for (const [cluster, keys] of this.clusterAgents.entries()) {
       const agents = Array.from(keys)
@@ -528,6 +554,8 @@ export class AgentRegistryService {
           .length,
       };
     }
+
+    this.registryCache?.set('stats:clusters', stats);
     return stats;
   }
 

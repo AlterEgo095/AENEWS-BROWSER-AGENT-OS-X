@@ -5,18 +5,8 @@
  * mission decomposition, cross-cluster coordination, and
  * unified connector management.
  *
- * Endpoints:
- *   POST   /api/v1/orchestration/collaborate         — Start a multi-agent collaboration
- *   GET    /api/v1/orchestration/collaborate/:id      — Get collaboration status
- *   DELETE /api/v1/orchestration/collaborate/:id      — Cancel collaboration
- *   POST   /api/v1/orchestration/decompose            — Decompose a mission
- *   POST   /api/v1/orchestration/coordinate           — Cross-cluster coordination
- *   GET    /api/v1/orchestration/cluster-health        — Cluster health overview
- *   GET    /api/v1/orchestration/connectors            — Unified connector list
- *   GET    /api/v1/orchestration/connectors/health     — Connector health check
- *   POST   /api/v1/orchestration/connectors/execute    — Execute via unified connector
- *   GET    /api/v1/orchestration/statistics            — Orchestration statistics
- *   GET    /api/v1/orchestration/history               — Execution history
+ * SECURITY: All @Body() params use proper DTOs with class-validator decorators.
+ * NestJS ValidationPipe only validates class instances, not inline types.
  */
 
 import {
@@ -31,7 +21,7 @@ import {
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -39,54 +29,23 @@ import { UserRole } from '../../user/entities/user.entity';
 import { TenantScoped } from '../../tenant/decorators/tenant-scoped.decorator';
 import { RateLimitGuard } from '../guards/rate-limit.guard';
 import { RateLimit, RateLimitDomain } from '../decorators/rate-limit.decorator';
-import { AgentCollaborationService, CollaborationPattern } from '../services/agent-collaboration.service';
+import { AgentCollaborationService } from '../services/agent-collaboration.service';
 import { MissionDecompositionService } from '../services/mission-decomposition.service';
 import { CrossClusterCoordinatorService, ClusterTask } from '../services/cross-cluster-coordinator.service';
 import { UnifiedConnectorRegistryService } from '../services/unified-connector-registry.service';
 import { ConnectorAwareExecutionService } from '../services/connector-aware-execution.service';
 import { ClusterType } from '../../agent/entities/agent.entity';
-
-// ─── DTOs ───────────────────────────────────────────────────────
-
-export class CollaborateDto {
-  pattern: CollaborationPattern;
-  description: string;
-  objectives: string[];
-  requiredCapabilities?: string[];
-  preferredClusters?: ClusterType[];
-  maxAgents?: number;
-  maxDurationMs?: number;
-  allowPartialResults?: boolean;
-}
-
-export class DecomposeDto {
-  missionId: string;
-  description: string;
-  objectives?: string[];
-  priority?: 'low' | 'medium' | 'high' | 'critical';
-  maxSubtasks?: number;
-  requiredCapabilities?: string[];
-}
-
-export class CoordinateDto {
-  tasks: Array<{
-    cluster: ClusterType;
-    description: string;
-    requiredCapabilities: string[];
-    priority: number;
-    timeoutMs?: number;
-  }>;
-}
-
-export class ExecuteConnectorDto {
-  connectorName: string;
-  action: string;
-  params?: Record<string, any>;
-}
+import {
+  CollaborateDto,
+  DecomposeDto,
+  CoordinateDto,
+  ExecuteConnectorDto,
+} from '../dto/orchestration.dto';
 
 // ─── Controller ──────────────────────────────────────────────────
 
 @Controller('orchestration')
+@ApiTags('Orchestration')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR)

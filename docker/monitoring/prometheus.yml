@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════
-# AENEWS Agent OS X — Prometheus Configuration (Phase 12)
+# AENEWS Agent OS X — Prometheus Configuration (Phase 6)
 # ═══════════════════════════════════════════════════════════════
-# Enhanced with security-specific scrape targets, recording rules,
+# Enhanced with full scrape coverage, recording rules,
 # and alerting rule files.
 # ═══════════════════════════════════════════════════════════════
 
@@ -36,6 +36,42 @@ scrape_configs:
       - targets: ['api:3000']
         labels:
           service: 'api'
+          team: 'platform'
+
+  # ─── Prometheus Self-Monitoring ───────────────────────────
+  - job_name: 'prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          team: 'platform'
+
+  # ─── Alertmanager ─────────────────────────────────────────
+  - job_name: 'alertmanager'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          service: 'alertmanager'
+          team: 'platform'
+
+  # ─── Grafana ──────────────────────────────────────────────
+  - job_name: 'grafana'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          service: 'grafana'
+          team: 'platform'
+
+  # ─── Loki ─────────────────────────────────────────────────
+  - job_name: 'loki'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['loki:3100']
+        labels:
+          service: 'loki'
           team: 'platform'
 
   # ─── Node Exporter (System Metrics) ───────────────────────
@@ -83,16 +119,6 @@ scrape_configs:
   #     - targets: ['otel-collector:8889']
   #       labels:
   #         service: 'telemetry'
-
-  # ─── Prometheus Self-Monitoring ───────────────────────────
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-
-  # ─── Alertmanager ─────────────────────────────────────────
-  - job_name: 'alertmanager'
-    static_configs:
-      - targets: ['alertmanager:9093']
 
 # Storage configuration
 storage:

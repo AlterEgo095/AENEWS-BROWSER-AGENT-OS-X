@@ -106,7 +106,7 @@ export const useLiveMonitor = create<LiveMonitorState>((set, get) => ({
       set({
         sessions: newSessions,
         recentSteps: [step, ...recentSteps].slice(0, 100),
-        totalTokens: get().totalTokens + (step.type === 'thinking' || step.type === 'decision' ? Math.floor(Math.random() * 300) + 50 : 0),
+        totalTokens: get().totalTokens + (step.metadata?.tokensUsed as number || 0),
         totalLlmCalls: get().totalLlmCalls + (step.type === 'thinking' || step.type === 'decision' ? 1 : 0),
         totalToolCalls: get().totalToolCalls + (step.type === 'tool_call' ? 1 : 0),
       });

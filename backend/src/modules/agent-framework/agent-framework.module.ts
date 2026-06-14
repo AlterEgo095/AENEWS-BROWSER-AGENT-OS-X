@@ -94,6 +94,8 @@ import { SharedWorkingMemoryService } from './services/shared-working-memory.ser
 import { AdaptiveFeedbackLoopService } from './services/adaptive-feedback-loop.service';
 import { DynamicAgentTopologyService } from './services/dynamic-agent-topology.service';
 import { AdvancedDAGOrchestratorService } from './services/advanced-dag-orchestrator.service';
+import { DeepResearchService } from './services/deep-research.service';
+import { MemoryService } from './services/memory.service';
 import { SwarmController } from './controllers/swarm.controller';
 
 @Global()
@@ -147,6 +149,10 @@ import { SwarmController } from './controllers/swarm.controller';
     AdaptiveFeedbackLoopService,
     DynamicAgentTopologyService,
     AdvancedDAGOrchestratorService,
+    // ── Deep Research ──────────────────────────────────────────────
+    DeepResearchService,
+    // ── Memory Service ──────────────────────────────────────────────
+    MemoryService,
   ],
   exports: [
     // ── Core Framework Services ──────────────────────────────────
@@ -184,6 +190,8 @@ import { SwarmController } from './controllers/swarm.controller';
     AdaptiveFeedbackLoopService,
     DynamicAgentTopologyService,
     AdvancedDAGOrchestratorService,
+    DeepResearchService,
+    MemoryService,
   ],
 })
 export class AgentFrameworkModule {

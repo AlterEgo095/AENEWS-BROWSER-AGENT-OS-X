@@ -14,7 +14,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+      - aenews_prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -27,10 +27,16 @@ services:
       - aenews-network
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      start_period: 20s
       interval: 15s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '50m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -58,7 +64,7 @@ services:
       - ./monitoring/dashboards:/var/lib/grafana/dashboards:ro
       - ./monitoring/datasources:/etc/grafana/provisioning/datasources:ro
       - ./monitoring/dashboard-providers:/etc/grafana/provisioning/dashboards:ro
-      - grafana_data:/var/lib/grafana
+      - aenews_grafana_data:/var/lib/grafana
     networks:
       - aenews-network
     depends_on:
@@ -66,10 +72,16 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      start_period: 30s
       interval: 15s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '50m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -95,10 +107,16 @@ services:
       - aenews-network
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      start_period: 20s
       interval: 15s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '30m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -116,7 +134,7 @@ services:
       - "${ALERTMANAGER_PORT:-9093}:9093"
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - alertmanager_data:/alertmanager
+      - aenews_alertmanager_data:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
@@ -131,10 +149,16 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      start_period: 15s
       interval: 15s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '30m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -152,16 +176,22 @@ services:
       - "${LOKI_PORT:-3100}:3100"
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
-      - loki_data:/loki
+      - aenews_loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - aenews-network
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      start_period: 20s
       interval: 15s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '50m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -185,6 +215,11 @@ services:
       loki:
         condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '30m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -192,16 +227,20 @@ services:
           cpus: '0.5'
 
 volumes:
-  prometheus_data:
+  aenews_prometheus_data:
     driver: local
-  grafana_data:
+    name: aenews-prometheus-data
+  aenews_grafana_data:
     driver: local
-  alertmanager_data:
+    name: aenews-grafana-data
+  aenews_alertmanager_data:
     driver: local
-  loki_data:
+    name: aenews-alertmanager-data
+  aenews_loki_data:
     driver: local
+    name: aenews-loki-data
 
 networks:
   aenews-network:
     driver: bridge
-    name: aenews-network
+    name: aenews-monitoring

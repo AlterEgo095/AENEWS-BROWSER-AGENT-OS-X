@@ -612,7 +612,9 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
       if (parsed && typeof parsed.grossProfit === 'number') {
         this.logger.log(`LLM P&L analysis: ${analysisId}, net income=${parsed.netIncome}`);
         return {
-          analysisId, period, revenue,
+          analysisId,
+          period,
+          revenue,
           grossProfit: parsed.grossProfit,
           operatingIncome: parsed.operatingIncome,
           netIncome: parsed.netIncome,

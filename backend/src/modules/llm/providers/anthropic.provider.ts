@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import * as http from 'http';
+import * as https from 'https';
 import {
   ILLMProvider,
   LLMMessage,
@@ -16,6 +18,7 @@ import {
  * - Supports Claude models (claude-sonnet-4-20250514, etc.)
  * - JSON output via prompting (Anthropic doesn't have native JSON mode)
  * - Retry logic with exponential backoff (3 retries)
+ * - HTTP connection pooling for improved performance
  * - Graceful error handling — never throws on LLM unavailability
  */
 @Injectable()
@@ -28,6 +31,9 @@ export class AnthropicProvider implements ILLMProvider {
   private readonly maxRetries = 3;
   private readonly baseRetryDelay = 1000; // 1 second
 
+  // HTTP Agent with connection pooling
+  private readonly httpsAgent: https.Agent;
+
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('llm.anthropic.apiKey', '');
     this.defaultModel = this.configService.get<string>(
@@ -39,10 +45,23 @@ export class AnthropicProvider implements ILLMProvider {
       4096,
     );
 
+    // ─── HTTP Connection Pooling ────────────────────────────────
+    const poolMax = this.configService.get<number>('performance.httpPoolMax', 50);
+    this.httpsAgent = new https.Agent({
+      keepAlive: true,
+      maxSockets: Math.min(poolMax, 20),
+      maxFreeSockets: 5,
+      timeout: 60000,
+    });
+
     if (apiKey) {
-      this.client = new Anthropic({ apiKey });
+      this.client = new Anthropic({
+        apiKey,
+        timeout: 120000,
+        ...({ httpAgent: this.httpsAgent } as any),
+      });
       this.logger.log(
-        `Anthropic provider initialized with model: ${this.defaultModel}`,
+        `Anthropic provider initialized with model: ${this.defaultModel}, connection pooling enabled (maxSockets: ${Math.min(poolMax, 20)})`,
       );
     } else {
       this.client = null;

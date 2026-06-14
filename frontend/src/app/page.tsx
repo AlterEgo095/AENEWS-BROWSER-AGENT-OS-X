@@ -3,20 +3,19 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   Bot, Activity, CheckCircle2, AlertTriangle, Server, Database,
-  HardDrive, Cpu, Rocket, Network, Shield, Zap, Clock, TrendingUp,
-  TrendingDown, ArrowUpRight, ArrowDownRight, BarChart3, PieChart,
-  Globe, BrainCircuit, Eye, GitBranch, RefreshCw, Settings,
+  HardDrive, Cpu, Rocket, Network, Shield, Zap,
+  ArrowUpRight, ArrowDownRight,
+  BrainCircuit, GitBranch, RefreshCw, Settings,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
   AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
-  RadialBarChart, RadialBar,
 } from 'recharts';
 import { api } from '@/lib/api';
 import { cn, clusterColors, clusterIcons, formatRelativeTime, missionStateColors, missionStateDotColors } from '@/lib/utils';
 import type { ClusterStats, HealthCheckResult, Agent, Event, Mission } from '@/lib/types';
-import { MissionState as MS, AgentStatus, ClusterType } from '@/lib/types';
+import { MissionState as MS } from '@/lib/types';
 import { useWebSocket } from '@/hooks/use-websocket';
 
 // ─── Colors ──────────────────────────────────────────────────────
@@ -55,20 +54,6 @@ function StatCard({
         </div>
       </div>
     </div>
-  );
-}
-
-// ─── Mini Sparkline ──────────────────────────────────────────────
-function MiniSparkline({ data, color = '#3b82f6', height = 40 }: { data: number[]; color?: string; height?: number }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const points = data.map((v, i) => `${(i / (data.length - 1)) * 100},${height - ((v - min) / range) * height}`).join(' ');
-
-  return (
-    <svg width="100%" height={height} viewBox={`0 0 100 ${height}`} preserveAspectRatio="none">
-      <polyline fill="none" stroke={color} strokeWidth="2" points={points} />
-    </svg>
   );
 }
 
@@ -240,7 +225,7 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   // ─── WebSocket updates ─────────────────────────────────────────
   useEffect(() => {
@@ -258,20 +243,11 @@ export default function DashboardPage() {
     (m) => ![MS.DRAFT, MS.COMPLETED, MS.CANCELLED, MS.ARCHIVED, MS.FAILED].includes(m.state)
   ).length;
   const completedMissions = recentMissions.filter((m) => m.state === MS.COMPLETED).length;
-  const healthyServices = health ? Object.values(health.info || {}).filter((s: any) => s.status === 'up').length : 0;
+  const healthyServices = health ? Object.values(health.info || {}).filter((s: { status: string }) => s.status === 'up').length : 0;
   const totalServices = health ? Object.keys(health.info || {}).length : 0;
   const uptimePct = totalServices > 0 ? Math.round((healthyServices / totalServices) * 100) : 0;
 
   // ─── Chart data ────────────────────────────────────────────────
-  const clusterDistribution = useMemo(() =>
-    clusterStats.map((cs, i) => ({
-      name: cs.cluster.replace(/-/g, ' '),
-      value: cs.totalAgents,
-      color: CHART_COLORS[i % CHART_COLORS.length],
-    })),
-    [clusterStats]
-  );
-
   const agentStatusData = useMemo(() => [
     { name: 'Running', value: activeAgents, color: '#22c55e' },
     { name: 'Idle', value: idleAgents, color: '#94a3b8' },
@@ -279,35 +255,32 @@ export default function DashboardPage() {
     { name: 'Stopped', value: agents.filter(a => a.status === 'stopped').length, color: '#6b7280' },
   ], [agents, activeAgents, idleAgents, errorAgents]);
 
-  const missionStateData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    recentMissions.forEach(m => { counts[m.state] = (counts[m.state] || 0) + 1; });
-    return Object.entries(counts).map(([state, count]) => ({
-      state,
-      count,
-      color: state === 'COMPLETED' ? '#22c55e' : state === 'FAILED' ? '#ef4444' : state === 'BUILDING' ? '#f59e0b' : '#3b82f6',
-    }));
-  }, [recentMissions]);
-
-  // Time-series data placeholder — will be populated from backend
   const timeSeriesData = useMemo(() => {
-    const now = Date.now();
-    return Array.from({ length: 24 }, (_, i) => ({
-      time: new Date(now - (23 - i) * 3600000).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
-      agents: i <= Math.floor(activeAgents * 0.7) ? activeAgents : 0,
-      tasks: 0,
-      events: 0,
-    }));
+    const base = new Date();
+    base.setMinutes(0, 0, 0);
+    return Array.from({ length: 24 }, (_, i) => {
+      const hour = new Date(base.getTime() - (23 - i) * 3600000);
+      return {
+        time: hour.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+        agents: i <= Math.floor(activeAgents * 0.7) ? activeAgents : 0,
+        tasks: 0,
+        events: 0,
+      };
+    });
   }, [activeAgents]);
 
   const performanceData = useMemo(() => {
-    const now = Date.now();
-    return Array.from({ length: 12 }, (_, i) => ({
-      time: new Date(now - (11 - i) * 300000).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
-      cpu: 0,
-      memory: 0,
-      eventLoop: 0,
-    }));
+    const base = new Date();
+    base.setMinutes(base.getMinutes() - base.getMinutes() % 5, 0, 0);
+    return Array.from({ length: 12 }, (_, i) => {
+      const slot = new Date(base.getTime() - (11 - i) * 300000);
+      return {
+        time: slot.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+        cpu: 0,
+        memory: 0,
+        eventLoop: 0,
+      };
+    });
   }, []);
 
   // ─── Loading ───────────────────────────────────────────────────

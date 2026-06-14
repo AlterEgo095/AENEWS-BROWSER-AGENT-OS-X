@@ -441,7 +441,9 @@ export class SEOOptimizationAgentService extends BaseAgentService {
 
       const parsed = this.parseLLMResponse(response);
       if (parsed && typeof parsed.score === 'number') {
-        this.logger.log(`LLM SEO analysis: score=${parsed.score}, issues=${parsed.issues?.length || 0}`);
+        this.logger.log(
+          `LLM SEO analysis: score=${parsed.score}, issues=${parsed.issues?.length || 0}`,
+        );
         return {
           score: parsed.score,
           issues: Array.isArray(parsed.issues) ? parsed.issues : [],
@@ -595,7 +597,9 @@ export class SEOOptimizationAgentService extends BaseAgentService {
 
       const parsed = this.parseLLMResponse(response);
       if (parsed?.keywords && Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
-        this.logger.log(`LLM keyword research: topic="${topic}", keywords=${parsed.keywords.length}`);
+        this.logger.log(
+          `LLM keyword research: topic="${topic}", keywords=${parsed.keywords.length}`,
+        );
         return {
           keywords: parsed.keywords,
           relatedTopics: Array.isArray(parsed.relatedTopics) ? parsed.relatedTopics : [],

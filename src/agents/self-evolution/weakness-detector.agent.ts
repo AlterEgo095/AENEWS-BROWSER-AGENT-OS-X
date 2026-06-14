@@ -289,7 +289,8 @@ export class WeaknessDetectorAgent extends BaseAgentService {
       if (parsed?.weaknesses && Array.isArray(parsed.weaknesses)) {
         const severityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
         const thresholdLevel = severityOrder[severityThreshold] ?? 2;
-        const filtered = parsed.weaknesses.filter((w: any) => (severityOrder[w.severity] ?? 2) >= thresholdLevel)
+        const filtered = parsed.weaknesses
+          .filter((w: any) => (severityOrder[w.severity] ?? 2) >= thresholdLevel)
           .map((w: any) => ({
             id: w.id || this.generateId(),
             area: w.area || 'unknown',
@@ -304,16 +305,34 @@ export class WeaknessDetectorAgent extends BaseAgentService {
           }));
 
         for (const w of filtered) this.weaknesses.set(w.id, w as WeaknessRecord);
-        const criticalCount = filtered.filter((w: any) => w.severity === 'critical' || w.severity === 'high').length;
-        const overallRisk = filtered.some((w: any) => w.severity === 'critical') ? 'critical'
-          : criticalCount > 0 ? 'high' : filtered.length > 2 ? 'medium' : 'low';
-        const recommendations = parsed.recommendations || ['Review detected weaknesses and prioritize remediation'];
+        const criticalCount = filtered.filter(
+          (w: any) => w.severity === 'critical' || w.severity === 'high',
+        ).length;
+        const overallRisk = filtered.some((w: any) => w.severity === 'critical')
+          ? 'critical'
+          : criticalCount > 0
+            ? 'high'
+            : filtered.length > 2
+              ? 'medium'
+              : 'low';
+        const recommendations = parsed.recommendations || [
+          'Review detected weaknesses and prioritize remediation',
+        ];
 
-        this.logger.log(`LLM weakness detection: count=${filtered.length}, critical=${criticalCount}, risk=${overallRisk}`);
-        return { weaknesses: filtered as WeaknessRecord[], criticalCount, overallRisk, recommendations };
+        this.logger.log(
+          `LLM weakness detection: count=${filtered.length}, critical=${criticalCount}, risk=${overallRisk}`,
+        );
+        return {
+          weaknesses: filtered as WeaknessRecord[],
+          criticalCount,
+          overallRisk,
+          recommendations,
+        };
       }
     } catch (error) {
-      this.logger.warn(`LLM weakness detection failed, using heuristic: ${(error as Error).message}`);
+      this.logger.warn(
+        `LLM weakness detection failed, using heuristic: ${(error as Error).message}`,
+      );
     }
 
     // Heuristic fallback
@@ -473,7 +492,9 @@ export class WeaknessDetectorAgent extends BaseAgentService {
 
       const parsed = this.parseLLMResponse(response);
       if (parsed && typeof parsed.currentEQI === 'number') {
-        this.logger.log(`LLM EQI trends: current=${parsed.currentEQI}, trend=${parsed.trendDirection}, regressions=${parsed.regressionZones?.length || 0}`);
+        this.logger.log(
+          `LLM EQI trends: current=${parsed.currentEQI}, trend=${parsed.trendDirection}, regressions=${parsed.regressionZones?.length || 0}`,
+        );
         return {
           currentEQI: parsed.currentEQI,
           previousEQI: parsed.previousEQI ?? parsed.currentEQI,

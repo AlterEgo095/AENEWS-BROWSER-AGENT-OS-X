@@ -487,7 +487,9 @@ export class ContentCreationAgentService extends BaseAgentService {
       const parsed = this.parseLLMResponse(response);
       if (parsed?.content && typeof parsed.content === 'string') {
         const actualWordCount = parsed.content.split(/\s+/).length;
-        this.logger.log(`LLM blog post: topic="${topic.substring(0, 50)}", words=${actualWordCount}`);
+        this.logger.log(
+          `LLM blog post: topic="${topic.substring(0, 50)}", words=${actualWordCount}`,
+        );
         return {
           title: parsed.title || topic,
           content: parsed.content,
@@ -586,7 +588,9 @@ export class ContentCreationAgentService extends BaseAgentService {
 
       const parsed = this.parseLLMResponse(response);
       if (parsed?.headlines && Array.isArray(parsed.headlines)) {
-        this.logger.log(`LLM ad copy: product="${product}", platform=${platform}, headlines=${parsed.headlines.length}`);
+        this.logger.log(
+          `LLM ad copy: product="${product}", platform=${platform}, headlines=${parsed.headlines.length}`,
+        );
         return {
           headlines: parsed.headlines,
           descriptions: parsed.descriptions || [],
