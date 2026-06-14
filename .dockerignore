@@ -1,46 +1,54 @@
-# Dependencies
+# ─── Dependencies ───────────────────────────────────────────
 node_modules/
+**/node_modules/
 dist/
+**/dist/
 
-# IDE
+# ─── IDE ───────────────────────────────────────────────────
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# OS
+# ─── OS ────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Environment
+# ─── Environment (secrets — never in image) ────────────────
 .env
 .env.local
 .env.*.local
+!.env.example
 
-# Logs
+# ─── Logs ──────────────────────────────────────────────────
 *.log
 logs/
 
-# Coverage
+# ─── Coverage ──────────────────────────────────────────────
 coverage/
 
-# Test
+# ─── Test ──────────────────────────────────────────────────
 test/
+**/test/
+*.spec.ts
+*.e2e-spec.ts
 
-# Docker
+# ─── Agent Context (dev only) ─────────────────────────────
+agent-ctx/
+tool-results/
+
+# ─── Docker ────────────────────────────────────────────────
 docker-compose*.yml
-Dockerfile
-.dockerignore
 
-# Git
+# ─── Git ───────────────────────────────────────────────────
 .git/
 .gitignore
 
-# Misc
+# ─── Misc ──────────────────────────────────────────────────
 *.md
+!README.md
 .eslintrc.js
 .prettierrc
-tsconfig*.json
-nest-cli.json
 jest.config.js
+jest-e2e.json

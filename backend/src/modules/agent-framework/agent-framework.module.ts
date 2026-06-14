@@ -12,15 +12,49 @@
  *   3. This module serves as the integration point, ensuring both agent
  *      registries coexist and the Software Factory's connectors are available.
  *
- * In production, the root src/ is compiled first, then the backend references
- * the compiled output. In development with webpack, both are bundled together.
+ * Services provided:
+ *   - AgentMemoryService: Unified memory facade (Redis + Qdrant)
+ *   - AgentEventBusService: Enhanced event bus for agent-specific patterns
+ *   - AgentOrchestratorService: Decompose→Plan→Execute→Critique→Repair→Validate→Deliver
+ *   - AgentCommunicationService: Inter-agent messaging
+ *   - AgentHealthService: Agent health monitoring and metrics
+ *   - AgentBridgeService: Bridge to Software Factory connectors
  */
 
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
+import { AgentMemoryService } from './services/agent-memory.service';
+import { AgentEventBusService } from './services/agent-event-bus.service';
+import { AgentOrchestratorService } from './services/agent-orchestrator.service';
+import { AgentCommunicationService } from './services/agent-communication.service';
+import { AgentHealthService } from './services/agent-health.service';
+import { AgentBridgeService } from './services/agent-bridge.service';
+import { AgentModule } from '../agent/agent.module';
+import { QdrantModule } from '../qdrant/qdrant.module';
 
+@Global()
 @Module({
-  imports: [],
-  exports: [],
+  imports: [
+    // AgentModule provides AgentRegistryService (needed by Orchestrator)
+    AgentModule,
+    // QdrantModule provides QdrantService (used optionally by Memory)
+    QdrantModule,
+  ],
+  providers: [
+    AgentMemoryService,
+    AgentEventBusService,
+    AgentOrchestratorService,
+    AgentCommunicationService,
+    AgentHealthService,
+    AgentBridgeService,
+  ],
+  exports: [
+    AgentMemoryService,
+    AgentEventBusService,
+    AgentOrchestratorService,
+    AgentCommunicationService,
+    AgentHealthService,
+    AgentBridgeService,
+  ],
 })
 export class AgentFrameworkModule {
   /**
