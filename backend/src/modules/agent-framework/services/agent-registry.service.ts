@@ -6,6 +6,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
+import { Trace } from '../../observability/decorators/trace.decorator';
 
 export interface AgentInfo {
   id: string;
@@ -25,6 +26,7 @@ export class AgentRegistryService {
   /**
    * Register an agent
    */
+  @Trace('registry.register')
   register(agent: AgentInfo): void {
     this.agents.set(agent.id, agent);
     this.logger.log(`Agent registered: ${agent.name} (${agent.type})`);
@@ -47,6 +49,7 @@ export class AgentRegistryService {
   /**
    * Find agents by capability
    */
+  @Trace('registry.findByCapability')
   findByCapability(capability: string): AgentInfo[] {
     return Array.from(this.agents.values()).filter(
       (a) => a.capabilities.includes(capability) && a.status === 'idle',

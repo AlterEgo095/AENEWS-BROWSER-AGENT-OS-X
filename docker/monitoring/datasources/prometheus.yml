@@ -1,0 +1,33 @@
+# ─── AENEWS Agent OS X — Grafana Datasource Auto-Provisioning ─
+# Automatically configures Prometheus as a datasource in Grafana.
+# ────────────────────────────────────────────────────────────────
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    uid: prometheus-aenews
+    url: http://aenews-prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: '10s'
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: '2.51.0'
+
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    uid: jaeger-aenews
+    url: http://aenews-jaeger:16686
+    editable: true
+    jsonData:
+      tracesToMetrics:
+        - datasourceUid: 'prometheus-aenews'
+          tags:
+            - key: 'service'
+              value: 'service'

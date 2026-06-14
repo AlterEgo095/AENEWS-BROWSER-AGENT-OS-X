@@ -19,6 +19,9 @@
  *   - AgentCommunicationService: Inter-agent messaging
  *   - AgentHealthService: Agent health monitoring and metrics
  *   - AgentBridgeService: Bridge to Software Factory connectors
+ *   - CircuitBreakerService: Circuit breaker for fault tolerance
+ *   - RateLimiterService: Fine-grained rate limiting
+ *   - RateLimitGuard: NestJS guard for rate limiting
  *   - HumanApprovalGuard: Self-evolution safety — blocks unapproved changes
  *   - SandboxService: Safe execution environment for self-evolution agents
  */
@@ -31,6 +34,9 @@ import { AgentCommunicationService } from './services/agent-communication.servic
 import { AgentHealthService } from './services/agent-health.service';
 import { AgentBridgeService } from './services/agent-bridge.service';
 import { SandboxService } from './services/sandbox.service';
+import { CircuitBreakerService } from './services/circuit-breaker.service';
+import { RateLimiterService } from './services/rate-limiter.service';
+import { RateLimitGuard } from './guards/rate-limit.guard';
 import { HumanApprovalGuard } from './guards/human-approval.guard';
 import { AgentModule } from '../agent/agent.module';
 import { QdrantModule } from '../qdrant/qdrant.module';
@@ -50,6 +56,10 @@ import { QdrantModule } from '../qdrant/qdrant.module';
     AgentCommunicationService,
     AgentHealthService,
     AgentBridgeService,
+    // ── Circuit Breaker & Rate Limiting ──────────────────────────
+    CircuitBreakerService,
+    RateLimiterService,
+    RateLimitGuard,
     // ── Self-Evolution Safety ──────────────────────────────────────
     HumanApprovalGuard,
     SandboxService,
@@ -61,6 +71,10 @@ import { QdrantModule } from '../qdrant/qdrant.module';
     AgentCommunicationService,
     AgentHealthService,
     AgentBridgeService,
+    // ── Circuit Breaker & Rate Limiting ──────────────────────────
+    CircuitBreakerService,
+    RateLimiterService,
+    RateLimitGuard,
     // ── Self-Evolution Safety ──────────────────────────────────────
     HumanApprovalGuard,
     SandboxService,

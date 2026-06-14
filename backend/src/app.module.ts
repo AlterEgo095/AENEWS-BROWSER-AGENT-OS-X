@@ -43,6 +43,7 @@ import { AgentFrameworkModule } from './modules/agent-framework/agent-framework.
 import { SoftwareFactoryModule } from './modules/software-factory/software-factory.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { LLMModule } from './modules/llm/llm.module';
+import { ObservabilityModule } from './modules/observability/observability.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -155,6 +156,10 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
     // Provides: LLMService, OpenAIProvider, AnthropicProvider
     // Must be loaded before agent clusters so LLM is available to all
     LLMModule,
+
+    // ─── Observability Module (Global) ──────────────────────────
+    // Provides: MetricsService, Prometheus endpoints, @Trace/@Meter decorators
+    ObservabilityModule,
 
     // ─── Agent Clusters (9 original + 5 Phase 2 Intelligence) ───
     ComputerClusterModule,

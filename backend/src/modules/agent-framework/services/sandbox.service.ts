@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HumanApprovalGuard } from '../guards/human-approval.guard';
+import { Trace } from '../../observability/decorators/trace.decorator';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -165,6 +166,7 @@ export class SandboxService {
    * @param context  Variables to inject into the sandbox scope
    * @param options  Execution options
    */
+  @Trace('sandbox.executeInSandbox')
   async executeInSandbox(
     code: string,
     context: Record<string, any> = {},
@@ -343,6 +345,7 @@ export class SandboxService {
    * Runs a series of validation checks based on the change type.
    * Changes must have passed dry-run before validation.
    */
+  @Trace('sandbox.validateChange')
   async validateChange(change: SystemChange | string): Promise<ValidationResult> {
     const resolvedChange =
       typeof change === 'string' ? this.getChangeOrThrow(change) : change;
@@ -472,6 +475,7 @@ export class SandboxService {
    * Apply a change that has been approved.
    * This persists the after-state.
    */
+  @Trace('sandbox.applyChange')
   async applyChange(changeId: string): Promise<SystemChange> {
     const change = this.getChangeOrThrow(changeId);
 

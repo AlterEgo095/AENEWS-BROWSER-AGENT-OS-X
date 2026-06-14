@@ -20,3 +20,17 @@ export {
   getHumanApprovalMetadata,
 } from './human-approval.decorator';
 export type { HumanApprovalOptions } from './human-approval.decorator';
+
+export {
+  CircuitBreaker,
+  CIRCUIT_BREAKER_KEY,
+  CIRCUIT_BREAKER_CONFIG_KEY,
+  getCircuitBreakerConfig,
+} from './circuit-breaker.decorator';
+
+export {
+  RateLimit,
+  RateLimitDomain,
+  RATE_LIMIT_KEY,
+  RATE_LIMIT_DOMAIN_KEY,
+} from './rate-limit.decorator';

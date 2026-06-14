@@ -1,3 +1,6 @@
+// ─── OpenTelemetry MUST be initialized BEFORE NestJS bootstrap ───
+import './modules/observability/tracing';
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

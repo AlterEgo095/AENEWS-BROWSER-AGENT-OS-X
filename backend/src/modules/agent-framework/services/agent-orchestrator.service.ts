@@ -7,8 +7,10 @@ import {
 } from './agent-event-bus.service';
 import { AgentMemoryService, MemoryTier } from './agent-memory.service';
 import { AgentHealthService } from './agent-health.service';
+import { CircuitBreakerService, CircuitBreakerOpenError, CIRCUIT_KEY_PREFIX } from './circuit-breaker.service';
 import { ClusterType } from '../../agent/entities/agent.entity';
 import { LLMService } from '../../llm/llm.service';
+import { Trace } from '../../observability/decorators/trace.decorator';
 
 // ─── Pipeline Types ──────────────────────────────────────────
 
@@ -190,6 +192,7 @@ export class AgentOrchestratorService {
     @Optional() private readonly llmService: LLMService,
     @Optional() private readonly healthService: AgentHealthService,
     @Optional() private readonly configService: ConfigService,
+    @Optional() private readonly circuitBreakerService: CircuitBreakerService,
   ) {
     // Load timeouts from env vars with fallback to defaults
     this.pipelineTimeouts = { ...DEFAULT_PIPELINE_TIMEOUTS };
@@ -218,6 +221,11 @@ export class AgentOrchestratorService {
    *
    * Concurrent mission support: if this mission already has an active
    * pipeline running, return its promise instead of starting a duplicate.
+   *
+   * Circuit Breaker: The entire pipeline is wrapped in an orchestrator-level
+   * circuit breaker (`orchestrator:pipeline`). If the circuit is OPEN, a
+   * cached/simplified result is returned. Individual steps are also wrapped
+   * in per-step circuit breakers (`pipeline:{stepName}`).
    */
   async executeMission(mission: Mission): Promise<DeliveryPackage> {
     // Deduplicate: if this mission already has an active pipeline, await it
@@ -230,12 +238,61 @@ export class AgentOrchestratorService {
       return this.activePipelines.get(mission.id)!;
     }
 
-    const pipelinePromise = this.runPipeline(mission).finally(() => {
+    const pipelinePromise = this.runPipelineWithCircuitBreaker(mission).finally(() => {
       this.activePipelines.delete(mission.id);
     });
 
     this.activePipelines.set(mission.id, pipelinePromise);
     return pipelinePromise;
+  }
+
+  /**
+   * Wrap the pipeline execution in the orchestrator-level circuit breaker.
+   * If the orchestrator circuit is OPEN, returns a failed delivery package
+   * with a meaningful error instead of throwing.
+   */
+  private async runPipelineWithCircuitBreaker(mission: Mission): Promise<DeliveryPackage> {
+    if (this.circuitBreakerService) {
+      const circuitKey = `${CIRCUIT_KEY_PREFIX.ORCHESTRATOR}:pipeline`;
+      return this.circuitBreakerService.execute<DeliveryPackage>(
+        circuitKey,
+        () => this.runPipeline(mission),
+        // Fallback: return a failed delivery package when circuit is OPEN
+        async () => ({
+          missionId: mission.id,
+          status: 'failed',
+          results: [],
+          critiques: [],
+          validations: [],
+          totalDuration: 0,
+          summary: `Pipeline circuit breaker is OPEN — mission "${mission.description}" could not be executed. Will retry after circuit recovers.`,
+        }),
+      );
+    }
+
+    return this.runPipeline(mission);
+  }
+
+  /**
+   * Execute a pipeline step with its own circuit breaker.
+   * On circuit OPEN: skip to the next step or return a cached/default result.
+   * On HALF_OPEN: allow a probe request through.
+   */
+  private async executeStepWithCircuitBreaker<T>(
+    stepName: string,
+    fn: () => Promise<T>,
+    fallback?: () => Promise<T>,
+  ): Promise<T> {
+    if (!this.circuitBreakerService) {
+      return fn();
+    }
+
+    const circuitKey = `${CIRCUIT_KEY_PREFIX.PIPELINE}:${stepName}`;
+    return this.circuitBreakerService.execute<T>(
+      circuitKey,
+      fn,
+      fallback,
+    );
   }
 
   /**
@@ -622,6 +679,7 @@ export class AgentOrchestratorService {
    * Uses LLM when available for intelligent decomposition,
    * falls back to simple heuristic when LLM is unavailable.
    */
+  @Trace('pipeline.decompose')
   async decompose(mission: Mission): Promise<Subtask[]> {
     this.logger.debug(`Decomposing mission: ${mission.id}`);
 
@@ -645,6 +703,7 @@ export class AgentOrchestratorService {
    * Uses LLM when available for intelligent planning,
    * falls back to simple topological ordering.
    */
+  @Trace('pipeline.plan')
   async plan(subtasks: Subtask[]): Promise<ExecutionPlan> {
     this.logger.debug(`Planning execution for ${subtasks.length} subtasks`);
 
@@ -667,6 +726,7 @@ export class AgentOrchestratorService {
    * Step 3: Execute the plan by dispatching subtasks to appropriate agents.
    * Uses findBestAgent for intelligent agent selection.
    */
+  @Trace('pipeline.execute')
   async execute(plan: ExecutionPlan): Promise<ExecutionResult[]> {
     this.logger.debug(
       `Executing plan with ${plan.executionOrder.length} wave(s)`,
@@ -702,6 +762,7 @@ export class AgentOrchestratorService {
    * Uses LLM when available for intelligent critique,
    * falls back to rule-based evaluation.
    */
+  @Trace('pipeline.critique')
   async critique(results: ExecutionResult[]): Promise<CritiqueResult[]> {
     this.logger.debug(`Critiquing ${results.length} execution result(s)`);
 
@@ -725,6 +786,7 @@ export class AgentOrchestratorService {
    * Uses LLM when available for intelligent repair suggestions,
    * falls back to re-execution.
    */
+  @Trace('pipeline.repair')
   async repair(context: {
     critiques: CritiqueResult[];
     results: ExecutionResult[];
@@ -761,6 +823,7 @@ export class AgentOrchestratorService {
    *   7. Constraint compliance (all constraints satisfied, if provided)
    *   8. Safety check (no harmful outputs detected)
    */
+  @Trace('pipeline.validate')
   async validate(
     items: Array<RepairResult | ExecutionResult>,
     mission?: Mission,
@@ -886,6 +949,7 @@ export class AgentOrchestratorService {
   /**
    * Step 7: Package validated results for delivery.
    */
+  @Trace('pipeline.deliver')
   deliver(validations: ValidationResult[]): DeliveryPackage {
     const allValid = validations.every((v) => v.valid);
     const someValid = validations.some((v) => v.valid);

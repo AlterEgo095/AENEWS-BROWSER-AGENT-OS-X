@@ -1,0 +1,41 @@
+# ─── AENEWS Agent OS X — Prometheus Configuration ─────────────
+# Scrape configs for backend API metrics and OpenTelemetry exporter.
+# ────────────────────────────────────────────────────────────────
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+  external_labels:
+    cluster: aenews-agent-osx
+    environment: production
+
+scrape_configs:
+  # ─── Backend API Metrics ────────────────────────────────────
+  - job_name: 'aenews-backend'
+    metrics_path: '/api/v1/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+        labels:
+          service: 'aenews-api'
+          component: 'backend'
+
+  # ─── OpenTelemetry Prometheus Exporter ──────────────────────
+  - job_name: 'aenews-otel'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['host.docker.internal:9464']
+        labels:
+          service: 'aenews-api'
+          component: 'otel-collector'
+
+  # ─── Prometheus Self-Monitoring ────────────────────────────
+  - job_name: 'prometheus'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          component: 'monitoring'

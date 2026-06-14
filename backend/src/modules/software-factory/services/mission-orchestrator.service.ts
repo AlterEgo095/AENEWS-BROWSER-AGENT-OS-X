@@ -34,6 +34,7 @@ import { AgentEventBusService } from '../../agent-framework/services/agent-event
 import { PlanningTeamService } from './teams/planning-team.service';
 import { ExecutionTeamService } from './teams/execution-team.service';
 import { CertificationTeamService } from './teams/certification-team.service';
+import { Trace } from '../../observability/decorators/trace.decorator';
 
 @Injectable()
 export class MissionOrchestratorService {
@@ -53,6 +54,7 @@ export class MissionOrchestratorService {
   /**
    * Start a new mission
    */
+  @Trace('mission.startMission')
   async startMission(request: MissionRequest): Promise<MissionExecution> {
     const missionId = `mission-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     this.logger.log(`New mission submitted: ${missionId} — "${request.instruction}"`);
@@ -115,6 +117,7 @@ export class MissionOrchestratorService {
   /**
    * Pause a mission
    */
+  @Trace('mission.pauseMission')
   async pauseMission(missionId: string): Promise<boolean> {
     const execution = this.executions.get(missionId);
     if (!execution) return false;
@@ -140,6 +143,7 @@ export class MissionOrchestratorService {
   /**
    * Resume a paused mission
    */
+  @Trace('mission.resumeMission')
   async resumeMission(missionId: string): Promise<boolean> {
     const execution = this.executions.get(missionId);
     if (!execution) return false;

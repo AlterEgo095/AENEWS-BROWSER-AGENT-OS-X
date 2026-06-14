@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ILLMProvider,
@@ -8,6 +8,11 @@ import {
 } from './interfaces/llm-provider.interface';
 import { OpenAIProvider } from './providers/openai.provider';
 import { AnthropicProvider } from './providers/anthropic.provider';
+import {
+  CircuitBreakerService,
+  CircuitBreakerOpenError,
+  CIRCUIT_KEY_PREFIX,
+} from '../agent-framework/services/circuit-breaker.service';
 
 /**
  * Usage metrics tracked per provider.
@@ -39,7 +44,13 @@ export interface ProviderInfo {
  * - Chat with a specific provider or the configured default
  * - Automatic fallback to secondary provider when primary fails
  * - Per-provider usage metrics tracking
+ * - Circuit breaker integration — each provider call is wrapped in a circuit breaker
  * - Graceful degradation — never throws when LLM is unavailable
+ *
+ * Circuit Breaker Integration:
+ * - Circuit key: `llm:{providerName}`
+ * - On OPEN: automatically tries fallback provider
+ * - On HALF_OPEN: allows a probe request through to test recovery
  */
 @Injectable()
 export class LLMService {
@@ -54,6 +65,7 @@ export class LLMService {
     private readonly configService: ConfigService,
     private readonly openaiProvider: OpenAIProvider,
     private readonly anthropicProvider: AnthropicProvider,
+    @Optional() private readonly circuitBreakerService: CircuitBreakerService,
   ) {
     // Register providers
     this.providers.set(openaiProvider.name, openaiProvider);
@@ -89,13 +101,15 @@ export class LLMService {
 
     this.logger.log(
       `LLM Service initialized — default: ${this.defaultProviderName}, ` +
-        `fallback: ${this.fallbackEnabled ? this.secondaryProviderName : 'disabled'}`,
+        `fallback: ${this.fallbackEnabled ? this.secondaryProviderName : 'disabled'}, ` +
+        `circuit breaker: ${this.circuitBreakerService ? 'enabled' : 'disabled'}`,
     );
   }
 
   /**
    * Send a chat request using a specific provider (or the default).
    * If the primary provider fails and fallback is enabled, tries the secondary.
+   * Each provider call is wrapped in a circuit breaker (when available).
    */
   async chat(
     messages: LLMMessage[],
@@ -122,23 +136,22 @@ export class LLMService {
       );
     }
 
-    try {
-      const response = await provider.chat(messages, options);
-      this.recordSuccess(targetName, response);
-      return response;
-    } catch (error: any) {
-      this.recordFailure(targetName, error.message);
+    // Wrap the provider call with circuit breaker if available
+    if (this.circuitBreakerService) {
+      const circuitKey = `${CIRCUIT_KEY_PREFIX.LLM}:${targetName}`;
 
-      // Try fallback on failure
-      if (this.fallbackEnabled && targetName !== this.secondaryProviderName) {
-        this.logger.warn(
-          `Provider "${targetName}" failed, trying fallback "${this.secondaryProviderName}": ${error.message}`,
-        );
-        return this.chatWithFallback(messages, options, targetName);
-      }
-
-      throw error;
+      return this.circuitBreakerService.execute<LLMResponse>(
+        circuitKey,
+        () => this.executeProviderChat(provider, targetName, messages, options),
+        // Fallback: try secondary provider when circuit is OPEN
+        this.fallbackEnabled && targetName !== this.secondaryProviderName
+          ? () => this.chatWithFallback(messages, options, targetName)
+          : undefined,
+      );
     }
+
+    // No circuit breaker — direct execution
+    return this.executeProviderChat(provider, targetName, messages, options);
   }
 
   /**
@@ -177,21 +190,41 @@ export class LLMService {
   listProviders(): ProviderInfo[] {
     const result: ProviderInfo[] = [];
     for (const [name, provider] of this.providers) {
-      result.push({
+      const info: ProviderInfo = {
         name,
         available: provider.isAvailable(),
         metrics: this.metrics.get(name) || this.emptyMetrics(),
-      });
+      };
+
+      // Add circuit breaker state if available
+      if (this.circuitBreakerService) {
+        const circuitState = this.circuitBreakerService.getState(`${CIRCUIT_KEY_PREFIX.LLM}:${name}`);
+        (info as any).circuitState = circuitState.state;
+      }
+
+      result.push(info);
     }
     return result;
   }
 
   /**
    * Check if any LLM provider is available.
+   * Considers circuit breaker state — a provider with an OPEN circuit is not considered available.
    */
   isAnyAvailable(): boolean {
-    for (const provider of this.providers.values()) {
-      if (provider.isAvailable()) return true;
+    for (const [name, provider] of this.providers) {
+      if (!provider.isAvailable()) continue;
+
+      // If circuit breaker is available, check if the circuit is OPEN
+      if (this.circuitBreakerService) {
+        const circuitKey = `${CIRCUIT_KEY_PREFIX.LLM}:${name}`;
+        if (this.circuitBreakerService.isOpen(circuitKey)) {
+          this.logger.debug(`Provider "${name}" is available but circuit is OPEN — skipping`);
+          continue;
+        }
+      }
+
+      return true;
     }
     return false;
   }
@@ -204,7 +237,36 @@ export class LLMService {
   }
 
   /**
+   * Execute a provider chat call with metrics tracking.
+   */
+  private async executeProviderChat(
+    provider: ILLMProvider,
+    providerName: string,
+    messages: LLMMessage[],
+    options: LLMOptions | undefined,
+  ): Promise<LLMResponse> {
+    try {
+      const response = await provider.chat(messages, options);
+      this.recordSuccess(providerName, response);
+      return response;
+    } catch (error: any) {
+      this.recordFailure(providerName, error.message);
+
+      // Try fallback on failure (when NOT already in circuit breaker context)
+      if (!this.circuitBreakerService && this.fallbackEnabled && providerName !== this.secondaryProviderName) {
+        this.logger.warn(
+          `Provider "${providerName}" failed, trying fallback "${this.secondaryProviderName}": ${error.message}`,
+        );
+        return this.chatWithFallback(messages, options, providerName);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Attempt chat with the fallback provider.
+   * Also wrapped in a circuit breaker when available.
    */
   private async chatWithFallback(
     messages: LLMMessage[],
@@ -225,6 +287,33 @@ export class LLMService {
       );
     }
 
+    // Wrap fallback in its own circuit breaker
+    if (this.circuitBreakerService) {
+      const fallbackCircuitKey = `${CIRCUIT_KEY_PREFIX.LLM}:${this.secondaryProviderName}`;
+
+      try {
+        return await this.circuitBreakerService.execute<LLMResponse>(
+          fallbackCircuitKey,
+          () => {
+            const response = fallbackProvider.chat(messages, options);
+            return response.then((r) => {
+              this.recordSuccess(this.secondaryProviderName, r);
+              return r;
+            });
+          },
+        );
+      } catch (error: any) {
+        if (error instanceof CircuitBreakerOpenError) {
+          throw new Error(
+            `Both primary ("${failedProvider}") and fallback ("${this.secondaryProviderName}") circuits are OPEN`,
+          );
+        }
+        this.recordFailure(this.secondaryProviderName, error.message);
+        throw error;
+      }
+    }
+
+    // No circuit breaker — direct fallback execution
     try {
       const response = await fallbackProvider.chat(messages, options);
       this.recordSuccess(this.secondaryProviderName, response);

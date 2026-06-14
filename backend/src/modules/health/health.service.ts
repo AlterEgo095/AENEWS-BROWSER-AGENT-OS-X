@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
   HealthCheckService,
   HealthCheckResult,
@@ -7,6 +7,7 @@ import {
   DiskHealthIndicator,
 } from '@nestjs/terminus';
 import { AgentHealthIndicator } from './health.indicator';
+import { InfrastructureHealthIndicator } from './infrastructure-health.indicator';
 
 export interface HealthCheckOptions {
   includeDetailed?: boolean;
@@ -23,25 +24,37 @@ export class HealthService {
     private readonly memory: MemoryHealthIndicator,
     private readonly disk: DiskHealthIndicator,
     private readonly agentHealth: AgentHealthIndicator,
+    @Optional() private readonly infrastructureHealth: InfrastructureHealthIndicator,
   ) {}
 
   /**
    * Run the full health check suite covering all system components.
    * This is the comprehensive check used by the GET /health endpoint.
    *
-   * Checks: PostgreSQL, Redis, Memory (heap + RSS), Disk, Agent System
+   * Checks: PostgreSQL, Redis, Memory (heap + RSS), Disk, Agent System,
+   *         Circuit Breakers, Rate Limiters
    */
   async checkFull(_options?: HealthCheckOptions): Promise<HealthCheckResult> {
     this.logger.debug('Running full health check suite');
 
-    const result = await this.health.check([
+    const checks: Array<() => Promise<any>> = [
       () => this.checkDatabase(),
       () => this.checkRedis(),
       () => this.checkMemoryHeap(),
       () => this.checkMemoryRSS(),
       () => this.checkDisk(),
       () => this.checkAgentSystem(),
-    ]);
+    ];
+
+    // Add infrastructure checks (circuit breakers + rate limiters) if available
+    if (this.infrastructureHealth) {
+      checks.push(
+        () => this.infrastructureHealth.checkCircuitBreakers('circuit_breakers'),
+        () => this.infrastructureHealth.checkRateLimiters('rate_limiters'),
+      );
+    }
+
+    const result = await this.health.check(checks);
 
     this.logger.debug(`Health check completed with status: ${result.status}`);
 
@@ -50,17 +63,26 @@ export class HealthService {
 
   /**
    * Run a lightweight readiness check for Kubernetes readiness probe.
-   * Checks database, Redis, and agent system readiness.
+   * Checks database, Redis, agent system readiness, and circuit breaker readiness.
    * Memory and disk checks are excluded for faster response time.
    */
   async checkReadiness(): Promise<HealthCheckResult> {
     this.logger.debug('Running readiness health check');
 
-    return this.health.check([
+    const checks: Array<() => Promise<any>> = [
       () => this.checkDatabase(),
       () => this.checkRedis(),
       () => this.checkAgentSystem(),
-    ]);
+    ];
+
+    // Add circuit breaker readiness check
+    if (this.infrastructureHealth) {
+      checks.push(
+        () => this.infrastructureHealth.checkReadiness('system_readiness'),
+      );
+    }
+
+    return this.health.check(checks);
   }
 
   /**

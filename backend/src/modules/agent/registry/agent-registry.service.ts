@@ -2,6 +2,11 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { BaseAgent, AgentContext, AgentResult } from '../agent.abstract';
 import { ClusterType, AgentStatus } from '../entities/agent.entity';
+import {
+  CircuitBreakerService,
+  CircuitState,
+  CIRCUIT_KEY_PREFIX,
+} from '../../agent-framework/services/circuit-breaker.service';
 
 // ─── Agent Selection Criteria ────────────────────────────────────
 
@@ -26,6 +31,7 @@ interface AgentScore {
   healthPenalty: number;
   loadPenalty: number;
   priorityBonus: number;
+  circuitBreakerPenalty: number;
 }
 
 // ─── Health Snapshot ─────────────────────────────────────────────
@@ -52,7 +58,10 @@ export class AgentRegistryService {
   private healthService: any = null;
   private healthServiceResolved = false;
 
-  constructor(private readonly moduleRef: ModuleRef) {
+  constructor(
+    private readonly moduleRef: ModuleRef,
+    @Optional() private readonly circuitBreakerService: CircuitBreakerService,
+  ) {
     Object.values(ClusterType).forEach((cluster) => {
       this.clusterAgents.set(cluster as ClusterType, new Set());
     });
@@ -177,18 +186,21 @@ export class AgentRegistryService {
    *   1. Filter by cluster type if specified
    *   2. Filter by capabilities if specified (agent must have at least one match)
    *   3. Exclude specified agent keys
-   *   4. Score each candidate:
+   *   4. **Skip agents with OPEN circuit breakers**
+   *   5. Score each candidate:
    *      - Capability match: how many required capabilities the agent has
    *      - Health score: penalize degraded/unhealthy agents (from AgentHealthService)
+   *      - **Circuit breaker score: penalize agents with recent circuit openings**
    *      - Load score: prefer agents with fewer active executions (least-loaded)
    *      - Priority weighting: higher priority tasks prefer more capable agents
-   *   5. Return the highest-scoring agent, or null if no match
+   *   6. Return the highest-scoring agent, or null if no match
    *
-   * Graceful fallback: works even without AgentHealthService — health
-   * scoring is skipped and selection relies on load + capability only.
+   * Circuit Breaker Integration:
+   *   - Agents with OPEN circuits are completely skipped (unavailable)
+   *   - Agents with HALF_OPEN circuits get a moderate penalty (testing recovery)
+   *   - Agents with recent circuit state changes get a penalty (instability signal)
    *
-   * Fallback strategy: if no agent matches all capabilities, returns
-   * the closest match (agent with the most capability overlap).
+   * Graceful fallback: works even without AgentHealthService or CircuitBreakerService.
    */
   findBestAgent(criteria: AgentSelectionCriteria): BaseAgent | null {
     const {
@@ -245,10 +257,40 @@ export class AgentRegistryService {
 
     // ── Step 3: Exclude specified agent keys ──
     const excludeSet = new Set(excludeAgentKeys);
-    const filtered = capabilityFiltered.filter((agent) => {
+    let filtered = capabilityFiltered.filter((agent) => {
       const key = `${agent.cluster}:${agent.name}`;
       return !excludeSet.has(key);
     });
+
+    // ── Step 3.5: Filter out agents with OPEN circuits ──
+    if (this.circuitBreakerService) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter((agent) => {
+        const key = `${agent.cluster}:${agent.name}`;
+        const circuitKey = `${CIRCUIT_KEY_PREFIX.CLUSTER}:${agent.cluster}`;
+        // Check both the cluster circuit and a potential agent-specific circuit
+        const clusterCircuitOpen = this.circuitBreakerService.isOpen(circuitKey);
+        const agentCircuitKey = `agent:${key}`;
+        const agentCircuitOpen = this.circuitBreakerService.isOpen(agentCircuitKey);
+
+        if (clusterCircuitOpen || agentCircuitOpen) {
+          this.logger.debug(
+            `Agent "${key}" skipped — circuit breaker is OPEN ` +
+              `(cluster: ${clusterCircuitOpen}, agent: ${agentCircuitOpen})`,
+          );
+          return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0 && beforeCount > 0) {
+        this.logger.warn(
+          `All ${beforeCount} candidate agents have OPEN circuit breakers — ` +
+            `no agent available for selection`,
+        );
+        return null;
+      }
+    }
 
     if (filtered.length === 0) {
       this.logger.warn('All agents excluded by criteria — no candidate available');
@@ -286,6 +328,34 @@ export class AgentRegistryService {
         healthPenalty = 0.05;
       }
 
+      // Circuit breaker penalty: penalize agents with recent circuit activity
+      let circuitBreakerPenalty = 0;
+      if (this.circuitBreakerService) {
+        const agentCircuitKey = `agent:${key}`;
+        const agentCircuitState = this.circuitBreakerService.getState(agentCircuitKey);
+
+        if (agentCircuitState.state === CircuitState.HALF_OPEN) {
+          // Agent is recovering — moderate penalty
+          circuitBreakerPenalty = 0.3;
+        } else if (agentCircuitState.totalFailures > 0) {
+          // Agent has had failures — penalty proportional to failure rate
+          const failureRate = agentCircuitState.totalFailures /
+            Math.max(1, agentCircuitState.totalRequests);
+          circuitBreakerPenalty = Math.min(0.5, failureRate * 0.5);
+        }
+
+        // Also check cluster-level circuit
+        const clusterCircuitKey = `${CIRCUIT_KEY_PREFIX.CLUSTER}:${agent.cluster}`;
+        const clusterCircuitState = this.circuitBreakerService.getState(clusterCircuitKey);
+        if (clusterCircuitState.state === CircuitState.HALF_OPEN) {
+          circuitBreakerPenalty += 0.15; // cluster is recovering — small additional penalty
+        } else if (clusterCircuitState.totalFailures > 0) {
+          const clusterFailureRate = clusterCircuitState.totalFailures /
+            Math.max(1, clusterCircuitState.totalRequests);
+          circuitBreakerPenalty += Math.min(0.2, clusterFailureRate * 0.2);
+        }
+      }
+
       // Load penalty: agents with more active executions get penalized
       const activeCount = this.activeExecutions.get(key) || 0;
       const loadPenalty = activeCount * 0.15;
@@ -314,6 +384,7 @@ export class AgentRegistryService {
       const score =
         capabilityMatch -
         healthPenalty -
+        circuitBreakerPenalty -
         loadPenalty -
         statusPenalty +
         priorityBonus;
@@ -326,6 +397,7 @@ export class AgentRegistryService {
         healthPenalty,
         loadPenalty,
         priorityBonus,
+        circuitBreakerPenalty,
       };
     });
 
@@ -344,6 +416,7 @@ export class AgentRegistryService {
       healthPenalty: best.healthPenalty,
       loadPenalty: best.loadPenalty,
       priorityBonus: best.priorityBonus,
+      circuitBreakerPenalty: best.circuitBreakerPenalty,
     });
 
     return best.agent;
@@ -381,6 +454,11 @@ export class AgentRegistryService {
    * Validates that the agent exists and is not already running before delegating
    * to the agent's wrapExecution lifecycle wrapper.
    * Tracks active executions for load balancing.
+   *
+   * Circuit Breaker Integration:
+   *   - Each agent execution is wrapped in a circuit breaker (`agent:{key}`)
+   *   - If the circuit is OPEN, the execution is rejected with a meaningful error
+   *   - On HALF_OPEN, the execution is allowed as a probe
    */
   async executeAgent(key: string, context: AgentContext): Promise<AgentResult> {
     const agent = this.agents.get(key);
@@ -391,6 +469,32 @@ export class AgentRegistryService {
       throw new Error(`Agent ${key} is already running`);
     }
 
+    // Wrap execution in circuit breaker if available
+    if (this.circuitBreakerService) {
+      const circuitKey = `agent:${key}`;
+      return this.circuitBreakerService.execute<AgentResult>(
+        circuitKey,
+        () => this.executeAgentInternal(key, agent, context),
+        // Fallback: return a failed result when circuit is OPEN
+        async () => ({
+          success: false,
+          error: `Agent "${key}" circuit breaker is OPEN — execution rejected. Will retry after circuit recovers.`,
+          duration: 0,
+        }),
+      );
+    }
+
+    return this.executeAgentInternal(key, agent, context);
+  }
+
+  /**
+   * Internal agent execution with tracking.
+   */
+  private async executeAgentInternal(
+    key: string,
+    agent: BaseAgent,
+    context: AgentContext,
+  ): Promise<AgentResult> {
     this.incrementActiveExecutions(key);
     try {
       const result = await agent.wrapExecution(context);

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { AgentHealthIndicator } from './health.indicator';
+import { InfrastructureHealthIndicator } from './infrastructure-health.indicator';
 
 @Module({
   imports: [
@@ -11,7 +12,7 @@ import { AgentHealthIndicator } from './health.indicator';
     TypeOrmModule,
   ],
   controllers: [HealthController],
-  providers: [HealthService, AgentHealthIndicator],
-  exports: [HealthService, AgentHealthIndicator],
+  providers: [HealthService, AgentHealthIndicator, InfrastructureHealthIndicator],
+  exports: [HealthService, AgentHealthIndicator, InfrastructureHealthIndicator],
 })
 export class HealthModule {}
