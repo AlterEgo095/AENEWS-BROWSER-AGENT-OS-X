@@ -43,6 +43,7 @@ import { AgentFrameworkModule } from './modules/agent-framework/agent-framework.
 import { SoftwareFactoryModule } from './modules/software-factory/software-factory.module';
 import { CodingConnectorModule } from './modules/connectors/coding/coding-connector.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { SecurityModule } from './modules/security/security.module';
 import { BrowserConnectorModule } from './modules/connectors/browser/browser-connector.module';
 import { OfficeConnectorModule } from './modules/connectors/office/office-connector.module';
 import { InfrastructureConnectorModule } from './modules/connectors/infrastructure/infrastructure-connector.module';
@@ -227,6 +228,11 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
     // ─── WebSocket Gateway Module ───
     // Provides: Real-time event broadcasting over Socket.IO
     GatewayModule,
+
+    // ─── Security Module (Phase 12) ───
+    // Provides: Account lockout, refresh tokens, CORS, IP access control,
+    // security metrics, threat intelligence, Sentry integration
+    SecurityModule,
   ],
   controllers: [AppController],
   providers: [

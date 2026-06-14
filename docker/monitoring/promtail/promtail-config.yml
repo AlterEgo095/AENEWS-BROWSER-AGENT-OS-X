@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════════
+# AENEWS Agent OS X — Promtail Configuration
+# ═══════════════════════════════════════════════════════════════
+# Ships Docker container logs to Loki for centralized log
+# aggregation and searching via Grafana.
+# ═══════════════════════════════════════════════════════════════
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    tenant_id: aenews
+
+scrape_configs:
+  # ─── Docker Container Logs ────────────────────────────────
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.service"]
+    relabel_configs:
+      # Use compose service name as the log label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+    pipeline_stages:
+      # Parse JSON log lines
+      - json:
+          expressions:
+            level: level
+            timestamp: timestamp
+            message: message
+            context: context
+      # Set log level from parsed JSON
+      - labels:
+          level:
+          service:
+      # Set timestamp from log entry
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+      # Drop health check noise
+      - match:
+          selector: '{service=~"prometheus|grafana|loki"} |= "health"'
+          action: drop
+
+  # ─── System Logs ──────────────────────────────────────────
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*log
+    pipeline_stages:
+      - match:
+          selector: '{job="varlogs"}'
+          stages:
+            - labeldrop:
+                - filename

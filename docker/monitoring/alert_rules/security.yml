@@ -1,0 +1,156 @@
+# ═══════════════════════════════════════════════════════════════
+# AENEWS Agent OS X — Security Alerting Rules
+# ═══════════════════════════════════════════════════════════════
+# Prometheus alerting rules for security events.
+# Triggers alerts for: brute force, token theft, suspicious IPs,
+# excessive blocking, circuit breaker trips, etc.
+# ═══════════════════════════════════════════════════════════════
+
+groups:
+  # ─── Authentication Alerts ──────────────────────────────────
+  - name: auth_alerts
+    rules:
+      - alert: HighAuthenticationFailureRate
+        expr: rate(aenews_security_auth_failures_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High authentication failure rate detected"
+          description: "Authentication failures are occurring at {{ $value }} per second. Possible brute-force attack."
+
+      - alert: AccountLockoutSpike
+        expr: rate(aenews_security_account_lockouts_total[10m]) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Account lockout spike detected"
+          description: "{{ $value }} account lockouts per second. Possible coordinated brute-force attack."
+
+      - alert: CredentialStuffingDetected
+        expr: rate(aenews_security_auth_failures_total{reason="invalid_password"}[5m]) > 10
+        for: 3m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Possible credential stuffing attack"
+          description: "High rate of invalid password attempts: {{ $value }}/s. Likely credential stuffing."
+
+  # ─── Token Security Alerts ──────────────────────────────────
+  - name: token_alerts
+    rules:
+      - alert: RefreshTokenReuseDetected
+        expr: rate(aenews_security_token_rotations_total{status="reuse_detected"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Refresh token reuse detected!"
+          description: "A refresh token reuse event was detected. This likely indicates token theft. All sessions in the affected family have been revoked."
+
+      - alert: HighTokenRotationFailureRate
+        expr: rate(aenews_security_token_rotations_total{status!="success"}[10m]) / rate(aenews_security_token_rotations_total[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High token rotation failure rate"
+          description: "{{ $value | humanizePercentage }} of token rotations are failing. Investigate token service health."
+
+  # ─── Threat Intelligence Alerts ─────────────────────────────
+  - name: threat_alerts
+    rules:
+      - alert: SuspiciousIPCountRising
+        expr: aenews_security_suspicious_ips_tracked > 50
+        for: 10m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High number of suspicious IPs tracked"
+          description: "{{ $value }} IPs are currently flagged as suspicious. May indicate a targeted attack."
+
+      - alert: BlockedRequestSpike
+        expr: rate(aenews_security_blocked_requests_total[5m]) > 20
+        for: 3m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Spike in blocked requests"
+          description: "{{ $value }} requests/second are being blocked. Possible attack in progress."
+
+      - alert: CriticalThreatDetected
+        expr: rate(aenews_security_threat_detections_total{severity="critical"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Critical security threat detected"
+          description: "A critical-severity threat has been detected. Immediate investigation required."
+
+  # ─── Circuit Breaker Alerts ─────────────────────────────────
+  - name: circuit_breaker_alerts
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: aenews_security_circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Circuit breaker {{ $labels.circuit }} is OPEN"
+          description: "The circuit breaker for {{ $labels.circuit }} has been open for more than 1 minute. Downstream service may be unavailable."
+
+      - alert: MultipleCircuitBreakersOpen
+        expr: count(aenews_security_circuit_breaker_state == 1) > 3
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Multiple circuit breakers are open"
+          description: "{{ $value }} circuit breakers are currently open. System-wide degradation likely."
+
+  # ─── Input Security Alerts ──────────────────────────────────
+  - name: input_security_alerts
+    rules:
+      - alert: HighSanitizationRate
+        expr: rate(aenews_security_input_sanitized_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High input sanitization rate"
+          description: "{{ $value }} inputs/second are being sanitized. May indicate an injection attack campaign."
+
+      - alert: PromptInjectionDetected
+        expr: rate(aenews_security_threat_detections_total{type="prompt_injection"}[10m]) > 1
+        for: 2m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Prompt injection attempts detected"
+          description: "Multiple prompt injection attempts detected. Agents may be under attack."
+
+  # ─── Risk Score Alerts ──────────────────────────────────────
+  - name: risk_score_alerts
+    rules:
+      - alert: HighAverageRiskScore
+        expr: avg(aenews_security_risk_score_histogram_bucket) > 50
+        for: 10m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High average risk score"
+          description: "The average security risk score is {{ $value }}, indicating elevated threat levels."

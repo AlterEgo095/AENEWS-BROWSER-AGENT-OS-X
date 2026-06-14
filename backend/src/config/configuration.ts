@@ -49,12 +49,15 @@ export default () => ({
     bucket: process.env.MINIO_BUCKET || 'aenews-storage',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'default-secret-change-me',
+    // FAIL-FAST: No default secrets. Must be set in production.
+    // In development, a warning is logged but the app still starts.
+    secret: process.env.JWT_SECRET || (process.env.APP_ENV === 'production' ? undefined : 'dev-only-secret-change-me'),
     expiration: process.env.JWT_EXPIRATION || '24h',
     refreshExpiration: process.env.JWT_REFRESH_EXPIRATION || '7d',
   },
   encryption: {
-    key: process.env.ENCRYPTION_KEY || 'default-encryption-key-32c',
+    // FAIL-FAST: No default encryption key. Must be set in production.
+    key: process.env.ENCRYPTION_KEY || (process.env.APP_ENV === 'production' ? undefined : 'dev-only-key-32chars-change!'),
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
@@ -81,6 +84,8 @@ export default () => ({
   },
   monitoring: {
     sentryDsn: process.env.SENTRY_DSN || undefined,
+    sentryTracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
+    sentryProfilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '0.1'),
     prometheusPort: parseInt(process.env.PROMETHEUS_PORT || '9090', 10),
   },
   llm: {
@@ -98,6 +103,47 @@ export default () => ({
     fallback: {
       enabled: process.env.LLM_FALLBACK_ENABLED === 'true',
       secondaryProvider: process.env.LLM_SECONDARY_PROVIDER || 'anthropic',
+    },
+  },
+  // ─── Phase 12: Security Configuration ───
+  security: {
+    cors: {
+      origins: process.env.SECURITY_CORS_ORIGINS || '',
+    },
+    lockout: {
+      maxAttempts: parseInt(process.env.SECURITY_LOCKOUT_MAX_ATTEMPTS || '5', 10),
+      baseDurationMin: parseInt(process.env.SECURITY_LOCKOUT_BASE_DURATION_MIN || '15', 10),
+      maxDurationMin: parseInt(process.env.SECURITY_LOCKOUT_MAX_DURATION_MIN || '1440', 10),
+      multiplier: parseInt(process.env.SECURITY_LOCKOUT_MULTIPLIER || '2', 10),
+      resetAfterMin: parseInt(process.env.SECURITY_LOCKOUT_RESET_AFTER_MIN || '30', 10),
+      progressiveDelay: process.env.SECURITY_LOCKOUT_PROGRESSIVE_DELAY !== 'false',
+    },
+    refreshToken: {
+      maxFamilies: parseInt(process.env.SECURITY_REFRESH_TOKEN_MAX_FAMILIES || '5', 10),
+      reuseWindowMin: parseInt(process.env.SECURITY_REFRESH_TOKEN_REUSE_WINDOW_MIN || '5', 10),
+    },
+    ip: {
+      adminWhitelist: process.env.SECURITY_IP_ADMIN_WHITELIST || '',
+      metricsWhitelist: process.env.SECURITY_IP_METRICS_WHITELIST || '',
+      internalWhitelist: process.env.SECURITY_IP_INTERNAL_WHITELIST || '',
+      privateBypass: process.env.SECURITY_IP_PRIVATE_BYPASS !== 'false',
+    },
+    audit: {
+      batchSize: parseInt(process.env.SECURITY_AUDIT_BATCH_SIZE || '50', 10),
+      flushIntervalSec: parseInt(process.env.SECURITY_AUDIT_FLUSH_INTERVAL_SEC || '10', 10),
+      retentionDays: parseInt(process.env.SECURITY_AUDIT_RETENTION_DAYS || '90', 10),
+    },
+    threat: {
+      autoBlockScore: parseInt(process.env.SECURITY_THREAT_AUTO_BLOCK_SCORE || '80', 10),
+      bruteForceThreshold: parseInt(process.env.SECURITY_THREAT_BRUTE_FORCE_THRESHOLD || '10', 10),
+      scanningThreshold: parseInt(process.env.SECURITY_THREAT_SCANNING_THRESHOLD || '20', 10),
+      rateAbuseThreshold: parseInt(process.env.SECURITY_THREAT_RATE_ABUSE_THRESHOLD || '5', 10),
+      trackingWindowMin: parseInt(process.env.SECURITY_THREAT_TRACKING_WINDOW_MIN || '15', 10),
+    },
+    ws: {
+      maxConnectionsPerIp: parseInt(process.env.SECURITY_WS_MAX_CONNECTIONS_PER_IP || '5', 10),
+      rateLimitPerMin: parseInt(process.env.SECURITY_WS_RATE_LIMIT_PER_MIN || '60', 10),
+      sanitizeEvents: process.env.SECURITY_WS_SANITIZE_EVENTS !== 'false',
     },
   },
 });

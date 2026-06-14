@@ -6,19 +6,18 @@
  * Imports:
  *   - AgentFrameworkModule: provides AgentEventBusService (global, already available)
  *   - AuthModule: provides JwtService for connection authentication
- *
- * The EventsGateway is the central WebSocket hub that broadcasts
- * agent, mission, and system events to connected clients.
+ *   - SecurityModule: provides SecurityGatewayService, ThreatIntelligenceService, SecurityMetricsService
  */
 
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { EventsGateway } from './events.gateway';
 import { AuthModule } from '../auth/auth.module';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
-    // JwtService comes from AuthModule
     AuthModule,
+    forwardRef(() => SecurityModule),
   ],
   providers: [EventsGateway],
   exports: [EventsGateway],

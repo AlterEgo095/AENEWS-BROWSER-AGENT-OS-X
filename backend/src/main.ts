@@ -4,17 +4,69 @@ import './modules/observability/tracing';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
+import { CorsSecurityMiddleware } from './modules/security/middleware/cors-security.middleware';
+import { CorrelationIdMiddleware } from './modules/security/middleware/correlation-id.middleware';
+import { IpAccessControlMiddleware } from './modules/security/middleware/ip-access-control.middleware';
+import { SentryIntegrationService } from './modules/security-monitoring/services/sentry-integration.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
-    cors: true,
   });
+
+  // ─── Trust Proxy (for proper IP forwarding behind nginx) ───
+  app.enableTrustProxy();
+
+  // ─── Security Headers (helmet) ───
+  app.use(helmet.default({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // Required for Swagger UI
+        scriptSrc: ["'self'", "'unsafe-inline'"], // Required for Swagger UI
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'", 'wss:', 'https:'],
+        fontSrc: ["'self'", 'https:', 'data:'],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'none'"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Required for Swagger UI
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: { policy: 'same-site' },
+    hsts: {
+      maxAge: 63072000,       // 2 years
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    frameguard: { action: 'deny' },
+    noSniff: true,
+    xssFilter: true,
+    hidePoweredBy: true,
+    ieNoOpen: true,
+  }));
+
+  // ─── CORS (explicit origin validation) ───
+  const corsMiddleware = app.get(CorsSecurityMiddleware);
+  app.enableCors(corsMiddleware.getCorsOptions());
+
+  // ─── Request Body Size Limit ───
+  const expressApp = app.getHttpAdapter().getInstance();
+  // Override express.json to limit body size to 10MB
+  expressApp.use(require('express').json({ limit: '10mb' }));
+  expressApp.use(require('express').urlencoded({ limit: '10mb', extended: true }));
+
+  // ─── Global Middleware ───
+  app.use(CorrelationIdMiddleware);
+  app.use(IpAccessControlMiddleware);
 
   // Global prefix
   const apiPrefix = process.env.API_PREFIX || 'api/v1';
@@ -47,6 +99,18 @@ async function bootstrap() {
     new TransformInterceptor(),
   );
 
+  // ─── Sentry Request Handler ───
+  const sentryService = app.get(SentryIntegrationService);
+  if (sentryService.isEnabled()) {
+    try {
+      const Sentry = await import('@sentry/node');
+      app.use(Sentry.Handlers.requestHandler());
+      app.use(Sentry.Handlers.tracingHandler());
+    } catch {
+      // Sentry not available, continue without it
+    }
+  }
+
   // Swagger
   const config = new DocumentBuilder()
     .setTitle('AENEWS Agent OS X')
@@ -70,6 +134,7 @@ async function bootstrap() {
   console.log(`🚀 AENEWS Agent OS X running on port ${port}`);
   console.log(`📖 API Docs: http://localhost:${port}/docs`);
   console.log(`🔑 API Prefix: /${apiPrefix}`);
+  console.log(`🛡️  Security: helmet + explicit CORS + IP access control + correlation IDs`);
 }
 
 bootstrap();

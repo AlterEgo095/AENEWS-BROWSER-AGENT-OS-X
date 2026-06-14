@@ -1,41 +1,92 @@
-# ─── AENEWS Agent OS X — Prometheus Configuration ─────────────
-# Scrape configs for backend API metrics and OpenTelemetry exporter.
-# ────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# AENEWS Agent OS X — Prometheus Configuration (Phase 12)
+# ═══════════════════════════════════════════════════════════════
+# Enhanced with security-specific scrape targets, recording rules,
+# and alerting rule files.
+# ═══════════════════════════════════════════════════════════════
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   scrape_timeout: 10s
-
   external_labels:
-    cluster: aenews-agent-osx
-    environment: production
+    cluster: 'aenews-agent-osx'
+    environment: 'production'
 
+# Alertmanager integration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+      timeout: 10s
+      api_version: v2
+
+# Load alerting rules
+rule_files:
+  - 'alert_rules/*.yml'
+
+# Scrape configurations
 scrape_configs:
-  # ─── Backend API Metrics ────────────────────────────────────
-  - job_name: 'aenews-backend'
+  # ─── Backend API ──────────────────────────────────────────
+  - job_name: 'aenews-api'
     metrics_path: '/api/v1/metrics'
-    scrape_interval: 10s
-    static_configs:
-      - targets: ['host.docker.internal:3000']
-        labels:
-          service: 'aenews-api'
-          component: 'backend'
-
-  # ─── OpenTelemetry Prometheus Exporter ──────────────────────
-  - job_name: 'aenews-otel'
-    scrape_interval: 10s
-    static_configs:
-      - targets: ['host.docker.internal:9464']
-        labels:
-          service: 'aenews-api'
-          component: 'otel-collector'
-
-  # ─── Prometheus Self-Monitoring ────────────────────────────
-  - job_name: 'prometheus'
     scrape_interval: 15s
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['api:3000']
         labels:
-          service: 'prometheus'
-          component: 'monitoring'
+          service: 'api'
+          team: 'platform'
+
+  # ─── Node Exporter (System Metrics) ───────────────────────
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node'
+
+  # ─── PostgreSQL Exporter ──────────────────────────────────
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgresql'
+
+  # ─── Redis Exporter ───────────────────────────────────────
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+
+  # ─── Nginx Exporter ───────────────────────────────────────
+  - job_name: 'nginx-exporter'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'nginx'
+
+  # ─── OTLP Collector ───────────────────────────────────────
+  - job_name: 'otel-collector'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['otel-collector:8889']
+        labels:
+          service: 'telemetry'
+
+  # ─── Prometheus Self-Monitoring ───────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ─── Alertmanager ─────────────────────────────────────────
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+
+# Storage configuration
+storage:
+  tsdb:
+    retention:
+      time: 30d
+      size: 10GB

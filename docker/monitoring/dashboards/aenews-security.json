@@ -1,0 +1,283 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "AENEWS Agent OS X Security Monitoring Dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "🛡️ Security Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "title": "Blocked Requests / sec",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(aenews_security_blocked_requests_total[5m]))",
+          "legendFormat": "blocked/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          },
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "title": "Auth Failures / sec",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(aenews_security_auth_failures_total[5m]))",
+          "legendFormat": "failures/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "title": "Active Account Lockouts",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(aenews_security_account_lockouts_total)",
+          "legendFormat": "lockouts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Suspicious IPs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "targets": [
+        {
+          "expr": "aenews_security_suspicious_ips_tracked",
+          "legendFormat": "IPs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "🔐 Threat Detection",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+    },
+    {
+      "title": "Threats by Type",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(aenews_security_threat_detections_total[5m]))",
+          "legendFormat": "{{ type }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 30 },
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Threats by Severity",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (severity) (aenews_security_threat_detections_total)",
+          "legendFormat": "{{ severity }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Risk Score Distribution",
+      "type": "histogram",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (le) (aenews_security_risk_score_histogram_bucket)",
+          "legendFormat": "{{ le }}"
+        }
+      ]
+    },
+    {
+      "title": "🔑 Authentication",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 }
+    },
+    {
+      "title": "Auth Failures by Reason",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(aenews_security_auth_failures_total[5m]))",
+          "legendFormat": "{{ reason }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 20 }
+        }
+      }
+    },
+    {
+      "title": "Token Operations",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(aenews_security_token_rotations_total[5m]))",
+          "legendFormat": "rotation/{{ status }}"
+        },
+        {
+          "expr": "rate(aenews_security_auth_success_total[5m])",
+          "legendFormat": "auth success"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 20 }
+        }
+      }
+    },
+    {
+      "title": "🔌 Circuit Breakers",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }
+    },
+    {
+      "title": "Circuit Breaker States",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "aenews_security_circuit_breaker_state",
+          "legendFormat": "{{ circuit }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName" },
+            "properties": [
+              { "id": "custom.width", "value": 80 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "title": "📝 Input Security",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 }
+    },
+    {
+      "title": "Sanitized Inputs by Threat Type",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "targets": [
+        {
+          "expr": "sum by (threat_type) (aenews_security_input_sanitized_total)",
+          "legendFormat": "{{ threat_type }}"
+        }
+      ]
+    },
+    {
+      "title": "Blocked Requests by Path",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (path) (aenews_security_blocked_requests_total))",
+          "legendFormat": "{{ path }}"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["aenews", "security", "monitoring"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "AENEWS Security Dashboard",
+  "uid": "aenews-security",
+  "version": 1
+}
