@@ -19,6 +19,15 @@
  *   - CrossClusterCoordinatorService: Cross-cluster agent coordination
  *   - ConnectorAwareExecutionService: Connector-first execution with LLM fallback
  *
+ * Phase 9 — Adaptive Intelligence & Knowledge System additions:
+ *   - KnowledgeGraphService: Neo4j-powered knowledge graph for agents, missions, patterns
+ *   - AgentLearningEngine: Reinforcement-inspired learning from execution outcomes
+ *   - PatternMiningService: Historical pattern mining and prediction
+ *   - AdaptiveStrategyService: Self-tuning orchestration parameters
+ *   - ExperienceReplayService: Mission experience storage and replay analysis
+ *   - FeedbackAggregationService: Multi-source feedback collection and analysis
+ *   - IntelligenceController: REST API for all Phase 9 services
+ *
  * Core services:
  *   - AgentMemoryService: Unified memory facade (Redis + Qdrant)
  *   - AgentEventBusService: Enhanced event bus for agent-specific patterns
@@ -56,6 +65,15 @@ import { CrossClusterCoordinatorService } from './services/cross-cluster-coordin
 import { ConnectorAwareExecutionService } from './services/connector-aware-execution.service';
 import { OrchestrationController } from './controllers/orchestration.controller';
 
+// Phase 9 — Adaptive Intelligence & Knowledge System
+import { KnowledgeGraphService } from './services/knowledge-graph.service';
+import { AgentLearningEngine } from './services/agent-learning-engine.service';
+import { PatternMiningService } from './services/pattern-mining.service';
+import { AdaptiveStrategyService } from './services/adaptive-strategy.service';
+import { ExperienceReplayService } from './services/experience-replay.service';
+import { FeedbackAggregationService } from './services/feedback-aggregation.service';
+import { IntelligenceController } from './controllers/intelligence.controller';
+
 @Global()
 @Module({
   imports: [
@@ -66,6 +84,7 @@ import { OrchestrationController } from './controllers/orchestration.controller'
   ],
   controllers: [
     OrchestrationController,
+    IntelligenceController,
   ],
   providers: [
     // ── Core Framework Services ──────────────────────────────────
@@ -88,6 +107,13 @@ import { OrchestrationController } from './controllers/orchestration.controller'
     MissionDecompositionService,
     CrossClusterCoordinatorService,
     ConnectorAwareExecutionService,
+    // ── Phase 9 — Adaptive Intelligence & Knowledge System ───────
+    KnowledgeGraphService,
+    AgentLearningEngine,
+    PatternMiningService,
+    AdaptiveStrategyService,
+    ExperienceReplayService,
+    FeedbackAggregationService,
   ],
   exports: [
     // ── Core Framework Services ──────────────────────────────────
@@ -110,6 +136,13 @@ import { OrchestrationController } from './controllers/orchestration.controller'
     MissionDecompositionService,
     CrossClusterCoordinatorService,
     ConnectorAwareExecutionService,
+    // ── Phase 9 — Adaptive Intelligence & Knowledge System ───────
+    KnowledgeGraphService,
+    AgentLearningEngine,
+    PatternMiningService,
+    AdaptiveStrategyService,
+    ExperienceReplayService,
+    FeedbackAggregationService,
   ],
 })
 export class AgentFrameworkModule {

@@ -273,6 +273,148 @@ class ApiClient {
       );
     },
   };
+
+  // Phase 9 — Intelligence
+  intelligence = {
+    // Knowledge Graph
+    getGraphStats: () =>
+      this.request<{ success: boolean; data: import('./types').GraphStatistics }>('/intelligence/graph/stats'),
+
+    getAgentKnowledge: (agentId: string) =>
+      this.request<{ success: boolean; data: import('./types').ExpertiseRanking | null }>(`/intelligence/graph/agents/${agentId}`),
+
+    getExpertiseRanking: (cluster?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (cluster) params.set('cluster', cluster);
+      if (limit) params.set('limit', String(limit));
+      return this.request<{ success: boolean; data: import('./types').ExpertiseRanking[] }>(
+        `/intelligence/graph/expertise${params.toString() ? `?${params}` : ''}`
+      );
+    },
+
+    getStrategyRecommendations: (cluster?: string, capabilities?: string) => {
+      const params = new URLSearchParams();
+      if (cluster) params.set('cluster', cluster);
+      if (capabilities) params.set('capabilities', capabilities);
+      return this.request<{ success: boolean; data: import('./types').StrategyRecommendation[] }>(
+        `/intelligence/graph/recommendations${params.toString() ? `?${params}` : ''}`
+      );
+    },
+
+    // Learning Engine
+    submitLearningFeedback: (data: {
+      agentId: string;
+      missionId: string;
+      outcome: string;
+      durationMs: number;
+      score?: number;
+      strategyUsed?: string;
+      capabilitiesUsed?: string[];
+      context: Record<string, unknown>;
+    }) =>
+      this.request<{ success: boolean; data: { insightsGenerated: number } }>('/intelligence/learning/feedback', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getLearningStats: () =>
+      this.request<{ success: boolean; data: import('./types').LearningStatistics }>('/intelligence/learning/stats'),
+
+    getLearningInsights: (type?: string, minConfidence?: number) => {
+      const params = new URLSearchParams();
+      if (type) params.set('type', type);
+      if (minConfidence) params.set('minConfidence', String(minConfidence));
+      return this.request<{ success: boolean; data: import('./types').LearningInsight[] }>(
+        `/intelligence/learning/insights${params.toString() ? `?${params}` : ''}`
+      );
+    },
+
+    transferLearning: (sourceAgentId: string, targetAgentId: string) =>
+      this.request<{ success: boolean; data: { transferred: number; skipped: number } }>('/intelligence/learning/transfer', {
+        method: 'POST',
+        body: JSON.stringify({ sourceAgentId, targetAgentId }),
+      }),
+
+    // Pattern Mining
+    minePatterns: (options?: { categories?: string[]; minFrequency?: number; minConfidence?: number }) =>
+      this.request<{ success: boolean; data: { patternCount: number; patterns: import('./types').DiscoveredPattern[] } }>('/intelligence/patterns/mine', {
+        method: 'POST',
+        body: JSON.stringify(options || {}),
+      }),
+
+    getPatterns: (category?: string, minConfidence?: number) => {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      if (minConfidence) params.set('minConfidence', String(minConfidence));
+      return this.request<{ success: boolean; data: import('./types').DiscoveredPattern[] }>(
+        `/intelligence/patterns${params.toString() ? `?${params}` : ''}`
+      );
+    },
+
+    getCorrelations: () =>
+      this.request<{ success: boolean; data: import('./types').CorrelationFinding[] }>('/intelligence/patterns/correlations'),
+
+    getPatternStats: () =>
+      this.request<{ success: boolean; data: import('./types').PatternMiningStatistics }>('/intelligence/patterns/stats'),
+
+    // Adaptive Strategy
+    getAdaptiveConfig: () =>
+      this.request<{ success: boolean; data: import('./types').AdaptiveConfig }>('/intelligence/adaptive/config'),
+
+    runAdaptation: () =>
+      this.request<{ success: boolean; data: { adaptationCount: number; applied: number } }>('/intelligence/adaptive/adapt', {
+        method: 'POST',
+      }),
+
+    getAdaptiveStats: () =>
+      this.request<{ success: boolean; data: import('./types').AdaptiveStatistics }>('/intelligence/adaptive/stats'),
+
+    emergencyReset: () =>
+      this.request<{ success: boolean; data: { message: string } }>('/intelligence/adaptive/reset', {
+        method: 'POST',
+      }),
+
+    // Experience Replay
+    getExperienceStats: () =>
+      this.request<{ success: boolean; data: import('./types').ExperienceStatistics }>('/intelligence/experience/stats'),
+
+    // Feedback
+    submitFeedback: (data: {
+      source: string;
+      missionId: string;
+      agentId?: string;
+      rating?: number;
+      score?: number;
+      success?: boolean;
+      durationMs?: number;
+      comment?: string;
+      context: Record<string, unknown>;
+    }) =>
+      this.request<{ success: boolean; data: { message: string } }>('/intelligence/feedback', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    getFeedbackSummary: (cluster?: string) => {
+      const params = new URLSearchParams();
+      if (cluster) params.set('cluster', cluster);
+      return this.request<{ success: boolean; data: import('./types').FeedbackSummary }>(
+        `/intelligence/feedback/summary${params.toString() ? `?${params}` : ''}`
+      );
+    },
+
+    getFeedbackActions: (priority?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (priority) params.set('priority', priority);
+      if (limit) params.set('limit', String(limit));
+      return this.request<{ success: boolean; data: import('./types').ActionItem[] }>(
+        `/intelligence/feedback/actions${params.toString() ? `?${params}` : ''}`
+      );
+    },
+
+    getFeedbackStats: () =>
+      this.request<{ success: boolean; data: import('./types').FeedbackStatistics }>('/intelligence/feedback/stats'),
+  };
 }
 
 export const api = new ApiClient();

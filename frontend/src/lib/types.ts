@@ -328,3 +328,149 @@ export interface OrchestrationHistoryItem {
   createdAt: string;
   completedAt: string | null;
 }
+
+// Phase 9 — Adaptive Intelligence & Knowledge System Types
+
+export interface GraphStatistics {
+  nodeCounts: Record<string, number>;
+  relationshipCounts: Record<string, number>;
+  neo4jAvailable: boolean;
+  topAgents: ExpertiseRanking[];
+  topPatterns: PatternKnowledgeInfo[];
+}
+
+export interface ExpertiseRanking {
+  agentId: string;
+  name: string;
+  cluster: ClusterType;
+  expertiseScore: number;
+  missionCount: number;
+  successRate: number;
+  avgDurationMs: number;
+  topCapabilities: string[];
+}
+
+export interface PatternKnowledgeInfo {
+  id: string;
+  name: string;
+  type: 'success' | 'failure' | 'optimization' | 'anti-pattern' | 'collaboration';
+  description: string;
+  frequency: number;
+  confidence: number;
+  lastSeen: number;
+}
+
+export interface StrategyRecommendation {
+  strategyId: string;
+  strategyName: string;
+  confidence: number;
+  reason: string;
+  expectedSuccessRate: number;
+  parameters: Record<string, unknown>;
+}
+
+export interface LearningStatistics {
+  totalProfiles: number;
+  totalLearnings: number;
+  totalInsights: number;
+  avgReward: number;
+  topStrategies: Array<{ strategy: string; avgQ: number }>;
+  clusterBreakdown: Record<string, number>;
+}
+
+export interface LearningInsight {
+  id: string;
+  type: string;
+  description: string;
+  confidence: number;
+  affectedAgents: string[];
+  suggestedActions: string[];
+  supportingEvidence: number;
+  createdAt: number;
+}
+
+export interface PatternMiningStatistics {
+  totalPatterns: number;
+  totalExecutions: number;
+  categoryBreakdown: Record<string, number>;
+  avgConfidence: number;
+  topPatterns: DiscoveredPattern[];
+}
+
+export interface DiscoveredPattern {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  frequency: number;
+  confidence: number;
+  impact: 'positive' | 'negative' | 'neutral';
+  impactScore: number;
+  suggestedActions: string[];
+}
+
+export interface CorrelationFinding {
+  metric1: string;
+  metric2: string;
+  correlation: number;
+  significance: number;
+  description: string;
+}
+
+export interface AdaptiveConfig {
+  id: string;
+  version: number;
+  strategyPreferences: Record<string, number>;
+  agentSelectionWeights: Record<string, number>;
+  timeouts: Record<string, number>;
+  retryPolicy: Record<string, unknown>;
+  pinned: string[];
+}
+
+export interface AdaptiveStatistics {
+  configVersion: number;
+  totalAdaptations: number;
+  appliedCount: number;
+  improvedCount: number;
+  degradedCount: number;
+  pinnedParameters: string[];
+  lastAdaptationAt: number;
+}
+
+export interface ExperienceStatistics {
+  totalExperiences: number;
+  successCount: number;
+  failureCount: number;
+  totalInsights: number;
+  avgDurationMs: number;
+  clusterBreakdown: Record<string, number>;
+}
+
+export interface FeedbackStatistics {
+  totalEntries: number;
+  totalAggregated: number;
+  totalActions: number;
+  avgScore: number;
+  sourceBreakdown: Record<string, number>;
+  recentTrend: 'improving' | 'degrading' | 'stable';
+}
+
+export interface FeedbackSummary {
+  totalFeedback: number;
+  avgScore: number;
+  sourceDistribution: Record<string, number>;
+  topIssues: Array<{ description: string; count: number }>;
+  topPraise: Array<{ description: string; count: number }>;
+  trendDirection: 'improving' | 'degrading' | 'stable';
+}
+
+export interface ActionItem {
+  id: string;
+  type: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  affectedAgents: string[];
+  affectedClusters: ClusterType[];
+  estimatedImpact: number;
+  createdAt: number;
+}
