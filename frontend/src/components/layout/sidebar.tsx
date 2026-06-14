@@ -7,7 +7,6 @@ import {
   Bot,
   ListTodo,
   Activity,
-  LogIn,
   ChevronLeft,
   ChevronRight,
   Hexagon,
@@ -18,10 +17,7 @@ import {
   Gauge,
   Shield,
   Settings,
-  Users,
-  Database,
-  ServerCog,
-  BarChart3,
+  Radio,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -32,6 +28,7 @@ const mainNavItems = [
   { href: '/missions', label: 'Missions', icon: Rocket },
   { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/events', label: 'Events', icon: Activity },
+  { href: '/live', label: 'Live Monitor', icon: Radio },
 ];
 
 const intelligenceItems = [

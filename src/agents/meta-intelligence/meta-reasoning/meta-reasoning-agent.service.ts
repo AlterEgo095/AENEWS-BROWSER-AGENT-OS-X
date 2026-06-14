@@ -163,6 +163,7 @@ export class MetaReasoningAgentService extends BaseAgentService {
     @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super();
+    this.agentBridge = bridge ?? null;
   }
   private analyses: Map<string, any> = new Map();
 
@@ -316,6 +317,42 @@ export class MetaReasoningAgentService extends BaseAgentService {
     if (!reasoning || typeof reasoning !== 'object')
       throw new Error('Valid reasoning object is required');
     const analysisId = this.generateId();
+
+    // Try LLM-powered reasoning analysis
+    try {
+      const systemPrompt = `You are a meta-reasoning expert. Analyze the reasoning process and identify its structure, gaps, and soundness. Return JSON: { "structure": { "type": "deductive|inductive|abductive|analogical", "steps": number, "branching": boolean }, "gaps": ["string"], "soundness": 0-100 }. Be thorough and specific.`;
+      const userPrompt = `Reasoning: ${JSON.stringify(reasoning)}\nDepth: ${depth}\nAnalyze this reasoning process.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.structure || parsed?.gaps) {
+        const result = {
+          analysisId,
+          structure: parsed.structure || {
+            type: 'unknown',
+            steps: Object.keys(reasoning).length,
+            branching: false,
+          },
+          gaps: Array.isArray(parsed.gaps) ? parsed.gaps : [],
+          soundness: typeof parsed.soundness === 'number' ? parsed.soundness : 50,
+        };
+        this.analyses.set(analysisId, { reasoning, depth, ...result, timestamp: new Date() });
+        this.logger.log(
+          `LLM reasoning analyzed: id=${analysisId}, soundness=${result.soundness}, gaps=${result.gaps.length}`,
+        );
+        return result;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `LLM reasoning analysis failed, using heuristic: ${(error as Error).message}`,
+      );
+    }
+
+    // Heuristic fallback
     const steps = reasoning.steps ? reasoning.steps.length : Object.keys(reasoning).length;
     const hasBranching = reasoning.branches || reasoning.alternatives || false;
     const gaps: string[] = [];
@@ -349,6 +386,38 @@ export class MetaReasoningAgentService extends BaseAgentService {
     } = params;
     if (content === null || content === undefined)
       throw new Error('Content cannot be null or undefined');
+
+    // Try LLM-powered bias detection
+    try {
+      const systemPrompt = `You are a cognitive bias detection expert. Analyze the content for the following bias types: ${biasTypes.join(', ')}. Return JSON: { "biases": [{ "type": "string", "description": "string", "severity": "low|medium|high", "location": "content|structure|methodology" }], "overallBiasScore": 0-100, "recommendations": ["string"] }. Be specific about where and how each bias manifests.`;
+      const userPrompt = `Content: ${typeof content === 'string' ? content : JSON.stringify(content)}\nBias types to check: ${biasTypes.join(', ')}\nDetect cognitive biases.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.biases && Array.isArray(parsed.biases)) {
+        this.logger.log(
+          `LLM bias detected: count=${parsed.biases.length}, score=${parsed.overallBiasScore}`,
+        );
+        return {
+          biases: parsed.biases,
+          overallBiasScore:
+            typeof parsed.overallBiasScore === 'number'
+              ? parsed.overallBiasScore
+              : Math.round(Math.max(0, 100 - parsed.biases.length * 20)),
+          recommendations: parsed.recommendations || [
+            'Review identified biases and consider alternative perspectives',
+          ],
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM bias detection failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const biases: Array<{ type: string; description: string; severity: string; location: string }> =
       [];
     const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
@@ -420,6 +489,35 @@ export class MetaReasoningAgentService extends BaseAgentService {
     if (!conclusion || typeof conclusion !== 'string')
       throw new Error('Valid conclusion string is required');
     const evaluationId = this.generateId();
+
+    // Try LLM-powered logic evaluation
+    try {
+      const systemPrompt = `You are a formal logic expert. Evaluate whether the conclusion logically follows from the premises using ${logicType} reasoning. Identify any logical fallacies. Return JSON: { "valid": boolean, "soundness": 0-100, "fallacies": ["string"], "reasoning": "string" }. Be precise in your logical analysis.`;
+      const userPrompt = `Premises: ${JSON.stringify(premises)}\nConclusion: ${conclusion}\nLogic type: ${logicType}\nEvaluate the logical validity.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.2,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed && typeof parsed.valid === 'boolean') {
+        this.logger.log(
+          `LLM logic evaluated: valid=${parsed.valid}, soundness=${parsed.soundness}, fallacies=${parsed.fallacies?.length || 0}`,
+        );
+        return {
+          valid: parsed.valid,
+          soundness:
+            typeof parsed.soundness === 'number' ? parsed.soundness : parsed.valid ? 80 : 30,
+          fallacies: Array.isArray(parsed.fallacies) ? parsed.fallacies : [],
+          evaluationId,
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM logic evaluation failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const fallacies: string[] = [];
     if (premises.length === 1 && logicType === 'deductive')
       fallacies.push('Oversimplified deduction: single premise rarely supports robust conclusion');
@@ -450,6 +548,38 @@ export class MetaReasoningAgentService extends BaseAgentService {
     const { reasoning, targetArea = 'all', improvementGoal = 'soundness' } = params;
     if (!reasoning || typeof reasoning !== 'object')
       throw new Error('Valid reasoning object is required');
+
+    // Try LLM-powered reasoning improvement
+    try {
+      const systemPrompt = `You are a reasoning improvement expert. Analyze the reasoning and suggest specific improvements targeting ${targetArea} with the goal of ${improvementGoal}. Return JSON: { "improvements": [{ "area": "string", "suggestion": "string", "priority": "high|medium|low" }], "confidence": 0.0-1.0, "improvedReasoning": { } }. The improvedReasoning should incorporate the improvements into a better version of the original reasoning.`;
+      const userPrompt = `Reasoning: ${JSON.stringify(reasoning)}\nTarget area: ${targetArea}\nImprovement goal: ${improvementGoal}\nSuggest improvements.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.4,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.improvements && Array.isArray(parsed.improvements)) {
+        this.logger.log(
+          `LLM reasoning improved: improvements=${parsed.improvements.length}, confidence=${parsed.confidence}`,
+        );
+        return {
+          improvements: parsed.improvements,
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.7,
+          improvedReasoning: parsed.improvedReasoning || {
+            ...reasoning,
+            _improvements: parsed.improvements.map((i: any) => i.area),
+          },
+        };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `LLM reasoning improvement failed, using heuristic: ${(error as Error).message}`,
+      );
+    }
+
+    // Heuristic fallback
     const improvements: Array<{ area: string; suggestion: string; priority: string }> = [];
     if (!reasoning.premises && !reasoning.assumptions)
       improvements.push({
@@ -507,6 +637,31 @@ export class MetaReasoningAgentService extends BaseAgentService {
     const { reasoning, count = 3, constraints = {} } = params;
     if (!reasoning || typeof reasoning !== 'object')
       throw new Error('Valid reasoning object is required');
+
+    // Try LLM-powered alternative generation
+    try {
+      const systemPrompt = `You are a reasoning alternative generator. Generate ${count} alternative reasoning paths or conclusions for the given reasoning. Consider constraints: ${JSON.stringify(constraints)}. Return JSON: { "alternatives": [{ "id": "string", "description": "string", "approach": "inductive|deductive|abductive|analogical|statistical", "feasibility": 0.0-1.0 }], "bestAlternative": "id of best", "diversityScore": 0.0-1.0 }. Ensure alternatives are meaningfully different.`;
+      const userPrompt = `Reasoning: ${JSON.stringify(reasoning)}\nCount: ${count}\nConstraints: ${JSON.stringify(constraints)}\nGenerate alternative reasoning paths.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.6,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.alternatives && Array.isArray(parsed.alternatives) && parsed.alternatives.length > 0) {
+        this.logger.log(`LLM alternatives generated: count=${parsed.alternatives.length}, best=${parsed.bestAlternative}, diversity=${parsed.diversityScore}`);
+        return {
+          alternatives: parsed.alternatives,
+          bestAlternative: parsed.bestAlternative || parsed.alternatives[0]?.id || 'alt-0',
+          diversityScore: typeof parsed.diversityScore === 'number' ? parsed.diversityScore : Math.min(1.0, (parsed.alternatives.length / 3) * 0.7 + 0.3),
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM alternative generation failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const approaches = ['inductive', 'deductive', 'abductive', 'analogical', 'statistical'];
     const alternatives = Array.from({ length: Math.min(count, 5) }, (_, i) => ({
       id: `alt-${i}`,
@@ -531,6 +686,32 @@ export class MetaReasoningAgentService extends BaseAgentService {
     if (!inference || typeof inference !== 'object')
       throw new Error('Valid inference object is required');
     const validationId = this.generateId();
+
+    // Try LLM-powered inference validation
+    try {
+      const systemPrompt = `You are an inference validation expert. Validate that the inference is logically sound given the evidence. Return JSON: { "valid": boolean, "confidence": 0.0-1.0, "issues": ["string"], "reasoning": "string" }. Be thorough and identify any logical gaps.`;
+      const userPrompt = `Inference: ${JSON.stringify(inference)}\nEvidence: ${JSON.stringify(evidence)}\nValidate the inference.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed && typeof parsed.valid === 'boolean') {
+        this.logger.log(`LLM inference validated: valid=${parsed.valid}, confidence=${parsed.confidence}, issues=${parsed.issues?.length || 0}`);
+        return {
+          valid: parsed.valid,
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+          issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+          validationId,
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM inference validation failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const issues: string[] = [];
     if (!inference.premise && !inference.input)
       issues.push('Inference lacks explicit premise or input');

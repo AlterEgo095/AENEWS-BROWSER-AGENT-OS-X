@@ -141,39 +141,7 @@ export class InitialSchema1700000000000 implements MigrationInterface {
       CREATE INDEX "idx_agents_status" ON "agent"."agents" ("status")
     `);
 
-    // ── executions table ────────────────────────────────────────
-    await queryRunner.query(`
-      CREATE TABLE "agent"."executions" (
-        "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        "agent_id"      UUID         NOT NULL,
-        "task_id"       UUID,
-        "tenant_id"     UUID         NOT NULL,
-        "status"        "agent"."agent_status_enum" NOT NULL,
-        "input"         JSONB        NOT NULL DEFAULT '{}',
-        "output"        JSONB,
-        "error"         TEXT,
-        "duration_ms"   INTEGER,
-        "metadata"      JSONB        NOT NULL DEFAULT '{}',
-        "started_at"    TIMESTAMPTZ  NOT NULL,
-        "completed_at"  TIMESTAMPTZ,
-        "created_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-        CONSTRAINT "fk_executions_agent" FOREIGN KEY ("agent_id")
-          REFERENCES "agent"."agents"("id") ON DELETE CASCADE,
-        CONSTRAINT "fk_executions_task" FOREIGN KEY ("task_id")
-          REFERENCES "agent"."tasks"("id") ON DELETE SET NULL,
-        CONSTRAINT "fk_executions_tenant" FOREIGN KEY ("tenant_id")
-          REFERENCES "tenant"."tenants"("id")
-      )
-    `);
-
-    await queryRunner.query(`
-      CREATE INDEX "idx_executions_agent_id" ON "agent"."executions" ("agent_id")
-    `);
-    await queryRunner.query(`
-      CREATE INDEX "idx_executions_tenant_id" ON "agent"."executions" ("tenant_id")
-    `);
-
-    // ── tasks table ─────────────────────────────────────────────
+    // ── tasks table (created BEFORE executions to avoid circular FK) ──
     await queryRunner.query(`
       CREATE TABLE "agent"."tasks" (
         "id"              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -213,6 +181,38 @@ export class InitialSchema1700000000000 implements MigrationInterface {
     `);
     await queryRunner.query(`
       CREATE INDEX "idx_tasks_parent_task_id" ON "agent"."tasks" ("parent_task_id")
+    `);
+
+    // ── executions table ────────────────────────────────────────
+    await queryRunner.query(`
+      CREATE TABLE "agent"."executions" (
+        "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        "agent_id"      UUID         NOT NULL,
+        "task_id"       UUID,
+        "tenant_id"     UUID         NOT NULL,
+        "status"        "agent"."agent_status_enum" NOT NULL,
+        "input"         JSONB        NOT NULL DEFAULT '{}',
+        "output"        JSONB,
+        "error"         TEXT,
+        "duration_ms"   INTEGER,
+        "metadata"      JSONB        NOT NULL DEFAULT '{}',
+        "started_at"    TIMESTAMPTZ  NOT NULL,
+        "completed_at"  TIMESTAMPTZ,
+        "created_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        CONSTRAINT "fk_executions_agent" FOREIGN KEY ("agent_id")
+          REFERENCES "agent"."agents"("id") ON DELETE CASCADE,
+        CONSTRAINT "fk_executions_task" FOREIGN KEY ("task_id")
+          REFERENCES "agent"."tasks"("id") ON DELETE SET NULL,
+        CONSTRAINT "fk_executions_tenant" FOREIGN KEY ("tenant_id")
+          REFERENCES "tenant"."tenants"("id") ON DELETE CASCADE
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE INDEX "idx_executions_agent_id" ON "agent"."executions" ("agent_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX "idx_executions_tenant_id" ON "agent"."executions" ("tenant_id")
     `);
 
     // ── plugins table ───────────────────────────────────────────

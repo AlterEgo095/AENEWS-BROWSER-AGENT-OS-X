@@ -243,6 +243,14 @@ interface MonitorAlert {
 }
 
 // ─── Simulated System State ──────────────────────────────────────
+// NOTE: The system state uses real Node.js `os` module calls where available,
+// falling back to simulated data for environments where OS info is restricted.
+// Production deployments can leverage the `os` module for real metrics:
+//   os.cpus() — CPU info and usage estimates
+//   os.totalmem() / os.freemem() — Real memory stats
+//   os.uptime() — System uptime
+//   os.hostname() — Host name
+//   os.platform() / os.arch() — Platform info
 
 interface SystemState {
   hostname: string;
@@ -284,18 +292,21 @@ export class SystemMonitorAgentService extends BaseAgentService {
   }
 
   protected async onInitialize(): Promise<void> {
-    // Initialize simulated system state
+    // Initialize system state — use real `os` module where possible
+    const os = await import('os');
     this.systemState = {
-      hostname: 'aenews-agent-os',
-      os: 'AENEWS Agent OS 1.0',
-      kernel: '5.15.0-generic',
-      arch: 'x86_64',
-      cpuModel: 'Intel(R) Xeon(R) CPU @ 2.40GHz',
-      cpuCores: 8,
-      totalMemoryMb: 8192,
-      bootTime: new Date(Date.now() - Math.random() * 30 * 86400000), // Random uptime up to 30 days
+      hostname: os.hostname?.() || 'aenews-agent-os',
+      os: `${os.type?.() || 'Linux'} ${os.release?.() || '5.15.0'}`,
+      kernel: os.release?.() || '5.15.0-generic',
+      arch: os.arch?.() || 'x86_64',
+      cpuModel: os.cpus?.()?.[0]?.model || 'Intel(R) Xeon(R) CPU @ 2.40GHz',
+      cpuCores: os.cpus?.()?.length || 8,
+      totalMemoryMb: os.totalmem?.() ? Math.round(os.totalmem() / (1024 * 1024)) : 8192,
+      bootTime: new Date(Date.now() - (os.uptime?.() ?? Math.random() * 30 * 86400000) * 1000),
       currentCpuUsage: 12 + Math.random() * 15,
-      currentMemoryUsedMb: 2048 + Math.random() * 2048,
+      currentMemoryUsedMb: os.totalmem?.() && os.freemem?.()
+        ? Math.round((os.totalmem() - os.freemem()) / (1024 * 1024))
+        : 2048 + Math.random() * 2048,
       currentSwapUsedMb: Math.random() * 512,
       networkBytesReceived: Math.random() * 1000000000,
       networkBytesSent: Math.random() * 500000000,

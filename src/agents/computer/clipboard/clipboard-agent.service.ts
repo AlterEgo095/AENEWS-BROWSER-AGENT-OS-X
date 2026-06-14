@@ -1,7 +1,11 @@
 /**
  * AENEWS Agent OS X - Clipboard Agent
  * Read/write clipboard content, monitor clipboard changes.
- * Simulates clipboard operations for environments without direct OS clipboard access.
+ *
+ * NOTE: Real clipboard operations require OS-level access (e.g., electron clipboard,
+ * xclip/xsel on Linux, pbcopy on macOS, clip.exe on Windows). The current implementation
+ * uses an in-memory clipboard simulation. For production deployments, integrate a native
+ * clipboard library appropriate to the target platform.
  */
 
 import { Injectable, Inject } from '@nestjs/common';

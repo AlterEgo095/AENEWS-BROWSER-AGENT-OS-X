@@ -162,6 +162,7 @@ export class MetricAnalyzerAgent extends BaseAgentService {
     @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super();
+    this.agentBridge = bridge ?? null;
   }
   private baselines: Map<string, MetricBaseline> = new Map();
   private analysisReports: Map<string, MetricAnalysisReport> = new Map();
@@ -291,6 +292,37 @@ export class MetricAnalyzerAgent extends BaseAgentService {
     }
 
     const reportId = this.generateId();
+
+    // Try LLM-powered metric analysis
+    try {
+      const systemPrompt = `You are a production metrics analysis expert. Analyze the following metrics and provide trend data, change analysis, and overall health assessment. Return JSON: { "metrics": [{ "name": "string", "current": number, "baseline": number, "change": number, "changePercent": number, "trend": "improving|stable|degrading" }], "trends": [{ "metricName": "string", "direction": "up|down|flat", "slope": number, "confidence": 0.0-1.0 }], "overallHealth": "healthy|warning|critical", "degradationDetected": boolean }`;
+      const userPrompt = `Metrics: ${JSON.stringify(metricNames)}\nTime range: ${timeRange}\nGranularity: ${granularity}\nAnalyze production metrics.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.metrics && Array.isArray(parsed.metrics)) {
+        const report: MetricAnalysisReport = {
+          reportId,
+          analyzedAt: new Date().toISOString(),
+          timeRange,
+          metrics: parsed.metrics,
+          trends: parsed.trends || [],
+          overallHealth: parsed.overallHealth || 'healthy',
+          degradationDetected: parsed.degradationDetected ?? false,
+        };
+        this.analysisReports.set(reportId, report);
+        this.logger.log(`LLM metrics analyzed: reportId=${reportId}, health=${report.overallHealth}`);
+        return report;
+      }
+    } catch (error) {
+      this.logger.warn(`LLM metric analysis failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const metrics = metricNames.map((name) => {
       const baseline = this.baselines.get(name);
       const baselineValue = baseline?.mean ?? 50 + Math.random() * 50;
@@ -416,6 +448,40 @@ export class MetricAnalyzerAgent extends BaseAgentService {
     if (!metricName || typeof metricName !== 'string') {
       throw new Error('Valid metricName string is required');
     }
+
+    // Try LLM-powered anomaly detection
+    try {
+      const baseline = this.baselines.get(metricName);
+      const baselineInfo = baseline ? `Mean: ${baseline.mean}, StdDev: ${baseline.standardDeviation}` : 'No baseline available';
+      const systemPrompt = `You are a metric anomaly detection expert. Analyze the metric for anomalies given its baseline and sensitivity. Return JSON: { "anomalies": [{ "metricName": "string", "timestamp": "ISO date", "value": number, "expectedRange": { "lower": number, "upper": number }, "deviation": number, "severity": "low|medium|high|critical", "description": "string" }], "severity": "low|medium|high|critical", "affectedMetrics": ["string"] }`;
+      const userPrompt = `Metric: ${metricName}\nSensitivity: ${sensitivity}\nBaseline: ${baselineInfo}\nLookback window: ${lookbackWindow}\nDetect anomalies.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.anomalies && Array.isArray(parsed.anomalies)) {
+        const anomalies = parsed.anomalies.map((a: any) => ({
+          metricName: a.metricName || metricName,
+          timestamp: a.timestamp || new Date().toISOString(),
+          value: typeof a.value === 'number' ? a.value : 0,
+          expectedRange: a.expectedRange || { lower: 0, upper: 100 },
+          deviation: typeof a.deviation === 'number' ? a.deviation : 0,
+          severity: a.severity || 'medium',
+          description: a.description || `Anomaly detected in ${metricName}`,
+        }));
+        this.anomalyHistory.push(...anomalies as AnomalyRecord[]);
+        const severity = parsed.severity || 'low';
+        this.logger.log(`LLM anomaly detection: metric=${metricName}, anomalies=${anomalies.length}, severity=${severity}`);
+        return { anomalies: anomalies as AnomalyRecord[], anomalyCount: anomalies.length, severity, affectedMetrics: parsed.affectedMetrics || [metricName] };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM anomaly detection failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
 
     const baseline = this.baselines.get(metricName);
     const mean = baseline?.mean ?? 75;

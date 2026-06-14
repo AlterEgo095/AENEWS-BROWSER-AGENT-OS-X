@@ -1,54 +1,10 @@
-# ─── Dependencies ───────────────────────────────────────────
-node_modules/
-**/node_modules/
-dist/
-**/dist/
-
-# ─── IDE ───────────────────────────────────────────────────
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# ─── OS ────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-
-# ─── Environment (secrets — never in image) ────────────────
-.env
-.env.local
-.env.*.local
-!.env.example
-
-# ─── Logs ──────────────────────────────────────────────────
-*.log
-logs/
-
-# ─── Coverage ──────────────────────────────────────────────
-coverage/
-
-# ─── Test ──────────────────────────────────────────────────
-test/
-**/test/
-*.spec.ts
-*.e2e-spec.ts
-
-# ─── Agent Context (dev only) ─────────────────────────────
-agent-ctx/
-tool-results/
-
-# ─── Docker ────────────────────────────────────────────────
-docker-compose*.yml
-
-# ─── Git ───────────────────────────────────────────────────
-.git/
-.gitignore
-
-# ─── Misc ──────────────────────────────────────────────────
+node_modules
+.git
+.next
+dist
 *.md
-!README.md
-.eslintrc.js
-.prettierrc
-jest.config.js
-jest-e2e.json
+.env
+.env.*
+download
+_legacy_agents
+test

@@ -147,6 +147,7 @@ export class WeaknessDetectorAgent extends BaseAgentService {
     @Optional() @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super();
+    this.agentBridge = bridge ?? null;
   }
   private weaknesses: Map<string, WeaknessRecord> = new Map();
   private eqiHistory: EQITrendPoint[] = [];
@@ -273,6 +274,49 @@ export class WeaknessDetectorAgent extends BaseAgentService {
     recommendations: string[];
   }> {
     const { scope = 'all', includeCertificationData = true, severityThreshold = 'medium' } = params;
+
+    // Try LLM-powered weakness detection
+    try {
+      const systemPrompt = `You are a system weakness detection expert in the Self-Evolution cluster. Detect systemic weaknesses by correlating metrics and certification results. Return JSON: { "weaknesses": [{ "id": "string", "area": "performance|reliability|quality|communication|scalability", "component": "string", "severity": "low|medium|high|critical", "description": "string", "evidence": ["string"], "affectedAgents": ["string"], "certificationFailures": number, "metricDeviations": number }], "recommendations": ["string"] }. Be specific and realistic.`;
+      const userPrompt = `Scope: ${scope}\nInclude certification data: ${includeCertificationData}\nSeverity threshold: ${severityThreshold}\nDetect systemic weaknesses.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.weaknesses && Array.isArray(parsed.weaknesses)) {
+        const severityOrder: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+        const thresholdLevel = severityOrder[severityThreshold] ?? 2;
+        const filtered = parsed.weaknesses.filter((w: any) => (severityOrder[w.severity] ?? 2) >= thresholdLevel)
+          .map((w: any) => ({
+            id: w.id || this.generateId(),
+            area: w.area || 'unknown',
+            component: w.component || 'unknown',
+            severity: w.severity || 'medium',
+            description: w.description || 'Weakness detected',
+            evidence: Array.isArray(w.evidence) ? w.evidence : [],
+            affectedAgents: Array.isArray(w.affectedAgents) ? w.affectedAgents : [],
+            certificationFailures: w.certificationFailures ?? 0,
+            metricDeviations: w.metricDeviations ?? 0,
+            detectedAt: new Date().toISOString(),
+          }));
+
+        for (const w of filtered) this.weaknesses.set(w.id, w as WeaknessRecord);
+        const criticalCount = filtered.filter((w: any) => w.severity === 'critical' || w.severity === 'high').length;
+        const overallRisk = filtered.some((w: any) => w.severity === 'critical') ? 'critical'
+          : criticalCount > 0 ? 'high' : filtered.length > 2 ? 'medium' : 'low';
+        const recommendations = parsed.recommendations || ['Review detected weaknesses and prioritize remediation'];
+
+        this.logger.log(`LLM weakness detection: count=${filtered.length}, critical=${criticalCount}, risk=${overallRisk}`);
+        return { weaknesses: filtered as WeaknessRecord[], criticalCount, overallRisk, recommendations };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM weakness detection failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
 
     const possibleWeaknesses: WeaknessRecord[] = [
       {
@@ -416,6 +460,33 @@ export class WeaknessDetectorAgent extends BaseAgentService {
     }>;
   }> {
     const { timeRange = '30d', clusterScope = 'all', minDataPoints = 10 } = params;
+
+    // Try LLM-powered EQI trend analysis
+    try {
+      const systemPrompt = `You are an EQI (Evolutionary Quality Index) trend analyst. Analyze EQI trends over the specified time range. Return JSON: { "currentEQI": 0-100, "previousEQI": 0-100, "trendDirection": "improving|stable|degrading", "projectedEQI": 0-100, "regressionZones": [{ "period": "ISO date", "eqi": number, "delta": number, "likelyCause": "string" }] }. Be specific about causes of regression.`;
+      const userPrompt = `Time range: ${timeRange}\nCluster scope: ${clusterScope}\nMin data points: ${minDataPoints}\nAnalyze EQI trends.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed && typeof parsed.currentEQI === 'number') {
+        this.logger.log(`LLM EQI trends: current=${parsed.currentEQI}, trend=${parsed.trendDirection}, regressions=${parsed.regressionZones?.length || 0}`);
+        return {
+          currentEQI: parsed.currentEQI,
+          previousEQI: parsed.previousEQI ?? parsed.currentEQI,
+          trendDirection: parsed.trendDirection || 'stable',
+          projectedEQI: parsed.projectedEQI ?? parsed.currentEQI,
+          regressionZones: Array.isArray(parsed.regressionZones) ? parsed.regressionZones : [],
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM EQI analysis failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
 
     // Generate EQI trend data
     const dataPoints = Math.max(minDataPoints, 30);

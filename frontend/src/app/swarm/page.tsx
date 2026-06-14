@@ -49,305 +49,43 @@ import type {
   DAGTrace,
 } from '@/lib/types';
 
-// ─── Mock Data ───────────────────────────────────────────────────
+// ─── Default empty data shapes ───────────────────────────────────
 
-const mockSwarmMetrics: SwarmMetrics = {
-  totalSwarms: 14,
-  activeSwarms: 6,
-  avgConvergenceScore: 0.78,
-  totalEmergentBehaviors: 9,
-  totalPheromoneTrails: 47,
-  topologyDistribution: { star: 3, mesh: 5, ring: 2, tree: 3, custom: 1 },
+const defaultSwarmMetrics: SwarmMetrics = {
+  totalSwarms: 0,
+  activeSwarms: 0,
+  avgConvergenceScore: 0,
+  totalEmergentBehaviors: 0,
+  totalPheromoneTrails: 0,
+  topologyDistribution: { star: 0, mesh: 0, ring: 0, tree: 0, custom: 0 } as Record<SwarmTopologyType, number>,
 };
 
-const mockSwarms: SwarmInfo[] = [
-  {
-    id: 'sw-001',
-    name: 'Research Swarm Alpha',
-    objective: 'Deep analysis of market trends',
-    topology: 'mesh',
-    agentIds: ['browser-navigator', 'coding-architect', 'security-auditor', 'office-writer'],
-    status: 'active',
-    convergenceScore: 0.87,
-    emergentBehaviors: ['collaborative-filtering', 'adaptive-scouting'],
-    pheromoneTrails: { 'nav→scrape': 0.92, 'code→verify': 0.78, 'write→review': 0.65 },
-    iterationsCompleted: 23,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 120000).toISOString(),
-  },
-  {
-    id: 'sw-002',
-    name: 'Security Sweep Delta',
-    objective: 'Comprehensive vulnerability scan',
-    topology: 'star',
-    agentIds: ['security-auditor', 'browser-navigator', 'infrastructure-monitor'],
-    status: 'converging',
-    convergenceScore: 0.94,
-    emergentBehaviors: ['threat-clustering'],
-    pheromoneTrails: { 'scan→report': 0.95, 'detect→isolate': 0.88 },
-    iterationsCompleted: 41,
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    updatedAt: new Date(Date.now() - 300000).toISOString(),
-  },
-  {
-    id: 'sw-003',
-    name: 'Content Pipeline Gamma',
-    objective: 'Generate and review marketing content',
-    topology: 'ring',
-    agentIds: ['office-writer', 'marketing-strategist', 'coding-architect'],
-    status: 'active',
-    convergenceScore: 0.62,
-    emergentBehaviors: ['style-transfer', 'quality-feedback-loop'],
-    pheromoneTrails: { 'draft→review': 0.71, 'review→publish': 0.55 },
-    iterationsCompleted: 15,
-    createdAt: new Date(Date.now() - 1800000).toISOString(),
-    updatedAt: new Date(Date.now() - 60000).toISOString(),
-  },
-  {
-    id: 'sw-004',
-    name: 'Infra Monitor Omega',
-    objective: 'Real-time infrastructure health monitoring',
-    topology: 'tree',
-    agentIds: ['infrastructure-monitor', 'security-auditor', 'browser-navigator'],
-    status: 'completed',
-    convergenceScore: 1.0,
-    emergentBehaviors: ['self-healing-alerts'],
-    pheromoneTrails: { 'monitor→alert': 0.99, 'alert→fix': 0.91 },
-    iterationsCompleted: 56,
-    createdAt: new Date(Date.now() - 14400000).toISOString(),
-    updatedAt: new Date(Date.now() - 600000).toISOString(),
-  },
-];
+const defaultSwarms: SwarmInfo[] = [];
 
-const mockConsensusSessions: ConsensusSession[] = [
-  {
-    id: 'cs-001',
-    topic: 'Deploy new security patch to production',
-    proposerId: 'security-auditor',
-    participantIds: ['security-auditor', 'infrastructure-monitor', 'coding-architect', 'browser-navigator'],
-    status: 'completed',
-    consensusThreshold: 0.75,
-    votesFor: 3,
-    votesAgainst: 1,
-    abstentions: 0,
-    byzantineDetected: false,
-    byzantineAgents: [],
-    result: { decision: 'approved', confidence: 0.85 },
-    dissentRecords: [
-      { agentId: 'browser-navigator', reason: 'Concerned about browser compatibility impact', alternativeProposal: 'Deploy to staging first', timestamp: new Date(Date.now() - 1800000).toISOString() },
-    ],
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    completedAt: new Date(Date.now() - 2400000).toISOString(),
-  },
-  {
-    id: 'cs-002',
-    topic: 'Adopt new parallel execution strategy',
-    proposerId: 'coding-architect',
-    participantIds: ['coding-architect', 'security-auditor', 'office-writer', 'marketing-strategist', 'browser-navigator'],
-    status: 'voting',
-    consensusThreshold: 0.6,
-    votesFor: 2,
-    votesAgainst: 1,
-    abstentions: 1,
-    byzantineDetected: true,
-    byzantineAgents: ['marketing-strategist'],
-    result: null,
-    dissentRecords: [
-      { agentId: 'office-writer', reason: 'Prefer sequential for document quality', alternativeProposal: null, timestamp: new Date(Date.now() - 600000).toISOString() },
-    ],
-    createdAt: new Date(Date.now() - 1200000).toISOString(),
-    completedAt: null,
-  },
-  {
-    id: 'cs-003',
-    topic: 'Increase monitoring frequency to 30s',
-    proposerId: 'infrastructure-monitor',
-    participantIds: ['infrastructure-monitor', 'security-auditor'],
-    status: 'failed',
-    consensusThreshold: 0.75,
-    votesFor: 1,
-    votesAgainst: 1,
-    abstentions: 0,
-    byzantineDetected: false,
-    byzantineAgents: [],
-    result: null,
-    dissentRecords: [
-      { agentId: 'security-auditor', reason: 'Higher frequency may cause alert fatigue', alternativeProposal: 'Keep 60s but add anomaly detection', timestamp: new Date(Date.now() - 600000).toISOString() },
-    ],
-    createdAt: new Date(Date.now() - 900000).toISOString(),
-    completedAt: new Date(Date.now() - 600000).toISOString(),
-  },
-];
+const defaultConsensusSessions: ConsensusSession[] = [];
 
-const mockCollaborations: CollaborationSession[] = [
-  {
-    id: 'col-001',
-    name: 'Q1 Report Generation',
-    participantIds: ['office-writer', 'browser-navigator', 'coding-architect'],
-    status: 'active',
-    sharedWorkspace: { document: 'Q1_report_draft_v3.docx', progress: 0.72 },
-    checkpoints: [
-      { id: 'cp-001', label: 'Initial outline complete', snapshot: { version: 1 }, createdAt: new Date(Date.now() - 7200000).toISOString() },
-      { id: 'cp-002', label: 'Data gathering phase done', snapshot: { version: 2 }, createdAt: new Date(Date.now() - 3600000).toISOString() },
-    ],
-    lastActivityAt: new Date(Date.now() - 300000).toISOString(),
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'col-002',
-    name: 'Security Audit Collab',
-    participantIds: ['security-auditor', 'infrastructure-monitor'],
-    status: 'completed',
-    sharedWorkspace: { document: 'security_audit_final.pdf', progress: 1.0 },
-    checkpoints: [
-      { id: 'cp-003', label: 'Scan phase complete', snapshot: { version: 1 }, createdAt: new Date(Date.now() - 43200000).toISOString() },
-    ],
-    lastActivityAt: new Date(Date.now() - 7200000).toISOString(),
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-  },
-];
+const defaultCollaborations: CollaborationSession[] = [];
 
-const mockMemorySessions: WorkingMemorySession[] = [
-  {
-    id: 'mem-001',
-    name: 'Market Research Session',
-    participants: ['browser-navigator', 'marketing-strategist'],
-    blackboard: { market_trends: 'AI adoption up 34%', competitor_analysis: '3 key competitors identified' },
-    scratchpads: { 'browser-navigator': { urls_scraped: 47, data_points: 312 }, 'marketing-strategist': { insights: 12, strategies: 4 } },
-    sharedWorkspace: { raw_data: 'processed', summary: 'pending' },
-    createdAt: new Date(Date.now() - 5400000).toISOString(),
-    updatedAt: new Date(Date.now() - 600000).toISOString(),
-  },
-  {
-    id: 'mem-002',
-    name: 'Code Review Session',
-    participants: ['coding-architect', 'security-auditor'],
-    blackboard: { current_branch: 'feature/auth-v2', review_status: 'in-progress' },
-    scratchpads: { 'coding-architect': { files_reviewed: 23, issues_found: 4 }, 'security-auditor': { vulnerabilities: 1, suggestions: 6 } },
-    sharedWorkspace: { review_comments: 17, approved: false },
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    updatedAt: new Date(Date.now() - 120000).toISOString(),
-  },
-];
 
-const mockFeedbackParams: FeedbackLoopParams = {
-  id: 'fbp-001',
-  version: 8,
-  parameters: { exploration_rate: 0.35, exploitation_rate: 0.65, convergence_threshold: 0.85, max_iterations: 100, adaptation_speed: 0.12 },
-  learningRate: 0.01,
-  decayRate: 0.005,
-  momentum: 0.9,
-  lastAdjustmentAt: new Date(Date.now() - 900000).toISOString(),
+const defaultMemorySessions: WorkingMemorySession[] = [];
+
+const defaultFeedbackParams: FeedbackLoopParams = {
+  id: '',
+  version: 0,
+  parameters: {},
+  learningRate: 0,
+  decayRate: 0,
+  momentum: 0,
+  lastAdjustmentAt: '',
 };
 
-const mockFeedbackAdjustments: FeedbackAdjustment[] = [
-  { id: 'fa-001', parameter: 'exploration_rate', oldValue: 0.4, newValue: 0.35, reason: 'Convergence detected, reducing exploration', cycleId: 'fc-003', appliedAt: new Date(Date.now() - 900000).toISOString(), rolledBack: false },
-  { id: 'fa-002', parameter: 'adaptation_speed', oldValue: 0.08, newValue: 0.12, reason: 'Slow convergence, increasing speed', cycleId: 'fc-003', appliedAt: new Date(Date.now() - 900000).toISOString(), rolledBack: false },
-  { id: 'fa-003', parameter: 'max_iterations', oldValue: 50, newValue: 100, reason: 'Complex objective requires more iterations', cycleId: 'fc-002', appliedAt: new Date(Date.now() - 7200000).toISOString(), rolledBack: true },
-  { id: 'fa-004', parameter: 'convergence_threshold', oldValue: 0.9, newValue: 0.85, reason: 'Threshold too strict for mesh topology', cycleId: 'fc-001', appliedAt: new Date(Date.now() - 14400000).toISOString(), rolledBack: false },
-];
+const defaultFeedbackAdjustments: FeedbackAdjustment[] = [];
 
-const mockTopologies: TopologyInfo[] = [
-  {
-    id: 'topo-001',
-    name: 'Research Mesh',
-    type: 'mesh',
-    nodes: [
-      { id: 'n1', agentId: 'browser-navigator', isolated: false, isolatedAt: null },
-      { id: 'n2', agentId: 'coding-architect', isolated: false, isolatedAt: null },
-      { id: 'n3', agentId: 'security-auditor', isolated: false, isolatedAt: null },
-      { id: 'n4', agentId: 'office-writer', isolated: true, isolatedAt: new Date(Date.now() - 1800000).toISOString() },
-    ],
-    edges: [
-      { source: 'n1', target: 'n2', weight: 0.85 },
-      { source: 'n1', target: 'n3', weight: 0.72 },
-      { source: 'n2', target: 'n3', weight: 0.91 },
-      { source: 'n2', target: 'n4', weight: 0.45 },
-    ],
-    metrics: { avgDegree: 2.5, clusteringCoeff: 0.67, diameter: 2, isConnected: false, isolatedNodes: 1 },
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'topo-002',
-    name: 'Security Star',
-    type: 'star',
-    nodes: [
-      { id: 'n5', agentId: 'security-auditor', isolated: false, isolatedAt: null },
-      { id: 'n6', agentId: 'browser-navigator', isolated: false, isolatedAt: null },
-      { id: 'n7', agentId: 'infrastructure-monitor', isolated: false, isolatedAt: null },
-    ],
-    edges: [
-      { source: 'n5', target: 'n6', weight: 0.9 },
-      { source: 'n5', target: 'n7', weight: 0.88 },
-    ],
-    metrics: { avgDegree: 1.33, clusteringCoeff: 0, diameter: 2, isConnected: true, isolatedNodes: 0 },
-    createdAt: new Date(Date.now() - 43200000).toISOString(),
-  },
-  {
-    id: 'topo-003',
-    name: 'Pipeline Ring',
-    type: 'ring',
-    nodes: [
-      { id: 'n8', agentId: 'office-writer', isolated: false, isolatedAt: null },
-      { id: 'n9', agentId: 'marketing-strategist', isolated: false, isolatedAt: null },
-      { id: 'n10', agentId: 'coding-architect', isolated: false, isolatedAt: null },
-    ],
-    edges: [
-      { source: 'n8', target: 'n9', weight: 0.8 },
-      { source: 'n9', target: 'n10', weight: 0.75 },
-      { source: 'n10', target: 'n8', weight: 0.7 },
-    ],
-    metrics: { avgDegree: 2.0, clusteringCoeff: 0, diameter: 1, isConnected: true, isolatedNodes: 0 },
-    createdAt: new Date(Date.now() - 21600000).toISOString(),
-  },
-];
+const defaultTopologies: TopologyInfo[] = [];
 
-const mockDAGExecutions: DAGExecution[] = [
-  {
-    id: 'dag-001',
-    name: 'Security Scan Pipeline',
-    nodes: [
-      { id: 'dn1', label: 'Vulnerability Scan', agentId: 'security-auditor', status: 'completed', startedAt: new Date(Date.now() - 1200000).toISOString(), completedAt: new Date(Date.now() - 900000).toISOString(), result: { vulnerabilities: 3 }, error: null },
-      { id: 'dn2', label: 'Code Review', agentId: 'coding-architect', status: 'completed', startedAt: new Date(Date.now() - 900000).toISOString(), completedAt: new Date(Date.now() - 600000).toISOString(), result: { issues: 7 }, error: null },
-      { id: 'dn3', label: 'Report Generation', agentId: 'office-writer', status: 'running', startedAt: new Date(Date.now() - 600000).toISOString(), completedAt: null, result: null, error: null },
-    ],
-    edges: [
-      { source: 'dn1', target: 'dn2' },
-      { source: 'dn2', target: 'dn3' },
-    ],
-    status: 'running',
-    startedAt: new Date(Date.now() - 1200000).toISOString(),
-    completedAt: null,
-    result: null,
-  },
-  {
-    id: 'dag-002',
-    name: 'Content Publishing Flow',
-    nodes: [
-      { id: 'dn4', label: 'Draft Content', agentId: 'office-writer', status: 'completed', startedAt: new Date(Date.now() - 3600000).toISOString(), completedAt: new Date(Date.now() - 3000000).toISOString(), result: { draft: 'complete' }, error: null },
-      { id: 'dn5', label: 'SEO Analysis', agentId: 'marketing-strategist', status: 'completed', startedAt: new Date(Date.now() - 3000000).toISOString(), completedAt: new Date(Date.now() - 2400000).toISOString(), result: { score: 87 }, error: null },
-      { id: 'dn6', label: 'Final Review', agentId: 'security-auditor', status: 'completed', startedAt: new Date(Date.now() - 2400000).toISOString(), completedAt: new Date(Date.now() - 1800000).toISOString(), result: { approved: true }, error: null },
-    ],
-    edges: [
-      { source: 'dn4', target: 'dn5' },
-      { source: 'dn5', target: 'dn6' },
-    ],
-    status: 'completed',
-    startedAt: new Date(Date.now() - 3600000).toISOString(),
-    completedAt: new Date(Date.now() - 1800000).toISOString(),
-    result: { published: true, url: '/content/q1-report' },
-  },
-];
+const defaultDAGExecutions: DAGExecution[] = [];
 
-const initialDAGTrace: DAGTrace = {
-  executionId: 'dag-002',
-  steps: [
-    { nodeId: 'dn4', nodeLabel: 'Draft Content', agentId: 'office-writer', status: 'completed', startedAt: new Date(Date.now() - 3600000).toISOString(), completedAt: new Date(Date.now() - 3000000).toISOString(), durationMs: 600000, output: { draft: 'complete' } },
-    { nodeId: 'dn5', nodeLabel: 'SEO Analysis', agentId: 'marketing-strategist', status: 'completed', startedAt: new Date(Date.now() - 3000000).toISOString(), completedAt: new Date(Date.now() - 2400000).toISOString(), durationMs: 600000, output: { score: 87 } },
-    { nodeId: 'dn6', nodeLabel: 'Final Review', agentId: 'security-auditor', status: 'completed', startedAt: new Date(Date.now() - 2400000).toISOString(), completedAt: new Date(Date.now() - 1800000).toISOString(), durationMs: 600000, output: { approved: true } },
-  ],
-  totalDurationMs: 1800000,
-};
+const defaultDAGTrace: DAGTrace | null = null;
 
 // ─── Sub-Components ───────────────────────────────────────────────
 
@@ -442,20 +180,21 @@ export default function SwarmPage() {
   const [loading, setLoading] = useState(true);
 
   // Data states
-  const [swarmMetrics, setSwarmMetrics] = useState<SwarmMetrics>(mockSwarmMetrics);
-  const [swarms, setSwarms] = useState<SwarmInfo[]>(mockSwarms);
-  const [consensusSessions, setConsensusSessions] = useState<ConsensusSession[]>(mockConsensusSessions);
-  const [collaborations, setCollaborations] = useState<CollaborationSession[]>(mockCollaborations);
-  const [memorySessions, setMemorySessions] = useState<WorkingMemorySession[]>(mockMemorySessions);
-  const [feedbackParams, setFeedbackParams] = useState<FeedbackLoopParams>(mockFeedbackParams);
-  const [feedbackAdjustments, setFeedbackAdjustments] = useState<FeedbackAdjustment[]>(mockFeedbackAdjustments);
-  const [topologies, setTopologies] = useState<TopologyInfo[]>(mockTopologies);
-  const [dagExecutions, setDAGExecutions] = useState<DAGExecution[]>(mockDAGExecutions);
-  const [dagTrace, setDAGTrace] = useState<DAGTrace | null>(initialDAGTrace);
+  const [swarmMetrics, setSwarmMetrics] = useState<SwarmMetrics>(defaultSwarmMetrics);
+  const [swarms, setSwarms] = useState<SwarmInfo[]>(defaultSwarms);
+  const [consensusSessions, setConsensusSessions] = useState<ConsensusSession[]>(defaultConsensusSessions);
+  const [collaborations, setCollaborations] = useState<CollaborationSession[]>(defaultCollaborations);
+  const [memorySessions, setMemorySessions] = useState<WorkingMemorySession[]>(defaultMemorySessions);
+  const [feedbackParams, setFeedbackParams] = useState<FeedbackLoopParams>(defaultFeedbackParams);
+  const [feedbackAdjustments, setFeedbackAdjustments] = useState<FeedbackAdjustment[]>(defaultFeedbackAdjustments);
+  const [topologies, setTopologies] = useState<TopologyInfo[]>(defaultTopologies);
+  const [dagExecutions, setDAGExecutions] = useState<DAGExecution[]>(defaultDAGExecutions);
+  const [dagTrace, setDAGTrace] = useState<DAGTrace | null>(defaultDAGTrace);
 
   // UI states
   const [selectedDAG, setSelectedDAG] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -472,15 +211,15 @@ export default function SwarmPage() {
         api.swarm.getDAGResults(),
       ]);
 
-      if (results[0].status === 'fulfilled') setSwarmMetrics(results[0].value.data ?? mockSwarmMetrics);
-      if (results[1].status === 'fulfilled') setSwarms(results[1].value.data ?? mockSwarms);
-      if (results[2].status === 'fulfilled') setConsensusSessions(results[2].value.data ?? mockConsensusSessions);
-      if (results[3].status === 'fulfilled') setCollaborations(results[3].value.data ?? mockCollaborations);
-      if (results[4].status === 'fulfilled') setMemorySessions(results[4].value.data ?? mockMemorySessions);
-      if (results[5].status === 'fulfilled') setFeedbackParams(results[5].value.data ?? mockFeedbackParams);
-      if (results[6].status === 'fulfilled') setFeedbackAdjustments(results[6].value.data ?? mockFeedbackAdjustments);
-      if (results[7].status === 'fulfilled') setTopologies(results[7].value.data ?? mockTopologies);
-      if (results[8].status === 'fulfilled') setDAGExecutions(results[8].value.data ?? mockDAGExecutions);
+      if (results[0].status === 'fulfilled') setSwarmMetrics(results[0].value.data ?? defaultSwarmMetrics);
+      if (results[1].status === 'fulfilled') setSwarms(results[1].value.data ?? defaultSwarms);
+      if (results[2].status === 'fulfilled') setConsensusSessions(results[2].value.data ?? defaultConsensusSessions);
+      if (results[3].status === 'fulfilled') setCollaborations(results[3].value.data ?? defaultCollaborations);
+      if (results[4].status === 'fulfilled') setMemorySessions(results[4].value.data ?? defaultMemorySessions);
+      if (results[5].status === 'fulfilled') setFeedbackParams(results[5].value.data ?? defaultFeedbackParams);
+      if (results[6].status === 'fulfilled') setFeedbackAdjustments(results[6].value.data ?? defaultFeedbackAdjustments);
+      if (results[7].status === 'fulfilled') setTopologies(results[7].value.data ?? defaultTopologies);
+      if (results[8].status === 'fulfilled') setDAGExecutions(results[8].value.data ?? defaultDAGExecutions);
 
       setLoading(false);
     }
@@ -492,7 +231,7 @@ export default function SwarmPage() {
     try {
       await fn();
     } catch {
-      // silently fail — mock data already shown
+        setError('Failed to load swarm data from the server');
     }
     setActionLoading(null);
   }
@@ -550,6 +289,12 @@ export default function SwarmPage() {
       {loading ? (
         <div className="flex h-64 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      ) : error && swarmMetrics.totalSwarms === 0 ? (
+        <div className="flex h-64 flex-col items-center justify-center gap-4">
+          <AlertTriangle className="h-10 w-10 text-amber-400" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <button onClick={() => window.location.reload()} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">Retry</button>
         </div>
       ) : (
         <>

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body, Query, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -72,31 +72,31 @@ export class TenantController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get tenant by ID' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.tenantService.findOne(id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update tenant' })
-  async update(@Param('id') id: string, @Body() dto: Partial<CreateTenantDto>) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: Partial<CreateTenantDto>) {
     return this.tenantService.update(id, dto);
   }
 
   @Put(':id/activate')
   @ApiOperation({ summary: 'Activate tenant' })
-  async activate(@Param('id') id: string) {
+  async activate(@Param('id', ParseUUIDPipe) id: string) {
     return this.tenantService.activate(id);
   }
 
   @Put(':id/deactivate')
   @ApiOperation({ summary: 'Deactivate tenant' })
-  async deactivate(@Param('id') id: string) {
+  async deactivate(@Param('id', ParseUUIDPipe) id: string) {
     return this.tenantService.deactivate(id);
   }
 
   @Put(':id/quotas')
   @ApiOperation({ summary: 'Update tenant quotas' })
-  async updateQuotas(@Param('id') id: string, @Body() dto: UpdateQuotasDto) {
+  async updateQuotas(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateQuotasDto) {
     return this.tenantService.updateQuotas(id, dto);
   }
 }

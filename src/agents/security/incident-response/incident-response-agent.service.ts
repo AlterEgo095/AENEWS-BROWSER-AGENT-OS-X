@@ -267,6 +267,7 @@ export class IncidentResponseAgentService extends BaseAgentService {
     @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super(eventBusService, memoryService, permissionEvaluator);
+    this.agentBridge = bridge ?? null;
   }
 
   protected defineConfig(): AgentConfig {
@@ -543,7 +544,64 @@ export class IncidentResponseAgentService extends BaseAgentService {
       assignTo || 'incident_response_team',
     );
 
-    // Simulate investigation
+    // Try LLM-powered incident investigation
+    try {
+      const systemPrompt = `You are a security incident investigator. Analyze the security incident and determine root cause, impact assessment, and indicators of compromise. Return JSON: { "rootCause": "string", "impactAssessment": { "affectedSystems": number, "affectedUsers": number, "dataExposed": boolean, "estimatedCost": number, "businessImpact": "moderate|significant|severe" }, "iocs": [{ "type": "ip_address|domain|hash|url|email", "value": "string", "description": "string", "confidence": "low|medium|high" }] }. Be specific and realistic.`;
+      const userPrompt = `Incident: ${incident.title}\nSeverity: ${incident.severity}\nType: ${incident.type}\nDescription: ${incident.description}\nDepth: ${depth}\nInvestigate this incident.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.rootCause) {
+        incident.rootCause = parsed.rootCause;
+        incident.impactAssessment = parsed.impactAssessment || {
+          affectedSystems: 1,
+          affectedUsers: 1,
+          dataExposed: false,
+          estimatedCost: 0,
+          businessImpact:
+            incident.severity === 'critical'
+              ? 'severe'
+              : incident.severity === 'high'
+                ? 'significant'
+                : 'moderate',
+        };
+        incident.iocs = (parsed.iocs || []).map((ioc: any) => ({
+          type: ioc.type || 'unknown',
+          value: ioc.value || `ioc_${Date.now()}`,
+          description: ioc.description || 'IOC detected',
+          confidence: ioc.confidence || 'medium',
+        }));
+
+        this.addTimelineEntry(
+          incident,
+          'investigation_completed',
+          `Root cause identified: ${incident.rootCause}`,
+          incident.assignedTo || 'incident_response_team',
+        );
+
+        this.logger.log(`LLM investigation for ${incidentId}: root cause — ${incident.rootCause}`);
+        return {
+          incidentId,
+          rootCause: incident.rootCause || 'Under investigation',
+          impactAssessment: incident.impactAssessment,
+          timeline: incident.timeline.map((t) => ({
+            timestamp: t.timestamp.toISOString(),
+            event: t.event,
+            details: t.details,
+            performedBy: t.performedBy,
+          })),
+          iocs: incident.iocs,
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM investigation failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const rootCauses = [
       'Compromised user credentials via phishing attack',
       'Unpatched vulnerability exploited in web application',
@@ -827,6 +885,42 @@ export class IncidentResponseAgentService extends BaseAgentService {
 
     const postMortemId = `PM-${this.generateId().substring(0, 12)}`;
 
+    // Try LLM-powered post-mortem analysis
+    try {
+      const systemPrompt = `You are a security post-mortem analyst. Analyze the resolved incident and provide lessons learned, action items, and detection improvements. Return JSON: { "lessonsLearned": ["string"], "actionItems": [{ "title": "string", "priority": "high|medium|low", "assignee": "string", "dueDate": "ISO string" }], "detectionImprovements": ["string"] }. Be specific and actionable.`;
+      const userPrompt = `Incident: ${incident.title}\nSeverity: ${incident.severity}\nType: ${incident.type}\nRoot cause: ${incident.rootCause || 'Unknown'}\nStatus: ${incident.status}\nParticipants: ${participants.join(', ') || 'N/A'}\nInclude action items: ${includeActionItems}\nGenerate post-mortem analysis.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.4,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.lessonsLearned && Array.isArray(parsed.lessonsLearned)) {
+        this.logger.log(
+          `LLM post-mortem for ${incidentId}: ${parsed.lessonsLearned.length} lessons, ${parsed.actionItems?.length || 0} actions`,
+        );
+        return {
+          postMortemId,
+          incidentId,
+          lessonsLearned: parsed.lessonsLearned,
+          actionItems: includeActionItems
+            ? (parsed.actionItems || []).map((a: any) => ({
+                id: a.id || this.generateId(),
+                title: a.title || 'Action item',
+                priority: a.priority || 'medium',
+                assignee: a.assignee || 'unassigned',
+                dueDate: a.dueDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+              }))
+            : [],
+          detectionImprovements: parsed.detectionImprovements || [],
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM post-mortem failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const lessonsLearned = [
       'Earlier detection could have reduced impact by reducing response time',
       'Improved monitoring coverage would have identified the threat sooner',

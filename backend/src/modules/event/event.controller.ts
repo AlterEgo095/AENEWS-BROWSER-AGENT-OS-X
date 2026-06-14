@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -97,7 +98,7 @@ export class EventController {
   @Get(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get event by ID' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.eventService.getEventById(id);
   }
 }

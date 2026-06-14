@@ -60,10 +60,10 @@ export default function SecurityDashboard() {
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+  const apiBase = '/api/v1';
 
   const fetchSecurityData = useCallback(async () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -241,7 +241,16 @@ export default function SecurityDashboard() {
                       <div className="font-medium">{account.email}</div>
                       <div className="text-xs text-gray-500">Failed: {account.failedAttempts} | Until: {new Date(account.lockedUntil).toLocaleString()}</div>
                     </div>
-                    <button className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded">Unlock</button>
+                    <button onClick={async () => {
+                      try {
+                        const t = localStorage.getItem('auth_token');
+                        await fetch(`/api/v1/security/lockout/unlock?email=${encodeURIComponent(account.email)}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+                        });
+                        fetchSecurityData();
+                      } catch {}
+                    }} className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded">Unlock</button>
                   </div>
                 ))}
               </div>
@@ -270,10 +279,7 @@ export default function SecurityDashboard() {
         )}
 
         {activeTab === 'audit' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-4">Audit Log</h3>
-            <div className="text-gray-500 text-center py-8">Audit log query interface — connect to the API to view entries</div>
-          </div>
+          <AuditTab apiBase={apiBase} />
         )}
 
         {activeTab === 'tokens' && (
@@ -321,7 +327,17 @@ export default function SecurityDashboard() {
                       {rep.autoBlocked ? <span className="text-red-400 text-xs font-bold">BLOCKED</span> : <span className="text-green-400 text-xs">OK</span>}
                     </td>
                     <td className="py-2">
-                      <button className={`px-2 py-1 text-xs rounded ${rep.autoBlocked ? 'bg-green-600' : 'bg-red-600'}`}>
+                      <button onClick={async () => {
+                        try {
+                          const t = localStorage.getItem('auth_token');
+                          const action = rep.autoBlocked ? 'unblock' : 'block';
+                          await fetch(`/api/v1/security/threats/ip-reputations/${rep.ip}/${action}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+                          });
+                          fetchSecurityData();
+                        } catch {}
+                      }} className={`px-2 py-1 text-xs rounded ${rep.autoBlocked ? 'bg-green-600' : 'bg-red-600'}`}>
                         {rep.autoBlocked ? 'Unblock' : 'Block'}
                       </button>
                     </td>
@@ -332,6 +348,82 @@ export default function SecurityDashboard() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Audit Tab Component ──────────────────────────────────────────
+function AuditTab({ apiBase }: { apiBase: string }) {
+  const [auditEntries, setAuditEntries] = useState<Array<{ id: string; action: string; user: string; ip: string; timestamp: number; status: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchAuditLogs() {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(`${apiBase}/security/audit/logs?limit=50`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setAuditEntries(data.data || data || []);
+        setError(null);
+      } catch (err: any) {
+        setError(err.message);
+        setAuditEntries([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAuditLogs();
+  }, [apiBase]);
+
+  if (loading) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <h3 className="text-lg font-semibold mb-4">Audit Log</h3>
+        <div className="text-gray-500 text-center py-8">Loading audit logs...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+        <h3 className="text-lg font-semibold mb-4">Audit Log</h3>
+        <div className="text-red-400 text-center py-8">
+          <p>Failed to load audit logs</p>
+          <p className="text-xs text-gray-500 mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+      <h3 className="text-lg font-semibold mb-4">Audit Log</h3>
+      {auditEntries.length === 0 ? (
+        <div className="text-gray-500 text-center py-8">No audit log entries found</div>
+      ) : (
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {auditEntries.map((entry, i) => (
+            <div key={entry.id || i} className="flex items-center justify-between p-3 bg-gray-800/50 rounded border border-gray-800">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500 w-20">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                <span className="text-sm text-gray-200">{entry.action}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">{entry.user}</span>
+                <span className="text-xs text-gray-600">IP: {entry.ip}</span>
+                <span className={`px-2 py-0.5 text-xs rounded ${entry.status === 'success' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                  {entry.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

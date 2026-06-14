@@ -244,6 +244,7 @@ export class AccessControlAgentService extends BaseAgentService {
     @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super(eventBusService, memoryService, permissionEvaluator);
+    this.agentBridge = bridge ?? null;
   }
   private roles: Map<string, Role> = new Map();
   private auditLog: AccessAuditEntry[] = [];
@@ -508,6 +509,54 @@ export class AccessControlAgentService extends BaseAgentService {
       throw new Error('principal, resource, and action are required');
     }
 
+    // Try LLM-powered policy evaluation
+    try {
+      const activePolicies = [...this.policies.entries()]
+        .filter(([, p]) => p.active)
+        .map(([id, p]) => ({
+          id,
+          effect: p.effect,
+          principals: p.principals,
+          resources: p.resources,
+          actions: p.actions,
+        }));
+      const systemPrompt = `You are an access control policy evaluator. Evaluate whether the principal should be allowed to perform the action on the resource, considering the active policies. Return JSON: { "allowed": boolean, "reason": "string", "matchedPolicies": ["string"] }. Deny takes precedence over allow.`;
+      const userPrompt = `Principal: ${principal}\nResource: ${resource}\nAction: ${action}\nContext: ${JSON.stringify(context || {})}\nActive policies: ${JSON.stringify(activePolicies)}\nEvaluate access.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1000,
+        temperature: 0.2,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed && typeof parsed.allowed === 'boolean') {
+        const result = {
+          allowed: parsed.allowed,
+          reason: parsed.reason || (parsed.allowed ? 'Access allowed by policy' : 'Access denied'),
+          matchedPolicies: parsed.matchedPolicies || [],
+        };
+        this.auditLog.push({
+          id: this.generateId(),
+          principal,
+          resource,
+          action,
+          allowed: result.allowed,
+          timestamp: new Date(),
+          matchedPolicies: result.matchedPolicies,
+          reason: result.reason,
+        });
+        this.logger.log(
+          `LLM permission check: ${principal} → ${action} on ${resource} = ${result.allowed ? 'ALLOWED' : 'DENIED'}`,
+        );
+        return result;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `LLM policy evaluation failed, using heuristic: ${(error as Error).message}`,
+      );
+    }
+
+    // Heuristic fallback
     const matchedAllowPolicies: string[] = [];
     const matchedDenyPolicies: string[] = [];
 
@@ -633,7 +682,49 @@ export class AccessControlAgentService extends BaseAgentService {
 
     const deniedCount = filtered.filter((e) => !e.allowed).length;
 
-    // Detect anomalies (e.g., high denial rate for a principal)
+    // Try LLM-powered anomaly detection in access patterns
+    if (filtered.length > 0) {
+      try {
+        const accessSummary = {
+          totalEntries: filtered.length,
+          deniedCount,
+          uniquePrincipals: [...new Set(filtered.map((e) => e.principal))].length,
+          uniqueResources: [...new Set(filtered.map((e) => e.resource))].length,
+        };
+        const systemPrompt = `You are an access audit analyst. Analyze the access patterns for anomalies such as unusual denial rates, privilege escalation attempts, or suspicious access patterns. Return JSON: { "anomalies": [{ "principal": "string", "type": "string", "description": "string", "severity": "low|medium|high|critical" }], "riskAssessment": "string", "recommendations": ["string"] }`;
+        const userPrompt = `Time range: ${timeRange}\nAccess summary: ${JSON.stringify(accessSummary)}\nEntries sample: ${JSON.stringify(filtered.slice(0, 10).map((e) => ({ principal: e.principal, resource: e.resource, action: e.action, allowed: e.allowed })))}\nAnalyze for access anomalies.`;
+
+        const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+          maxTokens: 1500,
+          temperature: 0.3,
+        });
+
+        const parsed = this.parseLLMResponse(response);
+        if (parsed?.anomalies && Array.isArray(parsed.anomalies)) {
+          this.logger.log(
+            `LLM access audit: ${filtered.length} entries, ${parsed.anomalies.length} anomalies detected`,
+          );
+          return {
+            entries: filtered.map((e) => ({
+              id: e.id,
+              principal: e.principal,
+              resource: e.resource,
+              action: e.action,
+              allowed: e.allowed,
+              timestamp: e.timestamp.toISOString(),
+              reason: e.reason,
+            })),
+            totalEntries: filtered.length,
+            deniedCount,
+            anomalies: parsed.anomalies,
+          };
+        }
+      } catch (error) {
+        this.logger.warn(`LLM access audit failed, using heuristic: ${(error as Error).message}`);
+      }
+    }
+
+    // Heuristic fallback: detect anomalies (e.g., high denial rate for a principal)
     const anomalies: any[] = [];
     const denialByPrincipal: Record<string, number> = {};
     for (const entry of filtered) {

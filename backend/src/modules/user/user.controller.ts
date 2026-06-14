@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Param, Body, Query, Req } from '@nestjs/common';
+import { Controller, Get, Put, Param, Body, Query, Req, ParseUUIDPipe } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
@@ -56,31 +56,31 @@ export class UserController {
   @Get(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get user by ID' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.userService.findOne(id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update user' })
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUserDto) {
     return this.userService.update(id, dto);
   }
 
   @Put(':id/password')
   @ApiOperation({ summary: 'Update password' })
-  async updatePassword(@Param('id') id: string, @Body() dto: UpdatePasswordDto) {
+  async updatePassword(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePasswordDto) {
     return this.userService.updatePassword(id, dto.currentPassword, dto.newPassword);
   }
 
   @Put(':id/activate')
   @ApiOperation({ summary: 'Activate user' })
-  async activate(@Param('id') id: string) {
+  async activate(@Param('id', ParseUUIDPipe) id: string) {
     return this.userService.activate(id);
   }
 
   @Put(':id/deactivate')
   @ApiOperation({ summary: 'Deactivate user' })
-  async deactivate(@Param('id') id: string) {
+  async deactivate(@Param('id', ParseUUIDPipe) id: string) {
     return this.userService.deactivate(id);
   }
 }

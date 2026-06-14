@@ -15,6 +15,7 @@ import {
   HttpCode,
   HttpStatus,
   Res,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import {
@@ -136,21 +137,42 @@ export class SoftwareFactoryController {
       return;
     }
 
-    // Look for the file in the workspace
-    const filePath = path.join(workspaceDir, filename);
+    // SECURITY: Validate file path to prevent path traversal attacks
+    const filePath = this.validateFilePath(filename, workspaceDir);
     if (fs.existsSync(filePath)) {
       res.download(filePath, filename);
       return;
     }
 
     // Check for ZIP in download directory
-    const zipPath = path.join('/home/z/my-project/download/missions', `${id}.zip`);
+    const safeZipDir = path.resolve('/home/z/my-project/download/missions');
+    const zipPath = path.resolve(safeZipDir, `${id}.zip`);
+    if (!zipPath.startsWith(safeZipDir)) {
+      res.status(403).json({ error: 'Path traversal detected' });
+      return;
+    }
     if (filename === `${id}.zip` && fs.existsSync(zipPath)) {
       res.download(zipPath, filename);
       return;
     }
 
     res.status(404).json({ error: `File not found: ${filename}` });
+  }
+
+  /**
+   * Validates a file path to prevent path traversal attacks.
+   * Ensures the resolved path stays within the allowed workspace directory.
+   */
+  private validateFilePath(filename: string, workspaceDir: string): string {
+    // Block obvious path traversal patterns
+    if (filename.includes('..') || path.isAbsolute(filename)) {
+      throw new ForbiddenException('Path traversal detected');
+    }
+    const resolved = path.resolve(workspaceDir, filename);
+    if (!resolved.startsWith(path.resolve(workspaceDir))) {
+      throw new ForbiddenException('Path traversal detected');
+    }
+    return resolved;
   }
 
   /**

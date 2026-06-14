@@ -5,7 +5,7 @@ import type {
   PerformanceOverview,
 } from '@/lib/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+const API_BASE = '/api/v1';
 
 type TabKey = 'overview' | 'memory' | 'pools' | 'slow-queries' | 'cache' | 'recommendations';
 
@@ -17,10 +17,10 @@ export default function PerformanceDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/performance/overview`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const token = localStorage.getItem('auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/performance/overview`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json.data || json);

@@ -15,7 +15,6 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { mockTasks } from '@/lib/mock-data';
 import { cn, taskStatusColors, formatRelativeTime, formatPriority } from '@/lib/utils';
 import type { Task, TaskStatus } from '@/lib/types';
 import { TaskStatus as TS } from '@/lib/types';
@@ -54,7 +53,7 @@ export default function TasksPage() {
       const result = await api.getTasks(params);
       setTasks(result.data || []);
     } catch {
-      setTasks(mockTasks);
+      setTasks([]);
     } finally {
       setLoading(false);
     }

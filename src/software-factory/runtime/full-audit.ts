@@ -10,6 +10,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { RuntimeLogger } from './runtime-logger';
+
+const log = new RuntimeLogger('FullAudit');
 
 import { DevelopmentConnector } from '../connectors/development-connector';
 import { BrowserConnector } from '../connectors/browser-connector';
@@ -85,38 +88,38 @@ class FullAuditor {
   private readonly business = new BusinessConnector();
 
   async run(): Promise<void> {
-    console.log('╔══════════════════════════════════════════════════════════════╗');
-    console.log('║   AENEWS SOFTWARE FACTORY — FULL CONNECTOR AUDIT            ║');
-    console.log('║   6 Connectors × 64 Capabilities = Complete Validation      ║');
-    console.log('╚══════════════════════════════════════════════════════════════╝');
-    console.log('');
+    log.info('╔══════════════════════════════════════════════════════════════╗');
+    log.info('║   AENEWS SOFTWARE FACTORY — FULL CONNECTOR AUDIT            ║');
+    log.info('║   6 Connectors × 64 Capabilities = Complete Validation      ║');
+    log.info('╚══════════════════════════════════════════════════════════════╝');
+    log.info('');
 
     // Clean workspace
     fs.rmSync(this.baseWorkspace, { recursive: true, force: true });
     fs.mkdirSync(this.baseWorkspace, { recursive: true });
 
     // ─── 1. Browser Connector (12 capabilities) ────────────────
-    console.log('━━━ [1/6] BROWSER CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log.info('━━━ [1/6] BROWSER CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     await this.auditBrowser();
 
     // ─── 2. Development Connector (12 capabilities) ────────────
-    console.log('\n━━━ [2/6] DEVELOPMENT CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log.info('\n━━━ [2/6] DEVELOPMENT CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     await this.auditDevelopment();
 
     // ─── 3. Certification Connector (10 capabilities) ──────────
-    console.log('\n━━━ [3/6] CERTIFICATION CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log.info('\n━━━ [3/6] CERTIFICATION CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━');
     await this.auditCertification();
 
     // ─── 4. Delivery Connector (12 capabilities) ───────────────
-    console.log('\n━━━ [4/6] DELIVERY CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log.info('\n━━━ [4/6] DELIVERY CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     await this.auditDelivery();
 
     // ─── 5. Office Connector (8 capabilities) ──────────────────
-    console.log('\n━━━ [5/6] OFFICE CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log.info('\n━━━ [5/6] OFFICE CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     await this.auditOffice();
 
     // ─── 6. Business Connector (10 capabilities) ───────────────
-    console.log('\n━━━ [6/6] BUSINESS CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    log.info('\n━━━ [6/6] BUSINESS CONNECTOR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     await this.auditBusiness();
 
     // ─── Generate Report ────────────────────────────────────────
@@ -446,7 +449,7 @@ class FullAuditor {
     // Seed workspace
     fs.mkdirSync(path.join(ws, 'src'), { recursive: true });
     fs.writeFileSync(path.join(ws, 'README.md'), '# Delivery Test Project');
-    fs.writeFileSync(path.join(ws, 'index.js'), 'console.log("hello");');
+    fs.writeFileSync(path.join(ws, 'index.js'), 'log.info("hello");');
 
     // ZIP (real)
     await this.auditCapability('DELIVERY', DeliveryCapability.ZIP, this.delivery, {
@@ -700,7 +703,7 @@ class FullAuditor {
       const cost = result.costUsd > 0 ? ` $${result.costUsd.toFixed(4)}` : '';
       const artifacts =
         result.artifacts.length > 0 ? ` [${result.artifacts.length} artifact(s)]` : '';
-      console.log(
+      log.info(
         `  ${status} ${capability as string} — ${durationMs}ms${cost}${artifacts} ${notes.length > 0 ? '⚠️ ' + notes.join('; ') : ''}`,
       );
 
@@ -722,7 +725,7 @@ class FullAuditor {
       };
       this.results.push(auditResult);
 
-      console.log(`  ❌ ${capability as string} — EXCEPTION: ${error.message?.substring(0, 100)}`);
+      log.info(`  ❌ ${capability as string} — EXCEPTION: ${error.message?.substring(0, 100)}`);
       return auditResult;
     }
   }
@@ -837,39 +840,39 @@ class FullAuditor {
     };
 
     // Print summary
-    console.log('\n╔══════════════════════════════════════════════════════════════╗');
-    console.log('║                    AUDIT COMPLETE                            ║');
-    console.log('╚══════════════════════════════════════════════════════════════╝');
-    console.log(`  Total: ${report.totalCapabilities} capabilities tested`);
-    console.log(
+    log.info('\n╔══════════════════════════════════════════════════════════════╗');
+    log.info('║                    AUDIT COMPLETE                            ║');
+    log.info('╚══════════════════════════════════════════════════════════════╝');
+    log.info(`  Total: ${report.totalCapabilities} capabilities tested`);
+    log.info(
       `  Passed: ${passed} | Failed: ${failed} | Rate: ${((passed / report.totalCapabilities) * 100).toFixed(1)}%`,
     );
-    console.log(
+    log.info(
       `  Total cost: $${totalCost.toFixed(4)} | Avg: $${report.avgCostUsd.toFixed(4)}/capability`,
     );
-    console.log(
+    log.info(
       `  Total time: ${(totalDuration / 1000).toFixed(1)}s | Avg: ${report.avgDurationMs}ms/capability`,
     );
-    console.log('');
+    log.info('');
 
-    console.log('  ┌─────────────┬───────┬────────┬────────┬──────────────┐');
-    console.log('  │ Pack        │ Total │ Pass   │ Fail   │ Avg Duration │');
-    console.log('  ├─────────────┼───────┼────────┼────────┼──────────────┤');
+    log.info('  ┌─────────────┬───────┬────────┬────────┬──────────────┐');
+    log.info('  │ Pack        │ Total │ Pass   │ Fail   │ Avg Duration │');
+    log.info('  ├─────────────┼───────┼────────┼────────┼──────────────┤');
     for (const [pack, summary] of Object.entries(byPack)) {
-      console.log(
+      log.info(
         `  │ ${pack.padEnd(11)} │ ${String(summary.total).padStart(5)} │ ${String(summary.passed).padStart(6)} │ ${String(summary.failed).padStart(6)} │ ${String(summary.avgDurationMs + 'ms').padStart(12)} │`,
       );
     }
-    console.log('  └─────────────┴───────┴────────┴────────┴──────────────┘');
+    log.info('  └─────────────┴───────┴────────┴────────┴──────────────┘');
 
     if (criticalOptimizations.length > 0) {
-      console.log('\n  🔴 CRITICAL OPTIMIZATIONS:');
-      criticalOptimizations.forEach((o, i) => console.log(`  ${i + 1}. ${o}`));
+      log.info('\n  🔴 CRITICAL OPTIMIZATIONS:');
+      criticalOptimizations.forEach((o, i) => log.info(`  ${i + 1}. ${o}`));
     }
 
     if (recommendedOptimizations.length > 0) {
-      console.log('\n  🟡 RECOMMENDED OPTIMIZATIONS:');
-      recommendedOptimizations.forEach((o, i) => console.log(`  ${i + 1}. ${o}`));
+      log.info('\n  🟡 RECOMMENDED OPTIMIZATIONS:');
+      recommendedOptimizations.forEach((o, i) => log.info(`  ${i + 1}. ${o}`));
     }
 
     // Save report
@@ -877,7 +880,7 @@ class FullAuditor {
     fs.mkdirSync(reportDir, { recursive: true });
     const reportPath = path.join(reportDir, 'connector-audit-report.json');
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf-8');
-    console.log(`\n  📄 Full report saved to: ${reportPath}`);
+    log.info(`\n  📄 Full report saved to: ${reportPath}`);
   }
 
   private createWorkspace(name: string): string {

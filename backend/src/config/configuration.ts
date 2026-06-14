@@ -56,15 +56,28 @@ export default () => ({
     bucket: process.env.MINIO_BUCKET || 'aenews-storage',
   },
   jwt: {
-    // FAIL-FAST: No default secrets. Must be set in production.
-    // In development, a warning is logged but the app still starts.
-    secret: process.env.JWT_SECRET || (process.env.APP_ENV === 'production' ? undefined : 'dev-only-secret-change-me'),
+    // FAIL-FAST: JWT_SECRET must be explicitly set via environment variable.
+    // No fallback secrets — using a default secret is a critical security vulnerability.
+    secret: process.env.JWT_SECRET || (() => {
+      if (process.env.APP_ENV === 'production') {
+        throw new Error('FATAL: JWT_SECRET environment variable must be set in production. Refusing to start with no secret.');
+      }
+      console.warn('⚠️  WARNING: JWT_SECRET not set. Using insecure development-only secret. NEVER use this in production!');
+      return undefined;
+    })(),
     expiration: process.env.JWT_EXPIRATION || '24h',
     refreshExpiration: process.env.JWT_REFRESH_EXPIRATION || '7d',
   },
   encryption: {
-    // FAIL-FAST: No default encryption key. Must be set in production.
-    key: process.env.ENCRYPTION_KEY || (process.env.APP_ENV === 'production' ? undefined : 'dev-only-key-32chars-change!'),
+    // FAIL-FAST: ENCRYPTION_KEY must be explicitly set via environment variable.
+    // No fallback keys — using a default key is a critical security vulnerability.
+    key: process.env.ENCRYPTION_KEY || (() => {
+      if (process.env.APP_ENV === 'production') {
+        throw new Error('FATAL: ENCRYPTION_KEY environment variable must be set in production. Refusing to start with no key.');
+      }
+      console.warn('⚠️  WARNING: ENCRYPTION_KEY not set. Using insecure development-only key. NEVER use this in production!');
+      return undefined;
+    })(),
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',

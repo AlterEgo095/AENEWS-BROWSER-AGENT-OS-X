@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Query,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PluginService } from './plugin.service';
@@ -79,31 +80,31 @@ export class PluginController {
   @Get(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get plugin by ID' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.pluginService.findOne(id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update plugin' })
-  async update(@Param('id') id: string, @Body() dto: Partial<CreatePluginDto>) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: Partial<CreatePluginDto>) {
     return this.pluginService.update(id, dto as any);
   }
 
   @Put(':id/enable')
   @ApiOperation({ summary: 'Enable plugin' })
-  async enable(@Param('id') id: string) {
+  async enable(@Param('id', ParseUUIDPipe) id: string) {
     return this.pluginService.enable(id);
   }
 
   @Put(':id/disable')
   @ApiOperation({ summary: 'Disable plugin' })
-  async disable(@Param('id') id: string) {
+  async disable(@Param('id', ParseUUIDPipe) id: string) {
     return this.pluginService.disable(id);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete plugin' })
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.pluginService.remove(id);
   }
 }

@@ -198,7 +198,10 @@ interface RecordingEntry {
 }
 
 // ─── Simulated Windows ────────────────────────────────────────────
-
+// NOTE: Real implementation requires OS-level access to enumerate actual windows.
+// The following static data is a placeholder for environments without display access.
+// Production deployments should use a native screen capture library (e.g., screenshot-desktop,
+// nut.js, or platform-specific APIs) to provide real window enumeration.
 const SIMULATED_WINDOWS = [
   { id: 1, title: 'AENEWS Dashboard', width: 1280, height: 720, x: 100, y: 50 },
   { id: 2, title: 'Terminal - bash', width: 800, height: 600, x: 200, y: 100 },

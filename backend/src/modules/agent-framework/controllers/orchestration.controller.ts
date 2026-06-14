@@ -29,7 +29,16 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../user/entities/user.entity';
+import { TenantScoped } from '../../tenant/decorators/tenant-scoped.decorator';
+import { RateLimitGuard } from '../guards/rate-limit.guard';
+import { RateLimit, RateLimitDomain } from '../decorators/rate-limit.decorator';
 import { AgentCollaborationService, CollaborationPattern } from '../services/agent-collaboration.service';
 import { MissionDecompositionService } from '../services/mission-decomposition.service';
 import { CrossClusterCoordinatorService, ClusterTask } from '../services/cross-cluster-coordinator.service';
@@ -77,7 +86,11 @@ export class ExecuteConnectorDto {
 
 // ─── Controller ──────────────────────────────────────────────────
 
-@Controller('api/v1/orchestration')
+@Controller('orchestration')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
+@Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR)
+@TenantScoped()
 export class OrchestrationController {
   constructor(
     private readonly collaborationService: AgentCollaborationService,
@@ -91,6 +104,8 @@ export class OrchestrationController {
 
   @Post('collaborate')
   @HttpCode(HttpStatus.OK)
+  @RateLimitDomain('cluster')
+  @RateLimit({ points: 10, duration: 60, blockDuration: 120 })
   async collaborate(@Body() dto: CollaborateDto) {
     const result = await this.collaborationService.collaborate({
       id: `collab_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
@@ -138,6 +153,8 @@ export class OrchestrationController {
 
   @Post('decompose')
   @HttpCode(HttpStatus.OK)
+  @RateLimitDomain('cluster')
+  @RateLimit({ points: 10, duration: 60, blockDuration: 120 })
   async decompose(@Body() dto: DecomposeDto) {
     const result = await this.decompositionService.decompose({
       missionId: dto.missionId,

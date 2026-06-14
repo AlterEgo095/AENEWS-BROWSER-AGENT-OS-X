@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -146,27 +147,27 @@ export class AgentController {
   @Get(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get agent by ID' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.agentService.findOne(id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update agent' })
-  async update(@Param('id') id: string, @Body() dto: UpdateAgentDto) {
+  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateAgentDto) {
     return this.agentService.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete agent' })
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.agentService.remove(id);
   }
 
   @Post(':id/execute')
   @ApiOperation({ summary: 'Execute an agent with the given context' })
   async execute(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ExecuteAgentDto,
     @Req() req: Request & { user?: any; tenantId?: string },
   ) {
@@ -186,7 +187,7 @@ export class AgentController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get agent execution history' })
   async getExecutions(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query() pagination: PaginationDto,
   ) {
     return this.agentService.getAgentExecutions(

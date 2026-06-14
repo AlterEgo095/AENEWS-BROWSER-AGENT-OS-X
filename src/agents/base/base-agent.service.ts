@@ -1178,6 +1178,69 @@ export abstract class BaseAgentService implements OnModuleInit, OnModuleDestroy 
     );
   }
 
+  // ─── LLM Integration ───────────────────────────────────────────
+
+  /**
+   * Optional bridge reference for LLM calls.
+   * Agents that inject AgentConnectorBridge should set this in their constructor:
+   *   this.agentBridge = this.bridge;  // or this.agentBridge = bridge;
+   */
+  protected agentBridge: any = null;
+
+  /**
+   * Execute an LLM call via the agent bridge.
+   * Uses the AgentConnectorBridge.callLLM() method under the hood.
+   * All agents can use this as a fallback when bridge connectors are unavailable.
+   *
+   * @param systemPrompt - The system prompt defining the agent's role and output format
+   * @param userPrompt - The user prompt with action and input context
+   * @param options - Optional LLM call options (maxTokens, temperature)
+   * @returns The raw LLM response content string
+   */
+  protected async executeWithLLM(
+    systemPrompt: string,
+    userPrompt: string,
+    options?: { maxTokens?: number; temperature?: number },
+  ): Promise<string> {
+    if (!this.agentBridge || typeof this.agentBridge.callLLM !== 'function') {
+      throw new Error('AgentConnectorBridge not available for LLM calls');
+    }
+
+    const result = await this.agentBridge.callLLM({
+      systemPrompt,
+      userPrompt,
+      temperature: options?.temperature ?? 0.3,
+      maxTokens: options?.maxTokens ?? 2048,
+    });
+
+    return result.content;
+  }
+
+  /**
+   * Parse an LLM response, attempting to extract structured JSON.
+   * Falls back to returning a wrapped raw response if JSON parsing fails.
+   *
+   * @param response - The raw LLM response content
+   * @param defaultValue - Default value to return if parsing fails completely
+   * @returns Parsed JSON object or default value
+   */
+  protected parseLLMResponse<T = any>(response: string, defaultValue?: T): T {
+    try {
+      // Try to find JSON in the response (may be wrapped in markdown code blocks)
+      const jsonMatch =
+        response.match(/```(?:json)?\s*([\s\S]*?)```/) || response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[1] || jsonMatch[0];
+        return JSON.parse(jsonStr.trim());
+      }
+      // Try direct parse
+      return JSON.parse(response);
+    } catch {
+      // If we can't parse JSON, return a structured wrapper
+      return defaultValue ?? ({ raw: response } as T);
+    }
+  }
+
   // ─── Maintenance Mode ────────────────────────────────────────────
 
   async enterMaintenance(): Promise<void> {

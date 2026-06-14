@@ -227,20 +227,24 @@ export class PerformanceIndexes1700000000001 implements MigrationInterface {
     `);
 
     // ═══════════════════════════════════════════════════════════
-    //  Schema: public (users, plugins)
+    //  Schema: tenant (users table)
     // ═══════════════════════════════════════════════════════════
 
     // Users — email lookup for auth (unique already, but btree for login speed)
     await queryRunner.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email_tenant
-      ON public.users (email, tenant_id)
+      ON tenant.users (email, tenant_id)
     `);
+
+    // ═══════════════════════════════════════════════════════════
+    //  Schema: agent (plugins table)
+    // ═══════════════════════════════════════════════════════════
 
     // Plugins — active plugins by tenant
     await queryRunner.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_plugins_tenant_active
-      ON public.plugins (tenant_id, is_active)
-      WHERE is_active = true
+      ON agent.plugins (tenant_id, is_enabled)
+      WHERE is_enabled = true
     `);
   }
 

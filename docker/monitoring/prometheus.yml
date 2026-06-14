@@ -39,40 +39,50 @@ scrape_configs:
           team: 'platform'
 
   # ─── Node Exporter (System Metrics) ───────────────────────
-  - job_name: 'node-exporter'
-    static_configs:
-      - targets: ['node-exporter:9100']
-        labels:
-          service: 'node'
+  # NOTE: node-exporter service is not yet defined in docker-compose.
+  # Uncomment the following once you add it to your compose stack:
+  # - job_name: 'node-exporter'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+  #       labels:
+  #         service: 'node'
 
   # ─── PostgreSQL Exporter ──────────────────────────────────
-  - job_name: 'postgres-exporter'
-    static_configs:
-      - targets: ['postgres-exporter:9187']
-        labels:
-          service: 'postgresql'
+  # NOTE: postgres-exporter service is not yet defined in docker-compose.
+  # Uncomment the following once you add it to your compose stack:
+  # - job_name: 'postgres-exporter'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #       labels:
+  #         service: 'postgresql'
 
   # ─── Redis Exporter ───────────────────────────────────────
-  - job_name: 'redis-exporter'
-    static_configs:
-      - targets: ['redis-exporter:9121']
-        labels:
-          service: 'redis'
+  # NOTE: redis-exporter service is not yet defined in docker-compose.
+  # Uncomment the following once you add it to your compose stack:
+  # - job_name: 'redis-exporter'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #       labels:
+  #         service: 'redis'
 
   # ─── Nginx Exporter ───────────────────────────────────────
-  - job_name: 'nginx-exporter'
-    static_configs:
-      - targets: ['nginx-exporter:9113']
-        labels:
-          service: 'nginx'
+  # NOTE: nginx-exporter service is not yet defined in docker-compose.
+  # Uncomment the following once you add it to your compose stack:
+  # - job_name: 'nginx-exporter'
+  #   static_configs:
+  #     - targets: ['nginx-exporter:9113']
+  #       labels:
+  #         service: 'nginx'
 
   # ─── OTLP Collector ───────────────────────────────────────
-  - job_name: 'otel-collector'
-    scrape_interval: 30s
-    static_configs:
-      - targets: ['otel-collector:8889']
-        labels:
-          service: 'telemetry'
+  # NOTE: otel-collector service is not yet defined in docker-compose.
+  # Uncomment the following once you add it to your compose stack:
+  # - job_name: 'otel-collector'
+  #   scrape_interval: 30s
+  #   static_configs:
+  #     - targets: ['otel-collector:8889']
+  #       labels:
+  #         service: 'telemetry'
 
   # ─── Prometheus Self-Monitoring ───────────────────────────
   - job_name: 'prometheus'

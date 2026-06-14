@@ -21,11 +21,14 @@
  */
 
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { AgentMemoryService, MemoryTier } from './agent-memory.service';
 import {
   AgentEventBusService,
   AgentEventType,
 } from './agent-event-bus.service';
+import { CollaborationState } from '../entities/collaboration-state.entity';
 
 // ─── Persistence Types ────────────────────────────────────────────
 
@@ -109,6 +112,7 @@ export class CollaborationPersistenceService {
   constructor(
     private readonly memoryService: AgentMemoryService,
     private readonly eventBus: AgentEventBusService,
+    @Optional() @InjectRepository(CollaborationState) private readonly stateRepo?: Repository<CollaborationState>,
   ) {
     this.initialize();
   }
@@ -117,11 +121,49 @@ export class CollaborationPersistenceService {
 
   /**
    * Initialize the persistence service and attempt crash recovery.
+   * Loads active collaborations from DB into L1 in-memory cache.
    */
   private async initialize(): Promise<void> {
     if (this.initialized) return;
 
     try {
+      // Load active collaborations from DB into L1 cache
+      if (this.stateRepo) {
+        const activeStates = await this.stateRepo.find({
+          where: [
+            { phase: 'created' },
+            { phase: 'assigning' },
+            { phase: 'executing' },
+            { phase: 'collecting' },
+            { phase: 'merging' },
+          ],
+        });
+
+        for (const state of activeStates) {
+          const checkpoint = this.entityToCheckpoint(state);
+          this.activeCheckpoints.set(state.collaborationId, checkpoint);
+        }
+
+        // Load history from DB
+        const historyStates = await this.stateRepo.find({
+          where: [
+            { phase: 'completed' },
+            { phase: 'failed' },
+            { phase: 'timeout' },
+            { phase: 'crashed' },
+          ],
+          order: { updatedAt: 'DESC' },
+          take: 500,
+        });
+
+        for (const state of historyStates) {
+          const record = this.entityToHistoryRecord(state);
+          this.history.set(record.id, record);
+        }
+
+        this.logger.log(`Loaded ${activeStates.length} active + ${historyStates.length} historical collaborations from DB`);
+      }
+
       // Attempt to recover active collaborations from Redis
       const recoveryReport = await this.recoverFromCrash();
       this.logger.log(`Persistence initialized. Recovery: ${recoveryReport.recovered} recovered, ${recoveryReport.crashed} crashed`);
@@ -274,12 +316,34 @@ export class CollaborationPersistenceService {
 
   /**
    * Create a checkpoint for a collaboration.
+   * Persists to L1 (in-memory), Redis, and L2 (PostgreSQL via TypeORM).
    */
   async checkpoint(checkpoint: CollaborationCheckpoint): Promise<void> {
     checkpoint.lastCheckpointAt = Date.now();
 
-    // Store in memory
+    // Store in L1 memory
     this.activeCheckpoints.set(checkpoint.collaborationId, checkpoint);
+
+    // Persist to L2 database (PostgreSQL via TypeORM)
+    if (this.stateRepo) {
+      try {
+        await this.stateRepo.save({
+          collaborationId: checkpoint.collaborationId,
+          phase: checkpoint.phase,
+          agentIds: checkpoint.agentIds,
+          assignedAgents: checkpoint.assignedAgents,
+          results: checkpoint.results,
+          errors: checkpoint.errors,
+          startedAt: checkpoint.startedAt,
+          lastCheckpointAt: checkpoint.lastCheckpointAt,
+          parentMissionId: checkpoint.parentMissionId ?? null,
+          pattern: checkpoint.pattern,
+          metadata: checkpoint.metadata,
+        });
+      } catch (error) {
+        this.logger.warn(`Failed to persist checkpoint to DB for ${checkpoint.collaborationId}: ${error.message}`);
+      }
+    }
 
     // Persist to Redis
     try {
@@ -417,6 +481,7 @@ export class CollaborationPersistenceService {
 
   /**
    * Move a completed collaboration to history.
+   * Persists the terminal state to DB.
    */
   private async moveToHistory(checkpoint: CollaborationCheckpoint): Promise<void> {
     const record: CollaborationHistoryRecord = {
@@ -435,7 +500,28 @@ export class CollaborationPersistenceService {
 
     this.history.set(record.id, record);
 
-    // Store in long-term memory
+    // Persist terminal state to DB
+    if (this.stateRepo) {
+      try {
+        await this.stateRepo.save({
+          collaborationId: checkpoint.collaborationId,
+          phase: checkpoint.phase,
+          agentIds: checkpoint.agentIds,
+          assignedAgents: checkpoint.assignedAgents,
+          results: checkpoint.results,
+          errors: checkpoint.errors,
+          startedAt: checkpoint.startedAt,
+          lastCheckpointAt: Date.now(),
+          parentMissionId: checkpoint.parentMissionId ?? null,
+          pattern: checkpoint.pattern,
+          metadata: { ...checkpoint.metadata, successRate: checkpoint.metadata?.successRate ?? 0, durationMs: record.durationMs, completedAt: record.completedAt },
+        });
+      } catch (error) {
+        this.logger.warn(`Failed to persist history to DB for ${checkpoint.collaborationId}: ${error.message}`);
+      }
+    }
+
+    // Store in long-term memory (Redis)
     try {
       await this.memoryService.store(
         `persistence:history:${record.id}`,
@@ -575,5 +661,41 @@ export class CollaborationPersistenceService {
     // Final checkpoint
     this.checkpointAll();
     this.logger.log('Persistence service destroyed — final checkpoint saved');
+  }
+
+  // ─── DB Entity Conversion Helpers ────────────────────────────────
+
+  private entityToCheckpoint(entity: CollaborationState): CollaborationCheckpoint {
+    return {
+      collaborationId: entity.collaborationId,
+      phase: entity.phase as CollaborationPhase,
+      agentIds: entity.agentIds,
+      assignedAgents: entity.assignedAgents,
+      results: entity.results,
+      errors: entity.errors,
+      startedAt: Number(entity.startedAt),
+      lastCheckpointAt: Number(entity.lastCheckpointAt),
+      parentMissionId: entity.parentMissionId ?? undefined,
+      pattern: entity.pattern,
+      metadata: entity.metadata,
+    };
+  }
+
+  private entityToHistoryRecord(entity: CollaborationState): CollaborationHistoryRecord {
+    const completedAt = entity.metadata?.completedAt ?? Number(entity.lastCheckpointAt);
+    const durationMs = entity.metadata?.durationMs ?? (completedAt - Number(entity.startedAt));
+    return {
+      id: `history-${entity.collaborationId}`,
+      collaborationId: entity.collaborationId,
+      pattern: entity.pattern,
+      phase: entity.phase as CollaborationPhase,
+      agentCount: entity.agentIds.length,
+      durationMs,
+      successRate: entity.metadata?.successRate ?? 0,
+      startedAt: Number(entity.startedAt),
+      completedAt,
+      parentMissionId: entity.parentMissionId ?? undefined,
+      metadata: entity.metadata,
+    };
   }
 }

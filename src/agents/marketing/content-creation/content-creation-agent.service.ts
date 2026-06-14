@@ -269,6 +269,7 @@ export class ContentCreationAgentService extends BaseAgentService {
     @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super(eventBusService, memoryService, permissionEvaluator);
+    this.agentBridge = bridge ?? null;
   }
 
   protected defineConfig(): AgentConfig {
@@ -473,6 +474,33 @@ export class ContentCreationAgentService extends BaseAgentService {
       throw new Error('A valid topic string is required');
     }
 
+    // Try LLM-powered blog post generation
+    try {
+      const systemPrompt = `You are a professional content writer. Generate a high-quality blog post. Return JSON: { "title": "string", "content": "full markdown blog post", "metaDescription": "155 char SEO meta description", "tags": ["string"] }. Write in ${tone} tone. Target approximately ${wordCount} words.`;
+      const userPrompt = `Topic: ${topic}\\nOutline: ${outline.length > 0 ? outline.join(', ') : 'Generate appropriate structure'}\\nKeywords: ${keywords.join(', ') || 'Generate relevant keywords'}\\nWrite a comprehensive blog post.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 4096,
+        temperature: 0.7,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.content && typeof parsed.content === 'string') {
+        const actualWordCount = parsed.content.split(/\s+/).length;
+        this.logger.log(`LLM blog post: topic="${topic.substring(0, 50)}", words=${actualWordCount}`);
+        return {
+          title: parsed.title || topic,
+          content: parsed.content,
+          wordCount: actualWordCount,
+          metaDescription: parsed.metaDescription || this.generateMetaDescription(topic, keywords),
+          tags: Array.isArray(parsed.tags) ? parsed.tags : this.extractTags(topic, keywords),
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM blog generation failed, using template: ${(error as Error).message}`);
+    }
+
+    // Template fallback
     const sections =
       outline.length > 0
         ? outline
@@ -546,6 +574,31 @@ export class ContentCreationAgentService extends BaseAgentService {
       throw new Error(`Invalid objective: ${objective}. Valid: ${validObjectives.join(', ')}`);
     }
 
+    // Try LLM-powered ad copy generation
+    try {
+      const systemPrompt = `You are an expert advertising copywriter. Generate compelling ad copy for the product on the specified platform. Return JSON: { "headlines": ["string"], "descriptions": ["string"], "cta": "string" }. Optimize for ${objective} objective on ${platform}. Target audience: ${audience}. Generate ${headlineCount} headlines.`;
+      const userPrompt = `Product: ${product}\\nPlatform: ${platform}\\nObjective: ${objective}\\nAudience: ${audience}\\nCTA: ${cta}\\nGenerate ad copy.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.7,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.headlines && Array.isArray(parsed.headlines)) {
+        this.logger.log(`LLM ad copy: product="${product}", platform=${platform}, headlines=${parsed.headlines.length}`);
+        return {
+          headlines: parsed.headlines,
+          descriptions: parsed.descriptions || [],
+          cta: parsed.cta || cta,
+          platform,
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM ad copy failed, using template: ${(error as Error).message}`);
+    }
+
+    // Template fallback
     const headlines = this.synthesizeHeadlines(product, objective, audience, headlineCount);
     const descriptions = this.synthesizeAdDescriptions(product, objective, audience, platform);
 

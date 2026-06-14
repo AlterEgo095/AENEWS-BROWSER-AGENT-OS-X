@@ -39,18 +39,10 @@ export function useWebSocket() {
 
     socket.on('connect', () => {
       setConnected(true);
-      // Authenticate if we have a token
-      if (token) {
-        socket.emit('authenticate', { token });
-      }
     });
 
     socket.on('disconnect', () => {
       setConnected(false);
-    });
-
-    socket.on('authenticated', () => {
-      // Server acknowledged authentication
     });
 
     socket.on('event', (data: WebSocketEvent) => {

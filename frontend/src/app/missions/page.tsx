@@ -19,7 +19,6 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { mockMissions } from '@/lib/mock-data';
 import {
   cn,
   missionStateColors,
@@ -203,7 +202,7 @@ export default function MissionsPage() {
       const result = await api.getMissions(params);
       setMissions(result.data || []);
     } catch {
-      setMissions(mockMissions);
+      setMissions([]);
     } finally {
       setLoading(false);
     }

@@ -11,7 +11,6 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { mockAgents } from '@/lib/mock-data';
 import {
   cn,
   clusterColors,
@@ -73,7 +72,7 @@ export default function AgentsPage() {
       const result = await api.getAgents(params);
       setAgents(result.data || []);
     } catch {
-      setAgents(mockAgents);
+      setAgents([]);
     } finally {
       setLoading(false);
     }

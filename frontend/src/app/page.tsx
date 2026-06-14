@@ -14,7 +14,6 @@ import {
   RadialBarChart, RadialBar,
 } from 'recharts';
 import { api } from '@/lib/api';
-import { mockClusterStats, mockHealth, mockAgents, mockEvents, mockMissions } from '@/lib/mock-data';
 import { cn, clusterColors, clusterIcons, formatRelativeTime, missionStateColors, missionStateDotColors } from '@/lib/utils';
 import type { ClusterStats, HealthCheckResult, Agent, Event, Mission } from '@/lib/types';
 import { MissionState as MS, AgentStatus, ClusterType } from '@/lib/types';
@@ -226,25 +225,15 @@ export default function DashboardPage() {
       ]);
 
       if (results[0].status === 'fulfilled') setClusterStats(results[0].value);
-      else setClusterStats(mockClusterStats);
 
       if (results[1].status === 'fulfilled') setHealth(results[1].value);
-      else setHealth(mockHealth);
 
       if (results[2].status === 'fulfilled') setAgents(results[2].value.data || []);
-      else setAgents(mockAgents);
 
       if (results[3].status === 'fulfilled') setRecentEvents(results[3].value.data || []);
-      else setRecentEvents(mockEvents);
 
       if (results[4].status === 'fulfilled') setRecentMissions(results[4].value.data || []);
-      else setRecentMissions(mockMissions.slice(0, 10));
     } catch {
-      setClusterStats(mockClusterStats);
-      setHealth(mockHealth);
-      setAgents(mockAgents);
-      setRecentEvents(mockEvents);
-      setRecentMissions(mockMissions.slice(0, 10));
     } finally {
       setLoading(false);
       setLastRefresh(new Date());
@@ -300,14 +289,14 @@ export default function DashboardPage() {
     }));
   }, [recentMissions]);
 
-  // Time-series data (simulated for now, will be real from backend)
+  // Time-series data placeholder — will be populated from backend
   const timeSeriesData = useMemo(() => {
     const now = Date.now();
     return Array.from({ length: 24 }, (_, i) => ({
       time: new Date(now - (23 - i) * 3600000).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
-      agents: Math.floor(activeAgents * (0.7 + Math.random() * 0.3)),
-      tasks: Math.floor(Math.random() * 30) + 10,
-      events: Math.floor(Math.random() * 50) + 20,
+      agents: i <= Math.floor(activeAgents * 0.7) ? activeAgents : 0,
+      tasks: 0,
+      events: 0,
     }));
   }, [activeAgents]);
 
@@ -315,9 +304,9 @@ export default function DashboardPage() {
     const now = Date.now();
     return Array.from({ length: 12 }, (_, i) => ({
       time: new Date(now - (11 - i) * 300000).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
-      cpu: Math.floor(Math.random() * 30) + 30,
-      memory: Math.floor(Math.random() * 20) + 50,
-      eventLoop: Math.floor(Math.random() * 15) + 5,
+      cpu: 0,
+      memory: 0,
+      eventLoop: 0,
     }));
   }, []);
 

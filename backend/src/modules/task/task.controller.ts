@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -114,13 +115,13 @@ export class TaskController {
   @Get(':id')
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
   @ApiOperation({ summary: 'Get task by ID' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.taskService.findOne(id);
   }
 
   @Put(':id/cancel')
   @ApiOperation({ summary: 'Cancel a task' })
-  async cancel(@Param('id') id: string) {
+  async cancel(@Param('id', ParseUUIDPipe) id: string) {
     return this.taskService.cancel(id);
   }
 }

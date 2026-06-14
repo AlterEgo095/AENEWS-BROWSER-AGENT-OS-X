@@ -62,10 +62,22 @@ async function bootstrap() {
   // ─── CORS ─────────────────────────────────────────────────
   const corsEnabled = process.env.CORS_ENABLED !== 'false';
   if (corsEnabled) {
-    const corsOrigins = process.env.CORS_ORIGINS || '*';
+    const corsOrigins = process.env.CORS_ORIGINS;
+    if (!corsOrigins) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'FATAL: CORS_ORIGINS environment variable must be set in production. ' +
+            'Wildcard CORS is not allowed in production. Example: CORS_ORIGINS=https://app.example.com,https://admin.example.com',
+        );
+      }
+      console.warn(
+        '⚠️  WARNING: CORS_ORIGINS not set. Using wildcard CORS for development only. ' +
+          'NEVER use this in production!',
+      );
+    }
     const corsMethods = process.env.CORS_METHODS || 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
     app.enableCors({
-      origin: corsOrigins === '*' ? true : corsOrigins.split(','),
+      origin: corsOrigins ? corsOrigins.split(',').map((o) => o.trim()) : true,
       methods: corsMethods.split(','),
       credentials: true,
       allowedHeaders: 'Content-Type, Authorization, X-Request-Id, X-Correlation-Id',

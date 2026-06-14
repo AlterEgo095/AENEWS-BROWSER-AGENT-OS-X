@@ -230,6 +230,7 @@ export class ThreatDetectionAgentService extends BaseAgentService {
     @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super(eventBusService, memoryService, permissionEvaluator);
+    this.agentBridge = bridge ?? null;
   }
   private anomalyLog: AnomalyRecord[] = [];
   private lastScanTime: Date | null = null;
@@ -391,7 +392,57 @@ export class ThreatDetectionAgentService extends BaseAgentService {
       throw new Error('A valid target string is required');
     }
 
-    // Simulate threat scanning
+    // Try LLM-powered threat scanning
+    try {
+      const systemPrompt = `You are a security threat detection expert. Analyze the target system and identify potential security threats. Return a JSON object with: { "threats": [{ "id": "string", "type": "malware|phishing|ddos|unauthorized_access|data_exfiltration|privilege_escalation", "severity": "low|medium|high|critical", "description": "string", "source": "string", "status": "detected" }], "riskLevel": "low|medium|high|critical" }. Be specific and realistic.`;
+      const userPrompt = `Scan target: ${target}\nScan type: ${scanType}\nInclude false positives: ${includeFalsePositives}\nIdentify security threats for this target.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.threats && Array.isArray(parsed.threats)) {
+        const threats = parsed.threats.map((t: any) => ({
+          id: t.id || this.generateId(),
+          type: t.type || 'unknown',
+          severity: t.severity || 'medium',
+          description: t.description || `Detected threat on ${target}`,
+          source: t.source || target,
+          detectedAt: new Date(),
+          status: t.status || 'detected',
+        }));
+
+        for (const t of threats) this.threatLog.push(t as ThreatEntry);
+
+        const riskLevel =
+          parsed.riskLevel ||
+          (threats.some((t: any) => t.severity === 'critical')
+            ? 'critical'
+            : threats.some((t: any) => t.severity === 'high')
+              ? 'high'
+              : threats.some((t: any) => t.severity === 'medium')
+                ? 'medium'
+                : 'low');
+
+        this.logger.log(
+          `LLM threat scan on ${target}: ${threats.length} threats (risk: ${riskLevel})`,
+        );
+        return {
+          threats,
+          totalFound: threats.length,
+          scanDurationMs: Date.now() - scanStart,
+          riskLevel,
+        };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `LLM threat scan failed, using heuristic fallback: ${(error as Error).message}`,
+      );
+    }
+
+    // Heuristic fallback: simulate threat scanning
     const threats: ThreatEntry[] = [];
     const scanDepth = scanType === 'full' ? 10 : scanType === 'targeted' ? 5 : 3;
 
@@ -462,7 +513,56 @@ export class ThreatDetectionAgentService extends BaseAgentService {
       throw new Error('Entity is required for anomaly analysis');
     }
 
-    // Simulate anomaly detection
+    // Try LLM-powered anomaly analysis
+    try {
+      const systemPrompt = `You are a security anomaly detection expert. Analyze the entity for behavioral anomalies. Return JSON: { "anomalies": [{ "id": "string", "entity": "string", "score": 0.0-1.0, "description": "string", "baselineValue": "string", "observedValue": "string" }], "anomalyScore": 0.0-1.0, "recommendation": "string" }. Be specific and realistic.`;
+      const userPrompt = `Entity: ${entity}\nTime range: ${timeRange}\nBaseline period: ${baselinePeriod}\nAnalyze for security anomalies.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.anomalies && Array.isArray(parsed.anomalies)) {
+        const anomalies = parsed.anomalies.map((a: any) => ({
+          id: a.id || this.generateId(),
+          entity: a.entity || entity,
+          score: typeof a.score === 'number' ? a.score : 0.5,
+          description: a.description || `Anomaly detected for ${entity}`,
+          baselineValue: a.baselineValue || 'N/A',
+          observedValue: a.observedValue || 'N/A',
+          detectedAt: new Date(),
+        }));
+
+        for (const a of anomalies) this.anomalyLog.push(a as AnomalyRecord);
+
+        const anomalyScore =
+          typeof parsed.anomalyScore === 'number'
+            ? parsed.anomalyScore
+            : anomalies.length > 0
+              ? Math.round(
+                  (anomalies.reduce((s: number, a: any) => s + a.score, 0) / anomalies.length) *
+                    100,
+                ) / 100
+              : 0;
+
+        this.logger.log(
+          `LLM anomaly analysis for ${entity}: score ${anomalyScore}, ${anomalies.length} anomalies`,
+        );
+        return {
+          anomalies,
+          anomalyScore,
+          recommendation: parsed.recommendation || 'Review detected anomalies',
+        };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `LLM anomaly analysis failed, using heuristic fallback: ${(error as Error).message}`,
+      );
+    }
+
+    // Heuristic fallback
     const anomalies: AnomalyRecord[] = [];
     const anomalyCount = Math.floor(Math.random() * 5);
 
@@ -627,7 +727,56 @@ export class ThreatDetectionAgentService extends BaseAgentService {
       throw new Error('Asset is required for vulnerability assessment');
     }
 
-    // Simulate vulnerability assessment
+    // Try LLM-powered vulnerability assessment
+    try {
+      const systemPrompt = `You are a vulnerability assessment expert. Assess the given asset for security vulnerabilities using the ${framework} framework. Return JSON: { "vulnerabilities": [{ "id": "string", "cve": "string", "cvssScore": 0.0-10.0, "severity": "low|medium|high|critical", "affectedComponent": "string", "exploitAvailable": boolean }], "riskScore": 0.0-10.0, "remediations": [{ "vulnerabilityId": "string", "recommendation": "string", "priority": "critical|high|medium", "estimatedEffort": "string" }] }. Be realistic and specific.`;
+      const userPrompt = `Asset: ${asset}\nFramework: ${framework}\nInclude remediation: ${includeRemediation}\nPerform vulnerability assessment.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.vulnerabilities && Array.isArray(parsed.vulnerabilities)) {
+        const vulnerabilities = parsed.vulnerabilities.map((v: any) => ({
+          id: v.id || this.generateId(),
+          cve: v.cve || 'Unknown',
+          cvssScore: typeof v.cvssScore === 'number' ? v.cvssScore : 5.0,
+          severity: v.severity || 'medium',
+          affectedComponent: v.affectedComponent || asset,
+          exploitAvailable: v.exploitAvailable ?? false,
+        }));
+        const riskScore =
+          typeof parsed.riskScore === 'number'
+            ? parsed.riskScore
+            : Math.round(
+                (vulnerabilities.reduce((s: number, v: any) => s + v.cvssScore, 0) /
+                  vulnerabilities.length) *
+                  10,
+              ) / 10;
+        const remediations = includeRemediation
+          ? parsed.remediations ||
+            vulnerabilities.map((v: any) => ({
+              vulnerabilityId: v.id,
+              recommendation: `Apply security patch for ${v.cve}`,
+              priority: v.cvssScore > 7 ? 'critical' : v.cvssScore > 4 ? 'high' : 'medium',
+              estimatedEffort: v.cvssScore > 7 ? '1-2 hours' : '2-4 hours',
+            }))
+          : [];
+
+        this.logger.log(
+          `LLM vulnerability assessment for ${asset}: ${vulnerabilities.length} vulns, risk ${riskScore}`,
+        );
+        return { vulnerabilities, riskScore, remediations };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `LLM vulnerability assessment failed, using heuristic: ${(error as Error).message}`,
+      );
+    }
+
+    // Heuristic fallback
     const vulnerabilityTypes = [
       'CVE-2024-0001: Outdated SSL/TLS configuration',
       'CVE-2024-0002: Unpatched software version',
@@ -678,7 +827,36 @@ export class ThreatDetectionAgentService extends BaseAgentService {
   }): Promise<{ report: any; threatLevel: string; trends: any[]; generatedAt: string }> {
     const { reportType, period = 'last 30d', includeRecommendations = true } = params;
 
-    // Aggregate from internal logs
+    // Try LLM-powered threat report generation
+    try {
+      const threatSummary = {
+        totalThreats: this.threatLog.length,
+        criticalCount: this.threatLog.filter((t) => t.severity === 'critical').length,
+        highCount: this.threatLog.filter((t) => t.severity === 'high').length,
+      };
+      const systemPrompt = `You are a threat intelligence analyst. Generate a ${reportType} threat report. Return JSON: { "report": { "title": "string", "summary": "string", "keyFindings": ["string"], "recommendations": ["string"] }, "threatLevel": "low|medium|high|critical", "trends": [{ "metric": "string", "direction": "increasing|decreasing|stable", "change": "string" }] }`;
+      const userPrompt = `Report type: ${reportType}\nPeriod: ${period}\nThreat data: ${JSON.stringify(threatSummary)}\nInclude recommendations: ${includeRecommendations}\nGenerate threat intelligence report.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.4,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.report) {
+        this.logger.log(`LLM threat report generated: ${reportType} for ${period}`);
+        return {
+          report: parsed.report,
+          threatLevel: parsed.threatLevel || 'medium',
+          trends: parsed.trends || [],
+          generatedAt: new Date().toISOString(),
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM threat report failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback: Aggregate from internal logs
     const threatLevel = this.threatLog.some((t) => t.severity === 'critical')
       ? 'critical'
       : this.threatLog.some((t) => t.severity === 'high')

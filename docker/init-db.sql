@@ -1,169 +1,307 @@
--- AENEWS Agent OS X Database Initialization
--- Phase 0: Foundation
+-- ============================================================
+-- AENEWS Agent OS X — Database Initialization
+-- ============================================================
+-- This script is executed by the PostgreSQL Docker container on
+-- first startup (when the data volume is empty). It creates the
+-- schemas, enum types, and tables required for the platform.
+--
+-- This file is the SINGLE SOURCE OF TRUTH for DB init.
+-- Do NOT duplicate in backend/docker/ or backend/db/.
+-- ============================================================
 
--- Extensions
+-- ─── Extensions ────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- Schemas
-CREATE SCHEMA IF NOT EXISTS agent;
-CREATE SCHEMA IF NOT EXISTS tenant;
-CREATE SCHEMA IF NOT EXISTS audit;
+-- ─── Schemas ──────────────────────────────────────────────────
+CREATE SCHEMA IF NOT EXISTS "tenant";
+CREATE SCHEMA IF NOT EXISTS "agent";
+CREATE SCHEMA IF NOT EXISTS "audit";
+CREATE SCHEMA IF NOT EXISTS "software_factory";
 
--- Base types
-CREATE TYPE agent_status AS ENUM ('idle', 'running', 'paused', 'error', 'stopped', 'completed');
-CREATE TYPE task_status AS ENUM ('pending', 'queued', 'running', 'completed', 'failed', 'cancelled', 'retrying');
-CREATE TYPE user_role AS ENUM ('super_admin', 'tenant_admin', 'operator', 'viewer');
-CREATE TYPE cluster_type AS ENUM ('browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence', 'llm-intelligence', 'intelligent-orchestration', 'watchdog', 'self-evolution', 'certification');
-CREATE TYPE event_severity AS ENUM ('info', 'warning', 'error', 'critical');
+-- ─── Grant schema permissions ─────────────────────────────────
+GRANT ALL PRIVILEGES ON SCHEMA "tenant"            TO aenews;
+GRANT ALL PRIVILEGES ON SCHEMA "agent"             TO aenews;
+GRANT ALL PRIVILEGES ON SCHEMA "audit"             TO aenews;
+GRANT ALL PRIVILEGES ON SCHEMA "software_factory"  TO aenews;
 
--- Tenants table
-CREATE TABLE IF NOT EXISTS tenant.tenants (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    slug VARCHAR(100) UNIQUE NOT NULL,
-    plan VARCHAR(50) DEFAULT 'free',
-    is_active BOOLEAN DEFAULT true,
-    config JSONB DEFAULT '{}',
-    quotas JSONB DEFAULT '{"maxAgents": 100, "maxTasks": 10000, "maxStorage": 5120, "maxConcurrentExecutions": 50}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- ─── Enum types (matching TypeORM migration) ──────────────────
+
+-- tenant.user_role_enum
+CREATE TYPE "tenant"."user_role_enum" AS ENUM (
+  'super_admin', 'tenant_admin', 'operator', 'viewer'
 );
 
--- Users table
-CREATE TABLE IF NOT EXISTS tenant.users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    role user_role DEFAULT 'viewer',
-    tenant_id UUID NOT NULL REFERENCES tenant.tenants(id) ON DELETE CASCADE,
-    is_active BOOLEAN DEFAULT true,
-    last_login_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- agent.cluster_type_enum
+CREATE TYPE "agent"."cluster_type_enum" AS ENUM (
+  'browser', 'computer', 'coding', 'office', 'marketing',
+  'business', 'infrastructure', 'security', 'meta-intelligence',
+  'llm-intelligence', 'intelligent-orchestration', 'watchdog',
+  'self-evolution', 'certification'
 );
 
--- Agents table
-CREATE TABLE IF NOT EXISTS agent.agents (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    cluster cluster_type NOT NULL,
-    status agent_status DEFAULT 'idle',
-    config JSONB DEFAULT '{}',
-    capabilities TEXT[] DEFAULT '{}',
-    tenant_id UUID NOT NULL REFERENCES tenant.tenants(id) ON DELETE CASCADE,
-    version VARCHAR(50) DEFAULT '1.0.0',
-    description TEXT,
-    is_enabled BOOLEAN DEFAULT true,
-    last_execution_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- agent.agent_status_enum
+CREATE TYPE "agent"."agent_status_enum" AS ENUM (
+  'idle', 'running', 'paused', 'error', 'stopped', 'completed'
 );
 
--- Tasks table
-CREATE TABLE IF NOT EXISTS agent.tasks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    type VARCHAR(100) NOT NULL,
-    agent_id UUID REFERENCES agent.agents(id) ON DELETE SET NULL,
-    tenant_id UUID NOT NULL REFERENCES tenant.tenants(id) ON DELETE CASCADE,
-    status task_status DEFAULT 'pending',
-    priority INTEGER DEFAULT 5,
-    input JSONB DEFAULT '{}',
-    output JSONB,
-    error TEXT,
-    retry_count INTEGER DEFAULT 0,
-    max_retries INTEGER DEFAULT 3,
-    parent_task_id UUID REFERENCES agent.tasks(id) ON DELETE SET NULL,
-    scheduled_at TIMESTAMP WITH TIME ZONE,
-    started_at TIMESTAMP WITH TIME ZONE,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- agent.task_status_enum
+CREATE TYPE "agent"."task_status_enum" AS ENUM (
+  'pending', 'queued', 'running', 'completed', 'failed',
+  'cancelled', 'retrying'
 );
 
--- Agent executions log
-CREATE TABLE IF NOT EXISTS agent.executions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    agent_id UUID NOT NULL REFERENCES agent.agents(id) ON DELETE CASCADE,
-    task_id UUID REFERENCES agent.tasks(id) ON DELETE SET NULL,
-    tenant_id UUID NOT NULL REFERENCES tenant.tenants(id) ON DELETE CASCADE,
-    status agent_status NOT NULL,
-    input JSONB DEFAULT '{}',
-    output JSONB,
-    error TEXT,
-    duration_ms INTEGER,
-    metadata JSONB DEFAULT '{}',
-    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- audit.event_severity_enum
+CREATE TYPE "audit"."event_severity_enum" AS ENUM (
+  'info', 'warning', 'error', 'critical'
 );
 
--- Plugins table
-CREATE TABLE IF NOT EXISTS agent.plugins (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    version VARCHAR(50) NOT NULL,
-    description TEXT,
-    author VARCHAR(255),
-    is_enabled BOOLEAN DEFAULT true,
-    config JSONB DEFAULT '{}',
-    hooks TEXT[] DEFAULT '{}',
-    tenant_id UUID REFERENCES tenant.tenants(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(name, version, tenant_id)
+-- software_factory.mission_state_enum (UPPERCASE matching TypeORM)
+CREATE TYPE "software_factory"."mission_state_enum" AS ENUM (
+  'DRAFT', 'PLANNED', 'RESEARCH', 'BUILDING', 'TESTING',
+  'AUDITING', 'CERTIFYING', 'DELIVERING', 'COMPLETED',
+  'FAILED', 'CANCELLED', 'ARCHIVED'
 );
 
--- Events table
-CREATE TABLE IF NOT EXISTS audit.events (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    type VARCHAR(255) NOT NULL,
-    namespace VARCHAR(100) NOT NULL,
-    payload JSONB DEFAULT '{}',
-    source VARCHAR(255) NOT NULL,
-    severity event_severity DEFAULT 'info',
-    tenant_id UUID REFERENCES tenant.tenants(id) ON DELETE SET NULL,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- software_factory.mission_priority_enum (UPPERCASE matching TypeORM)
+CREATE TYPE "software_factory"."mission_priority_enum" AS ENUM (
+  'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
 );
 
--- Audit log
-CREATE TABLE IF NOT EXISTS audit.audit_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    action VARCHAR(100) NOT NULL,
-    entity_type VARCHAR(100) NOT NULL,
-    entity_id UUID,
-    user_id UUID REFERENCES tenant.users(id) ON DELETE SET NULL,
-    tenant_id UUID REFERENCES tenant.tenants(id) ON DELETE SET NULL,
-    old_values JSONB,
-    new_values JSONB,
-    ip_address INET,
-    user_agent TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- software_factory.contract_status_enum (UPPERCASE matching TypeORM)
+CREATE TYPE "software_factory"."contract_status_enum" AS ENUM (
+  'NEGOTIATING', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'FULFILLED'
 );
 
--- Indexes
-CREATE INDEX idx_agents_cluster ON agent.agents(cluster);
-CREATE INDEX idx_agents_status ON agent.agents(status);
-CREATE INDEX idx_agents_tenant ON agent.agents(tenant_id);
-CREATE INDEX idx_tasks_status ON agent.tasks(status);
-CREATE INDEX idx_tasks_agent ON agent.tasks(agent_id);
-CREATE INDEX idx_tasks_tenant ON agent.tasks(tenant_id);
-CREATE INDEX idx_tasks_priority ON agent.tasks(priority);
-CREATE INDEX idx_executions_agent ON agent.executions(agent_id);
-CREATE INDEX idx_executions_task ON agent.executions(task_id);
-CREATE INDEX idx_events_type ON audit.events(type);
-CREATE INDEX idx_events_namespace ON audit.events(namespace);
-CREATE INDEX idx_events_tenant ON audit.events(tenant_id);
-CREATE INDEX idx_events_created ON audit.events(created_at);
-CREATE INDEX idx_audit_log_entity ON audit.audit_log(entity_type, entity_id);
-CREATE INDEX idx_audit_log_user ON audit.audit_log(user_id);
-CREATE INDEX idx_audit_log_tenant ON audit.audit_log(tenant_id);
+-- ─── Tables ───────────────────────────────────────────────────
 
--- Function to auto-update updated_at
+-- ─── tenants ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "tenant"."tenants" (
+  "id"              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "name"            VARCHAR(255) NOT NULL,
+  "slug"            VARCHAR(100) NOT NULL UNIQUE,
+  "plan"            VARCHAR(50)  NOT NULL DEFAULT 'free',
+  "is_active"       BOOLEAN      NOT NULL DEFAULT true,
+  "config"          JSONB        NOT NULL DEFAULT '{}',
+  "quotas"          JSONB        NOT NULL DEFAULT '{"maxAgents": 100, "maxTasks": 10000, "maxStorage": 5120, "maxConcurrentExecutions": 50}',
+  "created_at"      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"      TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- ─── users ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "tenant"."users" (
+  "id"              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "email"           VARCHAR(255) NOT NULL UNIQUE,
+  "password_hash"   VARCHAR(255) NOT NULL,
+  "first_name"      VARCHAR(100) NOT NULL,
+  "last_name"       VARCHAR(100) NOT NULL,
+  "role"            "tenant"."user_role_enum" NOT NULL DEFAULT 'viewer',
+  "tenant_id"       UUID         NOT NULL,
+  "is_active"       BOOLEAN      NOT NULL DEFAULT true,
+  "last_login_at"   TIMESTAMPTZ,
+  "created_at"      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_users_tenant" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_users_tenant_id" ON "tenant"."users" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "idx_users_email"    ON "tenant"."users" ("email");
+
+-- ─── agents ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "agent"."agents" (
+  "id"                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "name"              VARCHAR(255) NOT NULL,
+  "cluster"           "agent"."cluster_type_enum" NOT NULL,
+  "status"            "agent"."agent_status_enum" NOT NULL DEFAULT 'idle',
+  "config"            JSONB        NOT NULL DEFAULT '{}',
+  "capabilities"      TEXT[]       NOT NULL DEFAULT '{}',
+  "tenant_id"         UUID         NOT NULL,
+  "version"           VARCHAR(50)  NOT NULL DEFAULT '1.0.0',
+  "description"       TEXT,
+  "is_enabled"        BOOLEAN      NOT NULL DEFAULT true,
+  "last_execution_at" TIMESTAMPTZ,
+  "created_at"        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_agents_tenant" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_agents_tenant_id" ON "agent"."agents" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "idx_agents_cluster"   ON "agent"."agents" ("cluster");
+CREATE INDEX IF NOT EXISTS "idx_agents_status"    ON "agent"."agents" ("status");
+
+-- ─── tasks ────────────────────────────────────────────────────
+-- NOTE: tasks is created BEFORE executions to avoid circular FK issues
+CREATE TABLE IF NOT EXISTS "agent"."tasks" (
+  "id"              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "type"            VARCHAR(100) NOT NULL,
+  "agent_id"        UUID,
+  "tenant_id"       UUID         NOT NULL,
+  "status"          "agent"."task_status_enum" NOT NULL DEFAULT 'pending',
+  "priority"        INTEGER      NOT NULL DEFAULT 5,
+  "input"           JSONB        NOT NULL DEFAULT '{}',
+  "output"          JSONB,
+  "error"           TEXT,
+  "retry_count"     INTEGER      NOT NULL DEFAULT 0,
+  "max_retries"     INTEGER      NOT NULL DEFAULT 3,
+  "parent_task_id"  UUID,
+  "scheduled_at"    TIMESTAMPTZ,
+  "started_at"      TIMESTAMPTZ,
+  "completed_at"    TIMESTAMPTZ,
+  "created_at"      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_tasks_agent"  FOREIGN KEY ("agent_id")
+    REFERENCES "agent"."agents"("id") ON DELETE SET NULL,
+  CONSTRAINT "fk_tasks_tenant" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE CASCADE,
+  CONSTRAINT "fk_tasks_parent" FOREIGN KEY ("parent_task_id")
+    REFERENCES "agent"."tasks"("id") ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_tasks_tenant_id"     ON "agent"."tasks" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "idx_tasks_agent_id"      ON "agent"."tasks" ("agent_id");
+CREATE INDEX IF NOT EXISTS "idx_tasks_status"        ON "agent"."tasks" ("status");
+CREATE INDEX IF NOT EXISTS "idx_tasks_parent_task_id" ON "agent"."tasks" ("parent_task_id");
+
+-- ─── executions ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "agent"."executions" (
+  "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "agent_id"      UUID         NOT NULL,
+  "task_id"       UUID,
+  "tenant_id"     UUID         NOT NULL,
+  "status"        "agent"."agent_status_enum" NOT NULL,
+  "input"         JSONB        NOT NULL DEFAULT '{}',
+  "output"        JSONB,
+  "error"         TEXT,
+  "duration_ms"   INTEGER,
+  "metadata"      JSONB        NOT NULL DEFAULT '{}',
+  "started_at"    TIMESTAMPTZ  NOT NULL,
+  "completed_at"  TIMESTAMPTZ,
+  "created_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_executions_agent"  FOREIGN KEY ("agent_id")
+    REFERENCES "agent"."agents"("id") ON DELETE CASCADE,
+  CONSTRAINT "fk_executions_task"    FOREIGN KEY ("task_id")
+    REFERENCES "agent"."tasks"("id") ON DELETE SET NULL,
+  CONSTRAINT "fk_executions_tenant"  FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_executions_agent_id"  ON "agent"."executions" ("agent_id");
+CREATE INDEX IF NOT EXISTS "idx_executions_tenant_id" ON "agent"."executions" ("tenant_id");
+
+-- ─── plugins ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "agent"."plugins" (
+  "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "name"          VARCHAR(255) NOT NULL,
+  "version"       VARCHAR(50)  NOT NULL,
+  "description"   TEXT,
+  "author"        VARCHAR(255),
+  "is_enabled"    BOOLEAN      NOT NULL DEFAULT true,
+  "config"        JSONB        NOT NULL DEFAULT '{}',
+  "hooks"         TEXT[]       NOT NULL DEFAULT '{}',
+  "tenant_id"     UUID,
+  "created_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_plugins_tenant" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE CASCADE,
+  CONSTRAINT "uq_plugin_name_version_tenant" UNIQUE ("name", "version", "tenant_id")
+);
+
+CREATE INDEX IF NOT EXISTS "idx_plugins_tenant_id" ON "agent"."plugins" ("tenant_id");
+
+-- ─── events ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "audit"."events" (
+  "id"          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "type"        VARCHAR(255) NOT NULL,
+  "namespace"   VARCHAR(100) NOT NULL,
+  "payload"     JSONB        NOT NULL DEFAULT '{}',
+  "source"      VARCHAR(255) NOT NULL,
+  "severity"    "audit"."event_severity_enum" NOT NULL DEFAULT 'info',
+  "tenant_id"   UUID,
+  "metadata"    JSONB        NOT NULL DEFAULT '{}',
+  "created_at"  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_events_tenant" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_events_tenant_id"  ON "audit"."events" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "idx_events_namespace"  ON "audit"."events" ("namespace");
+CREATE INDEX IF NOT EXISTS "idx_events_type"       ON "audit"."events" ("type");
+CREATE INDEX IF NOT EXISTS "idx_events_created_at" ON "audit"."events" ("created_at");
+
+-- ─── audit_log ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "audit"."audit_log" (
+  "id"           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "action"       VARCHAR(100) NOT NULL,
+  "entity_type"  VARCHAR(100) NOT NULL,
+  "entity_id"    UUID,
+  "user_id"      UUID,
+  "tenant_id"    UUID,
+  "old_values"   JSONB,
+  "new_values"   JSONB,
+  "ip_address"   INET,
+  "user_agent"   TEXT,
+  "created_at"   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_audit_log_user"   FOREIGN KEY ("user_id")
+    REFERENCES "tenant"."users"("id") ON DELETE SET NULL,
+  CONSTRAINT "fk_audit_log_tenant"  FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_audit_log_tenant_id" ON "audit"."audit_log" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "idx_audit_log_user_id"   ON "audit"."audit_log" ("user_id");
+CREATE INDEX IF NOT EXISTS "idx_audit_log_entity"    ON "audit"."audit_log" ("entity_type", "entity_id");
+
+-- ─── missions ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "software_factory"."missions" (
+  "id"                    UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "name"                  VARCHAR(255) NOT NULL,
+  "description"           TEXT         NOT NULL,
+  "state"                 "software_factory"."mission_state_enum" NOT NULL DEFAULT 'DRAFT',
+  "priority"              "software_factory"."mission_priority_enum" NOT NULL DEFAULT 'MEDIUM',
+  "requester_id"          VARCHAR(255) NOT NULL,
+  "assigned_team_ids"     JSONB        NOT NULL DEFAULT '[]',
+  "objectives"            JSONB        NOT NULL DEFAULT '[]',
+  "constraints"           JSONB        NOT NULL DEFAULT '[]',
+  "required_capabilities" JSONB        NOT NULL DEFAULT '[]',
+  "result"                JSONB,
+  "error"                 TEXT,
+  "progress"              INTEGER      NOT NULL DEFAULT 0,
+  "started_at"            TIMESTAMPTZ,
+  "completed_at"          TIMESTAMPTZ,
+  "deadline"              TIMESTAMPTZ,
+  "tenant_id"             UUID,
+  "created_at"            TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"            TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_missions_tenant" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS "idx_missions_tenant_id" ON "software_factory"."missions" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "idx_missions_state"     ON "software_factory"."missions" ("state");
+CREATE INDEX IF NOT EXISTS "idx_missions_priority"  ON "software_factory"."missions" ("priority");
+
+-- ─── mission_contracts ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS "software_factory"."mission_contracts" (
+  "id"            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "mission_id"    UUID         NOT NULL,
+  "type"          VARCHAR(100) NOT NULL,
+  "terms"         JSONB        NOT NULL DEFAULT '{}',
+  "budget"        INTEGER,
+  "spent"         INTEGER      NOT NULL DEFAULT 0,
+  "deliverables"  JSONB        NOT NULL DEFAULT '[]',
+  "status"        "software_factory"."contract_status_enum" NOT NULL DEFAULT 'NEGOTIATING',
+  "created_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_mission_contracts_mission" FOREIGN KEY ("mission_id")
+    REFERENCES "software_factory"."missions"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_mission_contracts_mission_id" ON "software_factory"."mission_contracts" ("mission_id");
+
+-- ─── updated_at trigger function ──────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -172,65 +310,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Triggers for auto-update
-CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON tenant.tenants FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON tenant.users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_agents_updated_at BEFORE UPDATE ON agent.agents FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON agent.tasks FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_plugins_updated_at BEFORE UPDATE ON agent.plugins FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Triggers for auto-update updated_at
+CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON "tenant"."tenants" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON "tenant"."users" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_agents_updated_at BEFORE UPDATE ON "agent"."agents" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON "agent"."tasks" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_plugins_updated_at BEFORE UPDATE ON "agent"."plugins" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_missions_updated_at BEFORE UPDATE ON "software_factory"."missions" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_contracts_updated_at BEFORE UPDATE ON "software_factory"."mission_contracts" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Default super admin tenant
-INSERT INTO tenant.tenants (name, slug, plan, is_active, config) VALUES
+-- ─── Default system tenant (no default admin user — create via app) ──
+INSERT INTO "tenant"."tenants" ("name", "slug", "plan", "is_active", "config") VALUES
     ('System', 'system', 'enterprise', true, '{"isSystem": true}');
 
--- Default super admin user (password: admin123 - change in production!)
-INSERT INTO tenant.users (email, password_hash, first_name, last_name, role, tenant_id) VALUES
-    ('admin@aenews-osx.io', '$2b$10$K7L1OJ45/4Y2nIvhRVpCe.FSmhDdWoXehVzJptJ/op0lSsvqNu6GK', 'System', 'Admin', 'super_admin', (SELECT id FROM tenant.tenants WHERE slug = 'system'));
-
--- ─── Software Factory Schema ──────────────────────────────────────
-CREATE SCHEMA IF NOT EXISTS software_factory;
-
-CREATE TYPE mission_status AS ENUM ('draft', 'planned', 'building', 'testing', 'certifying', 'delivering', 'completed', 'failed', 'cancelled');
-CREATE TYPE mission_priority AS ENUM ('low', 'medium', 'high', 'critical');
-
-CREATE TABLE IF NOT EXISTS software_factory.missions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    status mission_status DEFAULT 'draft',
-    priority mission_priority DEFAULT 'medium',
-    config JSONB DEFAULT '{}',
-    input JSONB DEFAULT '{}',
-    output JSONB,
-    error TEXT,
-    tenant_id UUID NOT NULL REFERENCES tenant.tenants(id) ON DELETE CASCADE,
-    progress INTEGER DEFAULT 0,
-    metadata JSONB DEFAULT '{}',
-    started_at TIMESTAMP WITH TIME ZONE,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS software_factory.mission_contracts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    mission_id UUID NOT NULL REFERENCES software_factory.missions(id) ON DELETE CASCADE,
-    contract_type VARCHAR(100) NOT NULL,
-    terms JSONB DEFAULT '{}',
-    status VARCHAR(50) DEFAULT 'pending',
-    signed_by VARCHAR(255),
-    signed_at TIMESTAMP WITH TIME ZONE,
-    expires_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Software Factory Indexes
-CREATE INDEX idx_missions_status ON software_factory.missions(status);
-CREATE INDEX idx_missions_tenant ON software_factory.missions(tenant_id);
-CREATE INDEX idx_missions_priority ON software_factory.missions(priority);
-CREATE INDEX idx_contracts_mission ON software_factory.mission_contracts(mission_id);
-
--- Software Factory Triggers
-CREATE TRIGGER update_missions_updated_at BEFORE UPDATE ON software_factory.missions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_contracts_updated_at BEFORE UPDATE ON software_factory.mission_contracts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- ─── Grant table permissions ──────────────────────────────────
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "tenant"            TO aenews;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "agent"             TO aenews;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "audit"             TO aenews;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "software_factory"  TO aenews;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "tenant"            TO aenews;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "agent"             TO aenews;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "audit"             TO aenews;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA "software_factory"  TO aenews;

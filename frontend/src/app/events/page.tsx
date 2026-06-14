@@ -14,7 +14,6 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { mockEvents } from '@/lib/mock-data';
 import { cn, severityColors, formatRelativeTime } from '@/lib/utils';
 import type { Event, EventSeverity } from '@/lib/types';
 import { EventSeverity as ES } from '@/lib/types';
@@ -69,7 +68,7 @@ export default function EventsPage() {
       const result = await api.getEvents(params);
       setEvents(result.data || []);
     } catch {
-      setEvents(mockEvents);
+      setEvents([]);
     } finally {
       setLoading(false);
     }

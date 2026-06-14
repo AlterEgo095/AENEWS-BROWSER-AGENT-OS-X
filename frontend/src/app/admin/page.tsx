@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings, Users, Database, ServerCog, Shield, BarChart3, Bot,
   Rocket, Activity, Zap, RefreshCw, Download, Upload, Eye,
@@ -13,10 +13,9 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
 } from 'recharts';
 import { api } from '@/lib/api';
-import { mockClusterStats, mockHealth, mockAgents, mockMissions } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import type { Agent, ClusterStats, Mission } from '@/lib/types';
-import { AgentStatus, ClusterType, MissionState } from '@/lib/types';
+import { ClusterType, MissionState } from '@/lib/types';
 import { useDashboardOverview, useAgentStats, useHealth } from '@/hooks/use-platform-data';
 
 const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899'];
@@ -64,8 +63,8 @@ function OverviewTab() {
   // Time series
   const tsData = Array.from({ length: 24 }, (_, i) => ({
     time: `${23 - i}h`,
-    agents: Math.floor(kpis.activeAgents * (0.7 + Math.random() * 0.3)),
-    missions: Math.floor(Math.random() * 10) + 2,
+    agents: kpis.activeAgents,
+    missions: kpis.activeMissions,
   })).reverse();
 
   return (
@@ -163,7 +162,7 @@ function AgentsTab() {
   const clusters = Object.values(ClusterType);
   const filteredStats = stats?.filter((cs: ClusterStats) =>
     filterCluster === 'all' || cs.cluster === filterCluster
-  ) || mockClusterStats;
+  ) || [];
 
   return (
     <div className="space-y-4">
@@ -248,7 +247,23 @@ function AgentsTab() {
 // ─── Missions Tab ────────────────────────────────────────────────
 function MissionsTab() {
   const [filter, setFilter] = useState<string>('all');
-  const missions = mockMissions;
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [loadingMissions, setLoadingMissions] = useState(true);
+
+  useEffect(() => {
+    async function fetchMissions() {
+      try {
+        const result = await api.getMissions({ limit: 50 });
+        setMissions(result.data || []);
+      } catch {
+        setMissions([]);
+      } finally {
+        setLoadingMissions(false);
+      }
+    }
+    fetchMissions();
+  }, []);
+
   const filtered = filter === 'all' ? missions : missions.filter(m => m.state === filter);
 
   return (
@@ -364,11 +379,11 @@ function InfrastructureTab() {
                 </div>
                 <div className="rounded-lg bg-background/50 p-2">
                   <p className="text-[10px] text-muted-foreground">Latency</p>
-                  <p className="text-xs font-bold text-foreground">{isUp ? Math.floor(Math.random() * 20 + 1) : '—'}ms</p>
+                  <p className="text-xs font-bold text-foreground">—</p>
                 </div>
                 <div className="rounded-lg bg-background/50 p-2">
                   <p className="text-[10px] text-muted-foreground">Conns</p>
-                  <p className="text-xs font-bold text-foreground">{isUp ? Math.floor(Math.random() * 30 + 5) : '—'}</p>
+                  <p className="text-xs font-bold text-foreground">—</p>
                 </div>
               </div>
             </div>
@@ -404,20 +419,46 @@ function InfrastructureTab() {
 
 // ─── Security Tab ────────────────────────────────────────────────
 function SecurityTab() {
+  const [securityFeatures, setSecurityFeatures] = useState([
+    { title: 'JWT Authentication', desc: 'Token-based auth with refresh', enabled: true, icon: Key },
+    { title: 'Rate Limiting', desc: 'Redis-backed per-cluster limits', enabled: true, icon: Shield },
+    { title: 'CORS Protection', desc: 'Cross-origin security middleware', enabled: true, icon: Globe },
+    { title: 'Account Lockout', desc: 'Brute-force prevention', enabled: true, icon: Lock },
+    { title: 'Circuit Breakers', desc: '30 pre-registered circuits', enabled: true, icon: Zap },
+    { title: 'IP Access Control', desc: 'Whitelist/blacklist support', enabled: false, icon: Network },
+  ]);
+
+  const toggleFeature = (index: number) => {
+    setSecurityFeatures(prev => prev.map((f, i) => i === index ? { ...f, enabled: !f.enabled } : f));
+  };
+
+  const [auditLogs, setAuditLogs] = useState<Array<{ time: string; action: string; user: string; status: string }>>([]);
+  const [loadingAudit, setLoadingAudit] = useState(true);
+
+  useEffect(() => {
+    async function fetchAuditLogs() {
+      try {
+        const res = await fetch('/api/v1/security/audit/logs?limit=20', {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAuditLogs(data.data || data || []);
+        }
+      } catch {
+        setAuditLogs([]);
+      } finally {
+        setLoadingAudit(false);
+      }
+    }
+    fetchAuditLogs();
+  }, []);
+
   const securityMetrics = [
     { label: 'Threat Level', value: 'LOW', color: 'text-emerald-400', bgColor: 'bg-emerald-500/15' },
-    { label: 'Active Sessions', value: '12', color: 'text-primary', bgColor: 'bg-primary/15' },
-    { label: 'Failed Logins (24h)', value: '3', color: 'text-amber-400', bgColor: 'bg-amber-500/15' },
-    { label: 'Blocked IPs', value: '7', color: 'text-red-400', bgColor: 'bg-red-500/15' },
-  ];
-
-  const auditLogs = [
-    { time: '2m ago', action: 'User login', user: 'admin@aenews.io', status: 'success' },
-    { time: '5m ago', action: 'Agent restart', user: 'admin@aenews.io', status: 'success' },
-    { time: '12m ago', action: 'Config update', user: 'system', status: 'success' },
-    { time: '1h ago', action: 'Failed login attempt', user: 'unknown@external.io', status: 'blocked' },
-    { time: '2h ago', action: 'Mission created', user: 'admin@aenews.io', status: 'success' },
-    { time: '3h ago', action: 'IP blocked', user: 'system', status: 'success' },
+    { label: 'Active Sessions', value: '—', color: 'text-primary', bgColor: 'bg-primary/15' },
+    { label: 'Failed Logins (24h)', value: '—', color: 'text-amber-400', bgColor: 'bg-amber-500/15' },
+    { label: 'Blocked IPs', value: '—', color: 'text-red-400', bgColor: 'bg-red-500/15' },
   ];
 
   return (
@@ -434,14 +475,7 @@ function SecurityTab() {
 
       {/* Security Features */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {[
-          { title: 'JWT Authentication', desc: 'Token-based auth with refresh', enabled: true, icon: Key },
-          { title: 'Rate Limiting', desc: 'Redis-backed per-cluster limits', enabled: true, icon: Shield },
-          { title: 'CORS Protection', desc: 'Cross-origin security middleware', enabled: true, icon: Globe },
-          { title: 'Account Lockout', desc: 'Brute-force prevention', enabled: true, icon: Lock },
-          { title: 'Circuit Breakers', desc: '30 pre-registered circuits', enabled: true, icon: Zap },
-          { title: 'IP Access Control', desc: 'Whitelist/blacklist support', enabled: false, icon: Network },
-        ].map((feature) => (
+        {securityFeatures.map((feature, idx) => (
           <div key={feature.title} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-3">
               <div className={cn('rounded-lg p-2', feature.enabled ? 'bg-emerald-500/15' : 'bg-slate-500/15')}>
@@ -452,13 +486,15 @@ function SecurityTab() {
                 <p className="text-[10px] text-muted-foreground">{feature.desc}</p>
               </div>
             </div>
-            <div className={cn('h-5 w-9 rounded-full p-0.5 transition-colors cursor-pointer',
-              feature.enabled ? 'bg-emerald-500' : 'bg-border'
-            )}>
+            <button
+              onClick={() => toggleFeature(idx)}
+              className={cn('h-5 w-9 rounded-full p-0.5 transition-colors cursor-pointer',
+                feature.enabled ? 'bg-emerald-500' : 'bg-border'
+              )}>
               <div className={cn('h-4 w-4 rounded-full bg-white transition-transform',
                 feature.enabled ? 'translate-x-4' : 'translate-x-0'
               )} />
-            </div>
+            </button>
           </div>
         ))}
       </div>
@@ -467,20 +503,26 @@ function SecurityTab() {
       <div className="rounded-xl border border-border bg-card p-4">
         <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Recent Audit Log</h4>
         <div className="space-y-2 max-h-64 overflow-y-auto">
-          {auditLogs.map((log, i) => (
-            <div key={i} className="flex items-center justify-between rounded-lg bg-background/50 px-3 py-2">
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] text-muted-foreground w-16">{log.time}</span>
-                <span className="text-xs text-foreground">{log.action}</span>
+          {loadingAudit ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Loading audit logs...</p>
+          ) : auditLogs.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">No audit logs available</p>
+          ) : (
+            auditLogs.map((log, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg bg-background/50 px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-muted-foreground w-16">{log.time}</span>
+                  <span className="text-xs text-foreground">{log.action}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">{log.user}</span>
+                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold',
+                    log.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                  )}>{log.status.toUpperCase()}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground">{log.user}</span>
-                <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold',
-                  log.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                )}>{log.status.toUpperCase()}</span>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -507,7 +549,7 @@ function UsersTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{users.length} users registered</p>
-        <button className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+        <button onClick={() => {/* Add User handler */}} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
           <Users className="h-3.5 w-3.5" /> Add User
         </button>
       </div>
@@ -605,10 +647,10 @@ function ConfigTab() {
       ))}
 
       <div className="flex items-center gap-3">
-        <button className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+        <button onClick={() => {/* Save Configuration handler */}} className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
           <Upload className="h-3.5 w-3.5" /> Save Configuration
         </button>
-        <button className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-white/5 transition-colors">
+        <button onClick={() => {/* Export handler */}} className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-white/5 transition-colors">
           <Download className="h-3.5 w-3.5" /> Export
         </button>
       </div>
@@ -618,19 +660,20 @@ function ConfigTab() {
 
 // ─── Analytics Tab ───────────────────────────────────────────────
 function AnalyticsTab() {
-  // Generate analytics data
+  const { data: stats } = useAgentStats();
+  // Analytics data placeholder — will be populated from backend
   const usageData = Array.from({ length: 30 }, (_, i) => ({
     day: `Day ${i + 1}`,
-    missions: Math.floor(Math.random() * 15) + 5,
-    tasks: Math.floor(Math.random() * 50) + 20,
-    errors: Math.floor(Math.random() * 5),
+    missions: 0,
+    tasks: 0,
+    errors: 0,
   }));
 
-  const clusterPerformance = mockClusterStats.map((cs, i) => ({
+  const clusterPerformance = (stats || []).map((cs, i) => ({
     name: cs.cluster.replace(/-/g, ' ').substring(0, 10),
-    avgResponseTime: Math.floor(Math.random() * 200) + 50,
-    successRate: Math.floor(Math.random() * 15) + 85,
-    throughput: Math.floor(Math.random() * 100) + 20,
+    avgResponseTime: 0,
+    successRate: cs.totalAgents > 0 ? Math.round((cs.activeAgents / cs.totalAgents) * 100) : 0,
+    throughput: cs.totalAgents,
   }));
 
   return (
@@ -703,7 +746,7 @@ export default function AdminPage() {
           <p className="text-xs text-muted-foreground">Full platform control & monitoring</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+          <button onClick={() => {/* Export Report handler */}} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
             <Download className="h-3.5 w-3.5" /> Export Report
           </button>
           <button className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">

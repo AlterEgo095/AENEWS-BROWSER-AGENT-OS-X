@@ -12,9 +12,13 @@ import {
   Post,
   Query,
   UseGuards,
-  SetMetadata,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../user/entities/user.entity';
 import { SlowQueryLoggerService } from '../services/slow-query-logger.service';
 import { PerformanceProfilingService } from '../services/performance-profiling.service';
 import { ConnectionPoolService } from '../services/connection-pool.service';
@@ -22,7 +26,9 @@ import { ResponseCacheInterceptor } from '../interceptors/response-cache.interce
 import { CompressionInterceptor } from '../interceptors/compression.interceptor';
 
 @Controller('performance')
-@SetMetadata('roles', ['admin'])
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SUPER_ADMIN)
 export class PerformanceController {
   constructor(
     private readonly slowQueryLogger: SlowQueryLoggerService,

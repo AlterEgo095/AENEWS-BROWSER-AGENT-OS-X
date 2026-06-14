@@ -52,9 +52,12 @@ import { SecurityConnectorModule } from './modules/connectors/security/security-
 import { ConnectorHealthModule } from './modules/connectors/health/connector-health.module';
 import { LLMModule } from './modules/llm/llm.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { ResponseCacheInterceptor } from './modules/performance/interceptors/response-cache.interceptor';
+import { CompressionInterceptor } from './modules/performance/interceptors/compression.interceptor';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { TenantGuard } from './modules/tenant/guards/tenant.guard';
@@ -256,6 +259,18 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
   controllers: [AppController],
   providers: [
     AppService,
+    // ─── Global Interceptors ────────────────────────────────────
+    // ResponseCacheInterceptor: HTTP-level response caching (Redis + memory LRU)
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseCacheInterceptor,
+    },
+    // CompressionInterceptor: gzip/deflate compression for large responses
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CompressionInterceptor,
+    },
+    // ─── Global Guards ──────────────────────────────────────────
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

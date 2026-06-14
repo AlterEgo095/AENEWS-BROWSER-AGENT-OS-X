@@ -49,8 +49,8 @@ cd AENEWS-BROWSER-AGENT-OS-X
 ### 2. Environment Configuration
 
 ```bash
-# Copy the production template
-cp docker/.env.production backend/.env
+# Copy the environment template
+cp backend/.env.example backend/.env
 
 # Edit with your real values
 nano backend/.env
@@ -64,8 +64,11 @@ nano backend/.env
 - `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` — MinIO credentials
 - `JWT_SECRET` — Must be a random 64-byte hex string
 - `ENCRYPTION_KEY` — Must be exactly 32 characters
-- `OPENAI_API_KEY` — Your OpenAI API key
-- `APP_DOMAIN` — Your domain name
+- `OPENAI_API_KEY` — Your OpenAI API key (optional, for LLM features)
+- `ANTHROPIC_API_KEY` — Your Anthropic API key (optional, for LLM features)
+- `APP_ENV` — Set to `production` for production deployments
+
+> **Important:** The application will **refuse to start** in production (`APP_ENV=production`) if `JWT_SECRET` or `ENCRYPTION_KEY` are not set. There are no default secrets.
 
 **Quick secret generation:**
 ```bash
@@ -122,6 +125,103 @@ curl https://your-domain.com/api/v1/health
 # Check logs
 make logs
 ```
+
+---
+
+## Required Environment Variables
+
+### Security-Critical (MUST be set in production)
+
+| Variable | Description | Generation Command |
+|----------|-------------|-------------------|
+| `JWT_SECRET` | JWT signing secret | `openssl rand -hex 64` |
+| `ENCRYPTION_KEY` | AES-256 encryption key (exactly 32 chars) | `openssl rand -hex 16` |
+| `APP_ENV` | Application environment (`production`) | — |
+
+### Database & Infrastructure
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DB_PASSWORD` | PostgreSQL password | (none — required) |
+| `DB_HOST` | PostgreSQL host | `localhost` |
+| `DB_PORT` | PostgreSQL port | `5432` |
+| `DB_NAME` | Database name | `aenews_osx` |
+| `DB_USER` | Database user | `aenews` |
+| `REDIS_PASSWORD` | Redis password | (none) |
+| `NEO4J_PASSWORD` | Neo4j password | (none — required) |
+| `RABBITMQ_PASSWORD` | RabbitMQ password | (none — required) |
+| `MINIO_ACCESS_KEY` | MinIO access key | (none — required) |
+| `MINIO_SECRET_KEY` | MinIO secret key | (none — required) |
+
+### LLM Provider (Optional but recommended)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key | (empty — simulation mode) |
+| `ANTHROPIC_API_KEY` | Anthropic API key | (empty — simulation mode) |
+| `LLM_DEFAULT_PROVIDER` | Default LLM provider | `openai` |
+
+### Security Tuning
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SECURITY_CORS_ORIGINS` | Comma-separated allowed CORS origins | (empty) |
+| `SECURITY_IP_ADMIN_WHITELIST` | CIDR allowlist for admin endpoints | (empty) |
+| `SECURITY_LOCKOUT_MAX_ATTEMPTS` | Max failed login attempts before lockout | `5` |
+| `SECURITY_THREAT_AUTO_BLOCK_SCORE` | IP reputation score threshold for auto-block | `80` |
+| `THROTTLE_TTL` | Rate limit window (ms) | `60000` |
+| `THROTTLE_LIMIT` | Max requests per window | `100` |
+
+---
+
+## Production Security Checklist
+
+Before deploying to production, verify each item:
+
+- [ ] **No default passwords** — All infrastructure services (PostgreSQL, Redis, Neo4j, RabbitMQ, MinIO) have custom passwords
+- [ ] **JWT_SECRET is set** — Generated with `openssl rand -hex 64` (not a memorable string)
+- [ ] **ENCRYPTION_KEY is set** — Exactly 32 characters, generated with `openssl rand -hex 16`
+- [ ] **APP_ENV=production** — Enables fail-fast for missing secrets
+- [ ] **CORS origins are configured** — `SECURITY_CORS_ORIGINS` lists only your legitimate domains
+- [ ] **IP allowlists are set** — `SECURITY_IP_ADMIN_WHITELIST` restricts admin/performance endpoints
+- [ ] **SSL/TLS is enabled** — HTTPS only, with HSTS headers (enforced by Helmet)
+- [ ] **Firewall rules** — Only ports 80/443 are publicly accessible; database ports are not exposed
+- [ ] **Redis requires a password** — `REDIS_PASSWORD` is set
+- [ ] **MinIO credentials are changed** — Not using the default `aenews_minio` / `aenews_minio_secret`
+- [ ] **Sentry DSN is configured** — Optional but recommended for error tracking
+- [ ] **Database migrations are run** — Not using `DB_SYNCHRONIZE=true` in production
+- [ ] **Log level is set to `info`** — Not `debug` (which may leak sensitive data)
+- [ ] **Backup cron is configured** — `docker/scripts/backup.sh` runs on a schedule
+- [ ] **Monitoring stack is running** — Prometheus, Grafana, and alerting are active
+
+---
+
+## Docker Compose Files
+
+The project uses consolidated Docker Compose files for different environments:
+
+| File | Purpose |
+|------|---------|
+| `docker/docker-compose.yml` | Development: all infrastructure services |
+| `docker/docker-compose.prod.yml` | Production: includes API, frontend, nginx with resource limits |
+| `docker/docker-compose.monitoring.yml` | Monitoring: Prometheus, Grafana, Loki, Alertmanager |
+
+### Starting Services
+
+```bash
+# Development (infrastructure only — run backend/frontend locally)
+docker compose -f docker/docker-compose.yml up -d
+
+# Production (everything in Docker)
+docker compose -f docker/docker-compose.prod.yml up -d
+
+# Monitoring stack
+docker compose -f docker/docker-compose.monitoring.yml up -d
+```
+
+> **Note:** There is no `.env.production` file. All environment variables are configured in `backend/.env` (which should be created from `backend/.env.example`).
+
+---
 
 ## GitHub Actions CI/CD Setup
 
@@ -180,6 +280,21 @@ This starts:
 - **Prometheus** on port 9090 (metrics scraping)
 - **Grafana** on port 3001 (dashboards)
 - **Jaeger** on port 16686 (distributed tracing)
+- **Loki** on port 3100 (log aggregation)
+- **Alertmanager** on port 9093 (alert routing)
+
+### Pre-built Dashboards
+
+The project includes pre-built Grafana dashboards in `docker/monitoring/dashboards/`:
+- **AENEWS Overview** — System-wide health and performance
+- **AENEWS Performance** — Connection pools, cache hit rates, slow queries
+- **AENEWS Security** — Auth failures, threat detections, blocked IPs
+
+### Alert Rules
+
+Pre-configured alert rules in `docker/monitoring/alert_rules/`:
+- **Security alerts** — Brute force detection, unusual login patterns
+- **Performance alerts** — High latency, pool exhaustion, cache miss spikes
 
 ### Useful URLs
 - Grafana: `http://your-vps:3001` (admin/admin)
@@ -198,6 +313,12 @@ docker compose -f docker/docker-compose.prod.yml logs nginx
 
 # Restart a specific service
 docker compose -f docker/docker-compose.prod.yml restart api
+```
+
+### Application fails to start with "FATAL: JWT_SECRET environment variable must be set"
+This means `APP_ENV=production` is set but `JWT_SECRET` is not configured. Generate and set the secret:
+```bash
+echo "JWT_SECRET=$(openssl rand -hex 64)" >> backend/.env
 ```
 
 ### Database connection issues

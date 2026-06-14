@@ -10,6 +10,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { RuntimeLogger } from './runtime-logger';
+
+const log = new RuntimeLogger('StandaloneRunner');
 
 // ─── Types (simplified, no NestJS dependency) ────────────────
 
@@ -91,10 +94,10 @@ class StandaloneRunner {
     const errors: string[] = [];
     let retries = 0;
 
-    console.log(`\n${'═'.repeat(70)}`);
-    console.log(`  MISSION: ${missionId}`);
-    console.log(`  Instruction: "${instruction}"`);
-    console.log(`${'═'.repeat(70)}\n`);
+    log.info(`\n${'═'.repeat(70)}`);
+    log.info(`  MISSION: ${missionId}`);
+    log.info(`  Instruction: "${instruction}"`);
+    log.info(`${'═'.repeat(70)}\n`);
 
     // ─── Step 1: Create workspace ──────────────────────────
     const workspaceDir = path.join(this.baseWorkspace, missionId);
@@ -107,36 +110,36 @@ class StandaloneRunner {
 
     // ─── Step 2: Analyze mission with LLM ──────────────────
     let phaseStart = Date.now();
-    console.log('📋 Phase 1: Analyzing mission...');
+    log.info('📋 Phase 1: Analyzing mission...');
     let analysis: any;
     try {
       analysis = await this.analyzeMission(instruction);
       totalCost += analysis.cost;
       phases.push({ name: 'analyze', durationMs: Date.now() - phaseStart, success: true });
-      console.log(
+      log.info(
         `   ✓ Plan: ${analysis.plan.phases?.length || 0} phases, ${analysis.plan.requiredCapabilities?.length || 0} capabilities`,
       );
     } catch (err: any) {
       errors.push(`Analysis failed: ${err.message}`);
       analysis = { plan: this.fallbackPlan(instruction), cost: 0 };
       phases.push({ name: 'analyze', durationMs: Date.now() - phaseStart, success: false });
-      console.log(`   ✗ Analysis failed, using fallback plan`);
+      log.info(`   ✗ Analysis failed, using fallback plan`);
     }
 
     // ─── Step 3: Generate code with LLM ────────────────────
     phaseStart = Date.now();
-    console.log('🔨 Phase 2: Building application...');
+    log.info('🔨 Phase 2: Building application...');
     let buildResult: { artifacts: RuntimeArtifact[]; cost: number };
     try {
       buildResult = await this.executeBuild(instruction, analysis, workspaceDir);
       totalCost += buildResult.cost;
       artifacts.push(...buildResult.artifacts);
       phases.push({ name: 'build', durationMs: Date.now() - phaseStart, success: true });
-      console.log(`   ✓ Generated ${buildResult.artifacts.length} files`);
+      log.info(`   ✓ Generated ${buildResult.artifacts.length} files`);
     } catch (err: any) {
       errors.push(`Build failed: ${err.message}`);
       phases.push({ name: 'build', durationMs: Date.now() - phaseStart, success: false });
-      console.log(`   ✗ Build failed: ${err.message}`);
+      log.info(`   ✗ Build failed: ${err.message}`);
       // Try fallback with template code
       const templateCode = this.generateTemplateCode(instruction, analysis.plan);
       const files = this.parseGeneratedFiles(templateCode);
@@ -161,14 +164,14 @@ class StandaloneRunner {
           content: content.substring(0, 200),
         });
       }
-      console.log(`   → Used template fallback: ${files.size} files`);
+      log.info(`   → Used template fallback: ${files.size} files`);
       retries++;
     }
 
     // ─── Step 4: Execute tests ──────────────────────────────
     await this.rateLimitDelay(); // Avoid rate limit
     phaseStart = Date.now();
-    console.log('🧪 Phase 3: Testing...');
+    log.info('🧪 Phase 3: Testing...');
     let testResult: { passed: boolean; results: any[]; cost: number };
     try {
       testResult = await this.executeTests(workspaceDir, analysis);
@@ -178,19 +181,17 @@ class StandaloneRunner {
         durationMs: Date.now() - phaseStart,
         success: testResult.passed,
       });
-      console.log(
-        `   ${testResult.passed ? '✓' : '✗'} Tests: ${testResult.results.length} executed`,
-      );
+      log.info(`   ${testResult.passed ? '✓' : '✗'} Tests: ${testResult.results.length} executed`);
     } catch (err: any) {
       testResult = { passed: false, results: [], cost: 0 };
       phases.push({ name: 'test', durationMs: Date.now() - phaseStart, success: false });
-      console.log(`   ✗ Testing failed: ${err.message}`);
+      log.info(`   ✗ Testing failed: ${err.message}`);
     }
 
     // ─── Step 5: Audit ─────────────────────────────────────
     await this.rateLimitDelay(); // Avoid rate limit
     phaseStart = Date.now();
-    console.log('🔍 Phase 4: Auditing...');
+    log.info('🔍 Phase 4: Auditing...');
     let auditResult: { passed: boolean; findings: string[]; cost: number };
     try {
       auditResult = await this.executeAudit(workspaceDir, artifacts);
@@ -200,11 +201,11 @@ class StandaloneRunner {
         durationMs: Date.now() - phaseStart,
         success: auditResult.passed,
       });
-      console.log(
+      log.info(
         `   ${auditResult.passed ? '✓' : '✗'} Audit: ${auditResult.findings.length} findings`,
       );
       if (auditResult.findings.length > 0) {
-        auditResult.findings.forEach((f) => console.log(`     - ${f}`));
+        auditResult.findings.forEach((f) => log.info(`     - ${f}`));
       }
     } catch (err: any) {
       auditResult = { passed: true, findings: [], cost: 0 };
@@ -213,23 +214,23 @@ class StandaloneRunner {
 
     // ─── Step 6: Certification ──────────────────────────────
     phaseStart = Date.now();
-    console.log('🎖️  Phase 5: Certification...');
+    log.info('🎖️  Phase 5: Certification...');
     const certResult = this.certify(artifacts, testResult, auditResult);
     phases.push({
       name: 'certify',
       durationMs: Date.now() - phaseStart,
       success: certResult.certified,
     });
-    console.log(`   ${certResult.certified ? '✓' : '✗'} Score: ${certResult.qualityScore}/100`);
+    log.info(`   ${certResult.certified ? '✓' : '✗'} Score: ${certResult.qualityScore}/100`);
 
     if (!certResult.certified && certResult.qualityScore >= 50) {
-      console.log(`   → Partial certification accepted (score ${certResult.qualityScore} >= 50)`);
+      log.info(`   → Partial certification accepted (score ${certResult.qualityScore} >= 50)`);
     }
 
     // ─── Step 7: Generate README ────────────────────────────
     await this.rateLimitDelay(); // Avoid rate limit
     phaseStart = Date.now();
-    console.log('📖 Phase 6: Generating documentation...');
+    log.info('📖 Phase 6: Generating documentation...');
     try {
       const readme = await this.generateReadme(instruction, analysis, artifacts);
       totalCost += readme.cost;
@@ -241,7 +242,7 @@ class StandaloneRunner {
         size: Buffer.byteLength(readme.content),
       });
       phases.push({ name: 'readme', durationMs: Date.now() - phaseStart, success: true });
-      console.log(`   ✓ README.md generated (${Buffer.byteLength(readme.content)} bytes)`);
+      log.info(`   ✓ README.md generated (${Buffer.byteLength(readme.content)} bytes)`);
     } catch (err: any) {
       const fallbackReadme = `# ${instruction}\n\nGenerated by AENEWS Software Factory\n\n## Files\n\n${artifacts.map((a) => `- ${a.name}`).join('\n')}\n`;
       this.writeFile(workspaceDir, 'README.md', fallbackReadme);
@@ -265,12 +266,12 @@ class StandaloneRunner {
         path: dockerfilePath,
         size: Buffer.byteLength(dockerfile),
       });
-      console.log(`   ✓ Dockerfile generated`);
+      log.info(`   ✓ Dockerfile generated`);
     }
 
     // ─── Step 9: Create ZIP ─────────────────────────────────
     phaseStart = Date.now();
-    console.log('📦 Phase 7: Packaging delivery...');
+    log.info('📦 Phase 7: Packaging delivery...');
     const zipPath = await this.createZipArchive(missionId, workspaceDir);
     if (zipPath) {
       artifacts.push({
@@ -280,10 +281,10 @@ class StandaloneRunner {
         size: fs.statSync(zipPath).size,
       });
       phases.push({ name: 'delivery', durationMs: Date.now() - phaseStart, success: true });
-      console.log(`   ✓ ZIP: ${zipPath} (${fs.statSync(zipPath).size} bytes)`);
+      log.info(`   ✓ ZIP: ${zipPath} (${fs.statSync(zipPath).size} bytes)`);
     } else {
       phases.push({ name: 'delivery', durationMs: Date.now() - phaseStart, success: false });
-      console.log(`   ✗ ZIP packaging failed`);
+      log.info(`   ✗ ZIP packaging failed`);
     }
 
     // ─── Step 10: Generate Report ───────────────────────────
@@ -308,17 +309,17 @@ class StandaloneRunner {
     const totalDuration = Date.now() - startTime;
     const success = errors.length === 0 || artifacts.filter((a) => a.type === 'source').length > 0;
 
-    console.log(`\n${'═'.repeat(70)}`);
-    console.log(`  RESULT: ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
-    console.log(`  Artifacts: ${artifacts.length} files`);
-    console.log(
+    log.info(`\n${'═'.repeat(70)}`);
+    log.info(`  RESULT: ${success ? '✅ SUCCESS' : '❌ FAILED'}`);
+    log.info(`  Artifacts: ${artifacts.length} files`);
+    log.info(
       `  Quality: ${certResult.qualityScore}/100 ${certResult.certified ? '(CERTIFIED)' : '(UNCERTIFIED)'}`,
     );
-    console.log(`  Duration: ${(totalDuration / 1000).toFixed(1)}s`);
-    console.log(`  Cost: $${totalCost.toFixed(3)}`);
-    console.log(`  Retries: ${retries}`);
-    console.log(`  Workspace: ${workspaceDir}`);
-    console.log(`${'═'.repeat(70)}\n`);
+    log.info(`  Duration: ${(totalDuration / 1000).toFixed(1)}s`);
+    log.info(`  Cost: $${totalCost.toFixed(3)}`);
+    log.info(`  Retries: ${retries}`);
+    log.info(`  Workspace: ${workspaceDir}`);
+    log.info(`${'═'.repeat(70)}\n`);
 
     const result: RuntimeResult = {
       missionId,
@@ -378,26 +379,26 @@ class StandaloneRunner {
     const avgCost = this.metrics.reduce((s, m) => s + m.costUsd, 0) / msr.total;
     const totalRetries = this.metrics.reduce((s, m) => s + m.retries, 0);
 
-    console.log(`\n${'═'.repeat(70)}`);
-    console.log(`  AENEWS SOFTWARE FACTORY — AGGREGATE METRICS`);
-    console.log(`${'═'.repeat(70)}`);
-    console.log(
+    log.info(`\n${'═'.repeat(70)}`);
+    log.info(`  AENEWS SOFTWARE FACTORY — AGGREGATE METRICS`);
+    log.info(`${'═'.repeat(70)}`);
+    log.info(
       `  Mission Success Rate (MSR): ${(msr.rate * 100).toFixed(1)}% (${msr.successes}/${msr.total})`,
     );
-    console.log(
+    log.info(
       `  Certification Rate:         ${((msr.certified / msr.total) * 100).toFixed(1)}% (${msr.certified}/${msr.total})`,
     );
-    console.log(`  Average Quality Score:      ${avgQuality.toFixed(1)}/100`);
-    console.log(`  Average Duration:           ${(avgDuration / 1000).toFixed(1)}s`);
-    console.log(`  Average Cost:               $${avgCost.toFixed(3)}`);
-    console.log(`  Total Retries:              ${totalRetries}`);
-    console.log(`${'═'.repeat(70)}\n`);
+    log.info(`  Average Quality Score:      ${avgQuality.toFixed(1)}/100`);
+    log.info(`  Average Duration:           ${(avgDuration / 1000).toFixed(1)}s`);
+    log.info(`  Average Cost:               $${avgCost.toFixed(3)}`);
+    log.info(`  Total Retries:              ${totalRetries}`);
+    log.info(`${'═'.repeat(70)}\n`);
 
     // Per-mission summary
-    console.log('  Mission Details:');
+    log.info('  Mission Details:');
     for (const m of this.metrics) {
       const status = m.certified ? '✅' : m.success ? '⚠️' : '❌';
-      console.log(
+      log.info(
         `    ${status} ${m.missionId} — "${m.instruction.slice(0, 50)}" — Score: ${m.qualityScore} — ${(m.durationMs / 1000).toFixed(1)}s — ${m.artifactCount} artifacts`,
       );
     }
@@ -483,30 +484,30 @@ Write REAL, WORKING code — not stubs or placeholders.`;
       codeResponse = await this.callLLM(codePrompt);
       totalCost += 0.1;
       llmSucceeded = true;
-      console.log(`     LLM returned ${Buffer.byteLength(codeResponse)} bytes`);
+      log.info(`     LLM returned ${Buffer.byteLength(codeResponse)} bytes`);
     } catch (err: any) {
-      console.log(`     LLM call failed: ${err.message}, using template fallback`);
+      log.info(`     LLM call failed: ${err.message}, using template fallback`);
     }
 
     // Parse and write files from LLM response
     let files = new Map<string, string>();
     if (llmSucceeded) {
       files = this.parseGeneratedFiles(codeResponse!);
-      console.log(`     Parsed ${files.size} files from LLM response`);
+      log.info(`     Parsed ${files.size} files from LLM response`);
 
       // If parsing partially worked but missed some, try to extract code blocks
       if (files.size < 2) {
         const codeBlocks = this.extractCodeBlocks(codeResponse!);
         if (codeBlocks.size > files.size) {
           files = codeBlocks;
-          console.log(`     Extracted ${files.size} files from code blocks`);
+          log.info(`     Extracted ${files.size} files from code blocks`);
         }
       }
     }
 
     // If LLM parsing still produced nothing, use template fallback
     if (files.size === 0) {
-      console.log(`     Using template code generation fallback`);
+      log.info(`     Using template code generation fallback`);
       const templateResponse = this.generateTemplateCode(instruction, analysis.plan);
       files = this.parseGeneratedFiles(templateResponse);
     }
@@ -537,12 +538,12 @@ Write REAL, WORKING code — not stubs or placeholders.`;
         content: content.substring(0, 500),
       });
 
-      console.log(`     Created: ${filePath} (${Buffer.byteLength(content)} bytes)`);
+      log.info(`     Created: ${filePath} (${Buffer.byteLength(content)} bytes)`);
     }
 
     // If still no files were created, something is very wrong
     if (files.size === 0) {
-      console.log(`     WARNING: No files could be created!`);
+      log.info(`     WARNING: No files could be created!`);
     }
 
     // Ensure package.json exists for Node.js projects
@@ -595,7 +596,7 @@ Write REAL, WORKING code — not stubs or placeholders.`;
       testArtifacts.length > 0 || testDirFiles.length > 0 || rootTestFiles.length > 0;
 
     if (!hasTests) {
-      console.log(`     No tests generated by LLM, creating fallback test suite...`);
+      log.info(`     No tests generated by LLM, creating fallback test suite...`);
       const testCode = this.generateFallbackTests(instruction, workspaceDir);
       if (testCode) {
         const testPath = path.join(workspaceDir, 'tests', 'test.js');
@@ -606,7 +607,7 @@ Write REAL, WORKING code — not stubs or placeholders.`;
           path: testPath,
           size: Buffer.byteLength(testCode),
         });
-        console.log(
+        log.info(
           `     Created: tests/test.js (${Buffer.byteLength(testCode)} bytes) — fallback test suite`,
         );
       }
@@ -860,7 +861,7 @@ Use markdown formatting. Be concise but complete.`;
         const isRateLimit = err.message?.includes('429') || err.message?.includes('rate');
         if (isRateLimit && attempt < maxRetries - 1) {
           const delayMs = Math.pow(2, attempt) * 3000; // 3s, 6s, 12s
-          console.log(
+          log.info(
             `     Rate limited, retrying in ${delayMs / 1000}s... (attempt ${attempt + 1}/${maxRetries})`,
           );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -1067,7 +1068,7 @@ Use markdown formatting. Be concise but complete.`;
         return zipPath;
       }
     } catch (err: any) {
-      console.log(`     zip command failed: ${err.message?.slice(0, 200)}`);
+      log.info(`     zip command failed: ${err.message?.slice(0, 200)}`);
     }
 
     // Fallback: use Node.js archiver
@@ -1089,7 +1090,7 @@ Use markdown formatting. Be concise but complete.`;
         return zipPath;
       }
     } catch (err: any) {
-      console.log(`     archiver failed: ${err.message?.slice(0, 200)}`);
+      log.info(`     archiver failed: ${err.message?.slice(0, 200)}`);
     }
 
     // Last fallback: create a simple tar.gz
@@ -1098,11 +1099,11 @@ Use markdown formatting. Be concise but complete.`;
       const tarPath = path.join(this.baseWorkspace, `${missionId}.tar.gz`);
       execSync(`cd "${workspaceDir}" && tar -czf "${tarPath}" . 2>&1`, { timeout: 60000 });
       if (fs.existsSync(tarPath) && fs.statSync(tarPath).size > 0) {
-        console.log(`     Using tar.gz fallback: ${tarPath}`);
+        log.info(`     Using tar.gz fallback: ${tarPath}`);
         return tarPath;
       }
     } catch (err: any) {
-      console.log(`     tar failed: ${err.message?.slice(0, 200)}`);
+      log.info(`     tar failed: ${err.message?.slice(0, 200)}`);
     }
 
     return null;
@@ -1413,7 +1414,7 @@ function getActiveCount() {
 }
 
 // Tests
-console.log('Running ${title} tests...');
+log.info('Running ${title} tests...');
 
 // Test 1: Add todo
 todos = [];
@@ -1421,13 +1422,13 @@ assert.strictEqual(addTodo('Buy groceries'), true);
 assert.strictEqual(todos.length, 1);
 assert.strictEqual(todos[0].text, 'Buy groceries');
 assert.strictEqual(todos[0].completed, false);
-console.log('✓ Test 1: Add todo');
+log.info('✓ Test 1: Add todo');
 
 // Test 2: Add empty todo
 assert.strictEqual(addTodo(''), false);
 assert.strictEqual(addTodo('  '), false);
 assert.strictEqual(todos.length, 1);
-console.log('✓ Test 2: Reject empty todos');
+log.info('✓ Test 2: Reject empty todos');
 
 // Test 3: Toggle todo
 const todoId = todos[0].id;
@@ -1435,12 +1436,12 @@ assert.strictEqual(toggleTodo(todoId), true);
 assert.strictEqual(todos[0].completed, true);
 assert.strictEqual(toggleTodo(todoId), true);
 assert.strictEqual(todos[0].completed, false);
-console.log('✓ Test 3: Toggle todo');
+log.info('✓ Test 3: Toggle todo');
 
 // Test 4: Delete todo
 assert.strictEqual(deleteTodo(todoId), true);
 assert.strictEqual(todos.length, 0);
-console.log('✓ Test 4: Delete todo');
+log.info('✓ Test 4: Delete todo');
 
 // Test 5: Clear completed
 todos = [];
@@ -1452,7 +1453,7 @@ const cleared = clearCompleted();
 assert.strictEqual(cleared, 1);
 assert.strictEqual(todos.length, 2);
 assert.strictEqual(getActiveCount(), 2);
-console.log('✓ Test 5: Clear completed');
+log.info('✓ Test 5: Clear completed');
 
 // Test 6: Active count
 todos = [];
@@ -1461,9 +1462,9 @@ addTodo('B');
 assert.strictEqual(getActiveCount(), 2);
 toggleTodo(todos[0].id);
 assert.strictEqual(getActiveCount(), 1);
-console.log('✓ Test 6: Active count');
+log.info('✓ Test 6: Active count');
 
-console.log('\\n✅ All 6 tests passed!');
+log.info('\\n✅ All 6 tests passed!');
 ===ENDFILE===
 
 ===FILE: Dockerfile===
@@ -1511,7 +1512,7 @@ main { background: #1e293b; border-radius: 12px; padding: 2rem; }
 ===FILE: app.js===
 // ${title} - Application Logic
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('${title} loaded successfully');
+    log.info('${title} loaded successfully');
 });
 ===ENDFILE===
 
@@ -1568,9 +1569,9 @@ CMD ["nginx", "-g", "daemon off;"]`;
     tests.push(`const path = require('path');`);
     tests.push(`\nlet passed = 0;\nlet failed = 0;\n`);
     tests.push(
-      `function assert(condition, message) { if (condition) { passed++; console.log('  ✓ ' + message); } else { failed++; console.log('  ✗ ' + message); } }`,
+      `function assert(condition, message) { if (condition) { passed++; log.info('  ✓ ' + message); } else { failed++; log.info('  ✗ ' + message); } }`,
     );
-    tests.push(`\nconsole.log('Running test suite...\\n');`);
+    tests.push(`\nlog.info('Running test suite...\\n');`);
 
     // File existence tests
     tests.push(`\n// ── File Structure Tests ──`);
@@ -1685,9 +1686,9 @@ CMD ["nginx", "-g", "daemon off;"]`;
 
     // Summary
     tests.push(`\n// ── Summary ──`);
-    tests.push(`console.log('\\n' + '='.repeat(50));`);
-    tests.push(`console.log('Tests: ' + passed + ' passed, ' + failed + ' failed');`);
-    tests.push(`console.log('='.repeat(50));`);
+    tests.push(`log.info('\\n' + '='.repeat(50));`);
+    tests.push(`log.info('Tests: ' + passed + ' passed, ' + failed + ' failed');`);
+    tests.push(`log.info('='.repeat(50));`);
     tests.push(`if (failed > 0) process.exit(1);`);
 
     return tests.join('\n');
@@ -1737,10 +1738,10 @@ Generated by AENEWS Software Factory`;
 async function main() {
   const runner = new StandaloneRunner();
 
-  console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║   AENEWS SOFTWARE FACTORY — SPRINT 1 RUNTIME TEST      ║');
-  console.log('║   Mission: Execute real missions end-to-end             ║');
-  console.log('╚══════════════════════════════════════════════════════════╝\n');
+  log.info('╔══════════════════════════════════════════════════════════╗');
+  log.info('║   AENEWS SOFTWARE FACTORY — SPRINT 1 RUNTIME TEST      ║');
+  log.info('║   Mission: Execute real missions end-to-end             ║');
+  log.info('╚══════════════════════════════════════════════════════════╝\n');
 
   const mission = process.argv[2] || 'todo';
 
@@ -1781,18 +1782,18 @@ async function main() {
 
   // Final MSR assessment
   const msr = runner.getMSR();
-  console.log('\n🎯 MISSION SUCCESS RATE (MSR):');
-  console.log(
+  log.info('\n🎯 MISSION SUCCESS RATE (MSR):');
+  log.info(
     `   ${(msr.rate * 100).toFixed(1)}% — ${msr.successes}/${msr.total} missions successful`,
   );
-  console.log(
+  log.info(
     `   ${((msr.certified / msr.total) * 100).toFixed(1)}% — ${msr.certified}/${msr.total} missions certified`,
   );
-  console.log(`\n   Target: MVP 70% | Beta 85% | Enterprise 95% | Elite 99%`);
-  console.log(`   Current: ${msr.rate >= 0.7 ? '✅ MVP READY' : '⏳ Below MVP target'}\n`);
+  log.info(`\n   Target: MVP 70% | Beta 85% | Enterprise 95% | Elite 99%`);
+  log.info(`   Current: ${msr.rate >= 0.7 ? '✅ MVP READY' : '⏳ Below MVP target'}\n`);
 }
 
 main().catch((err) => {
-  console.error('Fatal error:', err);
+  log.error('Fatal error:', err);
   process.exit(1);
 });

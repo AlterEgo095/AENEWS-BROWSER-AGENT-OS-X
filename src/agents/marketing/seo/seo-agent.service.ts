@@ -249,6 +249,7 @@ export class SEOOptimizationAgentService extends BaseAgentService {
     @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super(eventBusService, memoryService, permissionEvaluator);
+    this.agentBridge = bridge ?? null;
   }
 
   protected defineConfig(): AgentConfig {
@@ -427,6 +428,32 @@ export class SEOOptimizationAgentService extends BaseAgentService {
       throw new Error('Valid content string is required for SEO analysis');
     }
 
+    // Try LLM-powered SEO analysis
+    try {
+      const contentPreview = content.substring(0, 3000);
+      const systemPrompt = `You are an SEO analysis expert. Analyze the content for SEO quality and provide specific, actionable recommendations. Return JSON: { "score": 0-100, "issues": [{ "severity": "critical|warning|info", "category": "string", "message": "string", "recommendation": "string" }], "suggestions": ["string"], "keywordDensity": { "keyword": 0.0-1.0 } }. Be thorough and specific.`;
+      const userPrompt = `Content: ${contentPreview}\\nTarget keywords: ${targetKeywords.join(', ') || 'Not specified'}\\nURL: ${params.url || 'Not provided'}\\nAnalyze SEO quality.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed && typeof parsed.score === 'number') {
+        this.logger.log(`LLM SEO analysis: score=${parsed.score}, issues=${parsed.issues?.length || 0}`);
+        return {
+          score: parsed.score,
+          issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+          suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+          keywordDensity: parsed.keywordDensity || {},
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM SEO analysis failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const issues: SEOIssue[] = [];
     const suggestions: string[] = [];
     let score = 100;
@@ -556,7 +583,30 @@ export class SEOOptimizationAgentService extends BaseAgentService {
       throw new Error('A valid topic string is required');
     }
 
-    // Generate keyword variations from topic and seeds
+    // Try LLM-powered keyword research
+    try {
+      const systemPrompt = `You are an SEO keyword research expert. Research keywords for the given topic and provide comprehensive keyword data. Return JSON: { "keywords": [{ "keyword": "string", "searchVolume": number, "difficulty": 0-100, "relevance": 0-1, "cpc": number }], "relatedTopics": ["string"], "contentGaps": ["string"] }. Provide realistic search volumes and difficulty scores.`;
+      const userPrompt = `Topic: ${topic}\\nSeed keywords: ${seedKeywords.join(', ') || 'None'}\\nLanguage: ${language}\\nRegion: ${region}\\nResearch keywords.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.4,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.keywords && Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
+        this.logger.log(`LLM keyword research: topic="${topic}", keywords=${parsed.keywords.length}`);
+        return {
+          keywords: parsed.keywords,
+          relatedTopics: Array.isArray(parsed.relatedTopics) ? parsed.relatedTopics : [],
+          contentGaps: Array.isArray(parsed.contentGaps) ? parsed.contentGaps : [],
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM keyword research failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback: Generate keyword variations from topic and seeds
     const baseKeywords = [topic, ...seedKeywords];
     const allKeywords: KeywordData[] = [];
 

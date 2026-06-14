@@ -24,6 +24,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { RuntimeLogger } from './runtime-logger';
+
+const log = new RuntimeLogger('BatchRunner');
 
 import { ReferenceMissions, ReferenceMission } from './reference-missions';
 import {
@@ -269,19 +272,19 @@ class BatchRunner {
     // Limit to count
     missions = missions.slice(0, count);
 
-    console.log(`\n${'═'.repeat(80)}`);
-    console.log(`  AENEWS SOFTWARE FACTORY — BATCH RUN (Connector-based)`);
-    console.log(`  Missions: ${missions.length} | Delay: ${delayMs}ms`);
-    console.log(`${'═'.repeat(80)}\n`);
+    log.info(`\n${'═'.repeat(80)}`);
+    log.info(`  AENEWS SOFTWARE FACTORY — BATCH RUN (Connector-based)`);
+    log.info(`  Missions: ${missions.length} | Delay: ${delayMs}ms`);
+    log.info(`${'═'.repeat(80)}\n`);
 
     const startTime = Date.now();
 
     for (let i = 0; i < missions.length; i++) {
       const mission = missions[i];
-      console.log(
+      log.info(
         `\n[${i + 1}/${missions.length}] Mission #${mission.id}: "${mission.instruction.slice(0, 60)}..."`,
       );
-      console.log(
+      log.info(
         `  Category: ${mission.category} | Pack: ${mission.capabilityPack} | Difficulty: ${mission.difficulty}`,
       );
 
@@ -311,20 +314,20 @@ class BatchRunner {
         : result.success
           ? '⚠️ SUCCESS (uncertified)'
           : '❌ FAILED';
-      console.log(
+      log.info(
         `  → ${status} | Score: ${result.qualityScore}/100 | ${(result.totalDurationMs / 1000).toFixed(1)}s | $${result.totalCostUsd.toFixed(3)}`,
       );
-      console.log(`  → ${result.artifacts.length} artifacts | ${result.errors.length} errors`);
+      log.info(`  → ${result.artifacts.length} artifacts | ${result.errors.length} errors`);
 
       // Print running MSR
       const runningMsr = this.metrics.filter((m) => m.success).length / this.metrics.length;
-      console.log(
+      log.info(
         `  → Running MSR: ${(runningMsr * 100).toFixed(1)}% (${this.metrics.filter((m) => m.success).length}/${this.metrics.length})`,
       );
 
       // Delay between missions to avoid rate limiting
       if (i < missions.length - 1) {
-        console.log(`  ⏳ Waiting ${delayMs / 1000}s before next mission...`);
+        log.info(`  ⏳ Waiting ${delayMs / 1000}s before next mission...`);
         await this.delay(delayMs);
       }
     }
@@ -572,7 +575,7 @@ class BatchRunner {
     let finalCertified = certResult.certified;
 
     if (finalScore < 60) {
-      console.log(`  🔄 Quality gate: score ${finalScore} < 60, attempting debug + re-test...`);
+      log.info(`  🔄 Quality gate: score ${finalScore} < 60, attempting debug + re-test...`);
 
       // Run dev.debug connector
       try {
@@ -749,31 +752,31 @@ class BatchRunner {
     const currentTarget =
       MSR_TARGETS.find((t) => msr < t.target) || MSR_TARGETS[MSR_TARGETS.length - 1];
 
-    console.log(`\n${'═'.repeat(80)}`);
-    console.log(`  AENEWS SOFTWARE FACTORY — BATCH RUN RESULTS`);
-    console.log(`${'═'.repeat(80)}`);
-    console.log(`  Total Missions:          ${total}`);
-    console.log(`  Successful:              ${successes}`);
-    console.log(`  Certified:               ${certified}`);
-    console.log(`${'─'.repeat(80)}`);
-    console.log(`  MSR (Mission Success):   ${(msr * 100).toFixed(1)}%  ← KPI #1`);
-    console.log(`  Certification Rate:      ${(certRate * 100).toFixed(1)}%`);
-    console.log(
+    log.info(`\n${'═'.repeat(80)}`);
+    log.info(`  AENEWS SOFTWARE FACTORY — BATCH RUN RESULTS`);
+    log.info(`${'═'.repeat(80)}`);
+    log.info(`  Total Missions:          ${total}`);
+    log.info(`  Successful:              ${successes}`);
+    log.info(`  Certified:               ${certified}`);
+    log.info(`${'─'.repeat(80)}`);
+    log.info(`  MSR (Mission Success):   ${(msr * 100).toFixed(1)}%  ← KPI #1`);
+    log.info(`  Certification Rate:      ${(certRate * 100).toFixed(1)}%`);
+    log.info(
       `  Current Target:          ${(currentTarget.target * 100).toFixed(0)}% (${currentTarget.label})`,
     );
-    console.log(`  Gap to Target:           ${((currentTarget.target - msr) * 100).toFixed(1)}%`);
-    console.log(`${'─'.repeat(80)}`);
-    console.log(`  Avg Duration:            ${(avgDuration / 1000).toFixed(1)}s`);
-    console.log(`  Avg Cost:                $${avgCost.toFixed(3)}`);
-    console.log(`  Avg Quality Score:       ${avgQuality.toFixed(1)}/100`);
-    console.log(`  Total Batch Duration:    ${(totalBatchDurationMs / 1000 / 60).toFixed(1)}min`);
-    console.log(`${'─'.repeat(80)}`);
+    log.info(`  Gap to Target:           ${((currentTarget.target - msr) * 100).toFixed(1)}%`);
+    log.info(`${'─'.repeat(80)}`);
+    log.info(`  Avg Duration:            ${(avgDuration / 1000).toFixed(1)}s`);
+    log.info(`  Avg Cost:                $${avgCost.toFixed(3)}`);
+    log.info(`  Avg Quality Score:       ${avgQuality.toFixed(1)}/100`);
+    log.info(`  Total Batch Duration:    ${(totalBatchDurationMs / 1000 / 60).toFixed(1)}min`);
+    log.info(`${'─'.repeat(80)}`);
 
     // Per-mission details
-    console.log(`  Mission Details:`);
+    log.info(`  Mission Details:`);
     for (const m of this.metrics) {
       const status = m.certified ? '✅' : m.success ? '⚠️' : '❌';
-      console.log(
+      log.info(
         `    ${status} #${m.missionId} — "${m.instruction.slice(0, 45)}..." — Score: ${m.qualityScore} — ${(m.durationMs / 1000).toFixed(1)}s — ${m.artifactCount} files`,
       );
     }
@@ -786,29 +789,29 @@ class BatchRunner {
       if (m.success) categories[m.category].success++;
     }
 
-    console.log(`${'─'.repeat(80)}`);
-    console.log(`  Category Breakdown:`);
+    log.info(`${'─'.repeat(80)}`);
+    log.info(`  Category Breakdown:`);
     for (const [cat, data] of Object.entries(categories)) {
-      console.log(
+      log.info(
         `    ${cat}: ${data.success}/${data.total} (${((data.success / data.total) * 100).toFixed(0)}%)`,
       );
     }
 
-    console.log(`${'═'.repeat(80)}\n`);
+    log.info(`${'═'.repeat(80)}\n`);
 
     // Verdict
     if (msr >= 0.99) {
-      console.log(`  🏆 ELITE LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 99%`);
+      log.info(`  🏆 ELITE LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 99%`);
     } else if (msr >= 0.95) {
-      console.log(`  🥇 ENTERPRISE LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 95%`);
+      log.info(`  🥇 ENTERPRISE LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 95%`);
     } else if (msr >= 0.85) {
-      console.log(`  🥈 BETA LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 85%`);
+      log.info(`  🥈 BETA LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 85%`);
     } else if (msr >= 0.7) {
-      console.log(`  🥉 MVP LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 70%`);
+      log.info(`  🥉 MVP LEVEL — MSR ${(msr * 100).toFixed(1)}% ≥ 70%`);
     } else {
-      console.log(`  ⚠️  BELOW MVP — MSR ${(msr * 100).toFixed(1)}% < 70% — Need to improve!`);
+      log.info(`  ⚠️  BELOW MVP — MSR ${(msr * 100).toFixed(1)}% < 70% — Need to improve!`);
     }
-    console.log();
+    log.info();
   }
 
   private saveMetrics(): void {
@@ -816,7 +819,7 @@ class BatchRunner {
     fs.mkdirSync(metricsDir, { recursive: true });
     const metricsFile = path.join(metricsDir, `batch-${Date.now()}.json`);
     fs.writeFileSync(metricsFile, JSON.stringify(this.metrics, null, 2), 'utf-8');
-    console.log(`  Metrics saved to: ${metricsFile}`);
+    log.info(`  Metrics saved to: ${metricsFile}`);
   }
 
   private computeAggregate(): AggregateMetrics {
@@ -892,7 +895,7 @@ async function main() {
       delayMs,
     });
   } catch (err: any) {
-    console.error(`Batch run failed: ${err.message}`);
+    log.error(`Batch run failed: ${err.message}`);
     process.exit(1);
   }
 }
@@ -900,7 +903,7 @@ async function main() {
 // Run if called directly
 if (require.main === module) {
   main().catch((err) => {
-    console.error(err);
+    log.error(err);
     process.exit(1);
   });
 }

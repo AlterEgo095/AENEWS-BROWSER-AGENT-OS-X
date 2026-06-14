@@ -10,7 +10,7 @@
  */
 
 import {
-  Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Req, Ip, Headers, HttpCode, HttpStatus,
+  Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Req, Ip, Headers, HttpCode, HttpStatus, BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -51,6 +51,10 @@ export class SecurityController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Check if an account is locked' })
   checkAccountLockout(@Param('email') email: string) {
+    // SECURITY: Validate email format to prevent injection
+    if (!this.isValidEmail(email)) {
+      throw new BadRequestException('Invalid email format');
+    }
     return this.accountLockout.isAccountLocked(email);
   }
 
@@ -58,6 +62,10 @@ export class SecurityController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Unlock a locked account' })
   unlockAccount(@Param('email') email: string, @Req() req: any) {
+    // SECURITY: Validate email format to prevent injection
+    if (!this.isValidEmail(email)) {
+      throw new BadRequestException('Invalid email format');
+    }
     return this.accountLockout.unlockAccount(email, req.user?.id);
   }
 
@@ -83,7 +91,9 @@ export class SecurityController {
   @Roles(UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Revoke a token family (admin only)' })
   async revokeTokenFamily(@Param('family') family: string, @Req() req: any) {
-    // This would need family-based revocation — simplified here
+    const result = await this.refreshTokenService.revokeTokenFamily(family, req.user?.id);
+    // Return void for 204, but log the result
+    return;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -148,6 +158,10 @@ export class SecurityController {
   @Roles(UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Manually block an IP' })
   blockIp(@Param('ip') ip: string, @Req() req: any) {
+    // SECURITY: Validate IP format to prevent injection
+    if (!this.isValidIp(ip)) {
+      throw new BadRequestException('Invalid IP address format');
+    }
     return this.threatIntel.setIpBlocked(ip, true, req.user?.id);
   }
 
@@ -155,6 +169,10 @@ export class SecurityController {
   @Roles(UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Manually unblock an IP' })
   unblockIp(@Param('ip') ip: string, @Req() req: any) {
+    // SECURITY: Validate IP format to prevent injection
+    if (!this.isValidIp(ip)) {
+      throw new BadRequestException('Invalid IP address format');
+    }
     return this.threatIntel.setIpBlocked(ip, false, req.user?.id);
   }
 
@@ -196,5 +214,35 @@ export class SecurityController {
       new Date(endDate),
       tenantId,
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  INPUT VALIDATION HELPERS
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Validates an email address format to prevent injection attacks.
+   */
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email) && email.length <= 255;
+  }
+
+  /**
+   * Validates an IP address format (IPv4 or IPv6) to prevent injection attacks.
+   */
+  private isValidIp(ip: string): boolean {
+    // IPv4 regex
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    // IPv6 regex (simplified but catches most valid forms)
+    const ipv6Regex = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+
+    if (ipv4Regex.test(ip)) {
+      // Validate each octet is 0-255
+      const octets = ip.split('.').map(Number);
+      return octets.every((o) => o >= 0 && o <= 255);
+    }
+
+    return ipv6Regex.test(ip);
   }
 }

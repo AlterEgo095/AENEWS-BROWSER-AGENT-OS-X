@@ -40,90 +40,68 @@ import type {
   ActionItem,
 } from '@/lib/types';
 
-// ─── Mock Data ───────────────────────────────────────────────────
+// ─── Default empty data shapes ────────────────────────────────────
 
-const mockGraphStats: GraphStatistics = {
-  nodeCounts: { Agent: 112, Mission: 47, Pattern: 23, Strategy: 8, Outcome: 156, Learning: 34 },
-  relationshipCounts: { EXECUTED: 312, PRODUCED: 156, MATCHED_PATTERN: 67, SUGGESTS: 42, COLLABORATED_WITH: 89 },
-  neo4jAvailable: true,
-  topAgents: [
-    { agentId: 'browser-navigator', name: 'Navigator', cluster: 'browser' as any, expertiseScore: 0.92, missionCount: 34, successRate: 0.94, avgDurationMs: 4500, topCapabilities: ['navigation', 'scraping', 'screenshot'] },
-    { agentId: 'coding-architect', name: 'Architect', cluster: 'coding' as any, expertiseScore: 0.88, missionCount: 28, successRate: 0.89, avgDurationMs: 12000, topCapabilities: ['code-generation', 'architecture', 'documentation'] },
-    { agentId: 'security-auditor', name: 'Auditor', cluster: 'security' as any, expertiseScore: 0.85, missionCount: 21, successRate: 0.86, avgDurationMs: 8000, topCapabilities: ['vulnerability-scanning', 'audit', 'compliance'] },
-  ],
-  topPatterns: [
-    { id: 'p1', name: 'Fast Navigation Success', type: 'success', description: 'Quick browser navigation with screenshot verification', frequency: 18, confidence: 0.92, lastSeen: Date.now() },
-    { id: 'p2', name: 'Timeout Cascade', type: 'anti-pattern', description: 'Long execution leading to timeout cascade', frequency: 7, confidence: 0.78, lastSeen: Date.now() - 3600000 },
-  ],
+const defaultGraphStats: GraphStatistics = {
+  nodeCounts: {},
+  relationshipCounts: {},
+  neo4jAvailable: false,
+  topAgents: [],
+  topPatterns: [],
 };
 
-const mockLearningStats: LearningStatistics = {
-  totalProfiles: 45,
-  totalLearnings: 1247,
-  totalInsights: 34,
-  avgReward: 0.67,
-  topStrategies: [
-    { strategy: 'pipeline', avgQ: 0.82 },
-    { strategy: 'parallel', avgQ: 0.71 },
-    { strategy: 'consensus', avgQ: 0.58 },
-    { strategy: 'delegation', avgQ: 0.45 },
-    { strategy: 'swarm', avgQ: 0.32 },
-  ],
-  clusterBreakdown: { browser: 17, coding: 8, security: 6, office: 6, business: 8 },
+const defaultLearningStats: LearningStatistics = {
+  totalProfiles: 0,
+  totalLearnings: 0,
+  totalInsights: 0,
+  avgReward: 0,
+  topStrategies: [],
+  clusterBreakdown: {},
 };
 
-const mockPatternStats: PatternMiningStatistics = {
-  totalPatterns: 23,
-  totalExecutions: 47,
-  categoryBreakdown: { success_sequence: 8, failure_sequence: 4, optimization: 5, anti_pattern: 3, collaboration_effective: 3 },
-  avgConfidence: 0.68,
-  topPatterns: [
-    { id: 'pat1', name: 'Fast Navigator Sequence', category: 'success_sequence', description: 'navigate → screenshot → verify sequence has 94% success rate', frequency: 18, confidence: 0.92, impact: 'positive', impactScore: 0.85, suggestedActions: ['Use for all browser missions'] },
-    { id: 'pat2', name: 'Timeout Anti-Pattern', category: 'anti_pattern', description: 'Long execution without checkpointing leads to timeout', frequency: 7, confidence: 0.78, impact: 'negative', impactScore: -0.65, suggestedActions: ['Add intermediate checkpoints', 'Decompose complex tasks'] },
-  ],
+const defaultPatternStats: PatternMiningStatistics = {
+  totalPatterns: 0,
+  totalExecutions: 0,
+  categoryBreakdown: {},
+  avgConfidence: 0,
+  topPatterns: [],
 };
 
-const mockAdaptiveStats: AdaptiveStatistics = {
-  configVersion: 12,
-  totalAdaptations: 47,
-  appliedCount: 38,
-  improvedCount: 24,
-  degradedCount: 3,
-  pinnedParameters: ['timeouts.execute'],
-  lastAdaptationAt: Date.now() - 300000,
+const defaultAdaptiveStats: AdaptiveStatistics = {
+  configVersion: 0,
+  totalAdaptations: 0,
+  appliedCount: 0,
+  improvedCount: 0,
+  degradedCount: 0,
+  pinnedParameters: [],
+  lastAdaptationAt: 0,
 };
 
-const mockExperienceStats: ExperienceStatistics = {
-  totalExperiences: 89,
-  successCount: 67,
-  failureCount: 22,
-  totalInsights: 45,
-  avgDurationMs: 42000,
-  clusterBreakdown: { browser: 23, coding: 18, security: 12, office: 14, business: 12, infrastructure: 10 },
+const defaultExperienceStats: ExperienceStatistics = {
+  totalExperiences: 0,
+  successCount: 0,
+  failureCount: 0,
+  totalInsights: 0,
+  avgDurationMs: 0,
+  clusterBreakdown: {},
 };
 
-const mockFeedbackStats: FeedbackStatistics = {
-  totalEntries: 234,
-  totalAggregated: 67,
-  totalActions: 12,
-  avgScore: 0.74,
-  sourceBreakdown: { user: 89, system: 78, outcome_verification: 34, peer: 18, agent_self: 15 },
-  recentTrend: 'improving',
+const defaultFeedbackStats: FeedbackStatistics = {
+  totalEntries: 0,
+  totalAggregated: 0,
+  totalActions: 0,
+  avgScore: 0,
+  sourceBreakdown: {},
+  recentTrend: 'stable',
 };
 
-const mockFeedbackSummary: FeedbackSummary = {
-  totalFeedback: 234,
-  avgScore: 0.74,
-  sourceDistribution: { user: 89, system: 78, outcome_verification: 34, peer: 18, agent_self: 15 },
-  topIssues: [
-    { description: 'Slow response on complex missions', count: 12 },
-    { description: 'Timeout on multi-step browser automation', count: 8 },
-  ],
-  topPraise: [
-    { description: 'Excellent code generation quality', count: 15 },
-    { description: 'Fast browser navigation', count: 11 },
-  ],
-  trendDirection: 'improving',
+const defaultFeedbackSummary: FeedbackSummary = {
+  totalFeedback: 0,
+  avgScore: 0,
+  sourceDistribution: {},
+  topIssues: [],
+  topPraise: [],
+  trendDirection: 'stable',
 };
 
 // ─── Sub-Components ───────────────────────────────────────────────
@@ -211,16 +189,17 @@ export default function IntelligencePage() {
   const [loading, setLoading] = useState(true);
 
   // Data states
-  const [graphStats, setGraphStats] = useState<GraphStatistics>(mockGraphStats);
-  const [learningStats, setLearningStats] = useState<LearningStatistics>(mockLearningStats);
-  const [patternStats, setPatternStats] = useState<PatternMiningStatistics>(mockPatternStats);
+  const [graphStats, setGraphStats] = useState<GraphStatistics>(defaultGraphStats);
+  const [learningStats, setLearningStats] = useState<LearningStatistics>(defaultLearningStats);
+  const [patternStats, setPatternStats] = useState<PatternMiningStatistics>(defaultPatternStats);
   const [correlations, setCorrelations] = useState<CorrelationFinding[]>([]);
-  const [adaptiveStats, setAdaptiveStats] = useState<AdaptiveStatistics>(mockAdaptiveStats);
+  const [adaptiveStats, setAdaptiveStats] = useState<AdaptiveStatistics>(defaultAdaptiveStats);
   const [adaptiveConfig, setAdaptiveConfig] = useState<AdaptiveConfig | null>(null);
-  const [experienceStats, setExperienceStats] = useState<ExperienceStatistics>(mockExperienceStats);
-  const [feedbackStats, setFeedbackStats] = useState<FeedbackStatistics>(mockFeedbackStats);
-  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary>(mockFeedbackSummary);
+  const [experienceStats, setExperienceStats] = useState<ExperienceStatistics>(defaultExperienceStats);
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStatistics>(defaultFeedbackStats);
+  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary>(defaultFeedbackSummary);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -238,15 +217,22 @@ export default function IntelligencePage() {
         api.intelligence.getFeedbackActions(),
       ]);
 
-      if (results[0].status === 'fulfilled') setGraphStats(results[0].value.data ?? mockGraphStats);
-      if (results[1].status === 'fulfilled') setLearningStats(results[1].value.data ?? mockLearningStats);
-      if (results[2].status === 'fulfilled') setPatternStats(results[2].value.data ?? mockPatternStats);
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length === results.length) {
+        setError('Failed to load intelligence data from the server');
+      } else {
+        setError(null);
+      }
+
+      if (results[0].status === 'fulfilled') setGraphStats(results[0].value.data ?? defaultGraphStats);
+      if (results[1].status === 'fulfilled') setLearningStats(results[1].value.data ?? defaultLearningStats);
+      if (results[2].status === 'fulfilled') setPatternStats(results[2].value.data ?? defaultPatternStats);
       if (results[3].status === 'fulfilled') setCorrelations(results[3].value.data ?? []);
-      if (results[4].status === 'fulfilled') setAdaptiveStats(results[4].value.data ?? mockAdaptiveStats);
+      if (results[4].status === 'fulfilled') setAdaptiveStats(results[4].value.data ?? defaultAdaptiveStats);
       if (results[5].status === 'fulfilled') setAdaptiveConfig(results[5].value.data ?? null);
-      if (results[6].status === 'fulfilled') setExperienceStats(results[6].value.data ?? mockExperienceStats);
-      if (results[7].status === 'fulfilled') setFeedbackStats(results[7].value.data ?? mockFeedbackStats);
-      if (results[8].status === 'fulfilled') setFeedbackSummary(results[8].value.data ?? mockFeedbackSummary);
+      if (results[6].status === 'fulfilled') setExperienceStats(results[6].value.data ?? defaultExperienceStats);
+      if (results[7].status === 'fulfilled') setFeedbackStats(results[7].value.data ?? defaultFeedbackStats);
+      if (results[8].status === 'fulfilled') setFeedbackSummary(results[8].value.data ?? defaultFeedbackSummary);
       if (results[9].status === 'fulfilled') setActionItems(results[9].value.data ?? []);
 
       setLoading(false);
@@ -301,6 +287,12 @@ export default function IntelligencePage() {
       {loading ? (
         <div className="flex h-64 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      ) : error ? (
+        <div className="flex h-64 flex-col items-center justify-center gap-4">
+          <AlertTriangle className="h-10 w-10 text-amber-400" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <button onClick={() => window.location.reload()} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">Retry</button>
         </div>
       ) : (
         <>

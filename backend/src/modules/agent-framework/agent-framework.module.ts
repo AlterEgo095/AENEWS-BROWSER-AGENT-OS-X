@@ -53,6 +53,7 @@
  */
 
 import { Global, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentMemoryService } from './services/agent-memory.service';
 import { AgentEventBusService } from './services/agent-event-bus.service';
 import { AgentOrchestratorService } from './services/agent-orchestrator.service';
@@ -66,6 +67,7 @@ import { RateLimitGuard } from './guards/rate-limit.guard';
 import { HumanApprovalGuard } from './guards/human-approval.guard';
 import { AgentModule } from '../agent/agent.module';
 import { QdrantModule } from '../qdrant/qdrant.module';
+import { CollaborationState } from './entities/collaboration-state.entity';
 
 // Phase 8 — Intelligent Orchestration
 import { UnifiedConnectorRegistryService } from './services/unified-connector-registry.service';
@@ -101,6 +103,8 @@ import { SwarmController } from './controllers/swarm.controller';
     AgentModule,
     // QdrantModule provides QdrantService (used optionally by Memory)
     QdrantModule,
+    // TypeORM entity for CollaborationPersistenceService
+    TypeOrmModule.forFeature([CollaborationState]),
   ],
   controllers: [
     OrchestrationController,

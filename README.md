@@ -15,6 +15,8 @@
 - [Development Commands](#development-commands)
 - [Project Structure](#project-structure)
 - [API Documentation](#api-documentation)
+- [Security Hardening](#security-hardening)
+- [Current Limitations](#current-limitations)
 - [Phase Roadmap](#phase-roadmap)
 - [Testing](#testing)
 - [License](#license)
@@ -120,7 +122,7 @@ AENEWS Agent OS X is built as a layered multi-agent system with three primary pl
 | **Object Storage** | MinIO (S3-compatible) | Artifacts, logs, models, uploads |
 | **Message Broker** | RabbitMQ 3.12 (management) | Inter-agent messaging, events |
 | **Job Processing** | Bull (3 queues) | Task, event, mission queues |
-| **AI / LLM** | z-ai-web-dev-sdk | LLM integration, reasoning |
+| **AI / LLM** | OpenAI / Anthropic SDKs | LLM integration, reasoning |
 | **Browser Automation** | Playwright | Web scraping, testing |
 | **Infrastructure** | Docker Compose | Local dev & production stacks |
 | **Observability** | OpenTelemetry, Winston, Terminus | Logging, tracing, health checks |
@@ -230,19 +232,7 @@ These variables **must** be set — the application validates them on startup an
 | `JWT_SECRET` | JWT signing secret (random) | `a1b2c3...` (64-byte hex) |
 | `ENCRYPTION_KEY` | AES-256 key (exactly 32 chars) | `abcdef1234567890abcdef1234567890` |
 
-### Docker Compose Defaults
-
-When using `docker/docker-compose.yml`, the default credentials are:
-
-| Service | User | Password |
-|---------|------|----------|
-| PostgreSQL | `aenews` | `aenews_secret` |
-| Redis | — | `aenews_redis_secret` |
-| Neo4j | `neo4j` | `aenews_neo4j_secret` |
-| RabbitMQ | `aenews` | `aenews_rabbitmq_secret` |
-| MinIO | `aenews_minio` | `aenews_minio_secret` |
-
-> **Warning:** Change all default passwords before deploying to production.
+> **Security Warning:** The application will **refuse to start** in production if `JWT_SECRET` or `ENCRYPTION_KEY` are not set. There are no default secrets. See [SECURITY.md](./SECURITY.md) for details.
 
 ---
 
@@ -338,8 +328,11 @@ aenews-agent-os-x/
 │   │   │   ├── qdrant/               # Vector search service
 │   │   │   ├── minio/                # Object storage service
 │   │   │   ├── rabbitmq/             # Message broker service
-│   │   │   ├── agent-framework/      # Unified framework bridge (Phase 4)
-│   │   │   └── software-factory/     # Mission runtime engine
+│   │   │   ├── agent-framework/      # Unified framework bridge
+│   │   │   ├── software-factory/     # Mission runtime engine
+│   │   │   ├── security/             # Security hardening (Phase 12)
+│   │   │   ├── security-monitoring/  # Threat intel, Sentry, metrics
+│   │   │   └── performance/          # Profiling, caching, pools (Phase 13)
 │   │   └── clusters/                 # 14 agent clusters
 │   │       ├── browser/              # 17 agents
 │   │       ├── computer/             # 7 agents
@@ -350,11 +343,12 @@ aenews-agent-os-x/
 │   │       ├── infrastructure/       # 8 agents
 │   │       ├── security/             # 6 agents
 │   │       ├── meta-intelligence/    # 13 agents
-│   │       ├── llm-intelligence/     # 6 agents (Phase 2)
-│   │       ├── intelligent-orchestration/ # 4 agents (Phase 2)
-│   │       ├── watchdog/             # 3 agents (Phase 2)
-│   │       ├── self-evolution/       # 5 agents (Phase 2)
-│   │       └── certification/        # 13 agents (Phase 2)
+│   │       ├── llm-intelligence/     # 6 agents
+│   │       ├── intelligent-orchestration/ # 4 agents
+│   │       ├── watchdog/             # 3 agents
+│   │       ├── self-evolution/       # 5 agents
+│   │       └── certification/        # 13 agents
+│   ├── test/                         # E2E and unit tests
 │   ├── .env.example                  # Environment variable template
 │   └── package.json
 │
@@ -403,11 +397,14 @@ aenews-agent-os-x/
 ├── docker/                           # Infrastructure
 │   ├── docker-compose.yml            # Dev: PostgreSQL, Redis, Neo4j, Qdrant, RabbitMQ, MinIO
 │   ├── docker-compose.prod.yml       # Production stack with resource limits
+│   ├── docker-compose.monitoring.yml # Prometheus, Grafana, Loki, Alertmanager
 │   ├── Dockerfile                    # Multi-stage build
 │   ├── init-db.sql                   # Full DB schema (8 tables, 14 cluster types, indexes)
 │   └── init-minio.sh                 # MinIO bucket initialization
 │
 ├── .env.example                      # Root-level env template
+├── SECURITY.md                       # Security architecture and policies
+├── DEPLOY.md                         # Deployment runbook
 ├── README.md                         # This file
 └── worklog.md                        # Development work log
 ```
@@ -422,17 +419,20 @@ Once the backend is running, access the interactive Swagger documentation:
 http://localhost:3000/docs
 ```
 
-### Software Factory API
+### Core API Endpoints
 
-The Software Factory exposes a comprehensive REST API at `/api/factory/`:
+All endpoints are prefixed with `/api/v1/`. Authentication is required unless marked `@Public()`.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/factory/run` | POST | Execute a mission |
-| `/api/factory/capabilities` | GET | List all 64 capabilities |
-| `/api/factory/metrics/msr` | GET | Mission Success Rate |
-| `/api/factory/connectors` | GET | Connector status |
-| `/api/factory/reference-missions` | GET | 100 validation missions |
+| Path | Controller | Auth | Description |
+|------|-----------|------|-------------|
+| `/api/v1/auth/*` | AuthController | Public (register/login/refresh) | User registration, login, token refresh |
+| `/api/v1/agents/*` | AgentController | JWT + Roles | Agent CRUD, execution, stats |
+| `/api/v1/orchestration/*` | OrchestrationController | JWT + Roles + RateLimit | Multi-agent collaboration, decomposition, coordination |
+| `/api/v1/intelligence/*` | IntelligenceController | JWT + Roles + RateLimit | Knowledge graph, learning, patterns, adaptive strategy |
+| `/api/v1/swarm/*` | SwarmController | JWT + Roles + RateLimit | Swarm intelligence, consensus, working memory, topology |
+| `/api/v1/performance/*` | PerformanceController | JWT + SUPER_ADMIN only | Profiling, slow queries, cache, pool monitoring |
+| `/api/v1/health` | HealthController | Public | Service health checks |
+| `/api/v1/factory/*` | SoftwareFactoryController | JWT + Roles | Mission runtime, capabilities, metrics |
 
 ### Health Check
 
@@ -441,6 +441,77 @@ GET /api/v1/health
 ```
 
 Returns the status of all dependent services (PostgreSQL, Redis, Neo4j, Qdrant, RabbitMQ, MinIO).
+
+---
+
+## Security Hardening
+
+The application implements comprehensive security measures across all layers. Auth guards are applied **globally** — every endpoint requires JWT authentication unless explicitly marked with `@Public()`.
+
+### Authentication
+
+- **JWT + Passport** — All API endpoints require a valid JWT token
+- **Global Guards** — `JwtAuthGuard`, `RolesGuard`, `TenantGuard`, and `ThrottlerGuard` are registered as `APP_GUARD` and apply to every controller automatically
+- **@Public() Decorator** — Only `auth/register`, `auth/login`, and `auth/refresh` are publicly accessible
+- **Refresh Token Rotation** — Refresh tokens are single-use and rotated on each use; reuse detection invalidates the entire token family
+- **Account Lockout** — Progressive lockout after 5 failed login attempts with exponential backoff
+
+### Authorization
+
+- **Role-Based Access Control** — 4 roles: `super_admin`, `tenant_admin`, `operator`, `viewer`
+- **Tenant Isolation** — `TenantGuard` ensures users can only access data within their tenant
+- **No Mass Assignment** — `RegisterDto` does not accept a `role` field; `ValidationPipe` with `whitelist: true` and `forbidNonWhitelisted: true` strips extra properties
+
+### Input Validation
+
+- **Global ValidationPipe** — Strict DTO validation with `whitelist` and `forbidNonWhitelisted`
+- **UUID Validation** — `ParseUUIDPipe` on all `:id` route parameters rejects non-UUID values
+- **Cypher Injection Prevention** — `IntelligenceController.executeGraphQuery()` validates queries against a dangerous-operation allowlist (only `MATCH`, `RETURN`, `WHERE`, `ORDER BY`, `LIMIT` allowed)
+- **Path Traversal** — UUID validation on route parameters inherently blocks `../` traversal
+
+### HTTP Security
+
+- **Helmet** — CSP, HSTS (2-year max-age), XSS filter, no-sniff, frame deny, referrer policy
+- **CORS** — Explicit origin validation with configurable allowlist and subdomain pattern matching
+- **Rate Limiting** — Global throttler (100 req/min per IP) plus per-endpoint rate limiting via `@RateLimit()`
+- **IP Access Control** — CIDR-based allowlists for admin and metrics endpoints
+- **Request Size Limit** — 10MB max body size
+
+### Monitoring & Threat Detection
+
+- **Security Metrics** — Real-time tracking of auth failures, blocked requests, threat detections, risk scores
+- **Threat Intelligence** — IP reputation scoring with auto-blocking at threshold (score ≥ 80)
+- **Brute Force Detection** — Automatic flagging after 10 auth failures from a single IP
+- **Correlation IDs** — Every request gets a unique correlation ID for audit tracing
+- **Audit Logging** — Batched audit log persistence with 90-day retention
+
+For the complete security architecture, see [SECURITY.md](./SECURITY.md).
+
+---
+
+## Current Limitations
+
+The following limitations are acknowledged and represent areas requiring external dependencies or further development:
+
+### External Service Dependencies
+
+- **Computer Cluster Agents** — Terminal, File System, Process Manager, and Screen Capture agents require **OS-level access** to the host machine. In Docker deployments, these agents operate in simulation mode unless the Docker socket and host filesystem are explicitly mounted.
+- **Browser Cluster Agents** — Real browser automation requires **Playwright** with browser binaries installed. The system falls back to simulation mode when Playwright is unavailable.
+- **LLM Intelligence** — All LLM-powered agents require an **OpenAI or Anthropic API key**. Without valid API keys, LLM-dependent features (planner, critic, judge, etc.) operate in simulation mode.
+- **Neo4j Knowledge Graph** — The intelligence endpoints require a running **Neo4j instance**. Without Neo4j, knowledge graph queries return empty results.
+- **Qdrant Vector Search** — Vector similarity search and RAG pipelines require **Qdrant**. Without Qdrant, the memory service returns empty search results.
+
+### Feature Maturity
+
+- **Self-Evolution Cluster** — The auto-certifier and patch generator agents are in **beta**. They propose changes but do not auto-apply them to production code without explicit human approval.
+- **Swarm Intelligence** — Emergent behavior detection is **experimental** and may produce false positives under high concurrency.
+- **Software Factory MSR** — Mission Success Rate tracking is based on simulation runs. Real-world MSR will vary based on LLM quality and connector reliability.
+- **Multi-Tenant Isolation** — Tenant isolation is enforced at the application level. Database-level row security is planned but not yet implemented.
+
+### Scaling
+
+- **Single-Instance Backend** — The current deployment model runs the NestJS backend as a single instance. Horizontal scaling requires session affinity or shared session storage.
+- **No Database Sharding** — All tenants share the same PostgreSQL database. Sharding for large multi-tenant deployments is not yet supported.
 
 ---
 
@@ -466,11 +537,19 @@ Cross-module bridge unification, WebSocket gateway for real-time events, Bull qu
 
 All 14 clusters imported into app module, 5 new `ClusterType` enum values, framework bridge connecting NestJS clusters to BaseAgentService agents, `.env.example`, README update, production readiness.
 
+### Phase 12 — Security Hardening
+
+Account lockout with progressive delays, refresh token rotation with family-based reuse detection, CORS security middleware with dynamic origin management, IP access control with CIDR matching, security metrics and threat intelligence, correlation ID middleware, Sentry integration, security audit persistence.
+
+### Phase 13 — Performance Optimization
+
+Slow query logger, response caching (Redis + LRU), gzip compression, connection pool monitoring, performance profiling with span tracking, cursor-based pagination.
+
 ### Completed Milestones
 
 | Milestone | Status |
 |-----------|--------|
-| Runtime Stable: Pipeline executes real missions end-to-end (MSR: 100%) | ✅ |
+| Runtime Stable: Pipeline executes real missions end-to-end | ✅ |
 | Metrics, MSR tracking, Batch Runner, 100 Reference Missions | ✅ |
 | Real Connectors: 64 capabilities → real tools (LLM, Playwright, Shell, Git, Docker) | ✅ |
 | BrowserPool, LLMHelper caching, parallel execution | ✅ |
@@ -479,6 +558,8 @@ All 14 clusters imported into app module, 5 new `ClusterType` enum values, frame
 | 13 new LLM-powered agents + 5 orchestrator services upgraded | ✅ |
 | Cross-module bridge, WebSocket gateway, Bull queue processors | ✅ |
 | All 14 clusters imported, framework bridge, production config | ✅ |
+| Security hardening: auth guards on all endpoints, Cypher injection prevention, UUID validation, mass assignment prevention | ✅ |
+| Performance optimization: caching, compression, pool monitoring, profiling | ✅ |
 
 ---
 
@@ -499,6 +580,22 @@ npm run test:e2e
 # Run with coverage report
 npm run test:cov
 ```
+
+### Test Suites
+
+| Test File | Scope |
+|-----------|-------|
+| `test/app.e2e-spec.ts` | Application bootstrap, module creation, agent registry |
+| `test/agent-framework.e2e-spec.ts` | Memory, event bus, communication, health, bridge services |
+| `test/agent-registry.e2e-spec.ts` | Agent registration and lookup |
+| `test/agent-clusters.e2e-spec.ts` | Cluster module integration |
+| `test/mission-pipeline.e2e-spec.ts` | End-to-end mission execution |
+| `test/phase8-orchestration.e2e-spec.ts` | Orchestration services and controller |
+| `test/phase10-swarm-intelligence.e2e-spec.ts` | Swarm intelligence services |
+| `test/phase12-security-hardening.e2e-spec.ts` | Account lockout, refresh tokens, CORS, IP access, threat intel |
+| `test/phase13-performance-optimization.e2e-spec.ts` | Caching, compression, pool monitoring, profiling |
+| `test/security-remediation.e2e-spec.ts` | Auth enforcement, Cypher injection, path traversal, mass assignment, UUID validation, role restrictions |
+| `test/api-integrity.e2e-spec.ts` | API routing correctness, double-prefix prevention, full workflow tests |
 
 ---
 

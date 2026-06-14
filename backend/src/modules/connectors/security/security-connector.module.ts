@@ -47,10 +47,19 @@ class SecurityBridgeConnector implements SoftwareFactoryConnector {
     JwtModule.registerAsync({
       imports: [],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') ?? 'default-secret-change-me',
-        signOptions: { expiresIn: '1h' },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('jwt.secret') ?? configService.get<string>('JWT_SECRET');
+        if (!secret) {
+          if (process.env.APP_ENV === 'production') {
+            throw new Error('FATAL: JWT_SECRET must be set for SecurityConnectorModule in production.');
+          }
+          console.warn('⚠️  WARNING: No JWT secret configured for SecurityConnectorModule. Token operations will fail.');
+        }
+        return {
+          secret: secret || 'insecure-dev-only-secret',
+          signOptions: { expiresIn: '1h' },
+        };
+      },
     }),
   ],
   providers: [SecurityConnectorService],

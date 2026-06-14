@@ -271,6 +271,7 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
     @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super(eventBusService, memoryService, permissionEvaluator);
+    this.agentBridge = bridge ?? null;
   }
 
   protected defineConfig(): AgentConfig {
@@ -597,6 +598,33 @@ export class FinancialAnalysisAgentService extends BaseAgentService {
     this.analysisCounter++;
     const analysisId = `pnl-${Date.now()}-${this.analysisCounter}`;
 
+    // Try LLM-powered P&L analysis
+    try {
+      const systemPrompt = `You are a financial analysis expert. Analyze the P&L data and provide detailed insights on margins, profitability, and recommendations. Return JSON: { "grossProfit": number, "operatingIncome": number, "netIncome": number, "margins": { "gross": 0-100, "operating": 0-100, "net": 0-100 }, "insights": ["string"] }. Be specific and actionable.`;
+      const userPrompt = `Period: ${period}\\nRevenue: ${revenue}\\nCost of Goods: ${costOfGoods || 'calculated'}\\nOperating Expenses: ${operatingExpenses || 'calculated'}\\nOther Income: ${otherIncome}\\nTax Rate: ${taxRate}%\\nAnalyze P&L.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 1500,
+        temperature: 0.3,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed && typeof parsed.grossProfit === 'number') {
+        this.logger.log(`LLM P&L analysis: ${analysisId}, net income=${parsed.netIncome}`);
+        return {
+          analysisId, period, revenue,
+          grossProfit: parsed.grossProfit,
+          operatingIncome: parsed.operatingIncome,
+          netIncome: parsed.netIncome,
+          margins: parsed.margins || { gross: 0, operating: 0, net: 0 },
+          insights: parsed.insights || ['Review financial performance metrics'],
+        };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM P&L analysis failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const cogs = costOfGoods !== undefined ? costOfGoods : revenue * 0.45;
     const opex = operatingExpenses !== undefined ? operatingExpenses : revenue * 0.3;
 

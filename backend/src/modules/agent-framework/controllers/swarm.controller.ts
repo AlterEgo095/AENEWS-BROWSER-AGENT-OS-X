@@ -67,7 +67,16 @@ import {
   Body,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../user/entities/user.entity';
+import { TenantScoped } from '../../tenant/decorators/tenant-scoped.decorator';
+import { RateLimitGuard } from '../guards/rate-limit.guard';
+import { RateLimit, RateLimitDomain } from '../decorators/rate-limit.decorator';
 import { SwarmIntelligenceService, SwarmConfig } from '../services/swarm-intelligence.service';
 import {
   AdvancedConsensusProtocol,
@@ -98,7 +107,11 @@ import {
 } from '../services/advanced-dag-orchestrator.service';
 import { ClusterType } from '../../agent/entities/agent.entity';
 
-@Controller('api/v1/swarm')
+@Controller('swarm')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
+@Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR)
+@TenantScoped()
 export class SwarmController {
 
   constructor(
@@ -114,6 +127,8 @@ export class SwarmController {
   // ─── Swarm Endpoints ──────────────────────────────────────────
 
   @Post('create')
+  @RateLimitDomain('cluster')
+  @RateLimit({ points: 5, duration: 60, blockDuration: 120 })
   async createSwarm(@Body() body: {
     id: string;
     mission: string;
@@ -131,6 +146,8 @@ export class SwarmController {
   }
 
   @Post(':id/execute')
+  @RateLimitDomain('cluster')
+  @RateLimit({ points: 5, duration: 60, blockDuration: 120 })
   async executeSwarm(@Param('id') id: string) {
     return this.swarmService.executeSwarm(id);
   }

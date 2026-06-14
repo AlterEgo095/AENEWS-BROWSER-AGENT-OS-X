@@ -22,14 +22,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import {
-  mockClusterHealth,
-  mockConnectors,
-  mockOrchestrationStats,
-  mockOrchestrationHistory,
-  mockDecompositionResult,
-  mockCollaborationResult,
-} from '@/lib/mock-data';
+
 import {
   cn,
   clusterIcons,
@@ -426,21 +419,13 @@ export default function OrchestrationPage() {
       ]);
 
       if (results[0].status === 'fulfilled') setClusterHealth(results[0].value);
-      else setClusterHealth(mockClusterHealth);
 
       if (results[1].status === 'fulfilled') setConnectors(results[1].value);
-      else setConnectors(mockConnectors);
 
       if (results[2].status === 'fulfilled') setStats(results[2].value);
-      else setStats(mockOrchestrationStats);
 
       if (results[3].status === 'fulfilled') setHistory(results[3].value);
-      else setHistory(mockOrchestrationHistory);
     } catch {
-      setClusterHealth(mockClusterHealth);
-      setConnectors(mockConnectors);
-      setStats(mockOrchestrationStats);
-      setHistory(mockOrchestrationHistory);
     } finally {
       setLoading(false);
     }
@@ -467,17 +452,8 @@ export default function OrchestrationPage() {
       const result = await api.orchestration.decompose(null, decomposeDesc, objectives);
       setDecomposeResult(result);
     } catch {
-      // Use mock data for demo
-      setDecomposeResult({
-        ...mockDecompositionResult,
-        id: `dec_${Date.now()}`,
-        description: decomposeDesc,
-        objectives: decomposeObjectives
-          .split('\n')
-          .map((o) => o.trim())
-          .filter(Boolean),
-        createdAt: new Date().toISOString(),
-      });
+      // Decomposition failed
+      setDecomposeResult(null);
     } finally {
       setDecomposing(false);
     }
@@ -495,20 +471,8 @@ export default function OrchestrationPage() {
       const result = await api.orchestration.collaborate(collabPattern, collabDesc, objectives);
       setCollabResult(result);
     } catch {
-      // Use mock data for demo
-      setCollabResult({
-        ...mockCollaborationResult,
-        id: `col_${Date.now()}`,
-        pattern: collabPattern,
-        description: collabDesc,
-        objectives: collabObjectives
-          .split('\n')
-          .map((o) => o.trim())
-          .filter(Boolean),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        startedAt: new Date().toISOString(),
-      });
+      // Collaboration failed
+      setCollabResult(null);
     } finally {
       setLaunchingCollab(false);
     }

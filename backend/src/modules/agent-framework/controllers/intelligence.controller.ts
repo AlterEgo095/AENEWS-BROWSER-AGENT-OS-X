@@ -65,7 +65,17 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../user/entities/user.entity';
+import { TenantScoped } from '../../tenant/decorators/tenant-scoped.decorator';
+import { RateLimitGuard } from '../guards/rate-limit.guard';
+import { RateLimit, RateLimitDomain } from '../decorators/rate-limit.decorator';
 import { KnowledgeGraphService, ClusterType } from '../services/knowledge-graph.service';
 import { AgentLearningEngine, LearningType } from '../services/agent-learning-engine.service';
 import { PatternMiningService, PatternCategory } from '../services/pattern-mining.service';
@@ -200,7 +210,11 @@ export class FeedbackTrendsDto {
 
 // ─── Controller ───────────────────────────────────────────────────
 
-@Controller('api/v1/intelligence')
+@Controller('intelligence')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
+@Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR)
+@TenantScoped()
 export class IntelligenceController {
   constructor(
     private readonly knowledgeGraph: KnowledgeGraphService,
@@ -260,11 +274,65 @@ export class IntelligenceController {
 
   @Post('graph/query')
   @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.SUPER_ADMIN)
+  @RateLimitDomain('llm')
+  @RateLimit({ points: 5, duration: 60, blockDuration: 120 })
   async executeGraphQuery(@Body() dto: GraphQueryDto) {
+    // SECURITY: Validate the Cypher query to prevent injection attacks
+    this.validateCypherQuery(dto.query);
+
     return {
       success: true,
       data: await this.knowledgeGraph.executeQuery(dto.query, dto.params),
     };
+  }
+
+  /**
+   * Validates a Cypher query against a dangerous-operation allowlist.
+   * Only read-only queries (MATCH, RETURN, WHERE, ORDER BY, LIMIT, SKIP, WITH, DISTINCT, OPTIONAL MATCH)
+   * are permitted. Any write or destructive operation is blocked.
+   */
+  private validateCypherQuery(query: string): void {
+    const upperQuery = query.toUpperCase().trim();
+
+    // Block dangerous Cypher operations
+    const dangerousPatterns = [
+      /\bDELETE\b/i,
+      /\bDETACH\s+DELETE\b/i,
+      /\bCREATE\b/i,
+      /\bMERGE\b/i,
+      /\bSET\b/i,
+      /\bREMOVE\b/i,
+      /\bDROP\b/i,
+      /\bCALL\b/i,
+      /\bFOREACH\b/i,
+      /\bLOAD\s+CSV\b/i,
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(query)) {
+        throw new ForbiddenException(
+          `Cypher query contains forbidden operation: ${pattern.source}. Only read-only queries (MATCH, RETURN, WHERE, LIMIT) are allowed.`,
+        );
+      }
+    }
+
+    // Ensure the query starts with a safe keyword
+    const safeStartPatterns = [/^\s*MATCH\b/i, /^\s*OPTIONAL\s+MATCH\b/i, /^\s*WITH\b/i, /^\s*RETURN\b/i];
+    const startsSafely = safeStartPatterns.some((p) => p.test(query));
+    if (!startsSafely) {
+      throw new ForbiddenException(
+        'Cypher query must start with a read-only keyword (MATCH, OPTIONAL MATCH, WITH, RETURN).',
+      );
+    }
+
+    // Enforce a maximum query length to prevent abuse
+    const MAX_QUERY_LENGTH = 2000;
+    if (query.length > MAX_QUERY_LENGTH) {
+      throw new ForbiddenException(
+        `Cypher query exceeds maximum allowed length of ${MAX_QUERY_LENGTH} characters.`,
+      );
+    }
   }
 
   // ─── Learning Engine ──────────────────────────────────────────

@@ -18,7 +18,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as request from 'supertest';
 import { AccountLockoutService } from '../src/modules/security/services/account-lockout.service';
@@ -453,7 +453,7 @@ describe('Phase 12: Security Hardening & Monitoring', () => {
         await service.recordIpEvent('10.0.0.6', 'threat');
       }
       const blocked = service.isIpBlocked('10.0.0.6');
-      expect(blockled).toBe(true);
+      expect(blocked).toBe(true);
     });
 
     it('should allow manual IP blocking', async () => {

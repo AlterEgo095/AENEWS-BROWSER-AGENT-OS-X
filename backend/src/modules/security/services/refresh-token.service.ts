@@ -243,6 +243,39 @@ export class RefreshTokenService {
   }
 
   /**
+   * Revoke an entire token family by family ID (public API for admin use).
+   * Used by SecurityController for admin-initiated family revocation.
+   */
+  async revokeTokenFamily(family: string, revokedBy: string): Promise<{ family: string; revokedCount: number }> {
+    let revokedCount = 0;
+    let userId = '';
+
+    for (const [, entry] of this.tokenStore.entries()) {
+      if (entry.family === family) {
+        if (!userId) userId = entry.userId;
+        entry.isRevoked = true;
+        this.tokenStore.set(entry.token, entry);
+        revokedCount++;
+      }
+    }
+
+    if (userId) {
+      this.removeFromUserFamily(userId, family);
+    }
+
+    this.logger.warn(`Token family ${family} revoked by admin ${revokedBy}: ${revokedCount} tokens revoked`);
+
+    await this.emitSecurityEvent('token.family_revoked', userId || 'unknown', 'admin', {
+      family,
+      reason: 'admin_revocation',
+      revokedBy,
+      revokedCount,
+    });
+
+    return { family, revokedCount };
+  }
+
+  /**
    * Validate a refresh token without rotating it.
    */
   validateRefreshToken(token: string): RefreshTokenEntry | null {

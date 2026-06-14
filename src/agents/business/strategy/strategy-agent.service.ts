@@ -281,6 +281,7 @@ export class StrategyAgentService extends BaseAgentService {
     @Inject(AgentConnectorBridge) private readonly bridge?: AgentConnectorBridge,
   ) {
     super(eventBusService, memoryService, permissionEvaluator);
+    this.agentBridge = bridge ?? null;
   }
 
   protected defineConfig(): AgentConfig {
@@ -584,6 +585,28 @@ export class StrategyAgentService extends BaseAgentService {
     this.analysisCounter++;
     const analysisId = `swot-${Date.now()}-${this.analysisCounter}`;
 
+    // Try LLM-powered SWOT analysis
+    try {
+      const systemPrompt = `You are a strategic business analyst. Perform a SWOT analysis for the given subject. Return JSON: { "strengths": [{ "item": "string", "impact": "high|medium|low" }], "weaknesses": [{ "item": "string", "severity": "high|medium|low" }], "opportunities": [{ "item": "string", "potential": "high|medium|low" }], "threats": [{ "item": "string", "likelihood": "high|medium|low" }], "strategicImplications": ["string"] }. Be specific and realistic for the industry.`;
+      const userPrompt = `Subject: ${subject}\nIndustry: ${industry}\nDepth: ${depth}\nPerform SWOT analysis.`;
+
+      const response = await this.executeWithLLM(systemPrompt, userPrompt, {
+        maxTokens: 2048,
+        temperature: 0.4,
+      });
+
+      const parsed = this.parseLLMResponse(response);
+      if (parsed?.strengths && Array.isArray(parsed.strengths)) {
+        const analysis: SWOTAnalysis = { id: analysisId, subject, strengths: parsed.strengths, weaknesses: parsed.weaknesses || [], opportunities: parsed.opportunities || [], threats: parsed.threats || [] };
+        this.swotAnalyses.set(analysisId, analysis);
+        this.logger.log(`LLM SWOT analysis: ${analysisId}, subject=${subject}`);
+        return { analysisId, subject, industry, strengths: parsed.strengths, weaknesses: parsed.weaknesses || [], opportunities: parsed.opportunities || [], threats: parsed.threats || [], strategicImplications: parsed.strategicImplications || [] };
+      }
+    } catch (error) {
+      this.logger.warn(`LLM SWOT analysis failed, using heuristic: ${(error as Error).message}`);
+    }
+
+    // Heuristic fallback
     const strengths: Array<{ item: string; impact: string }> = [
       { item: 'Strong brand recognition and market presence', impact: 'high' },
       { item: 'Diversified revenue streams', impact: 'high' },
