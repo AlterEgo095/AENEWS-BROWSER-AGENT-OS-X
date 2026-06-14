@@ -19,6 +19,8 @@
  *   - AgentCommunicationService: Inter-agent messaging
  *   - AgentHealthService: Agent health monitoring and metrics
  *   - AgentBridgeService: Bridge to Software Factory connectors
+ *   - HumanApprovalGuard: Self-evolution safety — blocks unapproved changes
+ *   - SandboxService: Safe execution environment for self-evolution agents
  */
 
 import { Global, Module } from '@nestjs/common';
@@ -28,6 +30,8 @@ import { AgentOrchestratorService } from './services/agent-orchestrator.service'
 import { AgentCommunicationService } from './services/agent-communication.service';
 import { AgentHealthService } from './services/agent-health.service';
 import { AgentBridgeService } from './services/agent-bridge.service';
+import { SandboxService } from './services/sandbox.service';
+import { HumanApprovalGuard } from './guards/human-approval.guard';
 import { AgentModule } from '../agent/agent.module';
 import { QdrantModule } from '../qdrant/qdrant.module';
 
@@ -46,6 +50,9 @@ import { QdrantModule } from '../qdrant/qdrant.module';
     AgentCommunicationService,
     AgentHealthService,
     AgentBridgeService,
+    // ── Self-Evolution Safety ──────────────────────────────────────
+    HumanApprovalGuard,
+    SandboxService,
   ],
   exports: [
     AgentMemoryService,
@@ -54,6 +61,9 @@ import { QdrantModule } from '../qdrant/qdrant.module';
     AgentCommunicationService,
     AgentHealthService,
     AgentBridgeService,
+    // ── Self-Evolution Safety ──────────────────────────────────────
+    HumanApprovalGuard,
+    SandboxService,
   ],
 })
 export class AgentFrameworkModule {

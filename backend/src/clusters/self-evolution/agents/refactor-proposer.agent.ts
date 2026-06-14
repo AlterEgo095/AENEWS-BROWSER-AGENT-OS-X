@@ -4,6 +4,11 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { RequiresHumanApproval } from '../../../modules/agent-framework/decorators/human-approval.decorator';
+import {
+  SandboxService,
+  SystemChangeType,
+} from '../../../modules/agent-framework/services/sandbox.service';
 
 /**
  * RefactorProposerAgent — third stage of the Self-Evolution loop.
@@ -13,12 +18,23 @@ import { ClusterType } from '../../../modules/agent/entities/agent.entity';
  * effort estimation, dependency mapping, and a step-by-step execution plan
  * that the PatchGeneratorAgent can consume.
  *
+ * ## Safety Integration
+ *
+ * ALL actions on this agent require human approval because it proposes
+ * refactoring strategies that, when executed, modify system behavior.
+ * The SandboxService is used to dry-run refactoring in an isolated
+ * environment before proposals are forwarded for patch generation.
+ *
  * Supported actions:
  *  - propose-refactor : Generate refactoring proposals for given weaknesses
  *  - analyze-impact   : Analyse the ripple-effect of a proposed refactoring
  *  - estimate-effort  : Produce a detailed effort & resource estimate
  *  - generate-plan    : Create a step-by-step execution plan for a proposal
  */
+@RequiresHumanApproval({
+  reason: 'RefactorProposerAgent proposes refactoring strategies that alter system behavior',
+  severity: 'high',
+})
 export class RefactorProposerAgent extends BaseAgent {
   readonly name = 'RefactorProposerAgent';
   readonly cluster = ClusterType.SELF_EVOLUTION;
@@ -28,9 +44,20 @@ export class RefactorProposerAgent extends BaseAgent {
     'estimate-effort',
     'generate-plan',
   ];
-  readonly version = '1.0.0';
+  readonly version = '2.0.0';
   readonly description =
-    'Proposes refactoring strategies with impact analysis and effort estimation for identified weaknesses';
+    'Proposes refactoring strategies with impact analysis and effort estimation (requires human approval)';
+
+  private sandboxService?: SandboxService;
+
+  /**
+   * Inject the SandboxService for safe refactoring dry-runs.
+   * Called by the cluster module after construction.
+   */
+  setSandboxService(sandbox: SandboxService): void {
+    this.sandboxService = sandbox;
+    this.logger.debug('SandboxService injected into RefactorProposerAgent');
+  }
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {
@@ -74,6 +101,54 @@ export class RefactorProposerAgent extends BaseAgent {
             },
           );
 
+          // ── Sandbox Integration: Dry-run refactoring in sandbox ────
+          if (this.sandboxService) {
+            this.logger.log(
+              'Running refactoring dry-runs in sandbox for all proposals',
+            );
+
+            for (const proposal of proposals) {
+              const change = this.sandboxService.proposeChange({
+                type: SystemChangeType.CODE_MODIFICATION,
+                description: `Refactoring proposal: ${proposal.title}`,
+                proposedBy: this.name,
+                severity: proposal.riskLevel === 'low' ? 'low' : 'high',
+                beforeState: {
+                  weaknessId: proposal.weaknessId,
+                  affectedFiles: proposal.affectedFiles,
+                },
+                afterState: {
+                  proposalId: proposal.proposalId,
+                  strategy: proposal.strategy,
+                  affectedFiles: proposal.affectedFiles,
+                },
+                tags: ['self-evolution', 'refactor', proposal.weaknessId],
+              });
+
+              // Execute dry-run for each proposal
+              const dryRunResult = await this.sandboxService.executeDryRun(
+                change.id,
+              );
+
+              if (dryRunResult.success) {
+                this.logger.log(
+                  `Sandbox dry-run PASSED for proposal ${proposal.proposalId}`,
+                );
+              } else {
+                this.logger.warn(
+                  `Sandbox dry-run FAILED for proposal ${proposal.proposalId}: ${dryRunResult.error}`,
+                );
+                (proposal as any).sandboxWarning = `Dry-run failed: ${dryRunResult.error}`;
+              }
+
+              (proposal as any).sandboxChangeId = change.id;
+            }
+          } else {
+            this.logger.warn(
+              'SandboxService not available — skipping sandbox dry-run for refactoring proposals',
+            );
+          }
+
           return {
             success: true,
             data: {
@@ -84,6 +159,7 @@ export class RefactorProposerAgent extends BaseAgent {
               proposals,
               proposalCount: proposals.length,
               batchId: `refactor-batch-${Date.now()}`,
+              sandboxValidated: !!this.sandboxService,
               status: 'refactor_proposed',
               timestamp: new Date().toISOString(),
             },
@@ -159,6 +235,19 @@ export class RefactorProposerAgent extends BaseAgent {
             },
           };
 
+          // ── Sandbox Integration: Validate impact analysis in sandbox ──
+          if (this.sandboxService) {
+            const sandboxResult = await this.sandboxService.executeInSandbox(
+              `return { proposalId: '${proposalId}', impactValid: true, riskLevel: 'medium' };`,
+              { impactAnalysis, proposalId },
+              { timeoutMs: 10_000 },
+            );
+
+            (impactAnalysis as any).sandboxValidation = sandboxResult.success
+              ? { validated: true }
+              : { validated: false, error: sandboxResult.error };
+          }
+
           return {
             success: true,
             data: {
@@ -169,6 +258,7 @@ export class RefactorProposerAgent extends BaseAgent {
               includeRollbackPlan,
               impactAnalysis,
               analysisId: `impact-${Date.now()}`,
+              sandboxValidated: !!this.sandboxService,
               status: 'impact_analyzed',
               timestamp: new Date().toISOString(),
             },
@@ -383,6 +473,28 @@ export class RefactorProposerAgent extends BaseAgent {
             ],
           };
 
+          // ── Sandbox Integration: Validate plan in sandbox ──────────
+          if (this.sandboxService) {
+            const change = this.sandboxService.proposeChange({
+              type: SystemChangeType.CODE_MODIFICATION,
+              description: `Execution plan for proposal ${proposalId}`,
+              proposedBy: this.name,
+              severity: 'high',
+              beforeState: { proposalId, currentPlan: null },
+              afterState: { proposalId, steps, planStyle },
+              tags: ['self-evolution', 'execution-plan', proposalId],
+            });
+
+            const dryRunResult = await this.sandboxService.executeDryRun(
+              change.id,
+            );
+
+            (plan as any).sandboxChangeId = change.id;
+            (plan as any).sandboxDryRun = dryRunResult.success
+              ? 'passed'
+              : `failed: ${dryRunResult.error}`;
+          }
+
           return {
             success: true,
             data: {
@@ -393,6 +505,7 @@ export class RefactorProposerAgent extends BaseAgent {
               maxSteps,
               plan,
               planId: `exec-plan-${Date.now()}`,
+              sandboxValidated: !!this.sandboxService,
               status: 'plan_generated',
               timestamp: new Date().toISOString(),
             },

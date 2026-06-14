@@ -1,5 +1,8 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { AgentRegistryService } from '../../modules/agent/registry/agent-registry.service';
+import { LLMService } from '../../modules/llm/llm.service';
+import { AgentBridgeService } from '../../modules/agent-framework/services/agent-bridge.service';
+import { AgentEventBusService } from '../../modules/agent-framework/services/agent-event-bus.service';
 import { NavigationAgent } from './agents/navigation.agent';
 import { ScrapingAgent } from './agents/scraping.agent';
 import { FormFillingAgent } from './agents/form-filling.agent';
@@ -17,13 +20,18 @@ import { CaptchaAgent } from './agents/captcha.agent';
 import { SessionAgent } from './agents/session.agent';
 import { HeadlessAgent } from './agents/headless.agent';
 import { AutomationAgent } from './agents/automation.agent';
+import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 /**
- * Factory function that creates all 17 Browser Cluster agent instances.
- * Called once during module initialization.
+ * Factory function that creates all 17 Browser Cluster agent instances
+ * and injects LLM/Bridge/EventBus services.
  */
-function createBrowserAgents() {
-  return [
+function createBrowserAgents(
+  llmService?: LLMService,
+  bridgeService?: AgentBridgeService,
+  eventBus?: AgentEventBusService,
+) {
+  const agents: BaseAgent[] = [
     new NavigationAgent(),
     new ScrapingAgent(),
     new FormFillingAgent(),
@@ -42,18 +50,34 @@ function createBrowserAgents() {
     new HeadlessAgent(),
     new AutomationAgent(),
   ];
+
+  // Inject services into all agents
+  for (const agent of agents) {
+    agent.setServices({ llmService, bridgeService, eventBus });
+  }
+
+  return agents;
 }
 
 @Module({})
 export class BrowserClusterModule implements OnModuleInit {
-  constructor(private readonly registry: AgentRegistryService) {}
+  constructor(
+    private readonly registry: AgentRegistryService,
+    private readonly llmService: LLMService,
+    private readonly bridgeService: AgentBridgeService,
+    private readonly eventBus: AgentEventBusService,
+  ) {}
 
   /**
    * On module initialization, register all 17 browser cluster agents
-   * into the centralized AgentRegistryService.
+   * into the centralized AgentRegistryService with injected services.
    */
   onModuleInit() {
-    const agents = createBrowserAgents();
+    const agents = createBrowserAgents(
+      this.llmService,
+      this.bridgeService,
+      this.eventBus,
+    );
     for (const agent of agents) {
       this.registry.register(agent);
     }

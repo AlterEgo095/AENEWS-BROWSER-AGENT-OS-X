@@ -4,14 +4,18 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
- * MetricAnalyzerAgent — first stage of the Self-Evolution loop.
+ * MetricAnalyzerAgent — LLM-powered metric analysis for the Self-Evolution loop.
  *
  * Continuously analyses production metrics to detect performance and quality
  * degradation, collects baselines for comparison, identifies anomalies using
- * trend data, and generates structured reports that feed into downstream
- * WeaknessDetectorAgent and AutoCertifierAgent stages.
+ * trend data, and generates structured reports.
+ *
+ * When LLM is available: Uses real LLM calls for intelligent pattern recognition
+ * and actionable insights.
+ * Falls back to heuristic/statistical analysis when LLM is unavailable.
  *
  * Supported actions:
  *  - analyze-metrics  : Deep-dive analysis on a set of metric streams
@@ -28,9 +32,9 @@ export class MetricAnalyzerAgent extends BaseAgent {
     'detect-anomaly',
     'generate-report',
   ];
-  readonly version = '1.0.0';
+  readonly version = '2.0.0';
   readonly description =
-    'Analyzes production metrics to detect performance and quality degradation, collects baselines, and identifies anomalies with trend data for the self-evolution loop';
+    'LLM-powered metric analysis to detect performance degradation, collect baselines, and identify anomalies for the self-evolution loop';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {
@@ -57,6 +61,9 @@ export class MetricAnalyzerAgent extends BaseAgent {
             `Analyzing metrics: [${metricKeys.join(', ')}] over ${timeRange} (${granularity} granularity)`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, metricKeys, timeRange });
+
+          // Build metric data for LLM analysis
           const metrics = metricKeys.map((key: string) => ({
             key,
             currentValue: this.simulateMetricValue(key),
@@ -69,11 +76,59 @@ export class MetricAnalyzerAgent extends BaseAgent {
           }));
 
           const degradedMetrics = compareWithBaseline
-            ? metrics.filter(
-                (m) => m.trend === 'degrading' || m.trend === 'critical',
-              )
+            ? metrics.filter((m) => m.trend === 'degrading' || m.trend === 'critical')
             : [];
 
+          // Try LLM-powered analysis
+          const llmResult = await this.executeWithLLM(
+            `You are a performance metrics analysis expert. Analyze the following metric data and provide actionable insights.
+Return a JSON object with this structure:
+{
+  "insights": [
+    { "metric": "...", "finding": "...", "severity": "low|medium|high|critical", "recommendation": "...", "rootCauseHypothesis": "..." }
+  ],
+  "overallHealth": "healthy|degraded|critical",
+  "prioritizedActions": [
+    { "priority": 1, "action": "...", "metric": "...", "expectedImpact": "..." }
+  ]
+}`,
+            `Metrics data: ${JSON.stringify(metrics)}\nDegraded metrics: ${JSON.stringify(degradedMetrics)}\nTime range: ${timeRange}\nAggregation: ${aggregation}\nFilters: ${JSON.stringify(filters)}`,
+            { responseFormat: 'json' },
+          );
+
+          if (llmResult) {
+            const parsed = this.safeJsonParse(llmResult);
+            if (parsed && parsed.insights) {
+              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, insightCount: parsed.insights.length, overallHealth: parsed.overallHealth });
+              return {
+                success: true,
+                data: {
+                  action,
+                  timeRange,
+                  granularity,
+                  aggregation,
+                  filters,
+                  compareWithBaseline,
+                  metrics,
+                  degradedMetrics,
+                  degradedCount: degradedMetrics.length,
+                  totalMetricsAnalyzed: metricKeys.length,
+                  analysisId: `analysis-${Date.now()}`,
+                  insights: parsed.insights,
+                  overallHealth: parsed.overallHealth || 'unknown',
+                  prioritizedActions: parsed.prioritizedActions || [],
+                  generatedBy: 'llm',
+                  status: 'metrics_analyzed',
+                  timestamp: new Date().toISOString(),
+                },
+                metadata: { duration: Date.now() - startTime, source: 'llm' },
+              };
+            }
+          }
+
+          // Fallback: heuristic analysis
+          this.logger.log('LLM unavailable — falling back to heuristic analysis');
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
           return {
             success: true,
             data: {
@@ -88,10 +143,11 @@ export class MetricAnalyzerAgent extends BaseAgent {
               degradedCount: degradedMetrics.length,
               totalMetricsAnalyzed: metricKeys.length,
               analysisId: `analysis-${Date.now()}`,
+              generatedBy: 'fallback',
               status: 'metrics_analyzed',
               timestamp: new Date().toISOString(),
             },
-            metadata: { duration: Date.now() - startTime },
+            metadata: { duration: Date.now() - startTime, source: 'fallback' },
           };
         }
 
@@ -112,6 +168,8 @@ export class MetricAnalyzerAgent extends BaseAgent {
             `Collecting baseline '${baselineName}' for ${metricKeys.length} metrics`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, baselineName });
+
           const baselineValues = metricKeys.reduce(
             (acc: Record<string, any>, key: string) => {
               acc[key] = {
@@ -125,6 +183,7 @@ export class MetricAnalyzerAgent extends BaseAgent {
             {} as Record<string, any>,
           );
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, baselineName });
           return {
             success: true,
             data: {
@@ -136,9 +195,10 @@ export class MetricAnalyzerAgent extends BaseAgent {
               metricCount: metricKeys.length,
               baselineId: `bl-${Date.now()}`,
               status: 'baseline_collected',
+              generatedBy: 'heuristic',
               timestamp: new Date().toISOString(),
             },
-            metadata: { duration: Date.now() - startTime },
+            metadata: { duration: Date.now() - startTime, source: 'heuristic' },
           };
         }
 
@@ -151,7 +211,6 @@ export class MetricAnalyzerAgent extends BaseAgent {
           const baselineName =
             config.baselineName || `baseline-${new Date().toISOString().split('T')[0]}`;
           const sensitivity = config.sensitivity || 'medium';
-          const minDataPoints = config.minDataPoints || 12;
           const windowSize = config.windowSize || '1h';
           const thresholdOverrides = config.thresholdOverrides || {};
 
@@ -159,44 +218,69 @@ export class MetricAnalyzerAgent extends BaseAgent {
             `Detecting anomalies across ${metricKeys.length} metrics (sensitivity: ${sensitivity})`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, metricKeys, sensitivity });
+
           const anomalies = metricKeys
             .map((key: string) => {
               const isAnomalous = Math.random() > 0.6;
               if (!isAnomalous) return null;
-              const threshold =
-                thresholdOverrides[key] ?? this.getDefaultThreshold(key);
-              const deviation = (
-                (Math.random() * 50 + 10) / 100
-              ).toFixed(2);
+              const threshold = thresholdOverrides[key] ?? this.getDefaultThreshold(key);
+              const deviation = parseFloat(((Math.random() * 50 + 10) / 100).toFixed(2));
               return {
                 metricKey: key,
                 currentValue: this.simulateMetricValue(key),
                 baselineValue: this.simulateMetricValue(key) * 0.8,
-                deviation: parseFloat(deviation),
+                deviation,
                 threshold,
-                severity: this.classifyAnomalySeverity(parseFloat(deviation)),
+                severity: this.classifyAnomalySeverity(deviation),
                 detectedAt: new Date().toISOString(),
                 window: windowSize,
               };
             })
             .filter(Boolean);
 
+          // Try LLM for deeper anomaly analysis
+          let llmInsights: any = null;
+          if (anomalies.length > 0) {
+            const llmResult = await this.executeWithLLM(
+              `You are an anomaly analysis expert. Analyze the detected metric anomalies and provide deeper insights.
+Return a JSON object with this structure:
+{
+  "correlations": ["..."],
+  "rootCauseHypotheses": [
+    { "hypothesis": "...", "confidence": 0.8, "supportingMetrics": ["..."] }
+  ],
+  "recommendedActions": [
+    { "action": "...", "priority": "high|medium|low", "metric": "..." }
+  ]
+}`,
+              `Detected anomalies: ${JSON.stringify(anomalies)}\nSensitivity: ${sensitivity}\nBaseline: ${baselineName}`,
+              { responseFormat: 'json' },
+            );
+
+            if (llmResult) {
+              llmInsights = this.safeJsonParse(llmResult);
+            }
+          }
+
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, anomalyCount: anomalies.length });
           return {
             success: true,
             data: {
               action,
               baselineName,
               sensitivity,
-              minDataPoints,
               windowSize,
               anomalies,
               anomalyCount: anomalies.length,
               scannedMetrics: metricKeys.length,
               detectionId: `anomaly-${Date.now()}`,
+              llmInsights: llmInsights || null,
               status: 'anomaly_detection_completed',
+              generatedBy: llmInsights ? 'llm+heuristic' : 'heuristic',
               timestamp: new Date().toISOString(),
             },
-            metadata: { duration: Date.now() - startTime },
+            metadata: { duration: Date.now() - startTime, source: llmInsights ? 'llm+heuristic' : 'heuristic' },
           };
         }
 
@@ -206,11 +290,9 @@ export class MetricAnalyzerAgent extends BaseAgent {
           const includeTrends = config.includeTrends ?? true;
           const includeRecommendations = config.includeRecommendations ?? true;
           const timeRange = config.timeRange || '7d';
-          const format = config.format || 'json';
 
-          this.logger.log(
-            `Generating ${reportType} metrics report for ${timeRange}`,
-          );
+          this.logger.log(`Generating ${reportType} metrics report for ${timeRange}`);
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, reportType, timeRange });
 
           const report = {
             overview: {
@@ -221,51 +303,35 @@ export class MetricAnalyzerAgent extends BaseAgent {
               overallHealth: 'degraded' as const,
             },
             topDegradedMetrics: [
-              {
-                key: 'response_time_p99',
-                currentValue: 420,
-                baselineValue: 280,
-                deviation: 0.5,
-                trend: 'degrading',
-              },
-              {
-                key: 'error_rate',
-                currentValue: 2.3,
-                baselineValue: 0.8,
-                deviation: 1.875,
-                trend: 'critical',
-              },
+              { key: 'response_time_p99', currentValue: 420, baselineValue: 280, deviation: 0.5, trend: 'degrading' },
+              { key: 'error_rate', currentValue: 2.3, baselineValue: 0.8, deviation: 1.875, trend: 'critical' },
             ],
             trends: includeTrends
-              ? [
-                  {
-                    metric: 'throughput',
-                    direction: 'declining',
-                    changePercent: -12.5,
-                    since: new Date(
-                      Date.now() - 3 * 24 * 60 * 60 * 1000,
-                    ).toISOString(),
-                  },
-                ]
+              ? [{ metric: 'throughput', direction: 'declining', changePercent: -12.5, since: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() }]
               : undefined,
             recommendations: includeRecommendations
               ? [
-                  {
-                    priority: 'high',
-                    area: 'error_rate',
-                    suggestion:
-                      'Investigate recent deployment for regressions; error rate exceeds 2x baseline',
-                  },
-                  {
-                    priority: 'medium',
-                    area: 'response_time_p99',
-                    suggestion:
-                      'Profile slow endpoints and consider caching or query optimization',
-                  },
+                  { priority: 'high', area: 'error_rate', suggestion: 'Investigate recent deployment for regressions; error rate exceeds 2x baseline' },
+                  { priority: 'medium', area: 'response_time_p99', suggestion: 'Profile slow endpoints and consider caching or query optimization' },
                 ]
               : undefined,
           };
 
+          // Try LLM for executive summary
+          let executiveSummary: string | null = null;
+          const llmResult = await this.executeWithLLM(
+            `You are a metrics reporting expert. Generate a concise executive summary for the following metrics report.
+Return a JSON object: { "executiveSummary": "..." }`,
+            `Report data: ${JSON.stringify(report)}\nTime range: ${timeRange}\nReport type: ${reportType}`,
+            { responseFormat: 'json' },
+          );
+
+          if (llmResult) {
+            const parsed = this.safeJsonParse(llmResult);
+            executiveSummary = parsed?.executiveSummary || null;
+          }
+
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, reportType });
           return {
             success: true,
             data: {
@@ -275,13 +341,15 @@ export class MetricAnalyzerAgent extends BaseAgent {
               includeTrends,
               includeRecommendations,
               timeRange,
-              format,
+              format: config.format || 'json',
               report,
+              executiveSummary,
               reportId: `report-${Date.now()}`,
               status: 'report_generated',
+              generatedBy: executiveSummary ? 'llm+heuristic' : 'heuristic',
               timestamp: new Date().toISOString(),
             },
-            metadata: { duration: Date.now() - startTime },
+            metadata: { duration: Date.now() - startTime, source: executiveSummary ? 'llm+heuristic' : 'heuristic' },
           };
         }
 
@@ -293,7 +361,7 @@ export class MetricAnalyzerAgent extends BaseAgent {
     }
   }
 
-  // ── Simulation helpers ────────────────────────────────────────────────
+  // ── Simulation Helpers ────────────────────────────────────────────
 
   private simulateMetricValue(key: string): number {
     const ranges: Record<string, [number, number]> = {
@@ -331,14 +399,10 @@ export class MetricAnalyzerAgent extends BaseAgent {
     const [, value, unit] = match;
     const n = parseInt(value, 10);
     switch (unit) {
-      case 'm':
-        return n;
-      case 'h':
-        return n * 60;
-      case 'd':
-        return n * 1440;
-      default:
-        return 5;
+      case 'm': return n;
+      case 'h': return n * 60;
+      case 'd': return n * 1440;
+      default: return 5;
     }
   }
 

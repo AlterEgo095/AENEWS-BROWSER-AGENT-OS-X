@@ -4,6 +4,11 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { RequiresHumanApproval } from '../../../modules/agent-framework/decorators/human-approval.decorator';
+import {
+  SandboxService,
+  SystemChangeType,
+} from '../../../modules/agent-framework/services/sandbox.service';
 
 /**
  * AutoCertifierAgent — final gate of the Self-Evolution loop.
@@ -14,12 +19,26 @@ import { ClusterType } from '../../../modules/agent/entities/agent.entity';
  * merge; all others are rejected with a detailed rationale that feeds back
  * into the loop for the next iteration.
  *
+ * ## Safety Integration
+ *
+ * Actions that modify certification rules (approve-merge, reject-merge)
+ * require human approval because they alter the system's quality gate.
+ * Read-only analysis actions (run-certification, verify-eqi) do not
+ * require approval but are still logged for audit.
+ *
+ * The SandboxService is used to test certification rule changes before
+ * they are applied to the live certification pipeline.
+ *
  * Supported actions:
  *  - run-certification : Execute certification suites against a patch
  *  - verify-eqi        : Compare current EQI against baseline EQI
- *  - approve-merge     : Mark a patch as approved for merge (EQI↑ only)
- *  - reject-merge      : Mark a patch as rejected with failure rationale
+ *  - approve-merge     : Mark a patch as approved for merge (EQI↑ only) [requires approval]
+ *  - reject-merge      : Mark a patch as rejected with failure rationale [requires approval]
  */
+@RequiresHumanApproval({
+  reason: 'AutoCertifierAgent can modify certification rules and approve/reject merges',
+  severity: 'high',
+})
 export class AutoCertifierAgent extends BaseAgent {
   readonly name = 'AutoCertifierAgent';
   readonly cluster = ClusterType.SELF_EVOLUTION;
@@ -29,9 +48,20 @@ export class AutoCertifierAgent extends BaseAgent {
     'approve-merge',
     'reject-merge',
   ];
-  readonly version = '1.0.0';
+  readonly version = '2.0.0';
   readonly description =
-    'Runs certification on generated patches and only approves merge if the Evolution Quality Index (EQI) increases';
+    'Runs certification on generated patches and only approves merge if EQI increases (requires human approval for rule changes)';
+
+  private sandboxService?: SandboxService;
+
+  /**
+   * Inject the SandboxService for safe certification testing.
+   * Called by the cluster module after construction.
+   */
+  setSandboxService(sandbox: SandboxService): void {
+    this.sandboxService = sandbox;
+    this.logger.debug('SandboxService injected into AutoCertifierAgent');
+  }
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {
@@ -85,6 +115,38 @@ export class AutoCertifierAgent extends BaseAgent {
           const eqiDelta = parseFloat((newEqi - baselineEqi).toFixed(1));
           const eqiImproved = eqiDelta > 0;
 
+          // ── Sandbox Integration: Test certification in sandbox ────
+          if (this.sandboxService) {
+            const change = this.sandboxService.proposeChange({
+              type: SystemChangeType.CODE_MODIFICATION,
+              description: `Certification run for patch ${patchId}`,
+              proposedBy: this.name,
+              severity: 'medium',
+              beforeState: { patchId, baselineEqi },
+              afterState: {
+                patchId,
+                newEqi,
+                eqiDelta,
+                suiteResults: suiteResults.map((r) => ({
+                  suite: r.suite,
+                  passed: r.passed,
+                  score: r.score,
+                })),
+              },
+              tags: ['self-evolution', 'certification', patchId],
+            });
+
+            const dryRunResult = await this.sandboxService.executeDryRun(
+              change.id,
+            );
+
+            if (!dryRunResult.success) {
+              this.logger.warn(
+                `Sandbox dry-run failed for certification of patch ${patchId}: ${dryRunResult.error}`,
+              );
+            }
+          }
+
           return {
             success: allPassed,
             data: {
@@ -105,6 +167,7 @@ export class AutoCertifierAgent extends BaseAgent {
                   ? 'pass-but-no-eqi-gain'
                   : 'fail',
               certificationId: `cert-${Date.now()}`,
+              sandboxValidated: !!this.sandboxService,
               status: allPassed
                 ? 'certification_passed'
                 : 'certification_failed',
@@ -245,6 +308,65 @@ export class AutoCertifierAgent extends BaseAgent {
             `Approving merge for patch ${patchId} (EQI: ${currentEqi}, delta: +${eqiDelta})`,
           );
 
+          // ── Sandbox Integration: Validate merge approval in sandbox ──
+          if (this.sandboxService) {
+            const change = this.sandboxService.proposeChange({
+              type: SystemChangeType.CODE_MODIFICATION,
+              description: `Merge approval for patch ${patchId}`,
+              proposedBy: this.name,
+              severity: 'high',
+              beforeState: {
+                patchId,
+                certificationId,
+                baselineEqi,
+                status: 'pending-merge',
+              },
+              afterState: {
+                patchId,
+                certificationId,
+                currentEqi,
+                eqiDelta,
+                status: 'merge-approved',
+                approver,
+              },
+              tags: ['self-evolution', 'merge-approval', patchId],
+            });
+
+            const dryRunResult = await this.sandboxService.executeDryRun(
+              change.id,
+            );
+
+            if (dryRunResult.success) {
+              const validationResult =
+                await this.sandboxService.validateChange(change.id);
+
+              if (!validationResult.valid) {
+                return {
+                  success: false,
+                  data: {
+                    action,
+                    patchId,
+                    certificationId,
+                    currentEqi,
+                    baselineEqi,
+                    eqiDelta,
+                    sandboxChangeId: change.id,
+                    validationResult,
+                    reason: `Sandbox validation blocked merge: ${validationResult.summary}`,
+                    status: 'sandbox_validation_failed',
+                    timestamp: new Date().toISOString(),
+                  },
+                  error: `Merge approval blocked by sandbox: ${validationResult.summary}`,
+                  metadata: { duration: Date.now() - startTime },
+                };
+              }
+            } else {
+              this.logger.warn(
+                `Sandbox dry-run failed for merge approval of patch ${patchId}`,
+              );
+            }
+          }
+
           const approval = {
             patchId,
             certificationId,
@@ -272,6 +394,7 @@ export class AutoCertifierAgent extends BaseAgent {
               action,
               approval,
               approvalId: `approval-${Date.now()}`,
+              sandboxValidated: !!this.sandboxService,
               status: 'merge_approved',
               timestamp: new Date().toISOString(),
             },
@@ -300,6 +423,25 @@ export class AutoCertifierAgent extends BaseAgent {
           this.logger.warn(
             `Rejecting merge for patch ${patchId}: ${reason}`,
           );
+
+          // ── Sandbox Integration: Log rejection in sandbox ────────
+          if (this.sandboxService) {
+            this.sandboxService.proposeChange({
+              type: SystemChangeType.CODE_MODIFICATION,
+              description: `Merge rejection for patch ${patchId}: ${reason}`,
+              proposedBy: this.name,
+              severity: 'medium',
+              beforeState: { patchId, certificationId, status: 'pending-merge' },
+              afterState: {
+                patchId,
+                certificationId,
+                status: 'merge-rejected',
+                reason,
+                failedSuites,
+              },
+              tags: ['self-evolution', 'merge-rejection', patchId],
+            });
+          }
 
           const rejection = {
             patchId,
@@ -339,6 +481,7 @@ export class AutoCertifierAgent extends BaseAgent {
               action,
               rejection,
               rejectionId: `rejection-${Date.now()}`,
+              sandboxLogged: !!this.sandboxService,
               status: 'merge_rejected',
               timestamp: new Date().toISOString(),
             },

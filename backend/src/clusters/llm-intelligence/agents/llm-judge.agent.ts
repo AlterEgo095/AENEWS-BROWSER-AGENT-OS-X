@@ -4,14 +4,17 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
  * LLMJudgeAgent — Final go/no-go arbitration via LLM reasoning.
  *
  * Provides authoritative decisions on mission deliverables, resolving conflicts
  * between agents, and making final arbitration calls when evaluation results
- * are ambiguous or contested. Acts as the ultimate decision authority within
- * the LLM Intelligence Cluster.
+ * are ambiguous or contested.
+ *
+ * When LLM is available: Uses real LLM calls for nuanced judgment.
+ * When LLM is unavailable: Falls back to rule-based scoring.
  *
  * Supported actions:
  * - `arbitrate`        → Resolve a dispute between conflicting agent evaluations
@@ -22,7 +25,7 @@ export class LLMJudgeAgent extends BaseAgent {
   readonly name = 'LLMJudgeAgent';
   readonly cluster = ClusterType.LLM_INTELLIGENCE;
   readonly capabilities = ['arbitrate', 'final-decision', 'resolve-conflict'];
-  readonly version = '2.0.0';
+  readonly version = '3.0.0';
   readonly description =
     'Final go/no-go arbitration via LLM reasoning for mission deliverables';
 
@@ -36,10 +39,7 @@ export class LLMJudgeAgent extends BaseAgent {
         case 'arbitrate': {
           const dispute = config.dispute;
           if (!dispute) {
-            return {
-              success: false,
-              error: 'Dispute details are required for arbitrate action',
-            };
+            return { success: false, error: 'Dispute details are required for arbitrate action' };
           }
           const positions = config.positions || [];
           const evidence = config.evidence || [];
@@ -49,6 +49,52 @@ export class LLMJudgeAgent extends BaseAgent {
             `Arbitrating dispute with ${positions.length} position(s) under policy: ${policy}`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, positionCount: positions.length });
+
+          const llmResult = await this.executeWithLLM(
+            `You are a senior arbitrator. Resolve the following dispute by evaluating all positions against the evidence.
+Return a JSON object with this structure:
+{
+  "ruling": "favor|partial-favor|compromise|reject",
+  "winningPosition": "...",
+  "reasoning": "...",
+  "confidence": 0.87,
+  "conditions": ["..."],
+  "dissentingNotes": "..."
+}`,
+            `Dispute: ${JSON.stringify(dispute)}\nPositions: ${JSON.stringify(positions)}\nEvidence: ${JSON.stringify(evidence)}\nPolicy: ${policy}`,
+            { responseFormat: 'json' },
+          );
+
+          if (llmResult) {
+            const parsed = this.safeJsonParse(llmResult);
+            if (parsed && parsed.ruling) {
+              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, ruling: parsed.ruling });
+              return {
+                success: true,
+                data: {
+                  action,
+                  arbitrationId: `arb-${Date.now()}`,
+                  ruling: parsed.ruling,
+                  winningPosition: parsed.winningPosition || (positions.length > 0 ? positions[0] : null),
+                  reasoning: parsed.reasoning || 'Arbitration completed via LLM analysis.',
+                  confidence: parsed.confidence ?? 0.8,
+                  evidenceEvaluated: evidence.length,
+                  positionsConsidered: positions.length,
+                  policy,
+                  conditions: parsed.conditions || [],
+                  dissentingNotes: parsed.dissentingNotes || '',
+                  generatedBy: 'llm',
+                  timestamp: new Date().toISOString(),
+                },
+                metadata: { duration: Date.now() - startTime, source: 'llm' },
+              };
+            }
+          }
+
+          // Fallback
+          this.logger.log('LLM unavailable — falling back to rule-based arbitration');
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
           return {
             success: true,
             data: {
@@ -56,32 +102,24 @@ export class LLMJudgeAgent extends BaseAgent {
               arbitrationId: `arb-${Date.now()}`,
               ruling: 'partial-favor',
               winningPosition: positions.length > 0 ? positions[0] : null,
-              reasoning:
-                'After evaluating all presented positions against the available evidence, a partial favor ruling is issued. The primary position aligns more closely with stated requirements, but concessions from the opposing position should be incorporated for robustness.',
-              confidence: 0.87,
+              reasoning: 'Rule-based arbitration: primary position selected with modifications (LLM unavailable for nuanced analysis).',
+              confidence: 0.7,
               evidenceEvaluated: evidence.length,
               positionsConsidered: positions.length,
               policy,
-              conditions: [
-                'Primary approach adopted with modifications from secondary position',
-                'Additional validation step required before execution',
-                'Monitoring threshold tightened to detect regressions early',
-              ],
-              dissentingNotes:
-                'The secondary position raises valid concerns about scalability under load. Recommend stress-testing before production deployment.',
+              conditions: ['Recommend manual review when LLM is available'],
+              dissentingNotes: 'Automated arbitration without LLM may miss nuanced arguments.',
+              generatedBy: 'fallback',
               timestamp: new Date().toISOString(),
             },
-            metadata: { duration: Date.now() - startTime },
+            metadata: { duration: Date.now() - startTime, source: 'fallback' },
           };
         }
 
         case 'final-decision': {
           const deliverableId = config.deliverableId;
           if (!deliverableId) {
-            return {
-              success: false,
-              error: 'deliverableId is required for final-decision action',
-            };
+            return { success: false, error: 'deliverableId is required for final-decision action' };
           }
           const evaluationResults = config.evaluationResults || [];
           const criteria = config.criteria || ['quality', 'completeness', 'timeliness'];
@@ -91,11 +129,58 @@ export class LLMJudgeAgent extends BaseAgent {
             `Issuing final decision for deliverable ${deliverableId} (strictness: ${strictness})`,
           );
 
-          const passThreshold =
-            strictness === 'strict' ? 0.9 : strictness === 'lenient' ? 0.6 : 0.75;
-          const computedScore = 0.82;
-          const decision = computedScore >= passThreshold ? 'go' : 'no-go';
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, deliverableId, strictness });
 
+          const passThreshold = strictness === 'strict' ? 0.9 : strictness === 'lenient' ? 0.6 : 0.75;
+
+          const llmResult = await this.executeWithLLM(
+            `You are a quality judge. Assess the overall quality and issue a final go/no-go decision.
+Return a JSON object with this structure:
+{
+  "decision": "go|no-go",
+  "confidence": 0.89,
+  "score": 0.82,
+  "rationale": "...",
+  "conditions": ["..."]
+}`,
+            `Deliverable ID: ${deliverableId}\nEvaluation results: ${JSON.stringify(evaluationResults)}\nCriteria: ${JSON.stringify(criteria)}\nStrictness: ${strictness}\nPass threshold: ${passThreshold}`,
+            { responseFormat: 'json' },
+          );
+
+          if (llmResult) {
+            const parsed = this.safeJsonParse(llmResult);
+            if (parsed && parsed.decision) {
+              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, decision: parsed.decision, score: parsed.score });
+              return {
+                success: true,
+                data: {
+                  action,
+                  decisionId: `decision-${Date.now()}`,
+                  deliverableId,
+                  decision: parsed.decision,
+                  confidence: parsed.confidence ?? 0.8,
+                  score: parsed.score ?? 0.75,
+                  passThreshold,
+                  strictness,
+                  evaluationResults,
+                  criteria,
+                  rationale: parsed.rationale || 'Decision made via LLM analysis.',
+                  conditions: parsed.conditions || [],
+                  generatedBy: 'llm',
+                  timestamp: new Date().toISOString(),
+                },
+                metadata: { duration: Date.now() - startTime, source: 'llm' },
+              };
+            }
+          }
+
+          // Fallback: compute score from evaluation results
+          this.logger.log('LLM unavailable — falling back to score-based decision');
+          const computedScore = evaluationResults.length > 0
+            ? evaluationResults.reduce((sum: number, r: any) => sum + (r.score || r.overallScore || 0.75), 0) / evaluationResults.length
+            : 0.75;
+          const decision = computedScore >= passThreshold ? 'go' : 'no-go';
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, decision, source: 'fallback' });
           return {
             success: true,
             data: {
@@ -103,39 +188,29 @@ export class LLMJudgeAgent extends BaseAgent {
               decisionId: `decision-${Date.now()}`,
               deliverableId,
               decision,
-              confidence: 0.89,
+              confidence: 0.7,
               score: computedScore,
               passThreshold,
               strictness,
               evaluationResults,
               criteria,
-              rationale:
-                decision === 'go'
-                  ? 'Deliverable meets or exceeds all critical quality thresholds. Minor improvements recommended but do not block release.'
-                  : 'Deliverable falls below the required quality threshold. Critical gaps must be addressed before approval.',
-              conditions:
-                decision === 'go'
-                  ? [
-                      'Address minor completeness gaps in next iteration',
-                      'Schedule post-deployment monitoring for first 48 hours',
-                    ]
-                  : [
-                      'Resolve critical completeness issues identified in evaluation',
-                      'Re-submit for final-decision after remediation',
-                    ],
+              rationale: decision === 'go'
+                ? 'Deliverable meets quality threshold based on evaluation scores (LLM unavailable for deep analysis).'
+                : 'Deliverable falls below quality threshold (LLM unavailable for nuanced assessment).',
+              conditions: decision === 'go'
+                ? ['Recommend LLM-powered review when available']
+                : ['Address quality gaps and re-submit', 'Enable LLM for deeper analysis'],
+              generatedBy: 'fallback',
               timestamp: new Date().toISOString(),
             },
-            metadata: { duration: Date.now() - startTime },
+            metadata: { duration: Date.now() - startTime, source: 'fallback' },
           };
         }
 
         case 'resolve-conflict': {
           const conflictType = config.conflictType;
           if (!conflictType) {
-            return {
-              success: false,
-              error: 'conflictType is required for resolve-conflict action',
-            };
+            return { success: false, error: 'conflictType is required for resolve-conflict action' };
           }
           const parties = config.parties || [];
           const contextData = config.context || {};
@@ -145,6 +220,50 @@ export class LLMJudgeAgent extends BaseAgent {
             `Resolving conflict of type "${conflictType}" between ${parties.length} party/parties (urgency: ${urgency})`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, conflictType, urgency });
+
+          const llmResult = await this.executeWithLLM(
+            `You are a conflict resolution expert. Mediate and resolve the following conflict.
+Return a JSON object with this structure:
+{
+  "resolution": "compromise|collaboration|accommodation|competition|avoidance",
+  "summary": "...",
+  "terms": [
+    { "party": "...", "concession": "...", "gain": "..." }
+  ],
+  "enforcementMechanism": "..."
+}`,
+            `Conflict type: ${conflictType}\nParties: ${JSON.stringify(parties)}\nContext: ${JSON.stringify(contextData)}\nUrgency: ${urgency}`,
+            { responseFormat: 'json' },
+          );
+
+          if (llmResult) {
+            const parsed = this.safeJsonParse(llmResult);
+            if (parsed && parsed.resolution) {
+              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, resolution: parsed.resolution });
+              return {
+                success: true,
+                data: {
+                  action,
+                  resolutionId: `resolve-${Date.now()}`,
+                  conflictType,
+                  resolution: parsed.resolution,
+                  summary: parsed.summary || 'Conflict resolved via LLM-mediated analysis.',
+                  terms: parsed.terms || [],
+                  enforcementMechanism: parsed.enforcementMechanism || 'Monitoring with escalation triggers',
+                  urgency,
+                  context: contextData,
+                  generatedBy: 'llm',
+                  timestamp: new Date().toISOString(),
+                },
+                metadata: { duration: Date.now() - startTime, source: 'llm' },
+              };
+            }
+          }
+
+          // Fallback
+          this.logger.log('LLM unavailable — falling back to rule-based conflict resolution');
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
           return {
             success: true,
             data: {
@@ -152,26 +271,18 @@ export class LLMJudgeAgent extends BaseAgent {
               resolutionId: `resolve-${Date.now()}`,
               conflictType,
               resolution: 'compromise',
-              summary:
-                'A compromise resolution has been crafted that addresses the core concerns of all parties. The solution prioritizes system stability while accommodating the performance requirements raised by the opposing party.',
+              summary: 'Compromise resolution applied (LLM unavailable for nuanced mediation).',
               terms: [
-                {
-                  party: parties.length > 0 ? parties[0] : 'Party A',
-                  concession: 'Accepts slightly reduced throughput in favor of reliability',
-                  gain: 'Receives guaranteed stability SLA',
-                },
-                {
-                  party: parties.length > 1 ? parties[1] : 'Party B',
-                  concession: 'Agrees to incremental rollout instead of big-bang deployment',
-                  gain: 'Receives performance optimization commitment in next cycle',
-                },
+                { party: parties.length > 0 ? parties[0] : 'Party A', concession: 'Agrees to modified terms', gain: 'Receives core requirements' },
+                { party: parties.length > 1 ? parties[1] : 'Party B', concession: 'Accepts incremental approach', gain: 'Receives commitment for next cycle' },
               ],
               enforcementMechanism: 'Automated monitoring with escalation triggers',
               urgency,
               context: contextData,
+              generatedBy: 'fallback',
               timestamp: new Date().toISOString(),
             },
-            metadata: { duration: Date.now() - startTime },
+            metadata: { duration: Date.now() - startTime, source: 'fallback' },
           };
         }
 

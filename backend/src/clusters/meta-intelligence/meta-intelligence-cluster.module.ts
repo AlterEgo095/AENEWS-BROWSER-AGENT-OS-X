@@ -1,5 +1,8 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { AgentRegistryService } from '../../modules/agent/registry/agent-registry.service';
+import { LLMService } from '../../modules/llm/llm.service';
+import { AgentBridgeService } from '../../modules/agent-framework/services/agent-bridge.service';
+import { AgentEventBusService } from '../../modules/agent-framework/services/agent-event-bus.service';
 import { OrchestrationAgent } from './agents/orchestration.agent';
 import { LearningAgent } from './agents/learning.agent';
 import { ReasoningAgent } from './agents/reasoning.agent';
@@ -13,13 +16,14 @@ import { AdaptationAgent } from './agents/adaptation.agent';
 import { MetaCognitionAgent } from './agents/meta-cognition.agent';
 import { KnowledgeAgent } from './agents/knowledge.agent';
 import { SelfHealingAgent } from './agents/self-healing.agent';
+import { BaseAgent } from '../../modules/agent/agent.abstract';
 
-/**
- * Factory function that creates all 13 Meta Intelligence Cluster capability agents.
- * Called once during module initialization.
- */
-function createMetaIntelligenceAgents() {
-  return [
+function createMetaIntelligenceAgents(
+  llmService?: LLMService,
+  bridgeService?: AgentBridgeService,
+  eventBus?: AgentEventBusService,
+) {
+  const agents: BaseAgent[] = [
     new OrchestrationAgent(),
     new LearningAgent(),
     new ReasoningAgent(),
@@ -34,18 +38,23 @@ function createMetaIntelligenceAgents() {
     new KnowledgeAgent(),
     new SelfHealingAgent(),
   ];
+  for (const agent of agents) {
+    agent.setServices({ llmService, bridgeService, eventBus });
+  }
+  return agents;
 }
 
 @Module({})
 export class MetaIntelligenceClusterModule implements OnModuleInit {
-  constructor(private readonly registry: AgentRegistryService) {}
+  constructor(
+    private readonly registry: AgentRegistryService,
+    private readonly llmService: LLMService,
+    private readonly bridgeService: AgentBridgeService,
+    private readonly eventBus: AgentEventBusService,
+  ) {}
 
-  /**
-   * On module initialization, register all 13 meta-intelligence cluster
-   * capability agents into the centralized AgentRegistryService.
-   */
   onModuleInit() {
-    const agents = createMetaIntelligenceAgents();
+    const agents = createMetaIntelligenceAgents(this.llmService, this.bridgeService, this.eventBus);
     for (const agent of agents) {
       this.registry.register(agent);
     }

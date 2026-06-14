@@ -13,3 +13,10 @@ export type {
   ToolParameterSchema,
   ToolPermission,
 } from './tool.decorator';
+
+export {
+  RequiresHumanApproval,
+  HUMAN_APPROVAL_KEY,
+  getHumanApprovalMetadata,
+} from './human-approval.decorator';
+export type { HumanApprovalOptions } from './human-approval.decorator';
