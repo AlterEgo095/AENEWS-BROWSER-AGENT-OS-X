@@ -22,7 +22,7 @@ import { INestApplication, ValidationPipe, UnauthorizedException, Injectable } f
 import { JwtService } from '@nestjs/jwt';
 import { PassportModule, PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-jwt';
-import { Reflector } from '@nestjs/core';
+import { Reflector, APP_GUARD } from '@nestjs/core';
 import * as bcrypt from 'bcrypt';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
@@ -216,8 +216,9 @@ async function createTestApp(users: User[] = []): Promise<INestApplication> {
       { provide: EncryptionService, useValue: encryptionService },
       // Passport + JWT strategy for guard authentication
       MockJwtStrategy,
-      JwtAuthGuard,
-      RolesGuard,
+      // Register guards as APP_GUARD so they actually protect endpoints
+      { provide: APP_GUARD, useClass: JwtAuthGuard },
+      { provide: APP_GUARD, useClass: RolesGuard },
       { provide: Reflector, useValue: new Reflector() },
     ],
   }).compile();
