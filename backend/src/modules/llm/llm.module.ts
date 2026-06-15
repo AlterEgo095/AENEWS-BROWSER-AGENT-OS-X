@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { LLMService } from './llm.service';
+import { ZAIProvider } from './providers/zai.provider';
 import { OpenAIProvider } from './providers/openai.provider';
 import { AnthropicProvider } from './providers/anthropic.provider';
 import { DeadHostCooldownService } from './services/dead-host-cooldown.service';
@@ -20,7 +21,7 @@ import { LLMCacheService } from './services/llm-cache.service';
  */
 @Global()
 @Module({
-  providers: [OpenAIProvider, AnthropicProvider, DeadHostCooldownService, LLMCacheService, LLMService],
-  exports: [LLMService, OpenAIProvider, AnthropicProvider, DeadHostCooldownService, LLMCacheService],
+  providers: [ZAIProvider, OpenAIProvider, AnthropicProvider, DeadHostCooldownService, LLMCacheService, LLMService],
+  exports: [LLMService, ZAIProvider, OpenAIProvider, AnthropicProvider, DeadHostCooldownService, LLMCacheService],
 })
 export class LLMModule {}

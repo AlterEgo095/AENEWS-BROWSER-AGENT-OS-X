@@ -8,6 +8,7 @@ import {
 } from './interfaces/llm-provider.interface';
 import { OpenAIProvider } from './providers/openai.provider';
 import { AnthropicProvider } from './providers/anthropic.provider';
+import { ZAIProvider } from './providers/zai.provider';
 import { DeadHostCooldownService } from './services/dead-host-cooldown.service';
 import { LLMCacheService } from './services/llm-cache.service';
 import {
@@ -96,13 +97,15 @@ export class LLMService {
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly zaiProvider: ZAIProvider,
     private readonly openaiProvider: OpenAIProvider,
     private readonly anthropicProvider: AnthropicProvider,
     @Optional() private readonly circuitBreakerService: CircuitBreakerService,
     @Optional() private readonly deadHostCooldownService: DeadHostCooldownService,
     @Optional() private readonly cacheService: LLMCacheService,
   ) {
-    // Register providers
+    // Register providers — ZAI is the primary provider (always available)
+    this.providers.set(zaiProvider.name, zaiProvider);
     this.providers.set(openaiProvider.name, openaiProvider);
     this.providers.set(anthropicProvider.name, anthropicProvider);
 
@@ -123,7 +126,7 @@ export class LLMService {
     // Configuration
     this.defaultProviderName = this.configService.get<string>(
       'llm.defaultProvider',
-      'openai',
+      'zai',
     );
     this.fallbackEnabled = this.configService.get<boolean>(
       'llm.fallback.enabled',

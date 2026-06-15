@@ -109,7 +109,10 @@ export default () => ({
     prometheusPort: parseInt(process.env.PROMETHEUS_PORT || '9090', 10),
   },
   llm: {
-    defaultProvider: process.env.LLM_DEFAULT_PROVIDER || 'openai',
+    defaultProvider: process.env.LLM_DEFAULT_PROVIDER || 'zai',
+    zai: {
+      maxTokens: parseInt(process.env.ZAI_MAX_TOKENS || '4096', 10),
+    },
     openai: {
       apiKey: process.env.OPENAI_API_KEY || '',
       model: process.env.OPENAI_MODEL || 'gpt-4o',

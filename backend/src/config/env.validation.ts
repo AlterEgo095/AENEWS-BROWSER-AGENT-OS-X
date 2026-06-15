@@ -83,7 +83,8 @@ export const envValidationSchema = Joi.object({
   PROMETHEUS_PORT: Joi.number().default(9090),
 
   // LLM Provider
-  LLM_DEFAULT_PROVIDER: Joi.string().valid('openai', 'anthropic').default('openai'),
+  LLM_DEFAULT_PROVIDER: Joi.string().valid('zai', 'openai', 'anthropic').default('zai'),
+  ZAI_MAX_TOKENS: Joi.number().default(4096),
   OPENAI_API_KEY: Joi.string().allow('').default(''),
   OPENAI_MODEL: Joi.string().default('gpt-4o'),
   OPENAI_MAX_TOKENS: Joi.number().default(4096),
@@ -91,5 +92,5 @@ export const envValidationSchema = Joi.object({
   ANTHROPIC_MODEL: Joi.string().default('claude-sonnet-4-20250514'),
   ANTHROPIC_MAX_TOKENS: Joi.number().default(4096),
   LLM_FALLBACK_ENABLED: Joi.boolean().default(false),
-  LLM_SECONDARY_PROVIDER: Joi.string().valid('openai', 'anthropic').default('anthropic'),
+  LLM_SECONDARY_PROVIDER: Joi.string().valid('zai', 'openai', 'anthropic').default('openai'),
 });
