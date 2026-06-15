@@ -1,0 +1,699 @@
+     1→     1→import { useAuthStore } from '@/store/auth-store';
+     2→     2→
+     3→     3→const API_BASE = '/api/v1';
+     4→     4→const REQUEST_TIMEOUT_MS = 30000;
+     5→     5→const MAX_RETRIES = 2;
+     6→     6→
+     7→     7→/**
+     8→     8→ * Build standard auth headers for raw fetch() calls.
+     9→     9→ * Use this when you can't use the ApiClient but still need authenticated requests.
+    10→    10→ *
+    11→    11→ * Reads the access token from the Zustand in-memory store (NOT localStorage).
+    12→    12→ */
+    13→    13→export function getAuthHeaders(): Record<string, string> {
+    14→    14→  const headers: Record<string, string> = {
+    15→    15→    'Content-Type': 'application/json',
+    16→    16→  };
+    17→    17→  const token = useAuthStore.getState().token;
+    18→    18→  if (token) {
+    19→    19→    headers['Authorization'] = `Bearer ${token}`;
+    20→    20→  }
+    21→    21→  return headers;
+    22→    22→}
+    23→    23→
+    24→    24→class ApiClient {
+    25→    25→  private baseUrl: string;
+    26→    26→  private refreshing: Promise<string | null> | null = null;
+    27→    27→
+    28→    28→  constructor() {
+    29→    29→    this.baseUrl = API_BASE;
+    30→    30→  }
+    31→    31→
+    32→    32→  private getHeaders(): HeadersInit {
+    33→    33→    const headers: HeadersInit = {
+    34→    34→      'Content-Type': 'application/json',
+    35→    35→    };
+    36→    36→    const token = useAuthStore.getState().token;
+    37→    37→    if (token) {
+    38→    38→      headers['Authorization'] = `Bearer ${token}`;
+    39→    39→    }
+    40→    40→    return headers;
+    41→    41→  }
+    42→    42→
+    43→    43→  /**
+    44→    44→   * Attempt to refresh the access token using the httpOnly refresh cookie.
+    45→    45→   * Ensures only one refresh request is in-flight at a time.
+    46→    46→   *
+    47→    47→   * @returns The new access token, or null if refresh failed
+    48→    48→   */
+    49→    49→  private async tryRefresh(): Promise<string | null> {
+    50→    50→    // Reuse in-flight refresh promise to prevent concurrent refreshes
+    51→    51→    if (!this.refreshing) {
+    52→    52→      this.refreshing = useAuthStore.getState().refreshAuth().finally(() => {
+    53→    53→        this.refreshing = null;
+    54→    54→      });
+    55→    55→    }
+    56→    56→    return this.refreshing;
+    57→    57→  }
+    58→    58→
+    59→    59→  /**
+    60→    60→   * Handle session expiry — try refreshing before redirecting to login.
+    61→    61→   */
+    62→    62→  private async handleUnauthorized(originalEndpoint: string, originalOptions?: RequestInit): Promise<boolean> {
+    63→    63→    const newToken = await this.tryRefresh();
+    64→    64→
+    65→    65→    if (newToken) {
+    66→    66→      // Token refreshed successfully — the caller should retry the request
+    67→    67→      return true;
+    68→    68→    }
+    69→    69→
+    70→    70→    // Refresh also failed — redirect to login
+    71→    71→    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    72→    72→      window.location.href = '/login';
+    73→    73→    }
+    74→    74→    return false;
+    75→    75→  }
+    76→    76→
+    77→    77→  /**
+    78→    78→   * Determine if a request should be retried.
+    79→    79→   * - 5xx: retry with backoff
+    80→    80→   * - 4xx: never retry (client error)
+    81→    81→   * - Network error: retry
+    82→    82→   */
+    83→    83→  private shouldRetry(status: number | null, attempt: number): boolean {
+    84→    84→    if (attempt >= MAX_RETRIES) return false;
+    85→    85→    // 4xx = client error, never retry (except 401 which is handled separately)
+    86→    86→    if (status !== null && status >= 400 && status < 500) return false;
+    87→    87→    // 5xx or network failure: retry
+    88→    88→    return true;
+    89→    89→  }
+    90→    90→
+    91→    91→  private async request<T>(endpoint: string, options?: RequestInit, _attempt: number = 0, _isRetryAfterRefresh: boolean = false): Promise<T> {
+    92→    92→    const url = `${this.baseUrl}${endpoint}`;
+    93→    93→    const controller = new AbortController();
+    94→    94→    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    95→    95→
+    96→    96→    try {
+    97→    97→      const response = await fetch(url, {
+    98→    98→        ...options,
+    99→    99→        signal: controller.signal,
+   100→   100→        credentials: 'include', // Required for sending httpOnly cookies
+   101→   101→        headers: {
+   102→   102→          ...this.getHeaders(),
+   103→   103→          ...options?.headers,
+   104→   104→        },
+   105→   105→      });
+   106→   106→
+   107→   107→      if (response.status === 401) {
+   108→   108→        // On 401, try refreshing the token before giving up
+   109→   109→        if (!_isRetryAfterRefresh) {
+   110→   110→          const refreshed = await this.handleUnauthorized(endpoint, options);
+   111→   111→          if (refreshed) {
+   112→   112→            // Retry the original request with the new token
+   113→   113→            return this.request<T>(endpoint, options, 0, true);
+   114→   114→          }
+   115→   115→        }
+   116→   116→        throw new Error('Session expired. Please log in again.');
+   117→   117→      }
+   118→   118→
+   119→   119→      if (!response.ok) {
+   120→   120→        // Retry on 5xx
+   121→   121→        if (this.shouldRetry(response.status, _attempt)) {
+   122→   122→          const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
+   123→   123→          await new Promise((resolve) => setTimeout(resolve, delay));
+   124→   124→          return this.request<T>(endpoint, options, _attempt + 1, _isRetryAfterRefresh);
+   125→   125→        }
+   126→   126→
+   127→   127→        const error = await response.json().catch(() => ({ message: 'Request failed' }));
+   128→   128→        throw new Error(error.message || `HTTP ${response.status}`);
+   129→   129→      }
+   130→   130→
+   131→   131→      // Handle 204 No Content
+   132→   132→      if (response.status === 204) {
+   133→   133→        return undefined as T;
+   134→   134→      }
+   135→   135→
+   136→   136→      const json = await response.json();
+   137→   137→
+   138→   138→      // Unwrap the TransformInterceptor response: { success, data, meta }
+   139→   139→      // If the response has a `data` field at the top level and a `success` field,
+   140→   140→      // return just the `data` portion. Otherwise, return the full response.
+   141→   141→      if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
+   142→   142→        return json.data as T;
+   143→   143→      }
+   144→   144→
+   145→   145→      return json as T;
+   146→   146→    } catch (err) {
+   147→   147→      // Retry on network errors (abort, fetch failure) unless it's an auth redirect
+   148→   148→      if (err instanceof Error && err.message === 'Session expired. Please log in again.') {
+   149→   149→        throw err;
+   150→   150→      }
+   151→   151→
+   152→   152→      if (err instanceof DOMException && err.name === 'AbortError') {
+   153→   153→        if (this.shouldRetry(null, _attempt)) {
+   154→   154→          const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
+   155→   155→          await new Promise((resolve) => setTimeout(resolve, delay));
+   156→   156→          return this.request<T>(endpoint, options, _attempt + 1, _isRetryAfterRefresh);
+   157→   157→        }
+   158→   158→        throw new Error('Request timed out. Please try again.');
+   159→   159→      }
+   160→   160→
+   161→   161→      // Network error — retry
+   162→   162→      if (err instanceof TypeError && this.shouldRetry(null, _attempt)) {
+   163→   163→        const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
+   164→   164→        await new Promise((resolve) => setTimeout(resolve, delay));
+   165→   165→        return this.request<T>(endpoint, options, _attempt + 1, _isRetryAfterRefresh);
+   166→   166→      }
+   167→   167→
+   168→   168→      throw err;
+   169→   169→    } finally {
+   170→   170→      clearTimeout(timeoutId);
+   171→   171→    }
+   172→   172→  }
+   173→   173→
+   174→   174→  // Agents
+   175→   175→  async getAgents(params?: { cluster?: string; page?: number; limit?: number }) {
+   176→   176→    const searchParams = new URLSearchParams();
+   177→   177→    if (params?.cluster) searchParams.set('cluster', params.cluster);
+   178→   178→    if (params?.page) searchParams.set('page', String(params.page));
+   179→   179→    if (params?.limit) searchParams.set('limit', String(params.limit));
+   180→   180→    const query = searchParams.toString();
+   181→   181→    return this.request<{ data: import('./types').Agent[]; total: number }>(
+   182→   182→      `/agents${query ? `?${query}` : ''}`
+   183→   183→    );
+   184→   184→  }
+   185→   185→
+   186→   186→  async getAgentStats() {
+   187→   187→    return this.request<import('./types').ClusterStats[]>('/agents/stats');
+   188→   188→  }
+   189→   189→
+   190→   190→  async getAgent(id: string) {
+   191→   191→    return this.request<import('./types').Agent>(`/agents/${id}`);
+   192→   192→  }
+   193→   193→
+   194→   194→  async executeAgent(id: string, data: { tenantId: string; config: Record<string, unknown> }) {
+   195→   195→    return this.request<unknown>(`/agents/${id}/execute`, {
+   196→   196→      method: 'POST',
+   197→   197→      body: JSON.stringify(data),
+   198→   198→    });
+   199→   199→  }
+   200→   200→
+   201→   201→  // Tasks
+   202→   202→  async getTasks(params?: { status?: string; page?: number; limit?: number }) {
+   203→   203→    const searchParams = new URLSearchParams();
+   204→   204→    if (params?.status) searchParams.set('status', params.status);
+   205→   205→    if (params?.page) searchParams.set('page', String(params.page));
+   206→   206→    if (params?.limit) searchParams.set('limit', String(params.limit));
+   207→   207→    const query = searchParams.toString();
+   208→   208→    return this.request<{ data: import('./types').Task[]; total: number }>(
+   209→   209→      `/tasks${query ? `?${query}` : ''}`
+   210→   210→    );
+   211→   211→  }
+   212→   212→
+   213→   213→  async createTask(data: {
+   214→   214→    type: string;
+   215→   215→    tenantId: string;
+   216→   216→    agentId?: string;
+   217→   217→    priority?: number;
+   218→   218→    input?: Record<string, unknown>;
+   219→   219→  }) {
+   220→   220→    return this.request<import('./types').Task>('/tasks', {
+   221→   221→      method: 'POST',
+   222→   222→      body: JSON.stringify(data),
+   223→   223→    });
+   224→   224→  }
+   225→   225→
+   226→   226→  // Events
+   227→   227→  async getEvents(params?: {
+   228→   228→    namespace?: string;
+   229→   229→    type?: string;
+   230→   230→    severity?: string;
+   231→   231→    page?: number;
+   232→   232→    limit?: number;
+   233→   233→  }) {
+   234→   234→    const searchParams = new URLSearchParams();
+   235→   235→    if (params?.namespace) searchParams.set('namespace', params.namespace);
+   236→   236→    if (params?.type) searchParams.set('type', params.type);
+   237→   237→    if (params?.severity) searchParams.set('severity', params.severity);
+   238→   238→    if (params?.page) searchParams.set('page', String(params.page));
+   239→   239→    if (params?.limit) searchParams.set('limit', String(params.limit));
+   240→   240→    const query = searchParams.toString();
+   241→   241→    return this.request<{ data: import('./types').Event[]; total: number }>(
+   242→   242→      `/events${query ? `?${query}` : ''}`
+   243→   243→    );
+   244→   244→  }
+   245→   245→
+   246→   246→  async emitEvent(data: {
+   247→   247→    type: string;
+   248→   248→    namespace: string;
+   249→   249→    payload: Record<string, unknown>;
+   250→   250→    source: string;
+   251→   251→    severity?: string;
+   252→   252→  }) {
+   253→   253→    return this.request<import('./types').Event>('/events', {
+   254→   254→      method: 'POST',
+   255→   255→      body: JSON.stringify(data),
+   256→   256→    });
+   257→   257→  }
+   258→   258→
+   259→   259→  // Health
+   260→   260→  async getHealth() {
+   261→   261→    return this.request<import('./types').HealthCheckResult>('/health');
+   262→   262→  }
+   263→   263→
+   264→   264→  // Auth
+   265→   265→  async login(data: { email: string; password: string }) {
+   266→   266→    return this.request<import('./types').AuthResponse>('/auth/login', {
+   267→   267→      method: 'POST',
+   268→   268→      body: JSON.stringify(data),
+   269→   269→    });
+   270→   270→  }
+   271→   271→
+   272→   272→  async register(data: {
+   273→   273→    email: string;
+   274→   274→    password: string;
+   275→   275→    firstName: string;
+   276→   276→    lastName: string;
+   277→   277→    tenantSlug?: string;
+   278→   278→  }) {
+   279→   279→    return this.request<import('./types').AuthResponse>('/auth/register', {
+   280→   280→      method: 'POST',
+   281→   281→      body: JSON.stringify(data),
+   282→   282→    });
+   283→   283→  }
+   284→   284→
+   285→   285→  async login2fa(data: { tempToken: string; code: string }) {
+   286→   286→    return this.request<import('./types').AuthResponse>('/auth/login/2fa', {
+   287→   287→      method: 'POST',
+   288→   288→      body: JSON.stringify(data),
+   289→   289→    });
+   290→   290→  }
+   291→   291→
+   292→   292→  async logout() {
+   293→   293→    return this.request<void>('/auth/logout', {
+   294→   294→      method: 'POST',
+   295→   295→    });
+   296→   296→  }
+   297→   297→
+   298→   298→  // Missions
+   299→   299→  async getMissions(params?: { state?: string; priority?: string; page?: number; limit?: number }) {
+   300→   300→    const searchParams = new URLSearchParams();
+   301→   301→    if (params?.state) searchParams.set('state', params.state);
+   302→   302→    if (params?.priority) searchParams.set('priority', params.priority);
+   303→   303→    if (params?.page) searchParams.set('page', String(params.page));
+   304→   304→    if (params?.limit) searchParams.set('limit', String(params.limit));
+   305→   305→    const query = searchParams.toString();
+   306→   306→    return this.request<{ data: import('./types').Mission[]; total: number }>(
+   307→   307→      `/missions${query ? `?${query}` : ''}`
+   308→   308→    );
+   309→   309→  }
+   310→   310→
+   311→   311→  async getMission(id: string) {
+   312→   312→    return this.request<import('./types').Mission>(`/missions/${id}`);
+   313→   313→  }
+   314→   314→
+   315→   315→  async createMission(data: {
+   316→   316→    name: string;
+   317→   317→    description: string;
+   318→   318→    priority: import('./types').MissionPriority;
+   319→   319→    requiredCapabilities?: string[];
+   320→   320→    constraints?: string[];
+   321→   321→    deadline?: string;
+   322→   322→  }) {
+   323→   323→    return this.request<import('./types').Mission>('/missions', {
+   324→   324→      method: 'POST',
+   325→   325→      body: JSON.stringify(data),
+   326→   326→    });
+   327→   327→  }
+   328→   328→
+   329→   329→  async startMission(id: string) {
+   330→   330→    return this.request<import('./types').Mission>(`/missions/${id}/start`, {
+   331→   331→      method: 'POST',
+   332→   332→    });
+   333→   333→  }
+   334→   334→
+   335→   335→  async pauseMission(id: string) {
+   336→   336→    return this.request<import('./types').Mission>(`/missions/${id}/pause`, {
+   337→   337→      method: 'POST',
+   338→   338→    });
+   339→   339→  }
+   340→   340→
+   341→   341→  async resumeMission(id: string) {
+   342→   342→    return this.request<import('./types').Mission>(`/missions/${id}/resume`, {
+   343→   343→      method: 'POST',
+   344→   344→    });
+   345→   345→  }
+   346→   346→
+   347→   347→  async cancelMission(id: string) {
+   348→   348→    return this.request<import('./types').Mission>(`/missions/${id}`, {
+   349→   349→      method: 'DELETE',
+   350→   350→    });
+   351→   351→  }
+   352→   352→
+   353→   353→  async getMissionProgress(id: string) {
+   354→   354→    return this.request<{ progress: number; state: import('./types').MissionState; updatedAt: string }>(
+   355→   355→      `/missions/${id}/progress`
+   356→   356→    );
+   357→   357→  }
+   358→   358→
+   359→   359→  // Connectors
+   360→   360→  async getConnectors() {
+   361→   361→    return this.request<{ name: string; type: string; status: string; capabilities: string[] }[]>(
+   362→   362→      '/connectors'
+   363→   363→    );
+   364→   364→  }
+   365→   365→
+   366→   366→  async executeConnector(name: string, action: string, params?: Record<string, unknown>) {
+   367→   367→    return this.request<unknown>(`/connectors/${name}/execute`, {
+   368→   368→      method: 'POST',
+   369→   369→      body: JSON.stringify({ action, params }),
+   370→   370→    });
+   371→   371→  }
+   372→   372→
+   373→   373→  // Orchestration
+   374→   374→  orchestration = {
+   375→   375→    collaborate: (
+   376→   376→      pattern: import('./types').CollaborationPattern,
+   377→   377→      description: string,
+   378→   378→      objectives: string[],
+   379→   379→      options?: Record<string, unknown>
+   380→   380→    ) =>
+   381→   381→      this.request<import('./types').CollaborationResult>('/orchestration/collaborate', {
+   382→   382→        method: 'POST',
+   383→   383→        body: JSON.stringify({ pattern, description, objectives, ...options }),
+   384→   384→      }),
+   385→   385→
+   386→   386→    decompose: (
+   387→   387→      missionId: string | null,
+   388→   388→      description: string,
+   389→   389→      objectives: string[],
+   390→   390→      options?: Record<string, unknown>
+   391→   391→    ) =>
+   392→   392→      this.request<import('./types').DecompositionResult>('/orchestration/decompose', {
+   393→   393→        method: 'POST',
+   394→   394→        body: JSON.stringify({ missionId, description, objectives, ...options }),
+   395→   395→      }),
+   396→   396→
+   397→   397→    coordinate: (tasks: string[]) =>
+   398→   398→      this.request<import('./types').CoordinationResult>('/orchestration/coordinate', {
+   399→   399→        method: 'POST',
+   400→   400→        body: JSON.stringify({ taskIds: tasks }),
+   401→   401→      }),
+   402→   402→
+   403→   403→    getClusterHealth: () =>
+   404→   404→      this.request<import('./types').ClusterHealthInfo[]>('/orchestration/cluster-health'),
+   405→   405→
+   406→   406→    getConnectors: () =>
+   407→   407→      this.request<import('./types').UnifiedConnectorInfo[]>('/orchestration/connectors'),
+   408→   408→
+   409→   409→    getStatistics: () =>
+   410→   410→      this.request<import('./types').OrchestrationStatistics>('/orchestration/statistics'),
+   411→   411→
+   412→   412→    getHistory: (type?: string, limit?: number) => {
+   413→   413→      const searchParams = new URLSearchParams();
+   414→   414→      if (type) searchParams.set('type', type);
+   415→   415→      if (limit) searchParams.set('limit', String(limit));
+   416→   416→      const query = searchParams.toString();
+   417→   417→      return this.request<import('./types').OrchestrationHistoryItem[]>(
+   418→   418→        `/orchestration/history${query ? `?${query}` : ''}`
+   419→   419→      );
+   420→   420→    },
+   421→   421→  };
+   422→   422→
+   423→   423→  // Phase 9 — Intelligence
+   424→   424→  intelligence = {
+   425→   425→    // Knowledge Graph
+   426→   426→    getGraphStats: () =>
+   427→   427→      this.request<{ success: boolean; data: import('./types').GraphStatistics }>('/intelligence/graph/stats'),
+   428→   428→
+   429→   429→    getAgentKnowledge: (agentId: string) =>
+   430→   430→      this.request<{ success: boolean; data: import('./types').ExpertiseRanking | null }>(`/intelligence/graph/agents/${agentId}`),
+   431→   431→
+   432→   432→    getExpertiseRanking: (cluster?: string, limit?: number) => {
+   433→   433→      const params = new URLSearchParams();
+   434→   434→      if (cluster) params.set('cluster', cluster);
+   435→   435→      if (limit) params.set('limit', String(limit));
+   436→   436→      return this.request<{ success: boolean; data: import('./types').ExpertiseRanking[] }>(
+   437→   437→        `/intelligence/graph/expertise${params.toString() ? `?${params}` : ''}`
+   438→   438→      );
+   439→   439→    },
+   440→   440→
+   441→   441→    getStrategyRecommendations: (cluster?: string, capabilities?: string) => {
+   442→   442→      const params = new URLSearchParams();
+   443→   443→      if (cluster) params.set('cluster', cluster);
+   444→   444→      if (capabilities) params.set('capabilities', capabilities);
+   445→   445→      return this.request<{ success: boolean; data: import('./types').StrategyRecommendation[] }>(
+   446→   446→        `/intelligence/graph/recommendations${params.toString() ? `?${params}` : ''}`
+   447→   447→      );
+   448→   448→    },
+   449→   449→
+   450→   450→    // Learning Engine
+   451→   451→    submitLearningFeedback: (data: {
+   452→   452→      agentId: string;
+   453→   453→      missionId: string;
+   454→   454→      outcome: string;
+   455→   455→      durationMs: number;
+   456→   456→      score?: number;
+   457→   457→      strategyUsed?: string;
+   458→   458→      capabilitiesUsed?: string[];
+   459→   459→      context: Record<string, unknown>;
+   460→   460→    }) =>
+   461→   461→      this.request<{ success: boolean; data: { insightsGenerated: number } }>('/intelligence/learning/feedback', {
+   462→   462→        method: 'POST',
+   463→   463→        body: JSON.stringify(data),
+   464→   464→      }),
+   465→   465→
+   466→   466→    getLearningStats: () =>
+   467→   467→      this.request<{ success: boolean; data: import('./types').LearningStatistics }>('/intelligence/learning/stats'),
+   468→   468→
+   469→   469→    getLearningInsights: (type?: string, minConfidence?: number) => {
+   470→   470→      const params = new URLSearchParams();
+   471→   471→      if (type) params.set('type', type);
+   472→   472→      if (minConfidence) params.set('minConfidence', String(minConfidence));
+   473→   473→      return this.request<{ success: boolean; data: import('./types').LearningInsight[] }>(
+   474→   474→        `/intelligence/learning/insights${params.toString() ? `?${params}` : ''}`
+   475→   475→      );
+   476→   476→    },
+   477→   477→
+   478→   478→    transferLearning: (sourceAgentId: string, targetAgentId: string) =>
+   479→   479→      this.request<{ success: boolean; data: { transferred: number; skipped: number } }>('/intelligence/learning/transfer', {
+   480→   480→        method: 'POST',
+   481→   481→        body: JSON.stringify({ sourceAgentId, targetAgentId }),
+   482→   482→      }),
+   483→   483→
+   484→   484→    // Pattern Mining
+   485→   485→    minePatterns: (options?: { categories?: string[]; minFrequency?: number; minConfidence?: number }) =>
+   486→   486→      this.request<{ success: boolean; data: { patternCount: number; patterns: import('./types').DiscoveredPattern[] } }>('/intelligence/patterns/mine', {
+   487→   487→        method: 'POST',
+   488→   488→        body: JSON.stringify(options || {}),
+   489→   489→      }),
+   490→   490→
+   491→   491→    getPatterns: (category?: string, minConfidence?: number) => {
+   492→   492→      const params = new URLSearchParams();
+   493→   493→      if (category) params.set('category', category);
+   494→   494→      if (minConfidence) params.set('minConfidence', String(minConfidence));
+   495→   495→      return this.request<{ success: boolean; data: import('./types').DiscoveredPattern[] }>(
+   496→   496→        `/intelligence/patterns${params.toString() ? `?${params}` : ''}`
+   497→   497→      );
+   498→   498→    },
+   499→   499→
+   500→   500→    getCorrelations: () =>
+   501→   501→      this.request<{ success: boolean; data: import('./types').CorrelationFinding[] }>('/intelligence/patterns/correlations'),
+   502→   502→
+   503→   503→    getPatternStats: () =>
+   504→   504→      this.request<{ success: boolean; data: import('./types').PatternMiningStatistics }>('/intelligence/patterns/stats'),
+   505→   505→
+   506→   506→    // Adaptive Strategy
+   507→   507→    getAdaptiveConfig: () =>
+   508→   508→      this.request<{ success: boolean; data: import('./types').AdaptiveConfig }>('/intelligence/adaptive/config'),
+   509→   509→
+   510→   510→    runAdaptation: () =>
+   511→   511→      this.request<{ success: boolean; data: { adaptationCount: number; applied: number } }>('/intelligence/adaptive/adapt', {
+   512→   512→        method: 'POST',
+   513→   513→      }),
+   514→   514→
+   515→   515→    getAdaptiveStats: () =>
+   516→   516→      this.request<{ success: boolean; data: import('./types').AdaptiveStatistics }>('/intelligence/adaptive/stats'),
+   517→   517→
+   518→   518→    emergencyReset: () =>
+   519→   519→      this.request<{ success: boolean; data: { message: string } }>('/intelligence/adaptive/reset', {
+   520→   520→        method: 'POST',
+   521→   521→      }),
+   522→   522→
+   523→   523→    // Experience Replay
+   524→   524→    getExperienceStats: () =>
+   525→   525→      this.request<{ success: boolean; data: import('./types').ExperienceStatistics }>('/intelligence/experience/stats'),
+   526→   526→
+   527→   527→    // Feedback
+   528→   528→    submitFeedback: (data: {
+   529→   529→      source: string;
+   530→   530→      missionId: string;
+   531→   531→      agentId?: string;
+   532→   532→      rating?: number;
+   533→   533→      score?: number;
+   534→   534→      success?: boolean;
+   535→   535→      durationMs?: number;
+   536→   536→      comment?: string;
+   537→   537→      context: Record<string, unknown>;
+   538→   538→    }) =>
+   539→   539→      this.request<{ success: boolean; data: { message: string } }>('/intelligence/feedback', {
+   540→   540→        method: 'POST',
+   541→   541→        body: JSON.stringify(data),
+   542→   542→      }),
+   543→   543→
+   544→   544→    getFeedbackSummary: (cluster?: string) => {
+   545→   545→      const params = new URLSearchParams();
+   546→   546→      if (cluster) params.set('cluster', cluster);
+   547→   547→      return this.request<{ success: boolean; data: import('./types').FeedbackSummary }>(
+   548→   548→        `/intelligence/feedback/summary${params.toString() ? `?${params}` : ''}`
+   549→   549→      );
+   550→   550→    },
+   551→   551→
+   552→   552→    getFeedbackActions: (priority?: string, limit?: number) => {
+   553→   553→      const params = new URLSearchParams();
+   554→   554→      if (priority) params.set('priority', priority);
+   555→   555→      if (limit) params.set('limit', String(limit));
+   556→   556→      return this.request<{ success: boolean; data: import('./types').ActionItem[] }>(
+   557→   557→        `/intelligence/feedback/actions${params.toString() ? `?${params}` : ''}`
+   558→   558→      );
+   559→   559→    },
+   560→   560→
+   561→   561→    getFeedbackStats: () =>
+   562→   562→      this.request<{ success: boolean; data: import('./types').FeedbackStatistics }>('/intelligence/feedback/stats'),
+   563→   563→  };
+   564→   564→
+   565→   565→  // Phase 10 — Swarm Intelligence
+   566→   566→  swarm = {
+   567→   567→    // Swarm Service
+   568→   568→    createSwarm: (data: { name: string; objective: string; topology: import('./types').SwarmTopologyType; agentIds: string[] }) =>
+   569→   569→      this.request<{ success: boolean; data: import('./types').SwarmInfo }>('/swarm/create', {
+   570→   570→        method: 'POST',
+   571→   571→        body: JSON.stringify(data),
+   572→   572→      }),
+   573→   573→
+   574→   574→    getSwarms: () =>
+   575→   575→      this.request<{ success: boolean; data: import('./types').SwarmInfo[] }>('/swarm/list'),
+   576→   576→
+   577→   577→    executeSwarm: (id: string) =>
+   578→   578→      this.request<{ success: boolean; data: import('./types').SwarmInfo }>(`/swarm/${id}/execute`, {
+   579→   579→        method: 'POST',
+   580→   580→      }),
+   581→   581→
+   582→   582→    getSwarmMetrics: () =>
+   583→   583→      this.request<{ success: boolean; data: import('./types').SwarmMetrics }>('/swarm/metrics'),
+   584→   584→
+   585→   585→    // Consensus Service
+   586→   586→    initiateConsensus: (data: { topic: string; proposerId: string; participantIds: string[]; consensusThreshold?: number }) =>
+   587→   587→      this.request<{ success: boolean; data: import('./types').ConsensusSession }>('/swarm/consensus/initiate', {
+   588→   588→        method: 'POST',
+   589→   589→        body: JSON.stringify(data),
+   590→   590→      }),
+   591→   591→
+   592→   592→    runConsensus: (id: string) =>
+   593→   593→      this.request<{ success: boolean; data: import('./types').ConsensusSession }>(`/swarm/consensus/${id}/run`, {
+   594→   594→        method: 'POST',
+   595→   595→      }),
+   596→   596→
+   597→   597→    getConsensusResults: () =>
+   598→   598→      this.request<{ success: boolean; data: import('./types').ConsensusSession[] }>('/swarm/consensus/results'),
+   599→   599→
+   600→   600→    // Persistence Service
+   601→   601→    getCollaborations: () =>
+   602→   602→      this.request<{ success: boolean; data: import('./types').CollaborationSession[] }>('/swarm/persistence/collaborations'),
+   603→   603→
+   604→   604→    getCollaborationHistory: () =>
+   605→   605→      this.request<{ success: boolean; data: import('./types').CollaborationSession[] }>('/swarm/persistence/history'),
+   606→   606→
+   607→   607→    createCheckpoint: (collaborationId: string, label: string) =>
+   608→   608→      this.request<{ success: boolean; data: import('./types').Checkpoint }>(`/swarm/persistence/${collaborationId}/checkpoint`, {
+   609→   609→        method: 'POST',
+   610→   610→        body: JSON.stringify({ label }),
+   611→   611→      }),
+   612→   612→
+   613→   613→    recoverCheckpoint: (collaborationId: string, checkpointId: string) =>
+   614→   614→      this.request<{ success: boolean; data: import('./types').CollaborationSession }>(`/swarm/persistence/${collaborationId}/recover`, {
+   615→   615→        method: 'POST',
+   616→   616→        body: JSON.stringify({ checkpointId }),
+   617→   617→      }),
+   618→   618→
+   619→   619→    // Working Memory Service
+   620→   620→    createMemorySession: (data: { name: string; participants: string[] }) =>
+   621→   621→      this.request<{ success: boolean; data: import('./types').WorkingMemorySession }>('/swarm/memory/sessions', {
+   622→   622→        method: 'POST',
+   623→   623→        body: JSON.stringify(data),
+   624→   624→      }),
+   625→   625→
+   626→   626→    getMemorySessions: () =>
+   627→   627→      this.request<{ success: boolean; data: import('./types').WorkingMemorySession[] }>('/swarm/memory/sessions'),
+   628→   628→
+   629→   629→    writeToWorkspace: (sessionId: string, key: string, value: unknown) =>
+   630→   630→      this.request<{ success: boolean; data: { message: string } }>(`/swarm/memory/sessions/${sessionId}/workspace`, {
+   631→   631→        method: 'PUT',
+   632→   632→        body: JSON.stringify({ key, value }),
+   633→   633→      }),
+   634→   634→
+   635→   635→    // Feedback Loop Service
+   636→   636→    getFeedbackParams: () =>
+   637→   637→      this.request<{ success: boolean; data: import('./types').FeedbackLoopParams }>('/swarm/feedback/params'),
+   638→   638→
+   639→   639→    runFeedbackCycle: () =>
+   640→   640→      this.request<{ success: boolean; data: import('./types').FeedbackCycleResult }>('/swarm/feedback/cycle', {
+   641→   641→        method: 'POST',
+   642→   642→      }),
+   643→   643→
+   644→   644→    getFeedbackAdjustments: () =>
+   645→   645→      this.request<{ success: boolean; data: import('./types').FeedbackAdjustment[] }>('/swarm/feedback/adjustments'),
+   646→   646→
+   647→   647→    rollbackAdjustment: (adjustmentId: string) =>
+   648→   648→      this.request<{ success: boolean; data: { message: string } }>(`/swarm/feedback/adjustments/${adjustmentId}/rollback`, {
+   649→   649→        method: 'POST',
+   650→   650→      }),
+   651→   651→
+   652→   652→    // Topology Service
+   653→   653→    createTopology: (data: { name: string; type: import('./types').SwarmTopologyType; nodeCount: number }) =>
+   654→   654→      this.request<{ success: boolean; data: import('./types').TopologyInfo }>('/swarm/topology/create', {
+   655→   655→        method: 'POST',
+   656→   656→        body: JSON.stringify(data),
+   657→   657→      }),
+   658→   658→
+   659→   659→    getTopologies: () =>
+   660→   660→      this.request<{ success: boolean; data: import('./types').TopologyInfo[] }>('/swarm/topology/list'),
+   661→   661→
+   662→   662→    addTopologyNode: (topologyId: string, agentId: string) =>
+   663→   663→      this.request<{ success: boolean; data: import('./types').TopologyInfo }>(`/swarm/topology/${topologyId}/nodes`, {
+   664→   664→        method: 'POST',
+   665→   665→        body: JSON.stringify({ agentId }),
+   666→   666→      }),
+   667→   667→
+   668→   668→    removeTopologyNode: (topologyId: string, nodeId: string) =>
+   669→   669→      this.request<{ success: boolean; data: import('./types').TopologyInfo }>(`/swarm/topology/${topologyId}/nodes/${nodeId}`, {
+   670→   670→        method: 'DELETE',
+   671→   671→      }),
+   672→   672→
+   673→   673→    isolateNode: (topologyId: string, nodeId: string) =>
+   674→   674→      this.request<{ success: boolean; data: { message: string } }>(`/swarm/topology/${topologyId}/nodes/${nodeId}/isolate`, {
+   675→   675→        method: 'POST',
+   676→   676→      }),
+   677→   677→
+   678→   678→    restoreNode: (topologyId: string, nodeId: string) =>
+   679→   679→      this.request<{ success: boolean; data: { message: string } }>(`/swarm/topology/${topologyId}/nodes/${nodeId}/restore`, {
+   680→   680→        method: 'POST',
+   681→   681→      }),
+   682→   682→
+   683→   683→    // DAG Orchestrator Service
+   684→   684→    executeDAG: (data: { name: string; nodes: Array<{ id: string; label: string; agentId?: string }>; edges: Array<{ source: string; target: string; condition?: string }> }) =>
+   685→   685→      this.request<{ success: boolean; data: import('./types').DAGExecution }>('/swarm/dag/execute', {
+   686→   686→        method: 'POST',
+   687→   687→        body: JSON.stringify(data),
+   688→   688→      }),
+   689→   689→
+   690→   690→    getDAGResults: () =>
+   691→   691→      this.request<{ success: boolean; data: import('./types').DAGExecution[] }>('/swarm/dag/results'),
+   692→   692→
+   693→   693→    getDAGTrace: (executionId: string) =>
+   694→   694→      this.request<{ success: boolean; data: import('./types').DAGTrace }>(`/swarm/dag/${executionId}/trace`),
+   695→   695→  };
+   696→   696→}
+   697→   697→
+   698→   698→export const api = new ApiClient();
+   699→   699→

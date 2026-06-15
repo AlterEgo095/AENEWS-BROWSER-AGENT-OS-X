@@ -1,0 +1,733 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→
+     8→export class DecisionAgent extends BaseAgent {
+     9→  readonly name = 'DecisionAgent';
+    10→  readonly cluster = ClusterType.BUSINESS;
+    11→  readonly capabilities = [
+    12→    'analyze',
+    13→    'recommend',
+    14→    'simulate',
+    15→    'optimize',
+    16→    'forecast',
+    17→    'benchmark',
+    18→  ];
+    19→  readonly version = '1.0.0';
+    20→  readonly description =
+    21→    'Decision support including multi-criteria analysis, AI-powered recommendations, scenario simulation, optimization, forecasting, and benchmarking';
+    22→
+    23→  async execute(context: AgentContext): Promise<AgentResult> {
+    24→    try {
+    25→      const { config } = context;
+    26→      const action = config.action || 'analyze';
+    27→      const startTime = Date.now();
+    28→
+    29→      switch (action) {
+    30→        case 'analyze': {
+    31→          const decision = config.decision;
+    32→          const type = config.type || 'multi_criteria';
+    33→          const criteria = config.criteria || [];
+    34→          const alternatives = config.alternatives || [];
+    35→          const weights = config.weights || {};
+    36→          const constraints = config.constraints || [];
+    37→          const decisionMatrix = config.decisionMatrix || {};
+    38→          const methodology = config.methodology || 'ahp';
+    39→          const includeSensitivity = config.includeSensitivity !== false;
+    40→          const includeConsistency = config.includeConsistency !== false;
+    41→          const stakeholders = config.stakeholders || [];
+    42→
+    43→          if (!decision) {
+    44→            return {
+    45→              success: false,
+    46→              error: '"decision" description is required for decision analysis',
+    47→            };
+    48→          }
+    49→
+    50→          this.logger.log(
+    51→            `Analyzing decision: "${decision}" (type: ${type}, methodology: ${methodology})`,
+    52→          );
+    53→
+    54→          return {
+    55→            success: true,
+    56→            data: {
+    57→              action,
+    58→              decision,
+    59→              type,
+    60→              criteria: criteria as Array<{
+    61→                name: string;
+    62→                description: string;
+    63→                direction: 'maximize' | 'minimize';
+    64→                scale: string;
+    65→              }>,
+    66→              alternatives: alternatives as Array<{
+    67→                name: string;
+    68→                description: string;
+    69→                scores: Record<string, number>;
+    70→              }>,
+    71→              weights,
+    72→              constraints,
+    73→              decisionMatrix,
+    74→              methodology: methodology as 'ahp' | 'topsis' | 'electre' | 'promethee' | 'wsa' | '马科维茨',
+    75→              includeSensitivity,
+    76→              includeConsistency,
+    77→              stakeholders,
+    78→              analysis: {
+    79→                decisionMatrix: {
+    80→                  rows: alternatives.length,
+    81→                  columns: criteria.length,
+    82→                  matrix: [] as number[][],
+    83→                  normalized: [] as number[][],
+    84→                },
+    85→                weightedScores: [] as Array<{
+    86→                  alternative: string;
+    87→                  weightedScore: number;
+    88→                  rank: number;
+    89→                  scoresByCriterion: Record<string, number>;
+    90→                }>,
+    91→                rankings: [] as Array<{
+    92→                  alternative: string;
+    93→                  score: number;
+    94→                  rank: number;
+    95→                  confidence: number;
+    96→                }>,
+    97→                sensitivity: includeSensitivity
+    98→                  ? {
+    99→                      stableAlternatives: [] as string[],
+   100→                      criticalWeights: [] as Array<{
+   101→                        criterion: string;
+   102→                        currentWeight: number;
+   103→                        thresholdWeight: number;
+   104→                        direction: 'increase' | 'decrease';
+   105→                        affectedRankings: string[];
+   106→                      }>,
+   107→                      tornadoData: [] as Array<{
+   108→                        criterion: string;
+   109→                        low: number;
+   110→                        high: number;
+   111→                        base: number;
+   112→                      }>,
+   113→                    }
+   114→                  : undefined,
+   115→                consistency: includeConsistency
+   116→                  ? {
+   117→                      consistencyRatio: 0,
+   118→                      isConsistent: false,
+   119→                      inconsistencies: [] as Array<{
+   120→                        criterion1: string;
+   121→                        criterion2: string;
+   122→                        expectedRatio: number;
+   123→                        actualRatio: number;
+   124→                        deviation: number;
+   125→                      }>,
+   126→                      recommendation: '',
+   127→                    }
+   128→                  : undefined,
+   129→                tradeoffs: [] as Array<{
+   130→                  criterion1: string;
+   131→                  criterion2: string;
+   132→                  tradeoffRate: number;
+   133→                  description: string;
+   134→                }>,
+   135→                dominantAlternatives: [] as string[],
+   136→                dominatedAlternatives: [] as string[],
+   137→              },
+   138→              recommendation: {
+   139→                preferred: '',
+   140→                rationale: '',
+   141→                confidence: 0,
+   142→                caveats: [] as string[],
+   143→                nextSteps: [] as string[],
+   144→              },
+   145→              status: 'analysis_complete',
+   146→              timestamp: new Date().toISOString(),
+   147→            },
+   148→            metadata: { duration: Date.now() - startTime },
+   149→          };
+   150→        }
+   151→
+   152→        case 'recommend': {
+   153→          const domain = config.domain;
+   154→          const situation = config.situation;
+   155→          const objectives = config.objectives || [];
+   156→          const constraints = config.constraints || [];
+   157→          const availableData = config.availableData || {};
+   158→          const preferences = config.preferences || {};
+   159→          const riskTolerance = config.riskTolerance || 'moderate';
+   160→          const timeHorizon = config.timeHorizon || 'short_term';
+   161→          const maxRecommendations = config.maxRecommendations || 5;
+   162→          const includeReasoning = config.includeReasoning !== false;
+   163→          const includeConfidence = config.includeConfidence !== false;
+   164→
+   165→          if (!domain || !situation) {
+   166→            return {
+   167→              success: false,
+   168→              error: '"domain" and "situation" are required for recommendations',
+   169→            };
+   170→          }
+   171→
+   172→          this.logger.log(
+   173→            `Generating recommendations for "${domain}" (risk: ${riskTolerance}, horizon: ${timeHorizon})`,
+   174→          );
+   175→
+   176→          return {
+   177→            success: true,
+   178→            data: {
+   179→              action,
+   180→              domain,
+   181→              situation,
+   182→              objectives,
+   183→              constraints,
+   184→              availableData,
+   185→              preferences,
+   186→              riskTolerance: riskTolerance as
+   187→                | 'conservative'
+   188→                | 'moderate'
+   189→                | 'aggressive',
+   190→              timeHorizon: timeHorizon as
+   191→                | 'immediate'
+   192→                | 'short_term'
+   193→                | 'medium_term'
+   194→                | 'long_term',
+   195→              maxRecommendations,
+   196→              includeReasoning,
+   197→              includeConfidence,
+   198→              recommendations: [] as Array<{
+   199→                id: string;
+   200→                title: string;
+   201→                description: string;
+   202→                priority: 'critical' | 'high' | 'medium' | 'low';
+   203→                expectedImpact: string;
+   204→                effort: 'low' | 'medium' | 'high';
+   205→                riskLevel: 'low' | 'medium' | 'high';
+   206→                confidence: number;
+   207→                reasoning: string;
+   208→                prerequisites: string[];
+   209→                estimatedROI: number;
+   210→                timeline: string;
+   211→                successMetrics: string[];
+   212→                potentialRisks: string[];
+   213→              }>,
+   214→              analysis: {
+   215→                situationSummary: '',
+   216→                keyFactors: [] as Array<{
+   217→                  factor: string;
+   218→                  impact: 'positive' | 'negative' | 'neutral';
+   219→                  magnitude: 'high' | 'medium' | 'low';
+   220→                }>,
+   221→                gaps: [] as string[],
+   222→                opportunities: [] as string[],
+   223→              },
+   224→              prioritizedActions: [] as Array<{
+   225→                order: number;
+   226→                recommendation: string;
+   227→                urgency: 'immediate' | 'near_term' | 'strategic';
+   228→                dependencies: string[];
+   229→              }>,
+   230→              decisionTree: {
+   231→                root: '',
+   232→                branches: [] as Array<{
+   233→                  condition: string;
+   234→                  recommendation: string;
+   235→                  probability: number;
+   236→                }>,
+   237→              },
+   238→              status: 'recommendations_complete',
+   239→              timestamp: new Date().toISOString(),
+   240→            },
+   241→            metadata: { duration: Date.now() - startTime },
+   242→          };
+   243→        }
+   244→
+   245→        case 'simulate': {
+   246→          const scenario = config.scenario;
+   247→          const model = config.model || 'monte_carlo';
+   248→          const variables = config.variables || [];
+   249→          const assumptions = config.assumptions || [];
+   250→          const iterations = config.iterations || 10000;
+   251→          const confidenceLevel = config.confidenceLevel || 0.95;
+   252→          const timeHorizon = config.timeHorizon || 12;
+   253→          const timeUnit = config.timeUnit || 'months';
+   254→          const includePaths = config.includePaths || false;
+   255→          const maxPaths = config.maxPaths || 100;
+   256→          const includeStressTest = config.includeStressTest || false;
+   257→          const seed = config.seed;
+   258→
+   259→          if (!scenario && variables.length === 0) {
+   260→            return {
+   261→              success: false,
+   262→              error: '"scenario" or "variables" are required for simulation',
+   263→            };
+   264→          }
+   265→
+   266→          this.logger.log(
+   267→            `Running simulation (model: ${model}, iterations: ${iterations}, horizon: ${timeHorizon} ${timeUnit})`,
+   268→          );
+   269→
+   270→          return {
+   271→            success: true,
+   272→            data: {
+   273→              action,
+   274→              scenario,
+   275→              model: model as
+   276→                | 'monte_carlo'
+   277→                | 'discrete_event'
+   278→                | 'agent_based'
+   279→                | 'system_dynamics'
+   280→                | 'stochastic',
+   281→              variables: variables as Array<{
+   282→                name: string;
+   283→                distribution: 'normal' | 'uniform' | 'triangular' | 'lognormal' | 'beta' | 'discrete';
+   284→                parameters: Record<string, number>;
+   285→                currentValue: number;
+   286→              }>,
+   287→              assumptions,
+   288→              iterations,
+   289→              confidenceLevel,
+   290→              timeHorizon,
+   291→              timeUnit,
+   292→              includePaths,
+   293→              maxPaths,
+   294→              includeStressTest,
+   295→              seed,
+   296→              simulation: {
+   297→                results: {
+   298→                  mean: {} as Record<string, number>,
+   299→                  median: {} as Record<string, number>,
+   300→                  standardDeviation: {} as Record<string, number>,
+   301→                  confidenceIntervals: {} as Record<
+   302→                    string,
+   303→                    { lower: number; upper: number }
+   304→                  >,
+   305→                  percentiles: {} as Record<string, Record<string, number>>,
+   306→                },
+   307→                paths: includePaths
+   308→                  ? ([] as Array<{
+   309→                      pathId: number;
+   310→                      probability: number;
+   311→                      outcomes: Record<string, number>;
+   312→                    }>)
+   313→                  : undefined,
+   314→                convergence: {
+   315→                  achieved: true,
+   316→                  iterationsNeeded: 0,
+   317→                  standardError: {} as Record<string, number>,
+   318→                },
+   319→                sensitivityAnalysis: {
+   320→                  mostInfluential: [] as Array<{
+   321→                    variable: string;
+   322→                    influence: number;
+   323→                    correlationType: 'positive' | 'negative' | 'nonlinear';
+   324→                  }>,
+   325→                  interactionEffects: [] as Array<{
+   326→                    variable1: string;
+   327→                    variable2: string;
+   328→                    effect: number;
+   329→                  }>,
+   330→                },
+   331→              },
+   332→              stressTest: includeStressTest
+   333→                ? {
+   334→                    scenarios: [] as Array<{
+   335→                      name: string;
+   336→                      description: string;
+   337→                      adjustments: Record<string, number>;
+   338→                      outcomes: Record<string, number>;
+   339→                      probability: number;
+   340→                    }>,
+   341→                    worstCase: {} as Record<string, number>,
+   342→                    bestCase: {} as Record<string, number>,
+   343→                  }
+   344→                : undefined,
+   345→              timeline: [] as Array<{
+   346→                period: number;
+   347→                expected: Record<string, number>;
+   348→                optimistic: Record<string, number>;
+   349→                pessimistic: Record<string, number>;
+   350→              }>,
+   351→              status: 'simulation_complete',
+   352→              timestamp: new Date().toISOString(),
+   353→            },
+   354→            metadata: { duration: Date.now() - startTime },
+   355→          };
+   356→        }
+   357→
+   358→        case 'optimize': {
+   359→          const objective = config.objective;
+   360→          const direction = config.direction || 'maximize';
+   361→          const variables = config.variables || [];
+   362→          const constraints = config.constraints || [];
+   363→          const method = config.method || 'linear';
+   364→          const solver = config.solver || 'simplex';
+   365→          const tolerance = config.tolerance || 1e-6;
+   366→          const maxIterations = config.maxIterations || 10000;
+   367→          const includeRelaxation = config.includeRelaxation || false;
+   368→          const includeDuals = config.includeDuals || false;
+   369→          const includePareto = config.includePareto || false;
+   370→
+   371→          if (!objective || variables.length === 0) {
+   372→            return {
+   373→              success: false,
+   374→              error:
+   375→                '"objective" function and "variables" are required for optimization',
+   376→            };
+   377→          }
+   378→
+   379→          this.logger.log(
+   380→            `Optimizing: ${direction} "${objective}" (method: ${method}, solver: ${solver})`,
+   381→          );
+   382→
+   383→          return {
+   384→            success: true,
+   385→            data: {
+   386→              action,
+   387→              objective,
+   388→              direction: direction as 'maximize' | 'minimize',
+   389→              variables: variables as Array<{
+   390→                name: string;
+   391→                lowerBound: number;
+   392→                upperBound: number;
+   393→                type: 'continuous' | 'integer' | 'binary';
+   394→                currentValue: number;
+   395→              }>,
+   396→              constraints: constraints as Array<{
+   397→                name: string;
+   398→                expression: string;
+   399→                operator: 'lte' | 'gte' | 'eq';
+   400→                rhs: number;
+   401→                slack: number;
+   402→              }>,
+   403→              method: method as 'linear' | 'nonlinear' | 'integer' | 'quadratic' | 'stochastic' | 'multi_objective',
+   404→              solver,
+   405→              tolerance,
+   406→              maxIterations,
+   407→              includeRelaxation,
+   408→              includeDuals,
+   409→              includePareto,
+   410→              optimization: {
+   411→                status: 'optimal' as 'optimal' | 'suboptimal' | 'infeasible' | 'unbounded' | 'time_limit',
+   412→                objectiveValue: 0,
+   413→                optimalVariables: {} as Record<string, number>,
+   414→                iterations: 0,
+   415→                solveTime: 0,
+   416→                gap: 0,
+   417→              },
+   418→              sensitivity: {
+   419→                variableRanges: [] as Array<{
+   420→                  variable: string;
+   421→                  currentValue: number;
+   422→                  allowableIncrease: number;
+   423→                  allowableDecrease: number;
+   424→                  reducedCost: number;
+   425→                }>,
+   426→                constraintRanges: [] as Array<{
+   427→                  constraint: string;
+   428→                  shadowPrice: number;
+   429→                  allowableIncrease: number;
+   430→                  allowableDecrease: number;
+   431→                }>,
+   432→              },
+   433→              relaxation: includeRelaxation
+   434→                ? {
+   435→                    relaxedObjective: 0,
+   436→                    gap: 0,
+   437→                    relaxedVariables: {} as Record<string, number>,
+   438→                  }
+   439→                : undefined,
+   440→              duals: includeDuals
+   441→                ? {
+   442→                    shadowPrices: {} as Record<string, number>,
+   443→                    reducedCosts: {} as Record<string, number>,
+   444→                  }
+   445→                : undefined,
+   446→              paretoFront: includePareto
+   447→                ? {
+   448→                    solutions: [] as Array<{
+   449→                      objectives: Record<string, number>;
+   450→                      variables: Record<string, number>;
+   451→                    }>,
+   452→                    idealPoint: {} as Record<string, number>,
+   453→                    nadirPoint: {} as Record<string, number>,
+   454→                  }
+   455→                : undefined,
+   456→              recommendations: [] as Array<{
+   457→                insight: string;
+   458→                impact: string;
+   459→                action: string;
+   460→              }>,
+   461→              status: 'optimization_complete',
+   462→              timestamp: new Date().toISOString(),
+   463→            },
+   464→            metadata: { duration: Date.now() - startTime },
+   465→          };
+   466→        }
+   467→
+   468→        case 'forecast': {
+   469→          const target = config.target;
+   470→          const model = config.model || 'auto';
+   471→          const historicalData = config.historicalData || [];
+   472→          const horizon = config.horizon || 12;
+   473→          const frequency = config.frequency || 'monthly';
+   474→          const confidenceInterval = config.confidenceInterval || 0.95;
+   475→          const includeDecomposition = config.includeDecomposition !== false;
+   476→          const includeAnomalies = config.includeAnomalies !== false;
+   477→          const includeWhatIf = config.includeWhatIf || false;
+   478→          const whatIfScenarios = config.whatIfScenarios || [];
+   479→          const externalFactors = config.externalFactors || [];
+   480→
+   481→          if (!target) {
+   482→            return {
+   483→              success: false,
+   484→              error: '"target" variable is required for forecasting',
+   485→            };
+   486→          }
+   487→
+   488→          this.logger.log(
+   489→            `Forecasting "${target}" (model: ${model}, horizon: ${horizon}, frequency: ${frequency})`,
+   490→          );
+   491→
+   492→          return {
+   493→            success: true,
+   494→            data: {
+   495→              action,
+   496→              target,
+   497→              model: model as
+   498→                | 'auto'
+   499→                | 'arima'
+   500→                | 'exponential_smoothing'
+   501→                | 'prophet'
+   502→                | 'lstm'
+   503→                | 'regression'
+   504→                | 'ensemble',
+   505→              historicalData,
+   506→              horizon,
+   507→              frequency: frequency as
+   508→                | 'hourly'
+   509→                | 'daily'
+   510→                | 'weekly'
+   511→                | 'monthly'
+   512→                | 'quarterly'
+   513→                | 'annually',
+   514→              confidenceInterval,
+   515→              includeDecomposition,
+   516→              includeAnomalies,
+   517→              includeWhatIf,
+   518→              whatIfScenarios: whatIfScenarios as Array<{
+   519→                name: string;
+   520→                adjustments: Record<string, number>;
+   521→              }>,
+   522→              externalFactors: externalFactors as Array<{
+   523→                name: string;
+   524→                correlation: number;
+   525→                lag: number;
+   526→                availability: 'real_time' | 'delayed' | 'historical';
+   527→              }>,
+   528→              forecast: {
+   529→                modelSelected: '',
+   530→                modelParameters: {} as Record<string, number>,
+   531→                predictions: [] as Array<{
+   532→                  period: string;
+   533→                  predicted: number;
+   534→                  lowerBound: number;
+   535→                  upperBound: number;
+   536→                }>,
+   537→                accuracy: {
+   538→                  mape: 0,
+   539→                  rmse: 0,
+   540→                  mae: 0,
+   541→                  mase: 0,
+   542→                  rSquared: 0,
+   543→                },
+   544→                validation: {
+   545→                  method: 'cross_validation',
+   546→                  folds: 5,
+   547→                  averageError: 0,
+   548→                },
+   549→              },
+   550→              decomposition: includeDecomposition
+   551→                ? {
+   552→                    trend: [] as Array<{ period: string; value: number }>,
+   553→                    seasonal: [] as Array<{ period: string; value: number }>,
+   554→                    residual: [] as Array<{ period: string; value: number }>,
+   555→                    seasonalityStrength: 0,
+   556→                    trendStrength: 0,
+   557→                  }
+   558→                : undefined,
+   559→              anomalies: includeAnomalies
+   560→                ? ([] as Array<{
+   561→                    period: string;
+   562→                    actual: number;
+   563→                    expected: number;
+   564→                    deviation: number;
+   565→                    severity: 'low' | 'medium' | 'high';
+   566→                    possibleCauses: string[];
+   567→                  }>)
+   568→                : undefined,
+   569→              whatIf: includeWhatIf
+   570→                ? ([] as Array<{
+   571→                    scenario: string;
+   572→                    predictions: Array<{
+   573→                      period: string;
+   574→                      predicted: number;
+   575→                      deviation: number;
+   576→                    }>;
+   577→                    cumulativeImpact: number;
+   578→                  }>)
+   579→                : undefined,
+   580→              drivers: [] as Array<{
+   581→                factor: string;
+   582→                importance: number;
+   583→                direction: 'positive' | 'negative' | 'neutral';
+   584→                description: string;
+   585→              }>,
+   586→              status: 'forecast_complete',
+   587→              timestamp: new Date().toISOString(),
+   588→            },
+   589→            metadata: { duration: Date.now() - startTime },
+   590→          };
+   591→        }
+   592→
+   593→        case 'benchmark': {
+   594→          const subject = config.subject;
+   595→          const metrics = config.metrics || [];
+   596→          const peerGroup = config.peerGroup || [];
+   597→          const industry = config.industry;
+   598→          const region = config.region || 'global';
+   599→          const period = config.period || 'latest';
+   600→          const methodology = config.methodology || 'percentile';
+   601→          const includeTrends = config.includeTrends !== false;
+   602→          const includeBestPractices = config.includeBestPractices !== false;
+   603→          const includeGapAnalysis = config.includeGapAnalysis !== false;
+   604→
+   605→          if (!subject && metrics.length === 0) {
+   606→            return {
+   607→              success: false,
+   608→              error: '"subject" or "metrics" are required for benchmarking',
+   609→            };
+   610→          }
+   611→
+   612→          this.logger.log(
+   613→            `Benchmarking "${subject || 'metrics'}" (industry: ${industry || 'all'}, region: ${region})`,
+   614→          );
+   615→
+   616→          return {
+   617→            success: true,
+   618→            data: {
+   619→              action,
+   620→              subject,
+   621→              metrics: metrics as Array<{
+   622→                name: string;
+   623→                value: number;
+   624→                unit: string;
+   625→                direction: 'higher_is_better' | 'lower_is_better';
+   626→              }>,
+   627→              peerGroup: peerGroup as Array<{
+   628→                name: string;
+   629→                type: 'direct_competitor' | 'industry_average' | 'best_in_class' | 'aspirational';
+   630→              }>,
+   631→              industry,
+   632→              region,
+   633→              period,
+   634→              methodology: methodology as 'percentile' | 'z_score' | 'ratio' | 'ranking',
+   635→              includeTrends,
+   636→              includeBestPractices,
+   637→              includeGapAnalysis,
+   638→              benchmark: {
+   639→                results: [] as Array<{
+   640→                  metric: string;
+   641→                  ourValue: number;
+   642→                  industryAverage: number;
+   643→                  industryMedian: number;
+   644→                  bestInClass: number;
+   645→                  percentileRank: number;
+   646→                  gap: {
+   647→                    toAverage: number;
+   648→                    toBestInClass: number;
+   649→                    toMedian: number;
+   650→                  };
+   651→                  unit: string;
+   652→                }>,
+   653→                overallRank: {
+   654→                  percentile: 0,
+   655→                  tier: 'leaders' as string,
+   656→                  position: 0,
+   657→                  totalPeers: 0,
+   658→                },
+   659→              },
+   660→              trends: includeTrends
+   661→                ? ([] as Array<{
+   662→                    metric: string;
+   663→                    periods: Array<{
+   664→                      period: string;
+   665→                      ourValue: number;
+   666→                      industryAverage: number;
+   667→                      bestInClass: number;
+   668→                    }>;
+   669→                    trend: 'improving' | 'stable' | 'declining';
+   670→                    convergenceRate: number;
+   671→                  }>)
+   672→                : undefined,
+   673→              bestPractices: includeBestPractices
+   674→                ? ([] as Array<{
+   675→                    area: string;
+   676→                    practice: string;
+   677→                    adoptedBy: string[];
+   678→                    impactDescription: string;
+   679→                    implementationEffort: 'low' | 'medium' | 'high';
+   680→                    relevantMetrics: string[];
+   681→                  }>)
+   682→                : undefined,
+   683→              gapAnalysis: includeGapAnalysis
+   684→                ? {
+   685→                    criticalGaps: [] as Array<{
+   686→                      metric: string;
+   687→                      currentGap: number;
+   688→                      gapToBest: number;
+   689→                      effort: 'low' | 'medium' | 'high';
+   690→                      impact: 'low' | 'medium' | 'high';
+   691→                      priority: number;
+   692→                    }>,
+   693→                    quickWins: [] as Array<{
+   694→                      metric: string;
+   695→                      gap: number;
+   696→                      effort: string;
+   697→                      expectedImprovement: number;
+   698→                    }>,
+   699→                    improvementRoadmap: [] as Array<{
+   700→                      phase: number;
+   701→                      focus: string;
+   702→                      metrics: string[];
+   703→                      targetPercentile: number;
+   704→                      estimatedTime: string;
+   705→                    }>,
+   706→                  }
+   707→                : undefined,
+   708→              recommendations: [] as Array<{
+   709→                area: string;
+   710→                recommendation: string;
+   711→                expectedImpact: string;
+   712→                priority: 'critical' | 'high' | 'medium' | 'low';
+   713→                timeline: string;
+   714→              }>,
+   715→              status: 'benchmark_complete',
+   716→              timestamp: new Date().toISOString(),
+   717→            },
+   718→            metadata: { duration: Date.now() - startTime },
+   719→          };
+   720→        }
+   721→
+   722→        default:
+   723→          return {
+   724→            success: false,
+   725→            error: `Unknown action: ${action}. Supported actions: analyze, recommend, simulate, optimize, forecast, benchmark`,
+   726→          };
+   727→      }
+   728→    } catch (error: any) {
+   729→      return { success: false, error: error.message };
+   730→    }
+   731→  }
+   732→}
+   733→

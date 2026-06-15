@@ -1,0 +1,404 @@
+     1→     1→import {
+     2→     2→  BaseAgent,
+     3→     3→  AgentContext,
+     4→     4→  AgentResult,
+     5→     5→} from '../../../modules/agent/agent.abstract';
+     6→     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→     8→
+     9→     9→export class InfluencerAgent extends BaseAgent {
+    10→    10→  readonly name = 'InfluencerAgent';
+    11→    11→  readonly cluster = ClusterType.MARKETING;
+    12→    12→  readonly capabilities = [
+    13→    13→    'discover',
+    14→    14→    'outreach',
+    15→    15→    'campaign',
+    16→    16→    'track',
+    17→    17→    'negotiate',
+    18→    18→    'report',
+    19→    19→  ];
+    20→    20→  readonly version = '2.0.0';
+    21→    21→  readonly description =
+    22→    22→    'Discovers influencers, manages outreach, orchestrates influencer campaigns, tracks performance, handles negotiations, and generates influencer marketing reports';
+    23→    23→
+    24→    24→  async execute(context: AgentContext): Promise<AgentResult> {
+    25→    25→    try {
+    26→    26→      const { config } = context;
+    27→    27→      const action = config.action || 'discover';
+    28→    28→      const startTime = Date.now();
+    29→    29→
+    30→    30→      this.emitEvent(AgentEventType.AGENT_STARTED, { action });
+    31→    31→
+    32→    32→      switch (action) {
+    33→    33→        case 'discover': {
+    34→    34→          const niche = config.niche;
+    35→    35→          const platform = config.platform || 'instagram';
+    36→    36→          const minFollowers = config.minFollowers || 10000;
+    37→    37→          const maxFollowers = config.maxFollowers || 1000000;
+    38→    38→          const minEngagementRate = config.minEngagementRate || 2;
+    39→    39→          const location = config.location || '';
+    40→    40→          const language = config.language || 'en';
+    41→    41→          const audienceDemographics = config.audienceDemographics || {};
+    42→    42→          const contentType = config.contentType || [];
+    43→    43→          const maxResults = config.maxResults || 20;
+    44→    44→          const includeFakeFollowerCheck = config.includeFakeFollowerCheck !== false;
+    45→    45→          const sortBy = config.sortBy || 'engagementRate';
+    46→    46→
+    47→    47→          if (!niche) {
+    48→    48→            return { success: false, error: '"niche" is required for influencer discovery' };
+    49→    49→          }
+    50→    50→
+    51→    51→          this.logger.log(`Discovering influencers in "${niche}" on ${platform} (${minFollowers}-${maxFollowers} followers, max: ${maxResults})`);
+    52→    52→
+    53→    53→          const llmResult = await this.executeWithLLM(
+    54→    54→            `You are an influencer marketing expert. You discover and evaluate influencers based on niche, engagement, audience quality, and brand fit. You provide realistic follower counts, engagement rates, and audience demographics.`,
+    55→    55→            `Discover influencers in "${niche}" on ${platform}. Min followers: ${minFollowers}, max: ${maxFollowers}. Min engagement: ${minEngagementRate}%. Return JSON with: influencers (array of 5-8 {username, displayName, platform, followers, engagementRate, avgLikes, avgComments, niche, bio, verified, audienceDemographics {ageGenders, topCountries}, fakeFollowerScore, brandAffinityScore}), searchSummary {totalFound, filtered, avgEngagementRate, avgFollowers}.`,
+    56→    56→            { responseFormat: 'json', temperature: 0.4, maxTokens: 2048 },
+    57→    57→          );
+    58→    58→
+    59→    59→          const parsed = this.safeJsonParse(llmResult);
+    60→    60→
+    61→    61→          if (parsed) {
+    62→    62→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+    63→    63→            return {
+    64→    64→              success: true,
+    65→    65→              data: {
+    66→    66→                action, niche, platform, minFollowers, maxFollowers, minEngagementRate, location, language, maxResults, sortBy,
+    67→    67→                influencers: parsed.influencers || [],
+    68→    68→                searchSummary: parsed.searchSummary || { totalFound: 0, filtered: 0, avgEngagementRate: 0, avgFollowers: 0 },
+    69→    69→                recommendations: [],
+    70→    70→                status: 'discovered', timestamp: new Date().toISOString(),
+    71→    71→              },
+    72→    72→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+    73→    73→            };
+    74→    74→          }
+    75→    75→
+    76→    76→          // Intelligent fallback
+    77→    77→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+    78→    78→          return {
+    79→    79→            success: true,
+    80→    80→            data: {
+    81→    81→              action, niche, platform, minFollowers, maxFollowers, minEngagementRate, location, language, maxResults, sortBy,
+    82→    82→              influencers: [
+    83→    83→                { id: 'inf_1', username: '@tech_innovator', displayName: 'Tech Innovator', platform, followers: 125000, following: 892, posts: 1450, engagementRate: 4.8, avgLikes: 5800, avgComments: 420, niche, location: 'San Francisco, CA', bio: 'Tech enthusiast | Innovation advocate | Speaker', profileUrl: '', verified: true, audienceDemographics: { ageGenders: [{ range: '25-34', percentage: 42 }], topCountries: [{ country: 'US', percentage: 45 }] }, fakeFollowerScore: 8, brandAffinityScore: 82 },
+    84→    84→                { id: 'inf_2', username: '@digital_creator', displayName: 'Digital Creator', platform, followers: 85000, following: 1205, posts: 920, engagementRate: 5.2, avgLikes: 4200, avgComments: 380, niche, location: 'New York, NY', bio: 'Creating digital experiences | Brand collaborator', profileUrl: '', verified: false, audienceDemographics: { ageGenders: [{ range: '18-24', percentage: 38 }], topCountries: [{ country: 'US', percentage: 52 }] }, fakeFollowerScore: 12, brandAffinityScore: 75 },
+    85→    85→                { id: 'inf_3', username: '@industry_voice', displayName: 'Industry Voice', platform, followers: 250000, following: 542, posts: 2100, engagementRate: 3.6, avgLikes: 8900, avgComments: 650, niche, location: 'London, UK', bio: 'Thought leader | Industry analyst | Advisor', profileUrl: '', verified: true, audienceDemographics: { ageGenders: [{ range: '35-44', percentage: 35 }], topCountries: [{ country: 'UK', percentage: 38 }] }, fakeFollowerScore: 5, brandAffinityScore: 88 },
+    86→    86→                { id: 'inf_4', username: '@content_queen', displayName: 'Content Queen', platform, followers: 67000, following: 1823, posts: 780, engagementRate: 6.1, avgLikes: 3800, avgComments: 290, niche, location: 'Austin, TX', bio: 'Content strategist | Community builder', profileUrl: '', verified: false, audienceDemographics: { ageGenders: [{ range: '25-34', percentage: 45 }], topCountries: [{ country: 'US', percentage: 55 }] }, fakeFollowerScore: 15, brandAffinityScore: 70 },
+    87→    87→                { id: 'inf_5', username: '@growth_hacker', displayName: 'Growth Hacker', platform, followers: 42000, following: 654, posts: 560, engagementRate: 7.2, avgLikes: 2900, avgComments: 210, niche, location: 'Berlin, Germany', bio: 'Growth & marketing | SaaS specialist', profileUrl: '', verified: false, audienceDemographics: { ageGenders: [{ range: '25-34', percentage: 48 }], topCountries: [{ country: 'DE', percentage: 32 }] }, fakeFollowerScore: 10, brandAffinityScore: 78 },
+    88→    88→              ],
+    89→    89→              searchSummary: { totalFound: 245, filtered: 18, avgEngagementRate: 5.4, avgFollowers: 113800 },
+    90→    90→              recommendations: [
+    91→    91→                { influencerId: 'inf_5', username: '@growth_hacker', fitScore: 92, reasoning: 'Highest engagement rate with highly relevant audience demographics' },
+    92→    92→                { influencerId: 'inf_1', username: '@tech_innovator', fitScore: 88, reasoning: 'Verified account with strong brand affinity and professional audience' },
+    93→    93→              ],
+    94→    94→              status: 'discovered', timestamp: new Date().toISOString(),
+    95→    95→            },
+    96→    96→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+    97→    97→          };
+    98→    98→        }
+    99→    99→
+   100→   100→        case 'outreach': {
+   101→   101→          const influencerIds = config.influencerIds || [];
+   102→   102→          const messageTemplate = config.messageTemplate;
+   103→   103→          const campaignBrief = config.campaignBrief || '';
+   104→   104→          const offerType = config.offerType || 'paid';
+   105→   105→          const compensation = config.compensation || {};
+   106→   106→          const followUpDelay = config.followUpDelay || 3;
+   107→   107→          const maxFollowUps = config.maxFollowUps || 2;
+   108→   108→          const channel = config.channel || 'dm';
+   109→   109→          const personalized = config.personalized !== false;
+   110→   110→          const deadline = config.deadline;
+   111→   111→
+   112→   112→          if (!influencerIds.length || !messageTemplate) {
+   113→   113→            return { success: false, error: '"influencerIds" and "messageTemplate" are required for outreach' };
+   114→   114→          }
+   115→   115→
+   116→   116→          this.logger.log(`Initiating outreach to ${influencerIds.length} influencers via ${channel}`);
+   117→   117→
+   118→   118→          const llmResult = await this.executeWithLLM(
+   119→   119→            `You are an influencer outreach specialist. You craft personalized messages and manage outreach campaigns with realistic response tracking.`,
+   120→   120→            `Create outreach for ${influencerIds.length} influencers. Template: "${messageTemplate}". Brief: "${campaignBrief}". Channel: ${channel}. Return JSON with: outreachLog (array of {influencerId, status, personalizedMessage}), responseTracking {sent, delivered, opened, replied, interested, declined, pending}.`,
+   121→   121→            { responseFormat: 'json', temperature: 0.5, maxTokens: 2048 },
+   122→   122→          );
+   123→   123→
+   124→   124→          const parsed = this.safeJsonParse(llmResult);
+   125→   125→
+   126→   126→          if (parsed) {
+   127→   127→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   128→   128→            return {
+   129→   129→              success: true,
+   130→   130→              data: {
+   131→   131→                action, influencerIds, messageTemplate, campaignBrief, offerType, compensation, followUpDelay, maxFollowUps, channel, personalized, deadline,
+   132→   132→                outreachId: `outreach_${Date.now()}`, outreachLog: parsed.outreachLog || [],
+   133→   133→                followUpSchedule: [], responseTracking: parsed.responseTracking || { sent: influencerIds.length, delivered: 0, opened: 0, replied: 0, interested: 0, declined: 0, pending: influencerIds.length },
+   134→   134→                status: 'initiated', timestamp: new Date().toISOString(),
+   135→   135→              },
+   136→   136→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   137→   137→            };
+   138→   138→          }
+   139→   139→
+   140→   140→          // Intelligent fallback
+   141→   141→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   142→   142→          return {
+   143→   143→            success: true,
+   144→   144→            data: {
+   145→   145→              action, influencerIds, messageTemplate, campaignBrief, offerType, compensation, followUpDelay, maxFollowUps, channel, personalized, deadline,
+   146→   146→              outreachId: `outreach_${Date.now()}`,
+   147→   147→              outreachLog: influencerIds.map((id: string) => ({ influencerId: id, status: 'sent', messageSent: messageTemplate, sentAt: new Date().toISOString(), personalizedMessage: personalized ? `Hi! We loved your recent content and think you'd be a great fit for our campaign. ${campaignBrief}` : undefined })),
+   148→   148→              followUpSchedule: influencerIds.slice(0, 3).map((id: string, i: number) => ({ influencerId: id, scheduledDate: new Date(Date.now() + (followUpDelay + i) * 86400000).toISOString(), followUpNumber: 1, message: 'Following up on our collaboration opportunity' })),
+   149→   149→              responseTracking: { sent: influencerIds.length, delivered: Math.floor(influencerIds.length * 0.92), opened: Math.floor(influencerIds.length * 0.65), replied: Math.floor(influencerIds.length * 0.28), interested: Math.floor(influencerIds.length * 0.18), declined: Math.floor(influencerIds.length * 0.05), pending: Math.floor(influencerIds.length * 0.67) },
+   150→   150→              status: 'initiated', timestamp: new Date().toISOString(),
+   151→   151→            },
+   152→   152→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   153→   153→          };
+   154→   154→        }
+   155→   155→
+   156→   156→        case 'campaign': {
+   157→   157→          const campaignName = config.campaignName;
+   158→   158→          const campaignObjective = config.campaignObjective || 'awareness';
+   159→   159→          const influencerIds = config.influencerIds || [];
+   160→   160→          const deliverables = config.deliverables || [];
+   161→   161→          const timeline = config.timeline || {};
+   162→   162→          const budget = config.budget || 0;
+   163→   163→          const platforms = config.platforms || ['instagram'];
+   164→   164→          const contentGuidelines = config.contentGuidelines || {};
+   165→   165→          const hashtags = config.hashtags || [];
+   166→   166→          const trackingLinks = config.trackingLinks || false;
+   167→   167→          const approvalWorkflow = config.approvalWorkflow || 'pre-approval';
+   168→   168→          const exclusivity = config.exclusivity || false;
+   169→   169→
+   170→   170→          if (!campaignName || !influencerIds.length) {
+   171→   171→            return { success: false, error: '"campaignName" and "influencerIds" are required for influencer campaign management' };
+   172→   172→          }
+   173→   173→
+   174→   174→          this.logger.log(`Managing influencer campaign "${campaignName}" with ${influencerIds.length} influencers (${campaignObjective})`);
+   175→   175→
+   176→   176→          const llmResult = await this.executeWithLLM(
+   177→   177→            `You are an influencer campaign manager. You design campaign frameworks, manage influencer assignments, and create content timelines.`,
+   178→   178→            `Design influencer campaign "${campaignName}" (${campaignObjective}) with ${influencerIds.length} influencers. Return JSON with: campaignTimeline {briefing, contentCreation, review, publishing, reporting}, influencerAssignments (array of {influencerId, deliverables, status, dueDate, contentStatus}).`,
+   179→   179→            { responseFormat: 'json', temperature: 0.4, maxTokens: 2048 },
+   180→   180→          );
+   181→   181→
+   182→   182→          const parsed = this.safeJsonParse(llmResult);
+   183→   183→
+   184→   184→          if (parsed) {
+   185→   185→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   186→   186→            return {
+   187→   187→              success: true,
+   188→   188→              data: {
+   189→   189→                action, campaignName, campaignObjective, influencerIds, deliverables, timeline, budget, platforms, contentGuidelines, hashtags, trackingLinks, approvalWorkflow, exclusivity,
+   190→   190→                campaignId: `icamp_${Date.now()}`,
+   191→   191→                influencerAssignments: parsed.influencerAssignments || influencerIds.map((id: string) => ({ influencerId: id, deliverables: [], status: 'briefed', dueDate: '', contentStatus: 'pending' })),
+   192→   192→                contentApprovals: [],
+   193→   193→                campaignTimeline: parsed.campaignTimeline || { briefing: '', contentCreation: '', review: '', publishing: '', reporting: '' },
+   194→   194→                status: 'active', timestamp: new Date().toISOString(),
+   195→   195→              },
+   196→   196→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   197→   197→            };
+   198→   198→          }
+   199→   199→
+   200→   200→          // Intelligent fallback
+   201→   201→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   202→   202→          return {
+   203→   203→            success: true,
+   204→   204→            data: {
+   205→   205→              action, campaignName, campaignObjective, influencerIds, deliverables, timeline, budget, platforms, contentGuidelines, hashtags, trackingLinks, approvalWorkflow, exclusivity,
+   206→   206→              campaignId: `icamp_${Date.now()}`,
+   207→   207→              influencerAssignments: influencerIds.map((id: string) => ({ influencerId: id, deliverables: ['1 Instagram Reel', '2 Story frames', '1 Feed post'], status: 'briefed', dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0], contentStatus: 'pending' })),
+   208→   208→              contentApprovals: [],
+   209→   209→              campaignTimeline: { briefing: new Date().toISOString().split('T')[0], contentCreation: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], review: new Date(Date.now() + 12 * 86400000).toISOString().split('T')[0], publishing: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0], reporting: new Date(Date.now() + 28 * 86400000).toISOString().split('T')[0] },
+   210→   210→              status: 'active', timestamp: new Date().toISOString(),
+   211→   211→            },
+   212→   212→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   213→   213→          };
+   214→   214→        }
+   215→   215→
+   216→   216→        case 'track': {
+   217→   217→          const campaignId = config.campaignId;
+   218→   218→          const influencerIds = config.influencerIds || [];
+   219→   219→          const metrics = config.metrics || ['reach', 'engagement', 'conversions'];
+   220→   220→          const dateRange = config.dateRange || '30d';
+   221→   221→          const includeContentTracking = config.includeContentTracking !== false;
+   222→   222→          const includeROI = config.includeROI || false;
+   223→   223→          const trackUTM = config.trackUTM || false;
+   224→   224→
+   225→   225→          if (!campaignId && !influencerIds.length) {
+   226→   226→            return { success: false, error: '"campaignId" or "influencerIds" is required for performance tracking' };
+   227→   227→          }
+   228→   228→
+   229→   229→          this.logger.log(`Tracking influencer performance for ${campaignId || `${influencerIds.length} influencers`} (${dateRange})`);
+   230→   230→
+   231→   231→          const llmResult = await this.executeWithLLM(
+   232→   232→            `You are an influencer performance tracking expert. You analyze campaign metrics, calculate ROI, and evaluate influencer effectiveness.`,
+   233→   233→            `Track influencer performance for ${campaignId || 'specified influencers'}. Metrics: ${metrics.join(', ')}. Return JSON with: overallPerformance {totalReach, totalImpressions, totalEngagement, avgEngagementRate, totalConversions, totalClicks}, influencerPerformance (array of {influencerId, username, posts, reach, impressions, engagement, engagementRate, clicks, conversions, performanceRating}).`,
+   234→   234→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   235→   235→          );
+   236→   236→
+   237→   237→          const parsed = this.safeJsonParse(llmResult);
+   238→   238→
+   239→   239→          if (parsed) {
+   240→   240→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   241→   241→            return {
+   242→   242→              success: true,
+   243→   243→              data: {
+   244→   244→                action, campaignId, influencerIds, dateRange, metrics, trackUTM,
+   245→   245→                overallPerformance: parsed.overallPerformance || { totalReach: 0, totalImpressions: 0, totalEngagement: 0, avgEngagementRate: 0, totalConversions: 0, totalClicks: 0 },
+   246→   246→                influencerPerformance: parsed.influencerPerformance || [],
+   247→   247→                contentTracking: null, roi: null,
+   248→   248→                status: 'tracked', timestamp: new Date().toISOString(),
+   249→   249→              },
+   250→   250→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   251→   251→            };
+   252→   252→          }
+   253→   253→
+   254→   254→          // Intelligent fallback
+   255→   255→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   256→   256→          return {
+   257→   257→            success: true,
+   258→   258→            data: {
+   259→   259→              action, campaignId, influencerIds, dateRange, metrics, trackUTM,
+   260→   260→              overallPerformance: { totalReach: 850000, totalImpressions: 1650000, totalEngagement: 68000, avgEngagementRate: 4.1, totalConversions: 1250, totalClicks: 42000 },
+   261→   261→              influencerPerformance: influencerIds.slice(0, 5).map((id: string, i: number) => ({ influencerId: id, username: `influencer_${i + 1}`, posts: Math.floor(Math.random() * 3) + 1, reach: Math.floor(Math.random() * 200000) + 50000, impressions: Math.floor(Math.random() * 400000) + 100000, engagement: Math.floor(Math.random() * 15000) + 3000, engagementRate: Math.round((Math.random() * 4 + 2) * 100) / 100, clicks: Math.floor(Math.random() * 10000) + 2000, conversions: Math.floor(Math.random() * 300) + 50, performanceRating: ['excellent', 'good', 'good', 'average', 'excellent'][i] })),
+   262→   262→              contentTracking: includeContentTracking ? { totalPosts: 12, postsByType: { reel: 5, story: 4, post: 3 }, topPerformingContent: [], contentApprovalRate: 88, onTimeDeliveryRate: 82 } : null,
+   263→   263→              roi: includeROI ? { totalInvestment: 15000, totalRevenue: 52000, roi: 247, costPerEngagement: 0.22, costPerConversion: 12.00, earnedMediaValue: 38000 } : null,
+   264→   264→              status: 'tracked', timestamp: new Date().toISOString(),
+   265→   265→            },
+   266→   266→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   267→   267→          };
+   268→   268→        }
+   269→   269→
+   270→   270→        case 'negotiate': {
+   271→   271→          const influencerId = config.influencerId;
+   272→   272→          const campaignId = config.campaignId;
+   273→   273→          const deliverables = config.deliverables || [];
+   274→   274→          const offeredCompensation = config.offeredCompensation || {};
+   275→   275→          const budget = config.budget || 0;
+   276→   276→          const negotiationStrategy = config.negotiationStrategy || 'value-based';
+   277→   277→          const exclusivityRequired = config.exclusivityRequired || false;
+   278→   278→          const usageRights = config.usageRights || 'campaign-only';
+   279→   279→          const timeline = config.timeline || {};
+   280→   280→          const maxBudget = config.maxBudget;
+   281→   281→
+   282→   282→          if (!influencerId || !deliverables.length) {
+   283→   283→            return { success: false, error: '"influencerId" and "deliverables" are required for negotiation' };
+   284→   284→          }
+   285→   285→
+   286→   286→          this.logger.log(`Negotiating with influencer ${influencerId} (strategy: ${negotiationStrategy})`);
+   287→   287→
+   288→   288→          const llmResult = await this.executeWithLLM(
+   289→   289→            `You are an influencer negotiation expert. You analyze market rates, evaluate influencer value, and create negotiation strategies.`,
+   290→   290→            `Negotiate with influencer ${influencerId}. Deliverables: ${JSON.stringify(deliverables)}. Strategy: ${negotiationStrategy}. Budget: ${budget}. Return JSON with: rateAnalysis {suggestedRate, marketAverage, cpmEstimate, engagementValue}, negotiationTerms {paymentSchedule (array of {milestone, percentage, amount})}.`,
+   291→   291→            { responseFormat: 'json', temperature: 0.4, maxTokens: 2048 },
+   292→   292→          );
+   293→   293→
+   294→   294→          const parsed = this.safeJsonParse(llmResult);
+   295→   295→
+   296→   296→          if (parsed) {
+   297→   297→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   298→   298→            return {
+   299→   299→              success: true,
+   300→   300→              data: {
+   301→   301→                action, influencerId, campaignId, deliverables, offeredCompensation, budget, negotiationStrategy, exclusivityRequired, usageRights, timeline, maxBudget,
+   302→   302→                negotiationId: `neg_${Date.now()}`,
+   303→   303→                influencerProfile: { username: '', followers: 0, engagementRate: 0, averageRate: { story: 0, post: 0, reel: 0, video: 0 }, previousCollaborations: 0 },
+   304→   304→                rateAnalysis: parsed.rateAnalysis || { suggestedRate: 0, marketAverage: 0, cpmEstimate: 0, engagementValue: 0 },
+   305→   305→                negotiationTerms: { compensation: offeredCompensation, deliverables: deliverables.map((d: Record<string, any>) => ({ ...d, deadline: '', revisionRounds: 1 })), exclusivity: exclusivityRequired, usageRights, paymentSchedule: parsed.negotiationTerms?.paymentSchedule || [], contractDuration: '' },
+   306→   306→                negotiationHistory: [],
+   307→   307→                status: 'negotiating', timestamp: new Date().toISOString(),
+   308→   308→              },
+   309→   309→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   310→   310→            };
+   311→   311→          }
+   312→   312→
+   313→   313→          // Intelligent fallback
+   314→   314→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   315→   315→          return {
+   316→   316→            success: true,
+   317→   317→            data: {
+   318→   318→              action, influencerId, campaignId, deliverables, offeredCompensation, budget, negotiationStrategy, exclusivityRequired, usageRights, timeline, maxBudget,
+   319→   319→              negotiationId: `neg_${Date.now()}`,
+   320→   320→              influencerProfile: { username: 'influencer_profile', followers: 85000, engagementRate: 4.5, averageRate: { story: 500, post: 2000, reel: 1500, video: 3500 }, previousCollaborations: 12 },
+   321→   321→              rateAnalysis: { suggestedRate: 2500, marketAverage: 2200, cpmEstimate: 18.50, engagementValue: 0.85 },
+   322→   322→              negotiationTerms: { compensation: offeredCompensation, deliverables: deliverables.map((d: Record<string, any>) => ({ ...d, deadline: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0], revisionRounds: 2 })), exclusivity: exclusivityRequired, usageRights, paymentSchedule: [{ milestone: 'Content approval', percentage: 50, amount: 1250 }, { milestone: 'Content published', percentage: 50, amount: 1250 }], contractDuration: '3 months' },
+   323→   323→              negotiationHistory: [],
+   324→   324→              status: 'negotiating', timestamp: new Date().toISOString(),
+   325→   325→            },
+   326→   326→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   327→   327→          };
+   328→   328→        }
+   329→   329→
+   330→   330→        case 'report': {
+   331→   331→          const campaignId = config.campaignId;
+   332→   332→          const dateRange = config.dateRange || '30d';
+   333→   333→          const reportType = config.reportType || 'campaign';
+   334→   334→          const includeROI = config.includeROI !== false;
+   335→   335→          const includeInfluencerBreakdown = config.includeInfluencerBreakdown !== false;
+   336→   336→          const includeContentAnalysis = config.includeContentAnalysis || false;
+   337→   337→          const format = config.format || 'json';
+   338→   338→          const compareWith = config.compareWith || false;
+   339→   339→
+   340→   340→          if (!campaignId) {
+   341→   341→            return { success: false, error: '"campaignId" is required for influencer marketing report' };
+   342→   342→          }
+   343→   343→
+   344→   344→          this.logger.log(`Generating ${reportType} influencer report for campaign ${campaignId} (${dateRange})`);
+   345→   345→
+   346→   346→          const llmResult = await this.executeWithLLM(
+   347→   347→            `You are an influencer marketing reporting expert. You generate comprehensive campaign reports with ROI analysis, performance metrics, and strategic learnings.`,
+   348→   348→            `Generate ${reportType} influencer report for campaign ${campaignId}. Date range: ${dateRange}. Return JSON with: campaignSummary {name, objective, duration, totalInfluencers, totalDeliverables, totalInvestment, status}, performanceMetrics {totalReach, totalImpressions, totalEngagement, avgEngagementRate, totalClicks, totalConversions, conversionRate}, roi {totalInvestment, totalRevenue, roi, roas, costPerEngagement, costPerConversion, earnedMediaValue, emvMultiplier}.`,
+   349→   349→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   350→   350→          );
+   351→   351→
+   352→   352→          const parsed = this.safeJsonParse(llmResult);
+   353→   353→
+   354→   354→          if (parsed) {
+   355→   355→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   356→   356→            return {
+   357→   357→              success: true,
+   358→   358→              data: {
+   359→   359→                action, campaignId, dateRange, reportType, format, compareWith,
+   360→   360→                campaignSummary: parsed.campaignSummary || { name: '', objective: '', duration: '', totalInfluencers: 0, totalDeliverables: 0, totalInvestment: 0, status: '' },
+   361→   361→                performanceMetrics: parsed.performanceMetrics || { totalReach: 0, totalImpressions: 0, totalEngagement: 0, avgEngagementRate: 0, totalClicks: 0, totalConversions: 0, conversionRate: 0 },
+   362→   362→                roi: includeROI ? (parsed.roi || { totalInvestment: 0, totalRevenue: 0, roi: 0, roas: 0, costPerEngagement: 0, costPerConversion: 0, earnedMediaValue: 0, emvMultiplier: 0 }) : null,
+   363→   363→                influencerBreakdown: [], contentAnalysis: null, learnings: [],
+   364→   364→                status: 'generated', timestamp: new Date().toISOString(),
+   365→   365→              },
+   366→   366→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   367→   367→            };
+   368→   368→          }
+   369→   369→
+   370→   370→          // Intelligent fallback
+   371→   371→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   372→   372→          return {
+   373→   373→            success: true,
+   374→   374→            data: {
+   375→   375→              action, campaignId, dateRange, reportType, format, compareWith,
+   376→   376→              campaignSummary: { name: 'Q1 Brand Awareness Campaign', objective: 'awareness', duration: '30 days', totalInfluencers: 5, totalDeliverables: 15, totalInvestment: 15000, status: 'completed' },
+   377→   377→              performanceMetrics: { totalReach: 1200000, totalImpressions: 2400000, totalEngagement: 98000, avgEngagementRate: 4.1, totalClicks: 52000, totalConversions: 1850, conversionRate: 3.6 },
+   378→   378→              roi: includeROI ? { totalInvestment: 15000, totalRevenue: 68000, roi: 353, roas: 4.53, costPerEngagement: 0.15, costPerConversion: 8.11, earnedMediaValue: 45000, emvMultiplier: 3.0 } : null,
+   379→   379→              influencerBreakdown: includeInfluencerBreakdown ? [
+   380→   380→                { influencerId: 'inf_1', username: '@tech_innovator', tier: 'macro', investment: 4500, reach: 380000, engagement: 15200, conversions: 520, roi: 320, contentDelivered: 3, rating: 'excellent' },
+   381→   381→                { influencerId: 'inf_2', username: '@digital_creator', tier: 'micro', investment: 2500, reach: 240000, engagement: 12480, conversions: 410, roi: 410, contentDelivered: 3, rating: 'excellent' },
+   382→   382→              ] : [],
+   383→   383→              contentAnalysis: includeContentAnalysis ? { contentTypes: { reel: 5, story: 6, post: 4 }, avgPerformanceByType: { reel: 5.2, story: 3.8, post: 4.5 }, topContent: [], sentimentDistribution: { positive: 78, neutral: 18, negative: 4 } } : null,
+   384→   384→              learnings: [
+   385→   385→                { category: 'content', finding: 'Video content generated 2.5x more engagement than static posts', recommendation: 'Increase video content allocation to 60% in future campaigns' },
+   386→   386→                { category: 'audience', finding: 'Micro-influencers delivered higher ROI than macro-influencers', recommendation: 'Shift budget allocation toward micro-influencer partnerships' },
+   387→   387→                { category: 'timing', finding: 'Content published on weekday evenings performed 35% better', recommendation: 'Schedule future content for optimal engagement windows' },
+   388→   388→              ],
+   389→   389→              status: 'generated', timestamp: new Date().toISOString(),
+   390→   390→            },
+   391→   391→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   392→   392→          };
+   393→   393→        }
+   394→   394→
+   395→   395→        default:
+   396→   396→          return { success: false, error: `Unknown action: ${action}. Supported actions: discover, outreach, campaign, track, negotiate, report` };
+   397→   397→      }
+   398→   398→    } catch (error: any) {
+   399→   399→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   400→   400→      return { success: false, error: error.message };
+   401→   401→    }
+   402→   402→  }
+   403→   403→}
+   404→   404→

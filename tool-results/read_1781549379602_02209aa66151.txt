@@ -1,0 +1,502 @@
+     1→     1→     1→import {
+     2→     2→     2→  BaseAgent,
+     3→     3→     3→  AgentContext,
+     4→     4→     4→  AgentResult,
+     5→     5→     5→} from '../../../modules/agent/agent.abstract';
+     6→     6→     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→     7→     7→
+     8→     8→     8→export class ForensicsAgent extends BaseAgent {
+     9→     9→     9→  readonly name = 'ForensicsAgent';
+    10→    10→    10→  readonly cluster = ClusterType.SECURITY;
+    11→    11→    11→  readonly capabilities = [
+    12→    12→    12→    'collect',
+    13→    13→    13→    'preserve',
+    14→    14→    14→    'analyze',
+    15→    15→    15→    'timeline',
+    16→    16→    16→    'evidence',
+    17→    17→    17→    'report',
+    18→    18→    18→  ];
+    19→    19→    19→  readonly version = '1.0.0';
+    20→    20→    20→  readonly description =
+    21→    21→    21→    'Conducts digital forensic investigations including evidence collection, chain-of-custody preservation, forensic analysis, timeline reconstruction, evidence management, and investigation reporting';
+    22→    22→    22→
+    23→    23→    23→  async execute(context: AgentContext): Promise<AgentResult> {
+    24→    24→    24→    try {
+    25→    25→    25→      const { config } = context;
+    26→    26→    26→      const action = config.action || 'collect';
+    27→    27→    27→      const startTime = Date.now();
+    28→    28→    28→
+    29→    29→    29→      switch (action) {
+    30→    30→    30→        case 'collect': {
+    31→    31→    31→          const collectionType = config.collectionType || 'full';
+    32→    32→    32→          const sourceType = config.sourceType || 'endpoint';
+    33→    33→    33→          const sourceId = config.sourceId;
+    34→    34→    34→          const targetPaths = config.targetPaths || [];
+    35→    35→    35→          const includeMemory = config.includeMemory ?? true;
+    36→    36→    36→          const includeDisk = config.includeDisk ?? true;
+    37→    37→    37→          const includeNetwork = config.includeNetwork ?? true;
+    38→    38→    38→          const includeLogs = config.includeLogs ?? true;
+    39→    39→    39→          const includeRegistry = config.includeRegistry ?? false;
+    40→    40→    40→          const includeBrowser = config.includeBrowser ?? true;
+    41→    41→    41→          const includeEmail = config.includeEmail ?? false;
+    42→    42→    42→          const includeCloud = config.includeCloud ?? false;
+    43→    43→    43→          const includeMobile = config.includeMobile ?? false;
+    44→    44→    44→          const volatileDataFirst = config.volatileDataFirst ?? true;
+    45→    45→    45→          const memoryCaptureType = config.memoryCaptureType || 'full';
+    46→    46→    46→          const diskImageType = config.diskImageType || 'raw';
+    47→    47→    47→          const compressionEnabled = config.compressionEnabled ?? true;
+    48→    48→    48→          const encryptionEnabled = config.encryptionEnabled ?? true;
+    49→    49→    49→          const encryptionKey = config.encryptionKey ? '***redacted***' : undefined;
+    50→    50→    50→          const hashAlgorithm = config.hashAlgorithm || 'SHA-256';
+    51→    51→    51→          const verifyIntegrity = config.verifyIntegrity ?? true;
+    52→    52→    52→          const maxCollectionSize = config.maxCollectionSize || 10737418240;
+    53→    53→    53→          const timeout = config.timeout || 7200;
+    54→    54→    54→          const remoteCollection = config.remoteCollection ?? false;
+    55→    55→    55→          const collectionTool = config.collectionTool || 'native';
+    56→    56→    56→          this.logger.log(
+    57→    57→    57→            `Collecting forensic data from ${sourceType}${sourceId ? ` ${sourceId}` : ''} (${collectionType})`,
+    58→    58→    58→          );
+    59→    59→    59→
+    60→    60→    60→          return {
+    61→    61→    61→            success: true,
+    62→    62→    62→            data: {
+    63→    63→    63→              action,
+    64→    64→    64→              collectionType,
+    65→    65→    65→              sourceType,
+    66→    66→    66→              sourceId: sourceId || null,
+    67→    67→    67→              targetPaths,
+    68→    68→    68→              includeMemory,
+    69→    69→    69→              includeDisk,
+    70→    70→    70→              includeNetwork,
+    71→    71→    71→              includeLogs,
+    72→    72→    72→              includeRegistry,
+    73→    73→    73→              includeBrowser,
+    74→    74→    74→              includeEmail,
+    75→    75→    75→              includeCloud,
+    76→    76→    76→              includeMobile,
+    77→    77→    77→              volatileDataFirst,
+    78→    78→    78→              memoryCaptureType,
+    79→    79→    79→              diskImageType,
+    80→    80→    80→              compressionEnabled,
+    81→    81→    81→              encryptionEnabled,
+    82→    82→    82→              hashAlgorithm,
+    83→    83→    83→              verifyIntegrity,
+    84→    84→    84→              maxCollectionSize,
+    85→    85→    85→              timeout,
+    86→    86→    86→              remoteCollection,
+    87→    87→    87→              collectionTool,
+    88→    88→    88→              collectionId: null as string | null,
+    89→    89→    89→              collectedItems: [] as Array<{
+    90→    90→    90→                id: string;
+    91→    91→    91→                type: string;
+    92→    92→    92→                source: string;
+    93→    93→    93→                path: string;
+    94→    94→    94→                size: number;
+    95→    95→    95→                hash: string;
+    96→    96→    96→                hashAlgorithm: string;
+    97→    97→    97→                collectedAt: string;
+    98→    98→    98→                status: string;
+    99→    99→    99→              }>,
+   100→   100→   100→              memoryCapture: includeMemory
+   101→   101→   101→                ? {
+   102→   102→   102→                    captured: false,
+   103→   103→   103→                    size: 0,
+   104→   104→   104→                    format: '',
+   105→   105→   105→                    hash: null as string | null,
+   106→   106→   106→                    path: null as string | null,
+   107→   107→   107→                  }
+   108→   108→   108→                : null,
+   109→   109→   109→              diskImage: includeDisk
+   110→   110→   110→                ? {
+   111→   111→   111→                    captured: false,
+   112→   112→   112→                    size: 0,
+   113→   113→   113→                    format: diskImageType,
+   114→   114→   114→                    hash: null as string | null,
+   115→   115→   115→                    path: null as string | null,
+   116→   116→   116→                    partitions: 0,
+   117→   117→   117→                  }
+   118→   118→   118→                : null,
+   119→   119→   119→              networkCapture: includeNetwork
+   120→   120→   120→                ? {
+   121→   121→   121→                    captured: false,
+   122→   122→   122→                    packetsCaptured: 0,
+   123→   123→   123→                    duration: 0,
+   124→   124→   124→                    hash: null as string | null,
+   125→   125→   125→                    path: null as string | null,
+   126→   126→   126→                  }
+   127→   127→   127→                : null,
+   128→   128→   128→              collectionSummary: {
+   129→   129→   129→                totalItems: 0,
+   130→   130→   130→                totalSize: 0,
+   131→   131→   131→                duration: null as number | null,
+   132→   132→   132→                integrityVerified: false,
+   133→   133→   133→                encrypted: encryptionEnabled,
+   134→   134→   134→              },
+   135→   135→   135→              status: 'collection_initiated',
+   136→   136→   136→              timestamp: new Date().toISOString(),
+   137→   137→   137→            },
+   138→   138→   138→            metadata: { duration: Date.now() - startTime },
+   139→   139→   139→          };
+   140→   140→   140→        }
+   141→   141→   141→
+   142→   142→   142→        case 'preserve': {
+   143→   143→   143→          const operation = config.operation || 'chain';
+   144→   144→   144→          const evidenceId = config.evidenceId;
+   145→   145→   145→          const collectionId = config.collectionId;
+   146→   146→   146→          const preservationType = config.preservationType || 'full';
+   147→   147→   147→          const storageLocation = config.storageLocation || 'secure-vault';
+   148→   148→   148→          const storageClass = config.storageClass || 'forensic';
+   149→   149→   149→          const encryptionRequired = config.encryptionRequired ?? true;
+   150→   150→   150→          const encryptionStandard = config.encryptionStandard || 'AES-256-GCM';
+   151→   151→   151→          const replicationEnabled = config.replicationEnabled ?? true;
+   152→   152→   152→          const replicationFactor = config.replicationFactor || 3;
+   153→   153→   153→          const immutableStorage = config.immutableStorage ?? true;
+   154→   154→   154→          const retentionPeriod = config.retentionPeriod || '7y';
+   155→   155→   155→          const legalHold = config.legalHold ?? false;
+   156→   156→   156→          const holdReason = config.holdReason;
+   157→   157→   157→          const holdReference = config.holdReference;
+   158→   158→   158→          const verifyOnStore = config.verifyOnStore ?? true;
+   159→   159→   159→          const generateChainOfCustody = config.generateChainOfCustody ?? true;
+   160→   160→   160→          const custodyHandlers = config.custodyHandlers || [];
+   161→   161→   161→          const accessControl = config.accessControl || {
+   162→   162→   162→            readAccess: ['forensic-analyst'],
+   163→   163→   163→            writeAccess: ['forensic-admin'],
+   164→   164→   164→            deleteAccess: [],
+   165→   165→   165→          };
+   166→   166→   166→          this.logger.log(
+   167→   167→   167→            `Preserving evidence${evidenceId ? ` ${evidenceId}` : ''}${collectionId ? ` from collection ${collectionId}` : ''} (operation: ${operation})`,
+   168→   168→   168→          );
+   169→   169→   169→
+   170→   170→   170→          return {
+   171→   171→   171→            success: true,
+   172→   172→   172→            data: {
+   173→   173→   173→              action,
+   174→   174→   174→              operation,
+   175→   175→   175→              evidenceId: evidenceId || null,
+   176→   176→   176→              collectionId: collectionId || null,
+   177→   177→   177→              preservationType,
+   178→   178→   178→              storageLocation,
+   179→   179→   179→              storageClass,
+   180→   180→   180→              encryptionRequired,
+   181→   181→   181→              encryptionStandard,
+   182→   182→   182→              replicationEnabled,
+   183→   183→   183→              replicationFactor,
+   184→   184→   184→              immutableStorage,
+   185→   185→   185→              retentionPeriod,
+   186→   186→   186→              legalHold,
+   187→   187→   187→              holdReason: holdReason || null,
+   188→   188→   188→              holdReference: holdReference || null,
+   189→   189→   189→              verifyOnStore,
+   190→   190→   190→              generateChainOfCustody,
+   191→   191→   191→              custodyHandlers,
+   192→   192→   192→              accessControl,
+   193→   193→   193→              preservationId: null as string | null,
+   194→   194→   194→              preservationStatus: {
+   195→   195→   195→                stored: false,
+   196→   196→   196→                verified: false,
+   197→   197→   197→                encrypted: encryptionRequired,
+   198→   198→   198→                replicated: false,
+   199→   199→   199→                immutable: immutableStorage,
+   200→   200→   200→                legalHold: legalHold,
+   201→   201→   201→              },
+   202→   202→   202→              chainOfCustody: generateChainOfCustody
+   203→   203→   203→                ? {
+   204→   204→   204→                    evidenceId: null as string | null,
+   205→   205→   205→                    entries: [] as Array<{
+   206→   206→   206→                      timestamp: string;
+   207→   207→   207→                      action: string;
+   208→   208→   208→                      handler: string;
+   209→   209→   209→                      location: string;
+   210→   210→   210→                      purpose: string;
+   211→   211→   211→                      hashBefore: string;
+   212→   212→   212→                      hashAfter: string;
+   213→   213→   213→                      verified: boolean;
+   214→   214→   214→                    }>,
+   215→   215→   215→                  }
+   216→   216→   216→                : null,
+   217→   217→   217→              storageDetails: {
+   218→   218→   218→                primaryLocation: null as string | null,
+   219→   219→   219→                replicaLocations: [] as string[],
+   220→   220→   220→                storedAt: null as string | null,
+   221→   221→   221→                totalSize: 0,
+   222→   222→   222→                integrityHash: null as string | null,
+   223→   223→   223→              },
+   224→   224→   224→              status: 'preservation_initiated',
+   225→   225→   225→              timestamp: new Date().toISOString(),
+   226→   226→   226→            },
+   227→   227→   227→            metadata: { duration: Date.now() - startTime },
+   228→   228→   228→          };
+   229→   229→   229→        }
+   230→   230→   230→
+   231→   231→   231→        case 'analyze': {
+   232→   232→   232→          const analysisType = config.analysisType || 'comprehensive';
+   233→   233→   233→          const evidenceIds = config.evidenceIds || [];
+   234→   234→   234→          const collectionId = config.collectionId;
+   235→   235→   235→          const includeMalwareAnalysis = config.includeMalwareAnalysis ?? true;
+   236→   236→   236→          const includeFileAnalysis = config.includeFileAnalysis ?? true;
+   237→   237→   237→          const includeNetworkAnalysis = config.includeNetworkAnalysis ?? true;
+   238→   238→   238→          const includeMemoryAnalysis = config.includeMemoryAnalysis ?? true;
+   239→   239→   239→          const includeLogAnalysis = config.includeLogAnalysis ?? true;
+   240→   240→   240→          const includeSteganography = config.includeSteganography ?? false;
+   241→   241→   241→          const includeDataRecovery = config.includeDataRecovery ?? true;
+   242→   242→   242→          const includeArtifactExtraction = config.includeArtifactExtraction ?? true;
+   243→   243→   243→          const deepScan = config.deepScan ?? false;
+   244→   244→   244→          const sandboxAnalysis = config.sandboxAnalysis ?? false;
+   245→   245→   245→          const yaraRules = config.yaraRules || [];
+   246→   246→   246→          const customSignatures = config.customSignatures || [];
+   247→   247→   247→          const maxFileSize = config.maxFileSize || 1073741824;
+   248→   248→   248→          const carveDeleted = config.carveDeleted ?? true;
+   249→   249→   249→          const extractMetadata = config.extractMetadata ?? true;
+   250→   250→   250→          const ocrEnabled = config.ocrEnabled ?? false;
+   251→   251→   251→          this.logger.log(
+   252→   252→   252→            `Analyzing forensic evidence (${analysisType})${evidenceIds.length ? ` for ${evidenceIds.length} evidence items` : ''}`,
+   253→   253→   253→          );
+   254→   254→   254→
+   255→   255→   255→          return {
+   256→   256→   256→            success: true,
+   257→   257→   257→            data: {
+   258→   258→   258→              action,
+   259→   259→   259→              analysisType,
+   260→   260→   260→              evidenceIds,
+   261→   261→   261→              collectionId: collectionId || null,
+   262→   262→   262→              includeMalwareAnalysis,
+   263→   263→   263→              includeFileAnalysis,
+   264→   264→   264→              includeNetworkAnalysis,
+   265→   265→   265→              includeMemoryAnalysis,
+   266→   266→   266→              includeLogAnalysis,
+   267→   267→   267→              includeSteganography,
+   268→   268→   268→              includeDataRecovery,
+   269→   269→   269→              includeArtifactExtraction,
+   270→   270→   270→              deepScan,
+   271→   271→   271→              sandboxAnalysis,
+   272→   272→   272→              yaraRules,
+   273→   273→   273→              customSignatures,
+   274→   274→   274→              maxFileSize,
+   275→   275→   275→              carveDeleted,
+   276→   276→   276→              extractMetadata,
+   277→   277→   277→              ocrEnabled,
+   278→   278→   278→              analysisId: null as string | null,
+   279→   279→   279→              fileAnalysis: [] as Array<{
+   280→   280→   280→                path: string;
+   281→   281→   281→                type: string;
+   282→   282→   282→                size: number;
+   283→   283→   283→                hash: string;
+   284→   284→   284→                modifiedAt: string;
+   285→   285→   285→                createdAt: string;
+   286→   286→   286→                accessedAt: string;
+   287→   287→   287→                permissions: string;
+   288→   288→   288→                owner: string;
+   289→   289→   289→                suspicious: boolean;
+   290→   290→   290→                indicators: string[];
+   291→   291→   291→              }>,
+   292→   292→   292→              malwareAnalysis: includeMalwareAnalysis
+   293→   293→   293→                ? {
+   294→   294→   294→                    detected: false,
+   295→   295→   295→                    threats: [] as Array<{
+   296→   296→   296→                      name: string;
+   297→   297→   297→                      type: string;
+   298→   298→   298→                      severity: string;
+   299→   299→   299→                      file: string;
+   300→   300→   300→                      hash: string;
+   301→   301→   301→                      behavior: string[];
+   302→   302→   302→                      indicators: string[];
+   303→   303→   303→                      mitreMapping: string[];
+   304→   304→   304→                    }>,
+   305→   305→   305→                    iocsExtracted: [] as Array<{
+   306→   306→   306→                      type: string;
+   307→   307→   307→                      value: string;
+   308→   308→   308→                      context: string;
+   309→   309→   309→                      confidence: number;
+   310→   310→   310→                    }>,
+   311→   311→   311→                  }
+   312→   312→   312→                : null,
+   313→   313→   313→              networkAnalysis: includeNetworkAnalysis
+   314→   314→   314→                ? {
+   315→   315→   315→                    connections: [] as Array<{
+   316→   316→   316→                      source: string;
+   317→   317→   317→                      destination: string;
+   318→   318→   318→                      port: number;
+   319→   319→   319→                      protocol: string;
+   320→   320→   320→                      bytes: number;
+   321→   321→   321→                      timestamp: string;
+   322→   322→   322→                      suspicious: boolean;
+   323→   323→   323→                    }>,
+   324→   324→   324→                    dnsQueries: [] as Array<{
+   325→   325→   325→                      domain: string;
+   326→   326→   326→                      queryType: string;
+   327→   327→   327→                      timestamp: string;
+   328→   328→   328→                      suspicious: boolean;
+   329→   329→   329→                    }>,
+   330→   330→   330→                    httpRequests: [] as Array<{
+   331→   331→   331→                      method: string;
+   332→   332→   332→                      url: string;
+   333→   333→   333→                      userAgent: string;
+   334→   334→   334→                      timestamp: string;
+   335→   335→   335→                      suspicious: boolean;
+   336→   336→   336→                    }>,
+   337→   337→   337→                  }
+   338→   338→   338→                : null,
+   339→   339→   339→              memoryAnalysis: includeMemoryAnalysis
+   340→   340→   340→                ? {
+   341→   341→   341→                    processes: [] as Array<{
+   342→   342→   342→                      pid: number;
+   343→   343→   343→                      name: string;
+   344→   344→   344→                      commandLine: string;
+   345→   345→   345→                      user: string;
+   346→   346→   346→                      suspicious: boolean;
+   347→   347→   347→                      injectedCode: boolean;
+   348→   348→   348→                    }>,
+   349→   349→   349→                    networkConnections: [] as Array<{
+   350→   350→   350→                      pid: number;
+   351→   351→   351→                      localAddress: string;
+   352→   352→   352→                      remoteAddress: string;
+   353→   353→   353→                      state: string;
+   354→   354→   354→                    }>,
+   355→   355→   355→                    artifacts: [] as Array<{
+   356→   356→   356→                      type: string;
+   357→   357→   357→                      value: string;
+   358→   358→   358→                      process: string;
+   359→   359→   359→                      suspicious: boolean;
+   360→   360→   360→                    }>,
+   361→   361→   361→                  }
+   362→   362→   362→                : null,
+   363→   363→   363→              recoveredData: includeDataRecovery
+   364→   364→   364→                ? [] as Array<{
+   365→   365→   365→                    path: string;
+   366→   366→   366→                    type: string;
+   367→   367→   367→                    size: number;
+   368→   368→   368→                    recoveryMethod: string;
+   369→   369→   369→                    integrity: string;
+   370→   370→   370→                    content: string | null;
+   371→   371→   371→                  }>
+   372→   372→   372→                : null,
+   373→   373→   373→              extractedArtifacts: [] as Array<{
+   374→   374→   374→                type: string;
+   375→   375→   375→                source: string;
+   376→   376→   376→                value: string;
+   377→   377→   377→                context: string;
+   378→   378→   378→                confidence: number;
+   379→   379→   379→              }>,
+   380→   380→   380→              status: 'analysis_in_progress',
+   381→   381→   381→              timestamp: new Date().toISOString(),
+   382→   382→   382→            },
+   383→   383→   383→            metadata: { duration: Date.now() - startTime },
+   384→   384→   384→          };
+   385→   385→   385→        }
+   386→   386→   386→
+   387→   387→   387→        case 'timeline': {
+   388→   388→   388→          const operation = config.operation || 'generate';
+   389→   389→   389→          const investigationId = config.investigationId;
+   390→   390→   390→          const evidenceIds = config.evidenceIds || [];
+   391→   391→   391→          const collectionId = config.collectionId;
+   392→   392→   392→          const timeRange = config.timeRange || 'all';
+   393→   393→   393→          const startTime_filter = config.startTime;
+   394→   394→   394→          const endTime = config.endTime;
+   395→   395→   395→          const granularity = config.granularity || 'second';
+   396→   396→   396→          const includeSystemEvents = config.includeSystemEvents ?? true;
+   397→   397→   397→          const includeUserEvents = config.includeUserEvents ?? true;
+   398→   398→   398→          const includeNetworkEvents = config.includeNetworkEvents ?? true;
+   399→   399→   399→          const includeFileEvents = config.includeFileEvents ?? true;
+   400→   400→   400→          const includeProcessEvent = config.includeProcessEvent ?? true;
+   401→   401→   401→          const includeBrowserEvents = config.includeBrowserEvents ?? true;
+   402→   402→   402→          const correlateEvents = config.correlateEvents ?? true;
+   403→   403→   403→          const maxEvents = config.maxEvents || 10000;
+   404→   404→   404→          const filterKeywords = config.filterKeywords || [];
+   405→   405→   405→          const filterUsers = config.filterUsers || [];
+   406→   406→   406→          const filterHosts = config.filterHosts || [];
+   407→   407→   407→          const highlightAnomalies = config.highlightAnomalies ?? true;
+   408→   408→   408→          const groupByCorrelation = config.groupByCorrelation ?? true;
+   409→   409→   409→          this.logger.log(
+   410→   410→   410→            `Timeline ${operation}${investigationId ? ` for investigation ${investigationId}` : ''} (granularity: ${granularity})`,
+   411→   411→   411→          );
+   412→   412→   412→
+   413→   413→   413→          return {
+   414→   414→   414→            success: true,
+   415→   415→   415→            data: {
+   416→   416→   416→              action,
+   417→   417→   417→              operation,
+   418→   418→   418→              investigationId: investigationId || null,
+   419→   419→   419→              evidenceIds,
+   420→   420→   420→              collectionId: collectionId || null,
+   421→   421→   421→              timeRange,
+   422→   422→   422→              startTime: startTime_filter || null,
+   423→   423→   423→              endTime: endTime || null,
+   424→   424→   424→              granularity,
+   425→   425→   425→              includeSystemEvents,
+   426→   426→   426→              includeUserEvents,
+   427→   427→   427→              includeNetworkEvents,
+   428→   428→   428→              includeFileEvents,
+   429→   429→   429→              includeProcessEvent,
+   430→   430→   430→              includeBrowserEvents,
+   431→   431→   431→              correlateEvents,
+   432→   432→   432→              maxEvents,
+   433→   433→   433→              filterKeywords,
+   434→   434→   434→              filterUsers,
+   435→   435→   435→              filterHosts,
+   436→   436→   436→              highlightAnomalies,
+   437→   437→   437→              groupByCorrelation,
+   438→   438→   438→              timelineId: null as string | null,
+   439→   439→   439→              events: [] as Array<{
+   440→   440→   440→                timestamp: string;
+   441→   441→   441→                order: number;
+   442→   442→   442→                type: string;
+   443→   443→   443→                category: string;
+   444→   444→   444→                source: string;
+   445→   445→   445→                actor: string;
+   446→   446→   446→                action: string;
+   447→   447→   447→                target: string;
+   448→   448→   448→                details: string;
+   449→   449→   449→                severity: string;
+   450→   450→   450→                confidence: number;
+   451→   451→   451→                correlatedEvents: string[];
+   452→   452→   452→                anomaly: boolean;
+   453→   453→   453→                evidenceRef: string;
+   454→   454→   454→              }>,
+   455→   455→   455→              correlations: [] as Array<{
+   456→   456→   456→                id: string;
+   457→   457→   457→                name: string;
+   458→   458→   458→                description: string;
+   459→   459→   459→                eventIds: string[];
+   460→   460→   460→                pattern: string;
+   461→   461→   461→                significance: string;
+   462→   462→   462→              }>,
+   463→   463→   463→              anomalies: [] as Array<{
+   464→   464→   464→                timestamp: string;
+   465→   465→   465→                type: string;
+   466→   466→   466→                description: string;
+   467→   467→   467→                severity: string;
+   468→   468→   468→                relatedEvents: string[];
+   469→   469→   469→              }>,
+   470→   470→   470→              summary: {
+   471→   471→   471→                totalEvents: 0,
+   472→   472→   472→                earliestEvent: null as string | null,
+   473→   473→   473→                latestEvent: null as string | null,
+   474→   474→   474→                eventsByCategory: {} as Record<string, number>,
+   475→   475→   475→                anomalousEvents: 0,
+   476→   476→   476→                correlatedGroups: 0,
+   477→   477→   477→              },
+   478→   478→   478→              status: 'timeline_generated',
+   479→   479→   479→              timestamp: new Date().toISOString(),
+   480→   480→   480→            },
+   481→   481→   481→            metadata: { duration: Date.now() - startTime },
+   482→   482→   482→          };
+   483→   483→   483→        }
+   484→   484→   484→
+   485→   485→   485→        case 'evidence': {
+   486→   486→   486→          const operation = config.operation || 'list';
+   487→   487→   487→          const evidenceId = config.evidenceId;
+   488→   488→   488→          const investigationId = config.investigationId;
+   489→   489→   489→          const evidenceType = config.evidenceType;
+   490→   490→   490→          const status = config.status;
+   491→   491→   491→          const tags = config.tags || [];
+   492→   492→   492→          const includeChainOfCustody = config.includeChainOfCustody ?? true;
+   493→   493→   493→          const includeMetadata = config.includeMetadata ?? true;
+   494→   494→   494→          const includeAnalysis = config.includeAnalysis ?? false;
+   495→   495→   495→          const verifyIntegrity = config.verifyIntegrity ?? true;
+   496→   496→   496→          const exportFormat = config.exportFormat;
+   497→   497→   497→          const includeDeleted = config.includeDeleted ?? false;
+   498→   498→   498→          const sortBy = config.sortBy || 'collectedAt';
+   499→   499→   499→          const sortOrder = config.sortOrder || 'desc';
+   500→   500→   500→          const limit = config.limit || 100;
+
+[showing lines 1-500 of 712; use offset=501 with limit to continue reading]

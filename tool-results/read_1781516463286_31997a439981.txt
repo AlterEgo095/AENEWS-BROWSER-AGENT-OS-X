@@ -1,0 +1,737 @@
+     1→     1→/**
+     2→     2→ * AENEWS Agent OS X — Security Controller Integration Tests
+     3→     3→ *
+     4→     4→ * Integration tests that exercise the SecurityController with all dependencies
+     5→     5→ * mocked, verifying behavior of all security endpoints:
+     6→     6→ *
+     7→     7→ *   - POST security/scan-prompt blocks injection
+     8→     8→ *   - POST security/validate-url blocks SSRF
+     9→     9→ *   - POST security/encrypt / POST security/decrypt round-trip
+    10→    10→ *   - POST security/generate-api-key returns properly formatted key
+    11→    11→ *   - All endpoints require authentication
+    12→    12→ *   - TOTP setup/enable/disable flow
+    13→    13→ */
+    14→    14→
+    15→    15→import { Test, TestingModule } from '@nestjs/testing';
+    16→    16→import { INestApplication, ValidationPipe, BadRequestException, UnauthorizedException } from '@nestjs/common';
+    17→    17→import { JwtService } from '@nestjs/jwt';
+    18→    18→import { Reflector } from '@nestjs/core';
+    19→    19→import request from 'supertest';
+    20→    20→
+    21→    21→import { SecurityController } from './security.controller';
+    22→    22→import { AccountLockoutService } from '../services/account-lockout.service';
+    23→    23→import { RefreshTokenService } from '../services/refresh-token.service';
+    24→    24→import { CorsSecurityMiddleware } from '../middleware/cors-security.middleware';
+    25→    25→import { ThreatIntelligenceService } from '../../security-monitoring/services/threat-intelligence.service';
+    26→    26→import { SecurityAuditPersistenceService } from '../services/security-audit-persistence.service';
+    27→    27→import { PromptInjectionGuardService } from '../services/prompt-injection-guard.service';
+    28→    28→import { SsrfProtectionService } from '../services/ssrf-protection.service';
+    29→    29→import { EncryptionService } from '../services/encryption.service';
+    30→    30→import { TotpService } from '../services/totp.service';
+    31→    31→import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+    32→    32→import { RolesGuard } from '../../auth/guards/roles.guard';
+    33→    33→import { User, UserRole } from '../../user/entities/user.entity';
+    34→    34→
+    35→    35→// ─── Mock Factories ────────────────────────────────────────────
+    36→    36→
+    37→    37→function createMockAccountLockout() {
+    38→    38→  return {
+    39→    39→    getLockoutStats: jest.fn(async () => ({ totalLockedAccounts: 0, lockedAccounts: [] })),
+    40→    40→    isAccountLocked: jest.fn(async () => ({ locked: false, lockedUntil: null, remainingAttempts: 5 })),
+    41→    41→    unlockAccount: jest.fn(async () => true),
+    42→    42→  };
+    43→    43→}
+    44→    44→
+    45→    45→function createMockRefreshTokenService() {
+    46→    46→  return {
+    47→    47→    getActiveSessions: jest.fn(async () => []),
+    48→    48→    revokeAllUserTokens: jest.fn(async () => 0),
+    49→    49→    revokeTokenFamily: jest.fn(async () => ({ family: 'f-123', revokedCount: 0 })),
+    50→    50→  };
+    51→    51→}
+    52→    52→
+    53→    53→function createMockCorsMiddleware() {
+    54→    54→  return {
+    55→    55→    getConfig: jest.fn(() => ({ allowedOrigins: ['https://aenews.io'], maxAge: 86400 })),
+    56→    56→    addOrigin: jest.fn(),
+    57→    57→    removeOrigin: jest.fn(() => true),
+    58→    58→  };
+    59→    59→}
+    60→    60→
+    61→    61→function createMockThreatIntel() {
+    62→    62→  return {
+    63→    63→    getAlerts: jest.fn(async () => []),
+    64→    64→    acknowledgeAlert: jest.fn(() => true),
+    65→    65→    getAllReputations: jest.fn(async () => []),
+    66→    66→    getIpReputation: jest.fn(() => ({ ip: '1.2.3.4', score: 0, flags: [] })),
+    67→    67→    setIpBlocked: jest.fn(async () => undefined),
+    68→    68→  };
+    69→    69→}
+    70→    70→
+    71→    71→function createMockAuditPersistence() {
+    72→    72→  return {
+    73→    73→    queryAuditLog: jest.fn(async () => ({ entries: [], total: 0 })),
+    74→    74→    getAuditStats: jest.fn(async () => ({ totalEvents: 0, eventsByAction: {} })),
+    75→    75→  };
+    76→    76→}
+    77→    77→
+    78→    78→function createMockPromptGuard() {
+    79→    79→  return {
+    80→    80→    guardInput: jest.fn(() => ({
+    81→    81→      safe: true,
+    82→    82→      threats: [],
+    83→    83→      sanitized: 'clean input',
+    84→    84→      severity: 'none',
+    85→    85→      threatCategories: {},
+    86→    86→    })),
+    87→    87→  };
+    88→    88→}
+    89→    89→
+    90→    90→function createMockSsrfProtection() {
+    91→    91→  return {
+    92→    92→    validateUrl: jest.fn(async () => ({ safe: true, reason: 'URL is safe' })),
+    93→    93→  };
+    94→    94→}
+    95→    95→
+    96→    96→function createMockEncryptionService(): EncryptionService {
+    97→    97→  return {
+    98→    98→    encrypt: jest.fn((plaintext: string) => Buffer.from(plaintext).toString('base64')),
+    99→    99→    decrypt: jest.fn((encrypted: string) => Buffer.from(encrypted, 'base64').toString('utf-8')),
+   100→   100→    generateApiKey: jest.fn(() => `aen_${'ab'.repeat(32)}`),
+   101→   101→  } as any;
+   102→   102→}
+   103→   103→
+   104→   104→function createMockTotpService(): TotpService {
+   105→   105→  return {
+   106→   106→    generateSecret: jest.fn(async () => ({
+   107→   107→      qrCode: 'base64-qr-code',
+   108→   108→      otpauthUri: 'otpauth://totp/AENEWS:test@example.com?secret=JBSWY3DPEHPK3PXP',
+   109→   109→      backupCodes: ['ABCD1234', 'EFGH5678', 'IJKL9012', 'MNOP3456'],
+   110→   110→      encryptedSecret: 'ZW5jcnlwdGVkLXNlY3JldA==',
+   111→   111→    })),
+   112→   112→    verifyToken: jest.fn(() => true),
+   113→   113→    decryptSecret: jest.fn(() => 'JBSWY3DPEHPK3PXP'),
+   114→   114→    hashBackupCodes: jest.fn(async (codes: string[]) => codes.map((c) => `$2b$10$hash_${c}`)),
+   115→   115→    validateBackupCode: jest.fn(async () => ({
+   116→   116→      valid: true,
+   117→   117→      usedBackupCodes: ['hashed-code'],
+   118→   118→      backupCodeUsed: true,
+   119→   119→    })),
+   120→   120→    generateBackupCodes: jest.fn(() => ['ABCD1234', 'EFGH5678']),
+   121→   121→  } as any;
+   122→   122→}
+   123→   123→
+   124→   124→function createMockUserRepo() {
+   125→   125→  const user: Partial<User> = {
+   126→   126→    id: 'user-123',
+   127→   127→    email: 'admin@aenews.io',
+   128→   128→    passwordHash: '$2b$10$hash',
+   129→   129→    firstName: 'Admin',
+   130→   130→    lastName: 'User',
+   131→   131→    role: UserRole.SUPER_ADMIN,
+   132→   132→    tenantId: 'tenant-123',
+   133→   133→    isActive: true,
+   134→   134→    totpEnabled: false,
+   135→   135→    totpSecret: null,
+   136→   136→    totpBackupCodes: null,
+   137→   137→    totpUsedBackupCodes: '[]',
+   138→   138→  };
+   139→   139→
+   140→   140→  return {
+   141→   141→    findOne: jest.fn(async () => user),
+   142→   142→    update: jest.fn(async () => ({ affected: 1 })),
+   143→   143→  };
+   144→   144→}
+   145→   145→
+   146→   146→// ─── Helper: Create Test App ─────────────────────────────────
+   147→   147→
+   148→   148→async function createTestApp(userRole: UserRole = UserRole.SUPER_ADMIN): Promise<INestApplication> {
+   149→   149→  const mockUserRepo = createMockUserRepo();
+   150→   150→
+   151→   151→  const moduleFixture: TestingModule = await Test.createTestingModule({
+   152→   152→    controllers: [SecurityController],
+   153→   153→    providers: [
+   154→   154→      { provide: AccountLockoutService, useFactory: createMockAccountLockout },
+   155→   155→      { provide: RefreshTokenService, useFactory: createMockRefreshTokenService },
+   156→   156→      { provide: CorsSecurityMiddleware, useFactory: createMockCorsMiddleware },
+   157→   157→      { provide: ThreatIntelligenceService, useFactory: createMockThreatIntel },
+   158→   158→      { provide: SecurityAuditPersistenceService, useFactory: createMockAuditPersistence },
+   159→   159→      { provide: PromptInjectionGuardService, useFactory: createMockPromptGuard },
+   160→   160→      { provide: SsrfProtectionService, useFactory: createMockSsrfProtection },
+   161→   161→      { provide: EncryptionService, useFactory: createMockEncryptionService },
+   162→   162→      { provide: TotpService, useFactory: createMockTotpService },
+   163→   163→      { provide: 'UserRepository', useValue: mockUserRepo },
+   164→   164→      // Guard dependencies
+   165→   165→      JwtAuthGuard,
+   166→   166→      RolesGuard,
+   167→   167→      { provide: Reflector, useValue: new Reflector() },
+   168→   168→      { provide: JwtService, useValue: new JwtService({ secret: 'test-jwt-secret' }) },
+   169→   169→    ],
+   170→   170→  }).compile();
+   171→   171→
+   172→   172→  const app = moduleFixture.createNestApplication();
+   173→   173→  app.useGlobalPipes(
+   174→   174→    new ValidationPipe({
+   175→   175→      whitelist: true,
+   176→   176→      forbidNonWhitelisted: true,
+   177→   177→      transform: true,
+   178→   178→    }),
+   179→   179→  );
+   180→   180→  await app.init();
+   181→   181→  return app;
+   182→   182→}
+   183→   183→
+   184→   184→/**
+   185→   185→ * Generate a valid JWT for a given role.
+   186→   186→ */
+   187→   187→function generateAuthHeader(role: UserRole = UserRole.SUPER_ADMIN): string {
+   188→   188→  const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   189→   189→  const token = jwtService.sign({
+   190→   190→    sub: 'user-123',
+   191→   191→    email: 'admin@aenews.io',
+   192→   192→    role,
+   193→   193→    tenantId: 'tenant-123',
+   194→   194→  });
+   195→   195→  return `Bearer ${token}`;
+   196→   196→}
+   197→   197→
+   198→   198→// ─── Test Suite ────────────────────────────────────────────────
+   199→   199→
+   200→   200→describe('SecurityController (Integration)', () => {
+   201→   201→  let app: INestApplication;
+   202→   202→
+   203→   203→  beforeEach(async () => {
+   204→   204→    app = await createTestApp();
+   205→   205→  });
+   206→   206→
+   207→   207→  afterEach(async () => {
+   208→   208→    await app.close();
+   209→   209→  });
+   210→   210→
+   211→   211→  // ═══════════════════════════════════════════════════════════
+   212→   212→  //  Authentication Required
+   213→   213→  // ═══════════════════════════════════════════════════════════
+   214→   214→
+   215→   215→  describe('authentication requirement', () => {
+   216→   216→    it('should require authentication for scan-prompt', () => {
+   217→   217→      return request(app.getHttpServer())
+   218→   218→        .post('/security/scan-prompt')
+   219→   219→        .send({ input: 'test', context: 'chat' })
+   220→   220→        .expect((res) => {
+   221→   221→          expect(res.status).toBe(401);
+   222→   222→        });
+   223→   223→    });
+   224→   224→
+   225→   225→    it('should require authentication for validate-url', () => {
+   226→   226→      return request(app.getHttpServer())
+   227→   227→        .post('/security/validate-url')
+   228→   228→        .send({ url: 'https://example.com' })
+   229→   229→        .expect((res) => {
+   230→   230→          expect(res.status).toBe(401);
+   231→   231→        });
+   232→   232→    });
+   233→   233→
+   234→   234→    it('should require authentication for encrypt', () => {
+   235→   235→      return request(app.getHttpServer())
+   236→   236→        .post('/security/encrypt')
+   237→   237→        .send({ plaintext: 'secret' })
+   238→   238→        .expect((res) => {
+   239→   239→          expect(res.status).toBe(401);
+   240→   240→        });
+   241→   241→    });
+   242→   242→
+   243→   243→    it('should require authentication for decrypt', () => {
+   244→   244→      return request(app.getHttpServer())
+   245→   245→        .post('/security/decrypt')
+   246→   246→        .send({ encrypted: 'abc123' })
+   247→   247→        .expect((res) => {
+   248→   248→          expect(res.status).toBe(401);
+   249→   249→        });
+   250→   250→    });
+   251→   251→
+   252→   252→    it('should require authentication for generate-api-key', () => {
+   253→   253→      return request(app.getHttpServer())
+   254→   254→        .post('/security/generate-api-key')
+   255→   255→        .expect((res) => {
+   256→   256→          expect(res.status).toBe(401);
+   257→   257→        });
+   258→   258→    });
+   259→   259→
+   260→   260→    it('should require authentication for TOTP setup', () => {
+   261→   261→      return request(app.getHttpServer())
+   262→   262→        .post('/security/totp/setup')
+   263→   263→        .send({})
+   264→   264→        .expect((res) => {
+   265→   265→          expect(res.status).toBe(401);
+   266→   266→        });
+   267→   267→    });
+   268→   268→
+   269→   269→    it('should require authentication for TOTP enable', () => {
+   270→   270→      return request(app.getHttpServer())
+   271→   271→        .post('/security/totp/enable')
+   272→   272→        .send({ code: '123456' })
+   273→   273→        .expect((res) => {
+   274→   274→          expect(res.status).toBe(401);
+   275→   275→        });
+   276→   276→    });
+   277→   277→
+   278→   278→    it('should require authentication for TOTP disable', () => {
+   279→   279→      return request(app.getHttpServer())
+   280→   280→        .post('/security/totp/disable')
+   281→   281→        .send({ code: '123456', password: 'pass' })
+   282→   282→        .expect((res) => {
+   283→   283→          expect(res.status).toBe(401);
+   284→   284→        });
+   285→   285→    });
+   286→   286→
+   287→   287→    it('should require authentication for lockout stats', () => {
+   288→   288→      return request(app.getHttpServer())
+   289→   289→        .get('/security/lockout/stats')
+   290→   290→        .expect((res) => {
+   291→   291→          expect(res.status).toBe(401);
+   292→   292→        });
+   293→   293→    });
+   294→   294→
+   295→   295→    it('should require authentication for audit log', () => {
+   296→   296→      return request(app.getHttpServer())
+   297→   297→        .get('/security/audit')
+   298→   298→        .expect((res) => {
+   299→   299→          expect(res.status).toBe(401);
+   300→   300→        });
+   301→   301→    });
+   302→   302→  });
+   303→   303→
+   304→   304→  // ═══════════════════════════════════════════════════════════
+   305→   305→  //  POST security/scan-prompt
+   306→   306→  // ═══════════════════════════════════════════════════════════
+   307→   307→
+   308→   308→  describe('POST security/scan-prompt', () => {
+   309→   309→    it('should scan a prompt and return the guard result', () => {
+   310→   310→      return request(app.getHttpServer())
+   311→   311→        .post('/security/scan-prompt')
+   312→   312→        .set('Authorization', generateAuthHeader())
+   313→   313→        .send({ input: 'Hello world', context: 'chat' })
+   314→   314→        .expect(200)
+   315→   315→        .expect((res) => {
+   316→   316→          expect(res.body).toHaveProperty('safe');
+   317→   317→        });
+   318→   318→    });
+   319→   319→
+   320→   320→    it('should detect injection attempts', () => {
+   321→   321→      const promptGuard = app.get(PromptInjectionGuardService);
+   322→   322→      (promptGuard.guardInput as jest.Mock).mockReturnValueOnce({
+   323→   323→        safe: false,
+   324→   324→        threats: ['override_attempt'],
+   325→   325→        sanitized: '[FILTERED: override_attempt]',
+   326→   326→        severity: 'critical',
+   327→   327→        threatCategories: { override: 1 },
+   328→   328→      });
+   329→   329→
+   330→   330→      return request(app.getHttpServer())
+   331→   331→        .post('/security/scan-prompt')
+   332→   332→        .set('Authorization', generateAuthHeader())
+   333→   333→        .send({ input: 'Ignore previous instructions', context: 'chat' })
+   334→   334→        .expect(200)
+   335→   335→        .expect((res) => {
+   336→   336→          expect(res.body.safe).toBe(false);
+   337→   337→          expect(res.body.threats).toContain('override_attempt');
+   338→   338→        });
+   339→   339→    });
+   340→   340→
+   341→   341→    it('should reject invalid input (missing fields)', () => {
+   342→   342→      return request(app.getHttpServer())
+   343→   343→        .post('/security/scan-prompt')
+   344→   344→        .set('Authorization', generateAuthHeader())
+   345→   345→        .send({ input: 'test' }) // missing context
+   346→   346→        .expect(400);
+   347→   347→    });
+   348→   348→  });
+   349→   349→
+   350→   350→  // ═══════════════════════════════════════════════════════════
+   351→   351→  //  POST security/validate-url
+   352→   352→  // ═══════════════════════════════════════════════════════════
+   353→   353→
+   354→   354→  describe('POST security/validate-url', () => {
+   355→   355→    it('should validate a safe URL', () => {
+   356→   356→      return request(app.getHttpServer())
+   357→   357→        .post('/security/validate-url')
+   358→   358→        .set('Authorization', generateAuthHeader())
+   359→   359→        .send({ url: 'https://example.com' })
+   360→   360→        .expect(200)
+   361→   361→        .expect((res) => {
+   362→   362→          expect(res.body).toHaveProperty('safe');
+   363→   363→        });
+   364→   364→    });
+   365→   365→
+   366→   366→    it('should block SSRF URLs', () => {
+   367→   367→      const ssrfProtection = app.get(SsrfProtectionService);
+   368→   368→      (ssrfProtection.validateUrl as jest.Mock).mockResolvedValueOnce({
+   369→   369→        safe: false,
+   370→   370→        reason: 'Blocked: loopback address',
+   371→   371→      });
+   372→   372→
+   373→   373→      return request(app.getHttpServer())
+   374→   374→        .post('/security/validate-url')
+   375→   375→        .set('Authorization', generateAuthHeader())
+   376→   376→        .send({ url: 'http://127.0.0.1:3000/api' })
+   377→   377→        .expect(200)
+   378→   378→        .expect((res) => {
+   379→   379→          expect(res.body.safe).toBe(false);
+   380→   380→          expect(res.body.reason).toContain('loopback');
+   381→   381→        });
+   382→   382→    });
+   383→   383→
+   384→   384→    it('should reject invalid input (missing url)', () => {
+   385→   385→      return request(app.getHttpServer())
+   386→   386→        .post('/security/validate-url')
+   387→   387→        .set('Authorization', generateAuthHeader())
+   388→   388→        .send({})
+   389→   389→        .expect(400);
+   390→   390→    });
+   391→   391→  });
+   392→   392→
+   393→   393→  // ═══════════════════════════════════════════════════════════
+   394→   394→  //  POST security/encrypt / POST security/decrypt round-trip
+   395→   395→  // ═══════════════════════════════════════════════════════════
+   396→   396→
+   397→   397→  describe('POST security/encrypt / decrypt round-trip', () => {
+   398→   398→    it('should encrypt a plaintext string', () => {
+   399→   399→      return request(app.getHttpServer())
+   400→   400→        .post('/security/encrypt')
+   401→   401→        .set('Authorization', generateAuthHeader())
+   402→   402→        .send({ plaintext: 'my-secret-api-key' })
+   403→   403→        .expect(201)
+   404→   404→        .expect((res) => {
+   405→   405→          expect(res.body).toHaveProperty('encrypted');
+   406→   406→          expect(res.body.encrypted).toBeTruthy();
+   407→   407→        });
+   408→   408→    });
+   409→   409→
+   410→   410→    it('should decrypt an encrypted string back to the original', () => {
+   411→   411→      const encryptionService = app.get(EncryptionService);
+   412→   412→      // The mock uses base64 encoding, so we can predict the result
+   413→   413→      const expectedDecrypted = 'my-secret-api-key';
+   414→   414→
+   415→   415→      return request(app.getHttpServer())
+   416→   416→        .post('/security/decrypt')
+   417→   417→        .set('Authorization', generateAuthHeader())
+   418→   418→        .send({ encrypted: Buffer.from(expectedDecrypted).toString('base64') })
+   419→   419→        .expect(201)
+   420→   420→        .expect((res) => {
+   421→   421→          expect(res.body).toHaveProperty('decrypted');
+   422→   422→          expect(res.body.decrypted).toBe(expectedDecrypted);
+   423→   423→        });
+   424→   424→    });
+   425→   425→
+   426→   426→    it('should reject empty plaintext for encrypt', () => {
+   427→   427→      return request(app.getHttpServer())
+   428→   428→        .post('/security/encrypt')
+   429→   429→        .set('Authorization', generateAuthHeader())
+   430→   430→        .send({ plaintext: '' })
+   431→   431→        .expect(400);
+   432→   432→    });
+   433→   433→
+   434→   434→    it('should reject empty encrypted data for decrypt', () => {
+   435→   435→      return request(app.getHttpServer())
+   436→   436→        .post('/security/decrypt')
+   437→   437→        .set('Authorization', generateAuthHeader())
+   438→   438→        .send({ encrypted: '' })
+   439→   439→        .expect(400);
+   440→   440→    });
+   441→   441→  });
+   442→   442→
+   443→   443→  // ═══════════════════════════════════════════════════════════
+   444→   444→  //  POST security/generate-api-key
+   445→   445→  // ═══════════════════════════════════════════════════════════
+   446→   446→
+   447→   447→  describe('POST security/generate-api-key', () => {
+   448→   448→    it('should return a properly formatted API key', () => {
+   449→   449→      return request(app.getHttpServer())
+   450→   450→        .post('/security/generate-api-key')
+   451→   451→        .set('Authorization', generateAuthHeader())
+   452→   452→        .expect(201)
+   453→   453→        .expect((res) => {
+   454→   454→          expect(res.body).toHaveProperty('apiKey');
+   455→   455→          expect(res.body.apiKey).toMatch(/^aen_/);
+   456→   456→        });
+   457→   457→    });
+   458→   458→  });
+   459→   459→
+   460→   460→  // ═══════════════════════════════════════════════════════════
+   461→   461→  //  TOTP Setup / Enable / Disable Flow
+   462→   462→  // ═══════════════════════════════════════════════════════════
+   463→   463→
+   464→   464→  describe('TOTP setup/enable/disable flow', () => {
+   465→   465→    it('should set up TOTP and return QR code + backup codes', () => {
+   466→   466→      return request(app.getHttpServer())
+   467→   467→        .post('/security/totp/setup')
+   468→   468→        .set('Authorization', generateAuthHeader())
+   469→   469→        .send({})
+   470→   470→        .expect(201)
+   471→   471→        .expect((res) => {
+   472→   472→          expect(res.body).toHaveProperty('qrCode');
+   473→   473→          expect(res.body).toHaveProperty('otpauthUri');
+   474→   474→          expect(res.body).toHaveProperty('backupCodes');
+   475→   475→          expect(res.body.backupCodes).toHaveLength(4);
+   476→   476→          expect(res.body).toHaveProperty('message');
+   477→   477→        });
+   478→   478→    });
+   479→   479→
+   480→   480→    it('should enable TOTP after setup with a valid code', () => {
+   481→   481→      return request(app.getHttpServer())
+   482→   482→        .post('/security/totp/enable')
+   483→   483→        .set('Authorization', generateAuthHeader())
+   484→   484→        .send({ code: '123456' })
+   485→   485→        .expect(201)
+   486→   486→        .expect((res) => {
+   487→   487→          expect(res.body).toHaveProperty('enabled', true);
+   488→   488→        });
+   489→   489→    });
+   490→   490→
+   491→   491→    it('should reject TOTP enable with an invalid code', () => {
+   492→   492→      const totpService = app.get(TotpService);
+   493→   493→      (totpService.verifyToken as jest.Mock).mockReturnValueOnce(false);
+   494→   494→
+   495→   495→      return request(app.getHttpServer())
+   496→   496→        .post('/security/totp/enable')
+   497→   497→        .set('Authorization', generateAuthHeader())
+   498→   498→        .send({ code: '000000' })
+   499→   499→        .expect(401);
+   500→   500→    });
+   501→   501→
+   502→   502→    it('should disable TOTP with valid password and code', () => {
+   503→   503→      const bcrypt = require('bcrypt');
+   504→   504→      // We can't easily mock bcrypt.compare, so we test the controller flow
+   505→   505→      return request(app.getHttpServer())
+   506→   506→        .post('/security/totp/disable')
+   507→   507→        .set('Authorization', generateAuthHeader())
+   508→   508→        .send({ code: '123456', password: 'my-password' })
+   509→   509→        .expect((res) => {
+   510→   510→          // May fail on password comparison since we can't easily mock bcrypt
+   511→   511→          // but the endpoint should be reachable
+   512→   512→          expect(res.status).not.toBe(404);
+   513→   513→        });
+   514→   514→    });
+   515→   515→
+   516→   516→    it('should reject TOTP enable if already enabled', async () => {
+   517→   517→      const userRepo = app.get('UserRepository');
+   518→   518→      // Simulate user with TOTP already enabled
+   519→   519→      const enabledUser = {
+   520→   520→        id: 'user-123',
+   521→   521→        email: 'admin@aenews.io',
+   522→   522→        passwordHash: '$2b$10$hash',
+   523→   523→        firstName: 'Admin',
+   524→   524→        lastName: 'User',
+   525→   525→        role: UserRole.SUPER_ADMIN,
+   526→   526→        tenantId: 'tenant-123',
+   527→   527→        isActive: true,
+   528→   528→        totpEnabled: true,
+   529→   529→        totpSecret: 'some-encrypted-secret',
+   530→   530→        totpBackupCodes: '[]',
+   531→   531→        totpUsedBackupCodes: '[]',
+   532→   532→      };
+   533→   533→      (userRepo.findOne as jest.Mock).mockResolvedValueOnce(enabledUser);
+   534→   534→
+   535→   535→      return request(app.getHttpServer())
+   536→   536→        .post('/security/totp/enable')
+   537→   537→        .set('Authorization', generateAuthHeader())
+   538→   538→        .send({ code: '123456' })
+   539→   539→        .expect(400);
+   540→   540→    });
+   541→   541→
+   542→   542→    it('should reject TOTP setup if already enabled', async () => {
+   543→   543→      const userRepo = app.get('UserRepository');
+   544→   544→      const enabledUser = {
+   545→   545→        id: 'user-123',
+   546→   546→        email: 'admin@aenews.io',
+   547→   547→        totpEnabled: true,
+   548→   548→      };
+   549→   549→      (userRepo.findOne as jest.Mock).mockResolvedValueOnce(enabledUser);
+   550→   550→
+   551→   551→      return request(app.getHttpServer())
+   552→   552→        .post('/security/totp/setup')
+   553→   553→        .set('Authorization', generateAuthHeader())
+   554→   554→        .send({})
+   555→   555→        .expect(400);
+   556→   556→    });
+   557→   557→  });
+   558→   558→
+   559→   559→  // ═══════════════════════════════════════════════════════════
+   560→   560→  //  TOTP Verify
+   561→   561→  // ═══════════════════════════════════════════════════════════
+   562→   562→
+   563→   563→  describe('POST security/totp/verify', () => {
+   564→   564→    it('should verify a valid TOTP code', async () => {
+   565→   565→      const userRepo = app.get('UserRepository');
+   566→   566→      const userWithTotp = {
+   567→   567→        id: 'user-123',
+   568→   568→        email: 'admin@aenews.io',
+   569→   569→        totpEnabled: true,
+   570→   570→        totpSecret: 'encrypted-secret',
+   571→   571→        totpBackupCodes: '[]',
+   572→   572→        totpUsedBackupCodes: '[]',
+   573→   573→      };
+   574→   574→      (userRepo.findOne as jest.Mock).mockResolvedValueOnce(userWithTotp);
+   575→   575→
+   576→   576→      return request(app.getHttpServer())
+   577→   577→        .post('/security/totp/verify')
+   578→   578→        .set('Authorization', generateAuthHeader())
+   579→   579→        .send({ code: '123456' })
+   580→   580→        .expect(201)
+   581→   581→        .expect((res) => {
+   582→   582→          expect(res.body.valid).toBe(true);
+   583→   583→          expect(res.body.method).toBe('totp');
+   584→   584→        });
+   585→   585→    });
+   586→   586→
+   587→   587→    it('should reject TOTP verify when TOTP not enabled', async () => {
+   588→   588→      const userRepo = app.get('UserRepository');
+   589→   589→      const userWithoutTotp = {
+   590→   590→        id: 'user-123',
+   591→   591→        email: 'admin@aenews.io',
+   592→   592→        totpEnabled: false,
+   593→   593→        totpSecret: null,
+   594→   594→      };
+   595→   595→      (userRepo.findOne as jest.Mock).mockResolvedValueOnce(userWithoutTotp);
+   596→   596→
+   597→   597→      return request(app.getHttpServer())
+   598→   598→        .post('/security/totp/verify')
+   599→   599→        .set('Authorization', generateAuthHeader())
+   600→   600→        .send({ code: '123456' })
+   601→   601→        .expect(400);
+   602→   602→    });
+   603→   603→  });
+   604→   604→
+   605→   605→  // ═══════════════════════════════════════════════════════════
+   606→   606→  //  Account Lockout Endpoints
+   607→   607→  // ═══════════════════════════════════════════════════════════
+   608→   608→
+   609→   609→  describe('lockout endpoints', () => {
+   610→   610→    it('should get lockout stats', () => {
+   611→   611→      return request(app.getHttpServer())
+   612→   612→        .get('/security/lockout/stats')
+   613→   613→        .set('Authorization', generateAuthHeader())
+   614→   614→        .expect(200);
+   615→   615→    });
+   616→   616→
+   617→   617→    it('should check account lockout for a valid email', () => {
+   618→   618→      return request(app.getHttpServer())
+   619→   619→        .get('/security/lockout/check/test@example.com')
+   620→   620→        .set('Authorization', generateAuthHeader())
+   621→   621→        .expect(200);
+   622→   622→    });
+   623→   623→
+   624→   624→    it('should reject invalid email format for lockout check', () => {
+   625→   625→      return request(app.getHttpServer())
+   626→   626→        .get('/security/lockout/check/invalid-email')
+   627→   627→        .set('Authorization', generateAuthHeader())
+   628→   628→        .expect(400);
+   629→   629→    });
+   630→   630→
+   631→   631→    it('should unlock an account with valid email', () => {
+   632→   632→      return request(app.getHttpServer())
+   633→   633→        .post('/security/lockout/unlock/test@example.com')
+   634→   634→        .set('Authorization', generateAuthHeader())
+   635→   635→        .expect(201);
+   636→   636→    });
+   637→   637→  });
+   638→   638→
+   639→   639→  // ═══════════════════════════════════════════════════════════
+   640→   640→  //  Threat Intelligence Endpoints
+   641→   641→  // ═══════════════════════════════════════════════════════════
+   642→   642→
+   643→   643→  describe('threat intelligence endpoints', () => {
+   644→   644→    it('should get threat alerts', () => {
+   645→   645→      return request(app.getHttpServer())
+   646→   646→        .get('/security/threats/alerts')
+   647→   647→        .set('Authorization', generateAuthHeader())
+   648→   648→        .expect(200);
+   649→   649→    });
+   650→   650→
+   651→   651→    it('should get IP reputation', () => {
+   652→   652→      return request(app.getHttpServer())
+   653→   653→        .get('/security/threats/ip/1.2.3.4')
+   654→   654→        .set('Authorization', generateAuthHeader())
+   655→   655→        .expect(200);
+   656→   656→    });
+   657→   657→
+   658→   658→    it('should block an IP with valid format', () => {
+   659→   659→      return request(app.getHttpServer())
+   660→   660→        .post('/security/threats/ip/1.2.3.4/block')
+   661→   661→        .set('Authorization', generateAuthHeader())
+   662→   662→        .expect(201);
+   663→   663→    });
+   664→   664→
+   665→   665→    it('should reject invalid IP format for blocking', () => {
+   666→   666→      return request(app.getHttpServer())
+   667→   667→        .post('/security/threats/ip/not-an-ip/block')
+   668→   668→        .set('Authorization', generateAuthHeader())
+   669→   669→        .expect(400);
+   670→   670→    });
+   671→   671→  });
+   672→   672→
+   673→   673→  // ═══════════════════════════════════════════════════════════
+   674→   674→  //  Refresh Token Endpoints
+   675→   675→  // ═══════════════════════════════════════════════════════════
+   676→   676→
+   677→   677→  describe('refresh token endpoints', () => {
+   678→   678→    it('should get active sessions', () => {
+   679→   679→      return request(app.getHttpServer())
+   680→   680→        .get('/security/tokens/sessions')
+   681→   681→        .set('Authorization', generateAuthHeader())
+   682→   682→        .expect(200);
+   683→   683→    });
+   684→   684→
+   685→   685→    it('should revoke all tokens', () => {
+   686→   686→      return request(app.getHttpServer())
+   687→   687→        .delete('/security/tokens/revoke-all')
+   688→   688→        .set('Authorization', generateAuthHeader())
+   689→   689→        .expect(204);
+   690→   690→    });
+   691→   691→  });
+   692→   692→
+   693→   693→  // ═══════════════════════════════════════════════════════════
+   694→   694→  //  CORS Endpoints
+   695→   695→  // ═══════════════════════════════════════════════════════════
+   696→   696→
+   697→   697→  describe('CORS endpoints', () => {
+   698→   698→    it('should get CORS config', () => {
+   699→   699→      return request(app.getHttpServer())
+   700→   700→        .get('/security/cors/config')
+   701→   701→        .set('Authorization', generateAuthHeader())
+   702→   702→        .expect(200);
+   703→   703→    });
+   704→   704→
+   705→   705→    it('should add a CORS origin', () => {
+   706→   706→      return request(app.getHttpServer())
+   707→   707→        .post('/security/cors/origins')
+   708→   708→        .set('Authorization', generateAuthHeader())
+   709→   709→        .send({ origin: 'https://new-origin.com' })
+   710→   710→        .expect(201);
+   711→   711→    });
+   712→   712→  });
+   713→   713→
+   714→   714→  // ═══════════════════════════════════════════════════════════
+   715→   715→  //  Security Audit Endpoints
+   716→   716→  // ═══════════════════════════════════════════════════════════
+   717→   717→
+   718→   718→  describe('audit endpoints', () => {
+   719→   719→    it('should query audit log', () => {
+   720→   720→      return request(app.getHttpServer())
+   721→   721→        .get('/security/audit')
+   722→   722→        .set('Authorization', generateAuthHeader())
+   723→   723→        .expect(200);
+   724→   724→    });
+   725→   725→
+   726→   726→    it('should get audit stats with date range', () => {
+   727→   727→      const start = new Date('2024-01-01').toISOString();
+   728→   728→      const end = new Date('2024-12-31').toISOString();
+   729→   729→
+   730→   730→      return request(app.getHttpServer())
+   731→   731→        .get(`/security/audit/stats?startDate=${start}&endDate=${end}`)
+   732→   732→        .set('Authorization', generateAuthHeader())
+   733→   733→        .expect(200);
+   734→   734→    });
+   735→   735→  });
+   736→   736→});
+   737→   737→

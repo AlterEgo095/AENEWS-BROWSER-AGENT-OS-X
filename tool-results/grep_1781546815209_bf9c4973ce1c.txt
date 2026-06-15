@@ -1,0 +1,252 @@
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts:32:  AgentEventType,
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-33-} from './agent-event-bus.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-34-import { AgentMemoryService, MemoryTier } from './agent-memory.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-35-import { KnowledgeGraphService, PatternKnowledge } from './knowledge-graph.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-36-import { ClusterType } from '../../agent/entities/agent.entity';
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-37-
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-38-// ─── Pattern Types ────────────────────────────────────────────────
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-39-
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-40-export type PatternCategory =
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-41-  | 'success_sequence'
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-42-  | 'failure_sequence'
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-43-  | 'optimization'
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-44-  | 'anti_pattern'
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-45-  | 'collaboration_effective'
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-46-  | 'collaboration_ineffective'
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-47-  | 'resource_bottleneck'
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts:233:    this.eventBus.emit(AgentEventType.AGENT_COMPLETED, 'pattern-mining', {
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-234-      patternsDiscovered: filtered.length,
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-235-      dataPoints: data.length,
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-236-      durationMs: Date.now() - startTime,
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-237-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-238-
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-239-    this.logger.log({
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-240-      msg: 'Pattern mining complete',
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-241-      patterns: filtered.length,
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-242-      dataPoints: data.length,
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-243-      durationMs: Date.now() - startTime,
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-244-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-245-
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-246-    // Prune old patterns
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-247-    if (this.patterns.size > this.MAX_PATTERNS) {
+/home/z/my-project/backend/src/modules/agent-framework/services/pattern-mining.service.ts-248-      this.prunePatterns();
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts:33:  AgentEventType,
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-34-} from './agent-event-bus.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-35-import { AgentLearningEngine } from './agent-learning-engine.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-36-import { PatternMiningService } from './pattern-mining.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-37-import { FeedbackAggregationService } from './feedback-aggregation.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-38-import { ExperienceReplayService } from './experience-replay.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-39-
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-40-// ─── Feedback Types ───────────────────────────────────────────────
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-41-
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-42-export type OrchestrationParameter =
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-43-  | 'collaboration_pattern_weight'
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-44-  | 'agent_selection_weight'
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-45-  | 'decomposition_strategy_weight'
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-46-  | 'timeout_multiplier'
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-47-  | 'max_agents_multiplier'
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-48-  | 'quality_threshold'
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts:368:        type: AgentEventType.CUSTOM,
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-369-        source: 'AdaptiveFeedbackLoopService',
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-370-        data: {
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-371-          event: 'feedback.applied',
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-372-          adjustmentCount: adjustments.length,
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-373-          parameters: adjustments.map(a => a.parameter),
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-374-        },
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-375-        timestamp: new Date(),
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-376-      });
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-377-    }
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-378-
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-379-    return adjustments;
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-380-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-381-
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-382-  /**
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-383-   * Apply PID control for a single parameter.
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts:488:      type: AgentEventType.CUSTOM,
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-489-      source: 'AdaptiveFeedbackLoopService',
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-490-      data: { event: 'parameter.rolled_back', parameter, from: recentAdjustment.newValue, to: recentAdjustment.previousValue },
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-491-      timestamp: new Date(),
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-492-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-493-
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-494-    return true;
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-495-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-496-
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-497-  // ─── Parameter Access ─────────────────────────────────────────
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-498-
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-499-  /**
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-500-   * Get the current value of an orchestration parameter.
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-501-   */
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-502-  getParameter(parameter: OrchestrationParameter): number {
+/home/z/my-project/backend/src/modules/agent-framework/services/adaptive-feedback-loop.service.ts-503-    return this.parameters.get(parameter) ?? 1.0;
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts:5:  AgentEventType,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-6-} from './agent-event-bus.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-7-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-8-/**
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-9- * Message envelope for inter-agent communication.
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-10- */
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-11-export interface AgentMessage {
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-12-  id: string;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-13-  from: string;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-14-  to: string;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-15-  type: 'message' | 'request' | 'response' | 'broadcast';
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-16-  content: any;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-17-  timestamp: number;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-18-  correlationId?: string; // for request/response pairing
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-19-}
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-20-
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts:84:    this.eventBus.emit(AgentEventType.COMMUNICATION_SENT, fromAgentId, {
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-85-      messageId: message.id,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-86-      to: toAgentId,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-87-      type: 'message',
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-88-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-89-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-90-    this.logger.debug(
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-91-      `Message ${message.id}: ${fromAgentId} → ${toAgentId}`,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-92-    );
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-93-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-94-    return message;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-95-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-96-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-97-  /**
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-98-   * Broadcast a message to all agents.
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-99-   */
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts:112:    this.eventBus.emit(AgentEventType.COMMUNICATION_SENT, fromAgentId, {
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-113-      messageId: message.id,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-114-      to: 'broadcast',
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-115-      type: 'broadcast',
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-116-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-117-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-118-    this.logger.debug(`Broadcast ${message.id} from ${fromAgentId}`);
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-119-    return message;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-120-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-121-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-122-  /**
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-123-   * Subscribe an agent to incoming messages.
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-124-   * The handler will be called for every message addressed to that agent
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-125-   * and for every broadcast.
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-126-   */
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-127-  subscribe(agentId: string, handler: MessageHandler): void {
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts:179:      this.eventBus.emit(AgentEventType.COMMUNICATION_SENT, fromAgentId, {
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-180-        messageId: message.id,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-181-        to: toAgentId,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-182-        type: 'request',
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-183-        correlationId,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-184-      });
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-185-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-186-      this.logger.debug(
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-187-        `Request ${message.id}: ${fromAgentId} → ${toAgentId}`,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-188-      );
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-189-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-190-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-191-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-192-  /**
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-193-   * Send a response to a previous request.
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-194-   */
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts:223:    this.eventBus.emit(AgentEventType.COMMUNICATION_SENT, fromAgentId, {
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-224-      messageId: response.id,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-225-      to: originalMessage.from,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-226-      type: 'response',
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-227-      correlationId: originalMessage.correlationId,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-228-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-229-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-230-    this.logger.debug(
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-231-      `Response ${response.id}: ${fromAgentId} → ${originalMessage.from}`,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-232-    );
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-233-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-234-    return response;
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-235-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-236-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-237-  // ─── Private helpers ────────────────────────────────────────
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-communication.service.ts-238-
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts:30:  AgentEventType,
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-31-} from './agent-event-bus.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-32-import { AgentMemoryService, MemoryTier } from './agent-memory.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-33-
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-34-// ─── Types ──────────────────────────────────────────────────────
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-35-
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-36-export type ExecutionSource = 'connector' | 'llm' | 'fallback' | 'capability';
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-37-
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-38-export interface ConnectorAwareResult {
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-39-  success: boolean;
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-40-  data?: any;
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-41-  error?: string;
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-42-  source: ExecutionSource;
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-43-  connectorName?: string;
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-44-  durationMs: number;
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-45-  costUsd?: number;
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts:280:    this.eventBus.emit(AgentEventType.TOOL_EXECUTED, 'connector-aware-execution', {
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-281-      source,
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-282-      connectorName,
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-283-      durationMs,
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-284-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-285-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/connector-aware-execution.service.ts-286-}
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts:28:  AgentEventType,
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-29-} from './agent-event-bus.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-30-import { AgentHealthService } from './agent-health.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-31-import { ClusterType } from '../../agent/entities/agent.entity';
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-32-import { LLMService } from '../../llm/llm.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-33-
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-34-// ─── Consensus Types ──────────────────────────────────────────────
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-35-
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-36-export type ConsensusStatus =
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-37-  | 'pending'
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-38-  | 'deliberating'
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-39-  | 'voting'
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-40-  | 'completed'
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-41-  | 'failed'
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-42-  | 'timeout'
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-43-  | 'byzantine_detected';
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts:199:      type: AgentEventType.CUSTOM,
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-200-      source: 'AdvancedConsensusProtocol',
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-201-      data: { event: 'consensus.initiated', consensusId: fullConfig.id, strategy: fullConfig.strategy, participants: fullConfig.participants.length },
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-202-      timestamp: new Date(),
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-203-    });
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-204-
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-205-    return fullConfig;
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-206-  }
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-207-
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-208-  /**
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-209-   * Run the full consensus protocol.
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-210-   */
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-211-  async runConsensus(consensusId: string): Promise<ConsensusResult> {
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-212-    const config = this.sessions.get(consensusId);
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-213-    if (!config) {
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-214-      throw new Error(`Consensus ${consensusId} not found`);
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts:390:        type: AgentEventType.CUSTOM,
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-391-        source: 'AdvancedConsensusProtocol',
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-392-        data: {
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-393-          event: accepted ? 'consensus.reached' : 'consensus.failed',
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-394-          consensusId,
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-395-          rounds: deliberationRounds.length,
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-396-          support: result.finalSupport,
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-397-          opposition: result.finalOpposition,
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-398-        },
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-399-        timestamp: new Date(),
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-400-      });
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-401-
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-402-      return result;
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-403-    } catch (error: any) {
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-404-      this.logger.error(`Consensus ${consensusId} failed: ${error.message}`, error.stack);
+/home/z/my-project/backend/src/modules/agent-framework/services/advanced-consensus-protocol.service.ts-405-
+--
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-health.service.ts:4:  AgentEventType,
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-health.service.ts-5-} from './agent-event-bus.service';
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-health.service.ts-6-
+/home/z/my-project/backend/src/modules/agent-framework/services/agent-health.service.ts-7-/**
+
+[Showing results with pagination = limit: 250]

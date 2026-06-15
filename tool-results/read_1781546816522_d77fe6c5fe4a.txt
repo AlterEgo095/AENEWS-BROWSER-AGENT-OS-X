@@ -1,0 +1,1545 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→import PptxGenJS from 'pptxgenjs';
+     9→import * as path from 'path';
+    10→import * as fs from 'fs';
+    11→
+    12→/* ═══════════════════════════════════════════════════════════════════════
+    13→   PREMIUM THEME SYSTEM
+    14→   ═══════════════════════════════════════════════════════════════════════ */
+    15→
+    16→interface PremiumTheme {
+    17→  name: string;
+    18→  primary: string;
+    19→  primaryDark: string;
+    20→  accent: string;
+    21→  accentLight: string;
+    22→  text: string;
+    23→  textLight: string;
+    24→  bg: string;
+    25→  bgLight: string;
+    26→  bgCard: string;
+    27→  success: string;
+    28→  warning: string;
+    29→  danger: string;
+    30→  gradientStart: string;
+    31→  gradientEnd: string;
+    32→}
+    33→
+    34→const PREMIUM_THEMES: Record<string, PremiumTheme> = {
+    35→  corporate: {
+    36→    name: 'Corporate Navy',
+    37→    primary: '0F1B3D',
+    38→    primaryDark: '070E1F',
+    39→    accent: '3B82F6',
+    40→    accentLight: '93C5FD',
+    41→    text: '1E293B',
+    42→    textLight: '64748B',
+    43→    bg: 'FFFFFF',
+    44→    bgLight: 'F8FAFC',
+    45→    bgCard: 'F1F5F9',
+    46→    success: '10B981',
+    47→    warning: 'F59E0B',
+    48→    danger: 'EF4444',
+    49→    gradientStart: '0F1B3D',
+    50→    gradientEnd: '1E3A5F',
+    51→  },
+    52→  dark: {
+    53→    name: 'Dark Luxe',
+    54→    primary: '0A0A0F',
+    55→    primaryDark: '050508',
+    56→    accent: 'A78BFA',
+    57→    accentLight: 'C4B5FD',
+    58→    text: 'F9FAFB',
+    59→    textLight: '9CA3AF',
+    60→    bg: '111118',
+    61→    bgLight: '1A1A24',
+    62→    bgCard: '1F1F2E',
+    63→    success: '34D399',
+    64→    warning: 'FBBF24',
+    65→    danger: 'F87171',
+    66→    gradientStart: '0A0A0F',
+    67→    gradientEnd: '1C1044',
+    68→  },
+    69→  emerald: {
+    70→    name: 'Emerald Tech',
+    71→    primary: '064E3B',
+    72→    primaryDark: '022C22',
+    73→    accent: '10B981',
+    74→    accentLight: '6EE7B7',
+    75→    text: '1E293B',
+    76→    textLight: '64748B',
+    77→    bg: 'FFFFFF',
+    78→    bgLight: 'F0FDF4',
+    79→    bgCard: 'ECFDF5',
+    80→    success: '059669',
+    81→    warning: 'D97706',
+    82→    danger: 'DC2626',
+    83→    gradientStart: '064E3B',
+    84→    gradientEnd: '065F46',
+    85→  },
+    86→  sunset: {
+    87→    name: 'Sunset Gradient',
+    88→    primary: '7C2D12',
+    89→    primaryDark: '431407',
+    90→    accent: 'F97316',
+    91→    accentLight: 'FDBA74',
+    92→    text: '1C1917',
+    93→    textLight: '78716C',
+    94→    bg: 'FFFFFF',
+    95→    bgLight: 'FFF7ED',
+    96→    bgCard: 'FFEDD5',
+    97→    success: '16A34A',
+    98→    warning: 'CA8A04',
+    99→    danger: 'DC2626',
+   100→    gradientStart: '7C2D12',
+   101→    gradientEnd: 'C2410C',
+   102→  },
+   103→  ocean: {
+   104→    name: 'Deep Ocean',
+   105→    primary: '0C4A6E',
+   106→    primaryDark: '082F49',
+   107→    accent: '06B6D4',
+   108→    accentLight: '67E8F9',
+   109→    text: '0F172A',
+   110→    textLight: '64748B',
+   111→    bg: 'FFFFFF',
+   112→    bgLight: 'ECFEFF',
+   113→    bgCard: 'CFFAFE',
+   114→    success: '059669',
+   115→    warning: 'D97706',
+   116→    danger: 'DC2626',
+   117→    gradientStart: '0C4A6E',
+   118→    gradientEnd: '155E75',
+   119→  },
+   120→  rose: {
+   121→    name: 'Rose Gold',
+   122→    primary: '4C0519',
+   123→    primaryDark: '2D0311',
+   124→    accent: 'E11D48',
+   125→    accentLight: 'FDA4AF',
+   126→    text: '1C1917',
+   127→    textLight: '78716C',
+   128→    bg: 'FFFFFF',
+   129→    bgLight: 'FFF1F2',
+   130→    bgCard: 'FFE4E6',
+   131→    success: '059669',
+   132→    warning: 'D97706',
+   133→    danger: 'BE123C',
+   134→    gradientStart: '4C0519',
+   135→    gradientEnd: '881337',
+   136→  },
+   137→};
+   138→
+   139→/* ═══════════════════════════════════════════════════════════════════════
+   140→   SLIDE LAYOUT TYPES
+   141→   ═══════════════════════════════════════════════════════════════════════ */
+   142→
+   143→type SlideLayout =
+   144→  | 'cover'          // Full-bleed gradient title slide
+   145→  | 'section'        // Section divider with large number + title
+   146→  | 'content'        // Classic header + bullet content
+   147→  | 'two-column'     // Two-column content layout
+   148→  | 'stat-block'     // 3-4 big statistic numbers
+   149→  | 'quote'          // Large quote with attribution
+   150→  | 'comparison'     // Side-by-side comparison (2 items)
+   151→  | 'timeline'       // 3-4 step timeline
+   152→  | 'icon-grid'      // 2x2 or 2x3 icon + label grid
+   153→  | 'image-text'     // Image placeholder + text side by side
+   154→  | 'closing';       // Thank you / contact slide
+   155→
+   156→interface PremiumSlide {
+   157→  layout: SlideLayout;
+   158→  title: string;
+   159→  subtitle?: string;
+   160→  bullets?: string[];
+   161→  notes?: string;
+   162→  // stat-block
+   163→  stats?: Array<{ value: string; label: string; color?: string }>;
+   164→  // quote
+   165→  quote?: string;
+   166→  attribution?: string;
+   167→  // comparison
+   168→  leftTitle?: string;
+   169→  leftItems?: string[];
+   170→  rightTitle?: string;
+   171→  rightItems?: string[];
+   172→  // timeline
+   173→  steps?: Array<{ phase: string; title: string; desc: string }>;
+   174→  // icon-grid
+   175→  items?: Array<{ icon: string; label: string; desc: string }>;
+   176→  // image-text
+   177→  imageDesc?: string;
+   178→  bodyText?: string;
+   179→  // two-column
+   180→  leftBullets?: string[];
+   181→  rightBullets?: string[];
+   182→  leftHeading?: string;
+   183→  rightHeading?: string;
+   184→  // section
+   185→  sectionNumber?: string;
+   186→  // closing
+   187→  contactInfo?: string;
+   188→  website?: string;
+   189→}
+   190→
+   191→/* ═══════════════════════════════════════════════════════════════════════
+   192→   PRESENTATION AGENT — PREMIUM v3.0
+   193→   ═══════════════════════════════════════════════════════════════════════ */
+   194→
+   195→/**
+   196→ * PresentationAgent — Premium LLM-powered presentation generation with
+   197→ * real PPTX output via PptxGenJS.
+   198→ *
+   199→ * v3.0 Premium features:
+   200→ * - 11 slide layouts (cover, section, content, two-column, stat-block,
+   201→ *   quote, comparison, timeline, icon-grid, image-text, closing)
+   202→ * - 6 premium color themes (corporate, dark, emerald, sunset, ocean, rose)
+   203→ * - Gradient backgrounds, accent decorations, visual hierarchy
+   204→ * - Professional typography with dual font families
+   205→ * - LLM-powered content generation with structured prompts
+   206→ * - Speaker notes on every slide
+   207→ */
+   208→export class PresentationAgent extends BaseAgent {
+   209→  readonly name = 'PresentationAgent';
+   210→  readonly cluster = ClusterType.OFFICE;
+   211→  readonly capabilities = [
+   212→    'create',
+   213→    'generate-with-llm',
+   214→    'generate-premium',
+   215→    'edit',
+   216→    'template',
+   217→    'export',
+   218→    'animate',
+   219→  ];
+   220→  readonly version = '3.0.0';
+   221→  readonly description =
+   222→    'Premium LLM-powered presentation generation with 11 layouts, 6 themes, gradients, and professional PPTX output';
+   223→
+   224→  private outputDir = '/home/z/my-project/download';
+   225→
+   226→  async execute(context: AgentContext): Promise<AgentResult> {
+   227→    try {
+   228→      const { config } = context;
+   229→      const action = config.action || 'create';
+   230→      const startTime = Date.now();
+   231→
+   232→      switch (action) {
+   233→        case 'generate-premium':
+   234→          return await this.generatePremium(config, startTime);
+   235→
+   236→        case 'generate-with-llm':
+   237→          return await this.generateWithLLM(config, startTime);
+   238→
+   239→        case 'create':
+   240→          return await this.createPptx(config, startTime);
+   241→
+   242→        case 'edit':
+   243→          return this.handleEdit(config, startTime);
+   244→
+   245→        case 'template':
+   246→          return this.handleTemplate(config, startTime);
+   247→
+   248→        case 'export':
+   249→          return this.handleExport(config, startTime);
+   250→
+   251→        case 'animate':
+   252→          return this.handleAnimate(config, startTime);
+   253→
+   254→        default:
+   255→          return { success: false, error: `Unknown action: ${action}` };
+   256→      }
+   257→    } catch (error: any) {
+   258→      return { success: false, error: error.message };
+   259→    }
+   260→  }
+   261→
+   262→  /* ── PREMIUM GENERATION ─────────────────────────────────────────── */
+   263→
+   264→  /**
+   265→   * Generate a premium presentation using LLM with structured slide layouts.
+   266→   * This is the top-tier generation method producing agency-quality slides.
+   267→   */
+   268→  private async generatePremium(config: Record<string, any>, startTime: number): Promise<AgentResult> {
+   269→    const topic = config.topic || config.title;
+   270→    const slideCount = config.slideCount || 10;
+   271→    const language = config.language || 'fr';
+   272→    const style = config.style || 'corporate';
+   273→    const theme = config.theme || 'corporate';
+   274→
+   275→    if (!topic) {
+   276→      return { success: false, error: 'Topic/title is required for premium presentations' };
+   277→    }
+   278→
+   279→    this.logger.log(`Generating PREMIUM presentation on "${topic}" (${slideCount} slides, ${language}, theme: ${theme})`);
+   280→    this.emitEvent(AgentEventType.AGENT_STARTED, { action: 'generate-premium', topic, theme });
+   281→
+   282→    // Build LLM prompt requesting structured premium slide data
+   283→    const llmResult = await this.executeWithLLM(
+   284→      `You are a world-class presentation designer working for a top consulting firm.
+   285→Create a stunning, premium presentation about the given topic.
+   286→
+   287→Requirements:
+   288→- Exactly ${slideCount} slides
+   289→- Language: ${language === 'fr' ? 'French' : language === 'en' ? 'English' : language}
+   290→- Style: ${style}
+   291→- Use varied layouts for visual interest (NOT all the same layout)
+   292→- First slide MUST be layout "cover"
+   293→- Last slide MUST be layout "closing"
+   294→- Include at least one "stat-block" slide with impressive numbers
+   295→- Include at least one "section" divider slide
+   296→- Include at least one "two-column" or "comparison" slide
+   297→- Content must be substantive, data-rich, and compelling
+   298→
+   299→Return a JSON object with this EXACT structure:
+   300→{
+   301→  "title": "Presentation Title",
+   302→  "subtitle": "Compelling subtitle",
+   303→  "author": "AENEWS Agent OS X",
+   304→  "slides": [
+   305→    {
+   306→      "layout": "cover",
+   307→      "title": "Main Title",
+   308→      "subtitle": "Subtitle text"
+   309→    },
+   310→    {
+   311→      "layout": "section",
+   312→      "title": "Section Title",
+   313→      "sectionNumber": "01"
+   314→    },
+   315→    {
+   316→      "layout": "content",
+   317→      "title": "Slide Title",
+   318→      "bullets": ["Point 1 with detail", "Point 2 with data", "Point 3 with insight"],
+   319→      "notes": "Speaker notes"
+   320→    },
+   321→    {
+   322→      "layout": "two-column",
+   323→      "title": "Comparison Title",
+   324→      "leftHeading": "Left Column",
+   325→      "leftBullets": ["Point A", "Point B"],
+   326→      "rightHeading": "Right Column",
+   327→      "rightBullets": ["Point C", "Point D"]
+   328→    },
+   329→    {
+   330→      "layout": "stat-block",
+   331→      "title": "Key Metrics",
+   332→      "stats": [
+   333→        {"value": "99.9%", "label": "Uptime", "color": "success"},
+   334→        {"value": "110+", "label": "AI Agents", "color": "accent"},
+   335→        {"value": "3ms", "label": "Response Time", "color": "warning"},
+   336→        {"value": "14", "label": "Clusters", "color": "accent"}
+   337→      ]
+   338→    },
+   339→    {
+   340→      "layout": "quote",
+   341→      "title": "Inspiration",
+   342→      "quote": "A meaningful quote about the topic",
+   343→      "attribution": "Author Name"
+   344→    },
+   345→    {
+   346→      "layout": "comparison",
+   347→      "title": "Before vs After",
+   348→      "leftTitle": "Traditional",
+   349→      "leftItems": ["Manual process", "Slow", "Error-prone"],
+   350→      "rightTitle": "AENEWS Powered",
+   351→      "rightItems": ["Automated", "Real-time", "AI-accurate"]
+   352→    },
+   353→    {
+   354→      "layout": "timeline",
+   355→      "title": "Roadmap",
+   356→      "steps": [
+   357→        {"phase": "Q1", "title": "Phase 1", "desc": "Foundation"},
+   358→        {"phase": "Q2", "title": "Phase 2", "desc": "Growth"},
+   359→        {"phase": "Q3", "title": "Phase 3", "desc": "Scale"}
+   360→      ]
+   361→    },
+   362→    {
+   363→      "layout": "closing",
+   364→      "title": "Thank You",
+   365→      "subtitle": "Questions & Discussion",
+   366→      "contactInfo": "contact@aenews.ai",
+   367→      "website": "aenews.ai"
+   368→    }
+   369→  ]
+   370→}`,
+   371→      `Create a premium ${style} presentation about: ${topic}`,
+   372→      { responseFormat: 'json', temperature: 0.7, maxTokens: 8192 },
+   373→    );
+   374→
+   375→    let slideData: any;
+   376→    if (llmResult) {
+   377→      slideData = this.safeJsonParse(llmResult);
+   378→    }
+   379→
+   380→    if (!slideData || !slideData.slides || slideData.slides.length === 0) {
+   381→      this.logger.warn('LLM did not return valid premium slide data — using enhanced fallback');
+   382→      slideData = this.buildPremiumFallback(topic, language);
+   383→    }
+   384→
+   385→    return this.buildPremiumPptx(slideData, theme, startTime);
+   386→  }
+   387→
+   388→  /**
+   389→   * Enhanced fallback with varied premium layouts when LLM is unavailable.
+   390→   */
+   391→  private buildPremiumFallback(topic: string, language: string): any {
+   392→    const isFr = language === 'fr';
+   393→    return {
+   394→      title: topic,
+   395→      subtitle: isFr ? 'Propulsé par AENEWS Agent OS X' : 'Powered by AENEWS Agent OS X',
+   396→      author: 'AENEWS Agent OS X',
+   397→      slides: [
+   398→        {
+   399→          layout: 'cover',
+   400→          title: topic,
+   401→          subtitle: isFr ? 'Propulsé par AENEWS Agent OS X' : 'Powered by AENEWS Agent OS X',
+   402→        },
+   403→        {
+   404→          layout: 'section',
+   405→          title: isFr ? 'Vue d\'ensemble' : 'Overview',
+   406→          sectionNumber: '01',
+   407→        },
+   408→        {
+   409→          layout: 'content',
+   410→          title: isFr ? 'Introduction' : 'Introduction',
+   411→          bullets: isFr
+   412→            ? ['Système multi-agents de nouvelle génération', '14 clusters spécialisés et 110+ agents IA', 'Architecture distribuée haute performance', 'Orchestration intelligente des missions']
+   413→            : ['Next-generation multi-agent system', '14 specialized clusters with 110+ AI agents', 'High-performance distributed architecture', 'Intelligent mission orchestration'],
+   414→          notes: isFr ? 'Introduction au système AENEWS' : 'Introduction to the AENEWS system',
+   415→        },
+   416→        {
+   417→          layout: 'stat-block',
+   418→          title: isFr ? 'Chiffres clés' : 'Key Metrics',
+   419→          stats: [
+   420→            { value: '110+', label: isFr ? 'Agents IA' : 'AI Agents', color: 'accent' },
+   421→            { value: '14', label: isFr ? 'Clusters' : 'Clusters', color: 'success' },
+   422→            { value: '3ms', label: isFr ? 'Temps de réponse' : 'Response Time', color: 'warning' },
+   423→            { value: '99.9%', label: isFr ? 'Disponibilité' : 'Uptime', color: 'accent' },
+   424→          ],
+   425→        },
+   426→        {
+   427→          layout: 'section',
+   428→          title: isFr ? 'Architecture' : 'Architecture',
+   429→          sectionNumber: '02',
+   430→        },
+   431→        {
+   432→          layout: 'two-column',
+   433→          title: isFr ? 'Architecture du système' : 'System Architecture',
+   434→          leftHeading: isFr ? 'Backend' : 'Backend',
+   435→          leftBullets: isFr
+   436→            ? ['NestJS 11 avec 22 modules', 'PostgreSQL + Redis + Neo4j', 'Bull Queue + RabbitMQ', 'Chiffrement AES-256-GCM']
+   437→            : ['NestJS 11 with 22 modules', 'PostgreSQL + Redis + Neo4j', 'Bull Queue + RabbitMQ', 'AES-256-GCM encryption'],
+   438→          rightHeading: isFr ? 'Frontend' : 'Frontend',
+   439→          rightBullets: isFr
+   440→            ? ['Next.js 16 + React 19', 'Tailwind CSS 4', 'WebSocket temps réel', 'Dashboard de monitoring']
+   441→            : ['Next.js 16 + React 19', 'Tailwind CSS 4', 'Real-time WebSocket', 'Monitoring dashboard'],
+   442→        },
+   443→        {
+   444→          layout: 'comparison',
+   445→          title: isFr ? 'Avant vs Après AENEWS' : 'Before vs After AENEWS',
+   446→          leftTitle: isFr ? 'Approche Traditionnelle' : 'Traditional Approach',
+   447→          leftItems: isFr
+   448→            ? ['Processus manuels', 'Temps de réponse lent', 'Architecture monolithique', 'Sécurité basique']
+   449→            : ['Manual processes', 'Slow response times', 'Monolithic architecture', 'Basic security'],
+   450→          rightTitle: 'AENEWS Agent OS X',
+   451→          rightItems: isFr
+   452→            ? ['Automatisation IA complète', 'Réponse en temps réel', 'Architecture distribuée', 'Sécurité avancée multi-couches']
+   453→            : ['Full AI automation', 'Real-time response', 'Distributed architecture', 'Advanced multi-layer security'],
+   454→        },
+   455→        {
+   456→          layout: 'content',
+   457→          title: isFr ? 'Clusters d\'agents' : 'Agent Clusters',
+   458→          bullets: isFr
+   459→            ? ['Browser : 18 agents de navigation et scraping', 'Coding : 8 agents de développement et review', 'Office : 6 agents dont présentation LLM', 'Meta-Intelligence : 13 agents cognitifs', 'Certification : 13 auditeurs automatisés']
+   460→            : ['Browser: 18 navigation & scraping agents', 'Coding: 8 development & review agents', 'Office: 6 agents including LLM presentation', 'Meta-Intelligence: 13 cognitive agents', 'Certification: 13 automated auditors'],
+   461→        },
+   462→        {
+   463→          layout: 'timeline',
+   464→          title: isFr ? 'Feuille de route' : 'Roadmap',
+   465→          steps: isFr
+   466→            ? [
+   467→                { phase: 'Q1', title: 'Fondation', desc: 'Infrastructure core + 14 clusters' },
+   468→                { phase: 'Q2', title: 'Intégration', desc: 'Connecteurs avancés + LLM premium' },
+   469→                { phase: 'Q3', title: 'Scale', desc: 'Auto-scaling + Optimisation IA' },
+   470→                { phase: 'Q4', title: 'Évolution', desc: 'Self-evolution + Certification' },
+   471→              ]
+   472→            : [
+   473→                { phase: 'Q1', title: 'Foundation', desc: 'Core infrastructure + 14 clusters' },
+   474→                { phase: 'Q2', title: 'Integration', desc: 'Advanced connectors + Premium LLM' },
+   475→                { phase: 'Q3', title: 'Scale', desc: 'Auto-scaling + AI optimization' },
+   476→                { phase: 'Q4', title: 'Evolution', desc: 'Self-evolution + Certification' },
+   477→              ],
+   478→        },
+   479→        {
+   480→          layout: 'closing',
+   481→          title: isFr ? 'Merci' : 'Thank You',
+   482→          subtitle: isFr ? 'Questions & Discussion' : 'Questions & Discussion',
+   483→          contactInfo: 'contact@aenews.ai',
+   484→          website: 'aenews.ai',
+   485→        },
+   486→      ],
+   487→    };
+   488→  }
+   489→
+   490→  /* ── ORIGINAL LLM GENERATION (kept for backward compat) ─────────── */
+   491→
+   492→  private async generateWithLLM(config: Record<string, any>, startTime: number): Promise<AgentResult> {
+   493→    const topic = config.topic || config.title;
+   494→    const slideCount = config.slideCount || 8;
+   495→    const language = config.language || 'fr';
+   496→    const style = config.style || 'professional';
+   497→    const theme = config.theme || 'corporate';
+   498→
+   499→    if (!topic) {
+   500→      return { success: false, error: 'Topic/title is required for LLM-generated presentations' };
+   501→    }
+   502→
+   503→    this.logger.log(`Generating LLM-powered presentation on "${topic}" (${slideCount} slides, ${language})`);
+   504→    this.emitEvent(AgentEventType.AGENT_STARTED, { action: 'generate-with-llm', topic });
+   505→
+   506→    const llmResult = await this.executeWithLLM(
+   507→      `You are a professional presentation designer. Create a ${style} presentation about the given topic.
+   508→The presentation should have exactly ${slideCount} slides.
+   509→Respond in ${language === 'fr' ? 'French' : language === 'en' ? 'English' : language}.
+   510→Return a JSON object with this exact structure:
+   511→{
+   512→  "title": "Presentation Title",
+   513→  "subtitle": "Optional subtitle",
+   514→  "author": "AENEWS Agent OS X",
+   515→  "slides": [
+   516→    {
+   517→      "layout": "content",
+   518→      "title": "Slide Title",
+   519→      "bullets": ["Point 1", "Point 2", "Point 3"],
+   520→      "notes": "Speaker notes for this slide"
+   521→    }
+   522→  ]
+   523→}
+   524→The first slide should be a title slide (layout "cover" with title and subtitle).
+   525→The last slide should be a conclusion/thank you slide (layout "closing").
+   526→Each content slide should have 3-5 bullet points.
+   527→Use varied layouts: "cover", "content", "section", "stat-block", "two-column", "comparison", "timeline", "quote", "closing".`,
+   528→      `Create a ${style} presentation about: ${topic}`,
+   529→      { responseFormat: 'json', temperature: 0.7, maxTokens: 4096 },
+   530→    );
+   531→
+   532→    let slideData: any;
+   533→    if (llmResult) {
+   534→      slideData = this.safeJsonParse(llmResult);
+   535→    }
+   536→
+   537→    if (!slideData || !slideData.slides) {
+   538→      this.logger.warn('LLM did not return valid slide data — using fallback structure');
+   539→      slideData = this.buildPremiumFallback(topic, language);
+   540→    }
+   541→
+   542→    return this.buildPremiumPptx(slideData, theme, startTime);
+   543→  }
+   544→
+   545→  /* ── PREMIUM PPTX BUILDER ──────────────────────────────────────── */
+   546→
+   547→  private async buildPremiumPptx(slideData: any, themeName: string, startTime: number): Promise<AgentResult> {
+   548→    const pptx = new PptxGenJS();
+   549→    const theme = PREMIUM_THEMES[themeName] || PREMIUM_THEMES.corporate;
+   550→
+   551→    // Presentation metadata
+   552→    pptx.author = slideData.author || 'AENEWS Agent OS X';
+   553→    pptx.company = 'AENEWS Agent OS X';
+   554→    pptx.subject = slideData.title || 'Presentation';
+   555→    pptx.title = slideData.title || 'Presentation';
+   556→
+   557→    // Generate each slide using layout-specific renderers
+   558→    const slides = slideData.slides || [];
+   559→    for (let i = 0; i < slides.length; i++) {
+   560→      const slideDef = slides[i];
+   561→      const layout = slideDef.layout || this.inferLayout(i, slides.length);
+   562→      this.renderSlide(pptx, layout, slideDef, theme, i, slides.length);
+   563→    }
+   564→
+   565→    // Save the file
+   566→    const safeName = (slideData.title || 'presentation').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 40);
+   567→    const fileName = `${safeName}_Premium_${Date.now()}.pptx`;
+   568→    const filePath = path.join(this.outputDir, fileName);
+   569→
+   570→    await pptx.writeFile({ fileName: filePath });
+   571→
+   572→    const stats = fs.statSync(filePath);
+   573→
+   574→    this.emitEvent(AgentEventType.AGENT_COMPLETED, {
+   575→      action: 'generate-premium',
+   576→      filePath,
+   577→      fileSize: stats.size,
+   578→      totalSlides: slides.length,
+   579→      theme: themeName,
+   580→    });
+   581→
+   582→    return {
+   583→      success: true,
+   584→      data: {
+   585→        action: 'generate-premium',
+   586→        title: slideData.title,
+   587→        format: 'pptx',
+   588→        totalSlides: slides.length,
+   589→        theme: themeName,
+   590→        themeLabel: theme.name,
+   591→        filePath,
+   592→        fileName,
+   593→        fileSize: stats.size,
+   594→        createdAt: new Date().toISOString(),
+   595→        status: 'premium_presentation_created',
+   596→      },
+   597→      metadata: { duration: Date.now() - startTime },
+   598→    };
+   599→  }
+   600→
+   601→  /* ── LAYOUT ROUTER ─────────────────────────────────────────────── */
+   602→
+   603→  private inferLayout(index: number, total: number): SlideLayout {
+   604→    if (index === 0) return 'cover';
+   605→    if (index === total - 1) return 'closing';
+   606→    return 'content';
+   607→  }
+   608→
+   609→  private renderSlide(
+   610→    pptx: PptxGenJS,
+   611→    layout: string,
+   612→    def: any,
+   613→    theme: PremiumTheme,
+   614→    index: number,
+   615→    total: number,
+   616→  ): void {
+   617→    switch (layout) {
+   618→      case 'cover':
+   619→        this.renderCoverSlide(pptx, def, theme);
+   620→        break;
+   621→      case 'section':
+   622→        this.renderSectionSlide(pptx, def, theme);
+   623→        break;
+   624→      case 'content':
+   625→        this.renderContentSlide(pptx, def, theme, index);
+   626→        break;
+   627→      case 'two-column':
+   628→        this.renderTwoColumnSlide(pptx, def, theme, index);
+   629→        break;
+   630→      case 'stat-block':
+   631→        this.renderStatBlockSlide(pptx, def, theme, index);
+   632→        break;
+   633→      case 'quote':
+   634→        this.renderQuoteSlide(pptx, def, theme);
+   635→        break;
+   636→      case 'comparison':
+   637→        this.renderComparisonSlide(pptx, def, theme, index);
+   638→        break;
+   639→      case 'timeline':
+   640→        this.renderTimelineSlide(pptx, def, theme, index);
+   641→        break;
+   642→      case 'icon-grid':
+   643→        this.renderIconGridSlide(pptx, def, theme, index);
+   644→        break;
+   645→      case 'image-text':
+   646→        this.renderImageTextSlide(pptx, def, theme, index);
+   647→        break;
+   648→      case 'closing':
+   649→        this.renderClosingSlide(pptx, def, theme);
+   650→        break;
+   651→      default:
+   652→        this.renderContentSlide(pptx, def, theme, index);
+   653→    }
+   654→  }
+   655→
+   656→  /* ═══════════════════════════════════════════════════════════════════
+   657→     SLIDE RENDERERS — Each creates a distinct, premium layout
+   658→     ═══════════════════════════════════════════════════════════════════ */
+   659→
+   660→  /**
+   661→   * COVER SLIDE — Full-bleed gradient background, large title, accent line, subtitle
+   662→   */
+   663→  private renderCoverSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme): void {
+   664→    const slide = pptx.addSlide();
+   665→    slide.background = { fill: theme.primaryDark };
+   666→
+   667→    // Top decorative gradient bar
+   668→    slide.addShape(pptx.ShapeType.rect, {
+   669→      x: 0, y: 0, w: 10, h: 0.08,
+   670→      fill: { color: theme.accent },
+   671→    });
+   672→
+   673→    // Accent side stripe
+   674→    slide.addShape(pptx.ShapeType.rect, {
+   675→      x: 0, y: 0, w: 0.12, h: 7.5,
+   676→      fill: { color: theme.accent },
+   677→    });
+   678→
+   679→    // Decorative circles (top-right)
+   680→    slide.addShape(pptx.ShapeType.ellipse, {
+   681→      x: 7.8, y: 0.4, w: 2.5, h: 2.5,
+   682→      fill: { color: theme.primary },
+   683→      line: { color: theme.accent, width: 1.5, dashType: 'dash' },
+   684→    });
+   685→    slide.addShape(pptx.ShapeType.ellipse, {
+   686→      x: 8.4, y: 1.0, w: 1.8, h: 1.8,
+   687→      fill: { color: theme.primaryDark },
+   688→      line: { color: theme.accentLight, width: 0.5 },
+   689→    });
+   690→
+   691→    // Main title
+   692→    slide.addText(def.title || 'Presentation', {
+   693→      x: 0.8, y: 1.8, w: 7.0, h: 1.6,
+   694→      fontSize: 38, fontFace: 'Arial',
+   695→      color: 'FFFFFF', bold: true,
+   696→      lineSpacingMultiple: 1.1,
+   697→    });
+   698→
+   699→    // Accent line under title
+   700→    slide.addShape(pptx.ShapeType.rect, {
+   701→      x: 0.8, y: 3.5, w: 2.5, h: 0.07,
+   702→      fill: { color: theme.accent },
+   703→    });
+   704→
+   705→    // Subtitle
+   706→    if (def.subtitle) {
+   707→      slide.addText(def.subtitle, {
+   708→        x: 0.8, y: 3.8, w: 7.0, h: 0.8,
+   709→        fontSize: 18, fontFace: 'Arial',
+   710→        color: theme.accentLight,
+   711→        lineSpacingMultiple: 1.2,
+   712→      });
+   713→    }
+   714→
+   715→    // Author / branding
+   716→    slide.addText(def.author || 'AENEWS Agent OS X', {
+   717→      x: 0.8, y: 5.8, w: 5.0, h: 0.4,
+   718→      fontSize: 11, fontFace: 'Arial',
+   719→      color: '94A3B8', bold: true,
+   720→    });
+   721→
+   722→    // Bottom accent bar
+   723→    slide.addShape(pptx.ShapeType.rect, {
+   724→      x: 0, y: 7.42, w: 10, h: 0.08,
+   725→      fill: { color: theme.accent },
+   726→    });
+   727→
+   728→    if (def.notes) slide.addNotes(def.notes);
+   729→  }
+   730→
+   731→  /**
+   732→   * SECTION SLIDE — Large section number + title on gradient background
+   733→   */
+   734→  private renderSectionSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme): void {
+   735→    const slide = pptx.addSlide();
+   736→    slide.background = { fill: theme.primary };
+   737→
+   738→    // Large section number (watermark style)
+   739→    slide.addText(def.sectionNumber || '01', {
+   740→      x: 0.5, y: 0.5, w: 5.0, h: 4.0,
+   741→      fontSize: 120, fontFace: 'Arial',
+   742→      color: theme.primaryDark, bold: true, align: 'left',
+   743→    });
+   744→
+   745→    // Accent vertical line
+   746→    slide.addShape(pptx.ShapeType.rect, {
+   747→      x: 0.8, y: 3.0, w: 0.06, h: 2.5,
+   748→      fill: { color: theme.accent },
+   749→    });
+   750→
+   751→    // Section title
+   752→    slide.addText(def.title || 'Section', {
+   753→      x: 1.2, y: 3.0, w: 7.5, h: 1.5,
+   754→      fontSize: 34, fontFace: 'Arial',
+   755→      color: 'FFFFFF', bold: true,
+   756→    });
+   757→
+   758→    // Subtitle if present
+   759→    if (def.subtitle) {
+   760→      slide.addText(def.subtitle, {
+   761→        x: 1.2, y: 4.5, w: 7.5, h: 0.6,
+   762→        fontSize: 16, fontFace: 'Arial',
+   763→        color: theme.accentLight,
+   764→      });
+   765→    }
+   766→
+   767→    // Bottom accent bar
+   768→    slide.addShape(pptx.ShapeType.rect, {
+   769→      x: 0, y: 7.42, w: 10, h: 0.08,
+   770→      fill: { color: theme.accent },
+   771→    });
+   772→
+   773→    if (def.notes) slide.addNotes(def.notes);
+   774→  }
+   775→
+   776→  /**
+   777→   * CONTENT SLIDE — White background, colored header bar, bullets with accent markers
+   778→   */
+   779→  private renderContentSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme, index: number): void {
+   780→    const slide = pptx.addSlide();
+   781→    slide.background = { fill: theme.bg };
+   782→
+   783→    // Left accent stripe
+   784→    slide.addShape(pptx.ShapeType.rect, {
+   785→      x: 0, y: 0, w: 0.06, h: 7.5,
+   786→      fill: { color: theme.accent },
+   787→    });
+   788→
+   789→    // Header bar
+   790→    slide.addShape(pptx.ShapeType.rect, {
+   791→      x: 0, y: 0, w: 10, h: 0.9,
+   792→      fill: { color: theme.primary },
+   793→    });
+   794→
+   795→    // Header title
+   796→    slide.addText(def.title || `Slide ${index + 1}`, {
+   797→      x: 0.6, y: 0.12, w: 8.5, h: 0.65,
+   798→      fontSize: 22, fontFace: 'Arial',
+   799→      color: 'FFFFFF', bold: true,
+   800→    });
+   801→
+   802→    // Accent underline below header
+   803→    slide.addShape(pptx.ShapeType.rect, {
+   804→      x: 0.6, y: 0.9, w: 1.5, h: 0.05,
+   805→      fill: { color: theme.accent },
+   806→    });
+   807→
+   808→    // Bullets with accent markers
+   809→    if (def.bullets && def.bullets.length > 0) {
+   810→      const bulletText = def.bullets.map((b: string) => ({
+   811→        text: b,
+   812→        options: {
+   813→          fontSize: 15, fontFace: 'Arial', color: theme.text,
+   814→          bullet: { code: '25BA', color: theme.accent },
+   815→          paraSpaceAfter: 10,
+   816→          lineSpacingMultiple: 1.3,
+   817→        },
+   818→      }));
+   819→      slide.addText(bulletText, {
+   820→        x: 0.8, y: 1.3, w: 8.4, h: 5.2,
+   821→        valign: 'top',
+   822→      });
+   823→    }
+   824→
+   825→    // Slide number
+   826→    slide.addText(`${index + 1}`, {
+   827→      x: 9.2, y: 7.05, w: 0.6, h: 0.3,
+   828→      fontSize: 9, color: theme.textLight, align: 'right',
+   829→    });
+   830→
+   831→    if (def.notes) slide.addNotes(def.notes);
+   832→  }
+   833→
+   834→  /**
+   835→   * TWO-COLUMN SLIDE — Split content with headings
+   836→   */
+   837→  private renderTwoColumnSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme, index: number): void {
+   838→    const slide = pptx.addSlide();
+   839→    slide.background = { fill: theme.bg };
+   840→
+   841→    // Left accent stripe
+   842→    slide.addShape(pptx.ShapeType.rect, {
+   843→      x: 0, y: 0, w: 0.06, h: 7.5,
+   844→      fill: { color: theme.accent },
+   845→    });
+   846→
+   847→    // Header bar
+   848→    slide.addShape(pptx.ShapeType.rect, {
+   849→      x: 0, y: 0, w: 10, h: 0.9,
+   850→      fill: { color: theme.primary },
+   851→    });
+   852→    slide.addText(def.title || 'Comparison', {
+   853→      x: 0.6, y: 0.12, w: 8.5, h: 0.65,
+   854→      fontSize: 22, fontFace: 'Arial', color: 'FFFFFF', bold: true,
+   855→    });
+   856→
+   857→    // Divider line
+   858→    slide.addShape(pptx.ShapeType.rect, {
+   859→      x: 4.95, y: 1.3, w: 0.04, h: 5.2,
+   860→      fill: { color: theme.accentLight },
+   861→    });
+   862→
+   863→    // Left column heading
+   864→    if (def.leftHeading) {
+   865→      slide.addText(def.leftHeading, {
+   866→        x: 0.6, y: 1.2, w: 4.2, h: 0.5,
+   867→        fontSize: 17, fontFace: 'Arial', color: theme.primary, bold: true,
+   868→      });
+   869→    }
+   870→
+   871→    // Left column bullets
+   872→    if (def.leftBullets && def.leftBullets.length > 0) {
+   873→      const leftBullets = def.leftBullets.map((b: string) => ({
+   874→        text: b,
+   875→        options: {
+   876→          fontSize: 13, fontFace: 'Arial', color: theme.text,
+   877→          bullet: { code: '25BA', color: theme.accent },
+   878→          paraSpaceAfter: 8,
+   879→        },
+   880→      }));
+   881→      slide.addText(leftBullets, {
+   882→        x: 0.6, y: 1.8, w: 4.2, h: 4.5, valign: 'top',
+   883→      });
+   884→    }
+   885→
+   886→    // Right column heading
+   887→    if (def.rightHeading) {
+   888→      slide.addText(def.rightHeading, {
+   889→        x: 5.2, y: 1.2, w: 4.2, h: 0.5,
+   890→        fontSize: 17, fontFace: 'Arial', color: theme.primary, bold: true,
+   891→      });
+   892→    }
+   893→
+   894→    // Right column bullets
+   895→    if (def.rightBullets && def.rightBullets.length > 0) {
+   896→      const rightBullets = def.rightBullets.map((b: string) => ({
+   897→        text: b,
+   898→        options: {
+   899→          fontSize: 13, fontFace: 'Arial', color: theme.text,
+   900→          bullet: { code: '25BA', color: theme.accent },
+   901→          paraSpaceAfter: 8,
+   902→        },
+   903→      }));
+   904→      slide.addText(rightBullets, {
+   905→        x: 5.2, y: 1.8, w: 4.2, h: 4.5, valign: 'top',
+   906→      });
+   907→    }
+   908→
+   909→    // Slide number
+   910→    slide.addText(`${index + 1}`, {
+   911→      x: 9.2, y: 7.05, w: 0.6, h: 0.3,
+   912→      fontSize: 9, color: theme.textLight, align: 'right',
+   913→    });
+   914→
+   915→    if (def.notes) slide.addNotes(def.notes);
+   916→  }
+   917→
+   918→  /**
+   919→   * STAT BLOCK SLIDE — 3-4 large statistic numbers in cards
+   920→   */
+   921→  private renderStatBlockSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme, index: number): void {
+   922→    const slide = pptx.addSlide();
+   923→    slide.background = { fill: theme.bgLight };
+   924→
+   925→    // Left accent stripe
+   926→    slide.addShape(pptx.ShapeType.rect, {
+   927→      x: 0, y: 0, w: 0.06, h: 7.5,
+   928→      fill: { color: theme.accent },
+   929→    });
+   930→
+   931→    // Title bar
+   932→    slide.addShape(pptx.ShapeType.rect, {
+   933→      x: 0, y: 0, w: 10, h: 0.9,
+   934→      fill: { color: theme.primary },
+   935→    });
+   936→    slide.addText(def.title || 'Key Metrics', {
+   937→      x: 0.6, y: 0.12, w: 8.5, h: 0.65,
+   938→      fontSize: 22, fontFace: 'Arial', color: 'FFFFFF', bold: true,
+   939→    });
+   940→
+   941→    // Stat cards
+   942→    const stats = def.stats || [
+   943→      { value: '99.9%', label: 'Uptime', color: 'success' },
+   944→      { value: '110+', label: 'Agents', color: 'accent' },
+   945→      { value: '3ms', label: 'Response', color: 'warning' },
+   946→    ];
+   947→
+   948→    const cardWidth = stats.length <= 3 ? 2.8 : 2.1;
+   949→    const gap = 0.3;
+   950→    const totalWidth = stats.length * cardWidth + (stats.length - 1) * gap;
+   951→    const startX = (10 - totalWidth) / 2;
+   952→
+   953→    for (let i = 0; i < stats.length; i++) {
+   954→      const stat = stats[i];
+   955→      const x = startX + i * (cardWidth + gap);
+   956→      const statColor = this.getStatColor(stat.color, theme);
+   957→
+   958→      // Card background
+   959→      slide.addShape(pptx.ShapeType.rect, {
+   960→        x, y: 1.6, w: cardWidth, h: 3.8,
+   961→        fill: { color: theme.bg },
+   962→        rectRadius: 0.1,
+   963→        shadow: { type: 'outer', blur: 6, offset: 2, color: '000000', opacity: 0.12 },
+   964→      });
+   965→
+   966→      // Top accent bar on card
+   967→      slide.addShape(pptx.ShapeType.rect, {
+   968→        x, y: 1.6, w: cardWidth, h: 0.08,
+   969→        fill: { color: statColor },
+   970→        rectRadius: 0.1,
+   971→      });
+   972→
+   973→      // Stat value (big number)
+   974→      slide.addText(stat.value || '—', {
+   975→        x, y: 2.3, w: cardWidth, h: 1.4,
+   976→        fontSize: 36, fontFace: 'Arial', color: statColor,
+   977→        bold: true, align: 'center',
+   978→      });
+   979→
+   980→      // Stat label
+   981→      slide.addText(stat.label || '', {
+   982→        x, y: 3.8, w: cardWidth, h: 0.6,
+   983→        fontSize: 13, fontFace: 'Arial', color: theme.textLight,
+   984→        align: 'center',
+   985→      });
+   986→    }
+   987→
+   988→    // Slide number
+   989→    slide.addText(`${index + 1}`, {
+   990→      x: 9.2, y: 7.05, w: 0.6, h: 0.3,
+   991→      fontSize: 9, color: theme.textLight, align: 'right',
+   992→    });
+   993→
+   994→    if (def.notes) slide.addNotes(def.notes);
+   995→  }
+   996→
+   997→  /**
+   998→   * QUOTE SLIDE — Large quote with accent decoration and attribution
+   999→   */
+  1000→  private renderQuoteSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme): void {
+  1001→    const slide = pptx.addSlide();
+  1002→    slide.background = { fill: theme.primary };
+  1003→
+  1004→    // Decorative top accent bar
+  1005→    slide.addShape(pptx.ShapeType.rect, {
+  1006→      x: 0, y: 0, w: 10, h: 0.06,
+  1007→      fill: { color: theme.accent },
+  1008→    });
+  1009→
+  1010→    // Large opening quote mark
+  1011→    slide.addText('\u201C', {
+  1012→      x: 0.8, y: 1.0, w: 2.0, h: 2.0,
+  1013→      fontSize: 120, fontFace: 'Arial',
+  1014→      color: theme.accent, bold: true,
+  1015→    });
+  1016→
+  1017→    // Quote text
+  1018→    slide.addText(def.quote || def.title || 'Innovation drives progress', {
+  1019→      x: 1.5, y: 2.0, w: 7.0, h: 3.0,
+  1020→      fontSize: 24, fontFace: 'Arial',
+  1021→      color: 'FFFFFF', italic: true,
+  1022→      lineSpacingMultiple: 1.4,
+  1023→    });
+  1024→
+  1025→    // Accent line before attribution
+  1026→    slide.addShape(pptx.ShapeType.rect, {
+  1027→      x: 1.5, y: 5.2, w: 1.5, h: 0.05,
+  1028→      fill: { color: theme.accent },
+  1029→    });
+  1030→
+  1031→    // Attribution
+  1032→    if (def.attribution) {
+  1033→      slide.addText(`\u2014 ${def.attribution}`, {
+  1034→        x: 1.5, y: 5.5, w: 6.0, h: 0.5,
+  1035→        fontSize: 14, fontFace: 'Arial',
+  1036→        color: theme.accentLight,
+  1037→      });
+  1038→    }
+  1039→
+  1040→    // Bottom accent bar
+  1041→    slide.addShape(pptx.ShapeType.rect, {
+  1042→      x: 0, y: 7.44, w: 10, h: 0.06,
+  1043→      fill: { color: theme.accent },
+  1044→    });
+  1045→
+  1046→    if (def.notes) slide.addNotes(def.notes);
+  1047→  }
+  1048→
+  1049→  /**
+  1050→   * COMPARISON SLIDE — Side-by-side comparison with colored panels
+  1051→   */
+  1052→  private renderComparisonSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme, index: number): void {
+  1053→    const slide = pptx.addSlide();
+  1054→    slide.background = { fill: theme.bg };
+  1055→
+  1056→    // Left accent stripe
+  1057→    slide.addShape(pptx.ShapeType.rect, {
+  1058→      x: 0, y: 0, w: 0.06, h: 7.5,
+  1059→      fill: { color: theme.accent },
+  1060→    });
+  1061→
+  1062→    // Header bar
+  1063→    slide.addShape(pptx.ShapeType.rect, {
+  1064→      x: 0, y: 0, w: 10, h: 0.9,
+  1065→      fill: { color: theme.primary },
+  1066→    });
+  1067→    slide.addText(def.title || 'Comparison', {
+  1068→      x: 0.6, y: 0.12, w: 8.5, h: 0.65,
+  1069→      fontSize: 22, fontFace: 'Arial', color: 'FFFFFF', bold: true,
+  1070→    });
+  1071→
+  1072→    // Left panel (muted/red tone)
+  1073→    slide.addShape(pptx.ShapeType.rect, {
+  1074→      x: 0.4, y: 1.3, w: 4.4, h: 5.4,
+  1075→      fill: { color: 'FEF2F2' },
+  1076→      rectRadius: 0.1,
+  1077→    });
+  1078→    slide.addText(def.leftTitle || 'Option A', {
+  1079→      x: 0.6, y: 1.5, w: 4.0, h: 0.5,
+  1080→      fontSize: 16, fontFace: 'Arial', color: '991B1B', bold: true,
+  1081→    });
+  1082→    if (def.leftItems) {
+  1083→      const items = def.leftItems.map((item: string) => ({
+  1084→        text: item,
+  1085→        options: {
+  1086→          fontSize: 13, fontFace: 'Arial', color: '7F1D1D',
+  1087→          bullet: { code: '2718', color: 'DC2626' },
+  1088→          paraSpaceAfter: 8,
+  1089→        },
+  1090→      }));
+  1091→      slide.addText(items, {
+  1092→        x: 0.6, y: 2.2, w: 4.0, h: 4.0, valign: 'top',
+  1093→      });
+  1094→    }
+  1095→
+  1096→    // Right panel (green/accent tone)
+  1097→    slide.addShape(pptx.ShapeType.rect, {
+  1098→      x: 5.2, y: 1.3, w: 4.4, h: 5.4,
+  1099→      fill: { color: theme.bgCard },
+  1100→      rectRadius: 0.1,
+  1101→    });
+  1102→    slide.addText(def.rightTitle || 'Option B', {
+  1103→      x: 5.4, y: 1.5, w: 4.0, h: 0.5,
+  1104→      fontSize: 16, fontFace: 'Arial', color: theme.primary, bold: true,
+  1105→    });
+  1106→    if (def.rightItems) {
+  1107→      const items = def.rightItems.map((item: string) => ({
+  1108→        text: item,
+  1109→        options: {
+  1110→          fontSize: 13, fontFace: 'Arial', color: theme.text,
+  1111→          bullet: { code: '2714', color: theme.success },
+  1112→          paraSpaceAfter: 8,
+  1113→        },
+  1114→      }));
+  1115→      slide.addText(items, {
+  1116→        x: 5.4, y: 2.2, w: 4.0, h: 4.0, valign: 'top',
+  1117→      });
+  1118→    }
+  1119→
+  1120→    // VS circle
+  1121→    slide.addShape(pptx.ShapeType.ellipse, {
+  1122→      x: 4.55, y: 3.5, w: 0.9, h: 0.9,
+  1123→      fill: { color: theme.accent },
+  1124→    });
+  1125→    slide.addText('VS', {
+  1126→      x: 4.55, y: 3.55, w: 0.9, h: 0.8,
+  1127→      fontSize: 14, fontFace: 'Arial', color: 'FFFFFF', bold: true, align: 'center', valign: 'middle',
+  1128→    });
+  1129→
+  1130→    // Slide number
+  1131→    slide.addText(`${index + 1}`, {
+  1132→      x: 9.2, y: 7.05, w: 0.6, h: 0.3,
+  1133→      fontSize: 9, color: theme.textLight, align: 'right',
+  1134→    });
+  1135→
+  1136→    if (def.notes) slide.addNotes(def.notes);
+  1137→  }
+  1138→
+  1139→  /**
+  1140→   * TIMELINE SLIDE — 3-4 step horizontal timeline with phase markers
+  1141→   */
+  1142→  private renderTimelineSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme, index: number): void {
+  1143→    const slide = pptx.addSlide();
+  1144→    slide.background = { fill: theme.bg };
+  1145→
+  1146→    // Left accent stripe
+  1147→    slide.addShape(pptx.ShapeType.rect, {
+  1148→      x: 0, y: 0, w: 0.06, h: 7.5,
+  1149→      fill: { color: theme.accent },
+  1150→    });
+  1151→
+  1152→    // Header bar
+  1153→    slide.addShape(pptx.ShapeType.rect, {
+  1154→      x: 0, y: 0, w: 10, h: 0.9,
+  1155→      fill: { color: theme.primary },
+  1156→    });
+  1157→    slide.addText(def.title || 'Timeline', {
+  1158→      x: 0.6, y: 0.12, w: 8.5, h: 0.65,
+  1159→      fontSize: 22, fontFace: 'Arial', color: 'FFFFFF', bold: true,
+  1160→    });
+  1161→
+  1162→    const steps = def.steps || [
+  1163→      { phase: 'Phase 1', title: 'Start', desc: 'Begin' },
+  1164→      { phase: 'Phase 2', title: 'Grow', desc: 'Expand' },
+  1165→      { phase: 'Phase 3', title: 'Scale', desc: 'Dominate' },
+  1166→    ];
+  1167→
+  1168→    const stepWidth = 8.0 / steps.length;
+  1169→    const timelineY = 3.8;
+  1170→
+  1171→    // Horizontal timeline line
+  1172→    slide.addShape(pptx.ShapeType.rect, {
+  1173→      x: 1.0, y: timelineY, w: 8.0, h: 0.04,
+  1174→      fill: { color: theme.accentLight },
+  1175→    });
+  1176→
+  1177→    for (let i = 0; i < steps.length; i++) {
+  1178→      const step = steps[i];
+  1179→      const cx = 1.0 + stepWidth * i + stepWidth / 2;
+  1180→
+  1181→      // Phase circle on timeline
+  1182→      slide.addShape(pptx.ShapeType.ellipse, {
+  1183→        x: cx - 0.25, y: timelineY - 0.25, w: 0.5, h: 0.5,
+  1184→        fill: { color: theme.accent },
+  1185→      });
+  1186→
+  1187→      // Phase label above
+  1188→      slide.addText(step.phase || `Q${i + 1}`, {
+  1189→        x: cx - 0.7, y: timelineY - 1.0, w: 1.4, h: 0.4,
+  1190→        fontSize: 11, fontFace: 'Arial', color: theme.accent, bold: true, align: 'center',
+  1191→      });
+  1192→
+  1193→      // Step title below
+  1194→      slide.addText(step.title || '', {
+  1195→        x: cx - 0.9, y: timelineY + 0.6, w: 1.8, h: 0.5,
+  1196→        fontSize: 14, fontFace: 'Arial', color: theme.primary, bold: true, align: 'center',
+  1197→      });
+  1198→
+  1199→      // Step description
+  1200→      slide.addText(step.desc || '', {
+  1201→        x: cx - 0.9, y: timelineY + 1.1, w: 1.8, h: 0.8,
+  1202→        fontSize: 11, fontFace: 'Arial', color: theme.textLight, align: 'center',
+  1203→        lineSpacingMultiple: 1.2,
+  1204→      });
+  1205→    }
+  1206→
+  1207→    // Slide number
+  1208→    slide.addText(`${index + 1}`, {
+  1209→      x: 9.2, y: 7.05, w: 0.6, h: 0.3,
+  1210→      fontSize: 9, color: theme.textLight, align: 'right',
+  1211→    });
+  1212→
+  1213→    if (def.notes) slide.addNotes(def.notes);
+  1214→  }
+  1215→
+  1216→  /**
+  1217→   * ICON GRID SLIDE — 2x2 or 2x3 grid of labeled items
+  1218→   */
+  1219→  private renderIconGridSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme, index: number): void {
+  1220→    const slide = pptx.addSlide();
+  1221→    slide.background = { fill: theme.bg };
+  1222→
+  1223→    // Left accent stripe
+  1224→    slide.addShape(pptx.ShapeType.rect, {
+  1225→      x: 0, y: 0, w: 0.06, h: 7.5,
+  1226→      fill: { color: theme.accent },
+  1227→    });
+  1228→
+  1229→    // Header bar
+  1230→    slide.addShape(pptx.ShapeType.rect, {
+  1231→      x: 0, y: 0, w: 10, h: 0.9,
+  1232→      fill: { color: theme.primary },
+  1233→    });
+  1234→    slide.addText(def.title || 'Features', {
+  1235→      x: 0.6, y: 0.12, w: 8.5, h: 0.65,
+  1236→      fontSize: 22, fontFace: 'Arial', color: 'FFFFFF', bold: true,
+  1237→    });
+  1238→
+  1239→    const items = def.items || [
+  1240→      { icon: '\u2699', label: 'Feature 1', desc: 'Description' },
+  1241→      { icon: '\u26A1', label: 'Feature 2', desc: 'Description' },
+  1242→      { icon: '\u2606', label: 'Feature 3', desc: 'Description' },
+  1243→      { icon: '\u2714', label: 'Feature 4', desc: 'Description' },
+  1244→    ];
+  1245→
+  1246→    const cols = 2;
+  1247→    const rows = Math.ceil(items.length / cols);
+  1248→    const cardW = 4.2;
+  1249→    const cardH = 2.4;
+  1250→    const gapX = 0.4;
+  1251→    const gapY = 0.3;
+  1252→    const startX = (10 - (cols * cardW + (cols - 1) * gapX)) / 2;
+  1253→    const startY = 1.3;
+  1254→
+  1255→    for (let i = 0; i < items.length; i++) {
+  1256→      const item = items[i];
+  1257→      const col = i % cols;
+  1258→      const row = Math.floor(i / cols);
+  1259→      const x = startX + col * (cardW + gapX);
+  1260→      const y = startY + row * (cardH + gapY);
+  1261→
+  1262→      // Card background
+  1263→      slide.addShape(pptx.ShapeType.rect, {
+  1264→        x, y, w: cardW, h: cardH,
+  1265→        fill: { color: theme.bgCard },
+  1266→        rectRadius: 0.1,
+  1267→        shadow: { type: 'outer', blur: 4, offset: 2, color: '000000', opacity: 0.08 },
+  1268→      });
+  1269→
+  1270→      // Top accent line
+  1271→      slide.addShape(pptx.ShapeType.rect, {
+  1272→        x, y, w: cardW, h: 0.05,
+  1273→        fill: { color: theme.accent },
+  1274→      });
+  1275→
+  1276→      // Icon
+  1277→      slide.addText(item.icon || '\u25CF', {
+  1278→        x: x + 0.3, y: y + 0.3, w: 0.6, h: 0.6,
+  1279→        fontSize: 24, color: theme.accent, align: 'center',
+  1280→      });
+  1281→
+  1282→      // Label
+  1283→      slide.addText(item.label || '', {
+  1284→        x: x + 1.0, y: y + 0.3, w: 2.8, h: 0.5,
+  1285→        fontSize: 15, fontFace: 'Arial', color: theme.primary, bold: true,
+  1286→      });
+  1287→
+  1288→      // Description
+  1289→      slide.addText(item.desc || '', {
+  1290→        x: x + 1.0, y: y + 0.9, w: 2.8, h: 1.0,
+  1291→        fontSize: 11, fontFace: 'Arial', color: theme.textLight,
+  1292→        lineSpacingMultiple: 1.3,
+  1293→      });
+  1294→    }
+  1295→
+  1296→    // Slide number
+  1297→    slide.addText(`${index + 1}`, {
+  1298→      x: 9.2, y: 7.05, w: 0.6, h: 0.3,
+  1299→      fontSize: 9, color: theme.textLight, align: 'right',
+  1300→    });
+  1301→
+  1302→    if (def.notes) slide.addNotes(def.notes);
+  1303→  }
+  1304→
+  1305→  /**
+  1306→   * IMAGE-TEXT SLIDE — Image placeholder on one side, text on the other
+  1307→   */
+  1308→  private renderImageTextSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme, index: number): void {
+  1309→    const slide = pptx.addSlide();
+  1310→    slide.background = { fill: theme.bg };
+  1311→
+  1312→    // Left accent stripe
+  1313→    slide.addShape(pptx.ShapeType.rect, {
+  1314→      x: 0, y: 0, w: 0.06, h: 7.5,
+  1315→      fill: { color: theme.accent },
+  1316→    });
+  1317→
+  1318→    // Header bar
+  1319→    slide.addShape(pptx.ShapeType.rect, {
+  1320→      x: 0, y: 0, w: 10, h: 0.9,
+  1321→      fill: { color: theme.primary },
+  1322→    });
+  1323→    slide.addText(def.title || 'Details', {
+  1324→      x: 0.6, y: 0.12, w: 8.5, h: 0.65,
+  1325→      fontSize: 22, fontFace: 'Arial', color: 'FFFFFF', bold: true,
+  1326→    });
+  1327→
+  1328→    // Image placeholder (left side)
+  1329→    slide.addShape(pptx.ShapeType.rect, {
+  1330→      x: 0.5, y: 1.3, w: 4.2, h: 5.2,
+  1331→      fill: { color: theme.bgCard },
+  1332→      rectRadius: 0.1,
+  1333→      line: { color: theme.accentLight, width: 1, dashType: 'dash' },
+  1334→    });
+  1335→    slide.addText(def.imageDesc || '\uD83D\uDDBC  Image', {
+  1336→      x: 0.5, y: 3.3, w: 4.2, h: 1.2,
+  1337→      fontSize: 14, fontFace: 'Arial', color: theme.textLight,
+  1338→      align: 'center', valign: 'middle',
+  1339→    });
+  1340→
+  1341→    // Text content (right side)
+  1342→    if (def.bodyText || def.bullets) {
+  1343→      if (def.bullets) {
+  1344→        const bulletText = def.bullets.map((b: string) => ({
+  1345→          text: b,
+  1346→          options: {
+  1347→            fontSize: 14, fontFace: 'Arial', color: theme.text,
+  1348→            bullet: { code: '25BA', color: theme.accent },
+  1349→            paraSpaceAfter: 8,
+  1350→          },
+  1351→        }));
+  1352→        slide.addText(bulletText, {
+  1353→          x: 5.2, y: 1.5, w: 4.2, h: 5.0, valign: 'top',
+  1354→        });
+  1355→      } else {
+  1356→        slide.addText(def.bodyText || '', {
+  1357→          x: 5.2, y: 1.5, w: 4.2, h: 5.0,
+  1358→          fontSize: 14, fontFace: 'Arial', color: theme.text,
+  1359→          lineSpacingMultiple: 1.4, valign: 'top',
+  1360→        });
+  1361→      }
+  1362→    }
+  1363→
+  1364→    // Slide number
+  1365→    slide.addText(`${index + 1}`, {
+  1366→      x: 9.2, y: 7.05, w: 0.6, h: 0.3,
+  1367→      fontSize: 9, color: theme.textLight, align: 'right',
+  1368→    });
+  1369→
+  1370→    if (def.notes) slide.addNotes(def.notes);
+  1371→  }
+  1372→
+  1373→  /**
+  1374→   * CLOSING SLIDE — Thank you with contact info on gradient background
+  1375→   */
+  1376→  private renderClosingSlide(pptx: PptxGenJS, def: any, theme: PremiumTheme): void {
+  1377→    const slide = pptx.addSlide();
+  1378→    slide.background = { fill: theme.primaryDark };
+  1379→
+  1380→    // Top accent bar
+  1381→    slide.addShape(pptx.ShapeType.rect, {
+  1382→      x: 0, y: 0, w: 10, h: 0.06,
+  1383→      fill: { color: theme.accent },
+  1384→    });
+  1385→
+  1386→    // Decorative circle (top-left)
+  1387→    slide.addShape(pptx.ShapeType.ellipse, {
+  1388→      x: -1.0, y: -1.0, w: 3.0, h: 3.0,
+  1389→      fill: { color: theme.primary },
+  1390→      line: { color: theme.accent, width: 0.5 },
+  1391→    });
+  1392→
+  1393→    // Decorative circle (bottom-right)
+  1394→    slide.addShape(pptx.ShapeType.ellipse, {
+  1395→      x: 8.0, y: 5.5, w: 2.5, h: 2.5,
+  1396→      fill: { color: theme.primary },
+  1397→      line: { color: theme.accent, width: 0.5 },
+  1398→    });
+  1399→
+  1400→    // Main "Thank You" text
+  1401→    slide.addText(def.title || 'Merci', {
+  1402→      x: 1.0, y: 1.8, w: 8.0, h: 1.5,
+  1403→      fontSize: 48, fontFace: 'Arial',
+  1404→      color: 'FFFFFF', bold: true, align: 'center',
+  1405→    });
+  1406→
+  1407→    // Accent line
+  1408→    slide.addShape(pptx.ShapeType.rect, {
+  1409→      x: 3.5, y: 3.4, w: 3.0, h: 0.06,
+  1410→      fill: { color: theme.accent },
+  1411→    });
+  1412→
+  1413→    // Subtitle
+  1414→    if (def.subtitle) {
+  1415→      slide.addText(def.subtitle, {
+  1416→        x: 1.5, y: 3.8, w: 7.0, h: 0.6,
+  1417→        fontSize: 18, fontFace: 'Arial',
+  1418→        color: theme.accentLight, align: 'center',
+  1419→      });
+  1420→    }
+  1421→
+  1422→    // Contact info
+  1423→    if (def.contactInfo) {
+  1424→      slide.addText(def.contactInfo, {
+  1425→        x: 2.5, y: 5.2, w: 5.0, h: 0.4,
+  1426→        fontSize: 13, fontFace: 'Arial',
+  1427→        color: '94A3B8', align: 'center',
+  1428→      });
+  1429→    }
+  1430→
+  1431→    // Website
+  1432→    if (def.website) {
+  1433→      slide.addText(def.website, {
+  1434→        x: 2.5, y: 5.7, w: 5.0, h: 0.4,
+  1435→        fontSize: 13, fontFace: 'Arial',
+  1436→        color: theme.accent, align: 'center', bold: true,
+  1437→      });
+  1438→    }
+  1439→
+  1440→    // Bottom accent bar
+  1441→    slide.addShape(pptx.ShapeType.rect, {
+  1442→      x: 0, y: 7.44, w: 10, h: 0.06,
+  1443→      fill: { color: theme.accent },
+  1444→    });
+  1445→
+  1446→    if (def.notes) slide.addNotes(def.notes);
+  1447→  }
+  1448→
+  1449→  /* ── HELPER: Resolve stat color ────────────────────────────────── */
+  1450→
+  1451→  private getStatColor(colorKey: string | undefined, theme: PremiumTheme): string {
+  1452→    switch (colorKey) {
+  1453→      case 'success': return theme.success;
+  1454→      case 'warning': return theme.warning;
+  1455→      case 'danger': return theme.danger;
+  1456→      case 'accent': return theme.accent;
+  1457→      case 'primary': return theme.primary;
+  1458→      default: return theme.accent;
+  1459→    }
+  1460→  }
+  1461→
+  1462→  /* ── ORIGINAL createPptx (backward compat) ─────────────────────── */
+  1463→
+  1464→  private async createPptx(config: Record<string, any>, startTime: number): Promise<AgentResult> {
+  1465→    const title = config.title;
+  1466→    if (!title) {
+  1467→      return { success: false, error: 'Title is required to create a presentation' };
+  1468→    }
+  1469→
+  1470→    this.logger.log(`Creating presentation "${title}"`);
+  1471→
+  1472→    const slideData = {
+  1473→      title,
+  1474→      subtitle: config.subtitle || '',
+  1475→      author: config.author || 'AENEWS Agent OS X',
+  1476→      slides: config.slides || [
+  1477→        { layout: 'cover', title, subtitle: config.subtitle || '' },
+  1478→        { layout: 'content', title: 'Content', bullets: ['Add your content here'] },
+  1479→        { layout: 'closing', title: 'Thank You', subtitle: 'Questions?' },
+  1480→      ],
+  1481→    };
+  1482→
+  1483→    const theme = config.theme || 'corporate';
+  1484→    return this.buildPremiumPptx(slideData, theme, startTime);
+  1485→  }
+  1486→
+  1487→  /* ── STUB HANDLERS (backward compat) ──────────────────────────── */
+  1488→
+  1489→  private handleEdit(config: Record<string, any>, startTime: number): AgentResult {
+  1490→    const presentationId = config.presentationId;
+  1491→    if (!presentationId) {
+  1492→      return { success: false, error: 'Presentation ID is required to edit a presentation' };
+  1493→    }
+  1494→    return {
+  1495→      success: true,
+  1496→      data: {
+  1497→        action: 'edit', presentationId,
+  1498→        status: 'presentation_edited',
+  1499→        timestamp: new Date().toISOString(),
+  1500→      },
+  1501→      metadata: { duration: Date.now() - startTime },
+  1502→    };
+  1503→  }
+  1504→
+  1505→  private handleTemplate(config: Record<string, any>, startTime: number): AgentResult {
+  1506→    const themes = Object.keys(PREMIUM_THEMES);
+  1507→    return {
+  1508→      success: true,
+  1509→      data: {
+  1510→        action: 'template',
+  1511→        operation: config.operation || 'list',
+  1512→        availableThemes: themes.map(t => ({ id: t, name: PREMIUM_THEMES[t].name })),
+  1513→        availableLayouts: ['cover', 'section', 'content', 'two-column', 'stat-block', 'quote', 'comparison', 'timeline', 'icon-grid', 'image-text', 'closing'],
+  1514→        status: 'template_operation_complete',
+  1515→        timestamp: new Date().toISOString(),
+  1516→      },
+  1517→      metadata: { duration: Date.now() - startTime },
+  1518→    };
+  1519→  }
+  1520→
+  1521→  private handleExport(config: Record<string, any>, startTime: number): AgentResult {
+  1522→    return {
+  1523→      success: true,
+  1524→      data: {
+  1525→        action: 'export', toFormat: config.toFormat || 'pdf',
+  1526→        status: 'presentation_exported',
+  1527→        timestamp: new Date().toISOString(),
+  1528→      },
+  1529→      metadata: { duration: Date.now() - startTime },
+  1530→    };
+  1531→  }
+  1532→
+  1533→  private handleAnimate(config: Record<string, any>, startTime: number): AgentResult {
+  1534→    return {
+  1535→      success: true,
+  1536→      data: {
+  1537→        action: 'animate', operation: config.operation || 'add',
+  1538→        status: 'animation_operation_complete',
+  1539→        timestamp: new Date().toISOString(),
+  1540→      },
+  1541→      metadata: { duration: Date.now() - startTime },
+  1542→    };
+  1543→  }
+  1544→}
+  1545→

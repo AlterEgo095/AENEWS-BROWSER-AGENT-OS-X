@@ -1,0 +1,807 @@
+     1→/**
+     2→ * AENEWS Agent OS X — Cookie-based Auth Integration Tests
+     3→ *
+     4→ * Integration tests that exercise the AuthController with cookie-based
+     5→ * refresh token management, verifying:
+     6→ *
+     7→ *   1. Login sets httpOnly refresh cookie
+     8→ *   2. Refresh reads from cookie and returns new access token
+     9→ *   3. Logout clears cookie
+    10→ *   4. 2FA flow: login returns requires2FA, step2 completes
+    11→ *   5. Register sets httpOnly refresh cookie
+    12→ *   6. Logout-all clears cookie
+    13→ *   7. Missing cookie returns 401 on refresh
+    14→ *   8. Cookie attributes are correct (httpOnly, sameSite, path)
+    15→ *
+    16→ * Uses NestJS Testing module with proper mock providers.
+    17→ * Mocks Redis, User repository, and all external dependencies.
+    18→ */
+    19→
+    20→import { Test, TestingModule } from '@nestjs/testing';
+    21→import { INestApplication, ValidationPipe, UnauthorizedException } from '@nestjs/common';
+    22→import { JwtService } from '@nestjs/jwt';
+    23→import { Reflector } from '@nestjs/core';
+    24→import * as bcrypt from 'bcrypt';
+    25→import request from 'supertest';
+    26→
+    27→import { AuthController } from './auth.controller';
+    28→import { AuthService, LoginResult, Login2faRequired } from './auth.service';
+    29→import { AccountLockoutService } from '../security/services/account-lockout.service';
+    30→import { RefreshTokenService, TokenPair } from '../security/services/refresh-token.service';
+    31→import { SecurityMetricsService } from '../security-monitoring/services/security-metrics.service';
+    32→import { ThreatIntelligenceService } from '../security-monitoring/services/threat-intelligence.service';
+    33→import { TotpService } from '../security/services/totp.service';
+    34→import { EncryptionService } from '../security/services/encryption.service';
+    35→import { EventService } from '../event/event.service';
+    36→import { User, UserRole } from '../user/entities/user.entity';
+    37→import { Tenant } from '../tenant/entities/tenant.entity';
+    38→import { JwtAuthGuard } from './guards/jwt-auth.guard';
+    39→import { RolesGuard } from './guards/roles.guard';
+    40→
+    41→// ─── Mock Factories ────────────────────────────────────────────
+    42→
+    43→function createMockUser(overrides: Partial<User> = {}): User {
+    44→  const user = new User();
+    45→  user.id = overrides.id ?? 'user-123';
+    46→  user.email = overrides.email ?? 'test@example.com';
+    47→  user.passwordHash = overrides.passwordHash ?? '$2b$10$mockpasswordhash';
+    48→  user.firstName = overrides.firstName ?? 'Test';
+    49→  user.lastName = overrides.lastName ?? 'User';
+    50→  user.role = overrides.role ?? UserRole.TENANT_ADMIN;
+    51→  user.tenantId = overrides.tenantId ?? 'tenant-123';
+    52→  user.isActive = overrides.isActive ?? true;
+    53→  user.totpEnabled = overrides.totpEnabled ?? false;
+    54→  user.totpSecret = overrides.totpSecret ?? null;
+    55→  user.totpBackupCodes = overrides.totpBackupCodes ?? null;
+    56→  user.totpUsedBackupCodes = overrides.totpUsedBackupCodes ?? '[]';
+    57→  return user;
+    58→}
+    59→
+    60→function createMockUserRepo(users: User[] = []) {
+    61→  return {
+    62→    findOne: jest.fn(async ({ where }: any) => {
+    63→      const key = Object.keys(where)[0];
+    64→      const val = where[key];
+    65→      return users.find((u) => (u as any)[key] === val) ?? null;
+    66→    }),
+    67→    create: jest.fn((data: any) => data),
+    68→    save: jest.fn(async (entity: any) => ({
+    69→      ...entity,
+    70→      id: entity.id ?? 'new-user-id',
+    71→    })),
+    72→    update: jest.fn(async () => ({ affected: 1 })),
+    73→  };
+    74→}
+    75→
+    76→function createMockTenantRepo() {
+    77→  return {
+    78→    findOne: jest.fn(async () => ({ id: 'tenant-123', slug: 'test-org', name: 'Test Org' })),
+    79→    create: jest.fn((data: any) => data),
+    80→    save: jest.fn(async (entity: any) => ({ ...entity, id: entity.id ?? 'new-tenant-id' })),
+    81→  };
+    82→}
+    83→
+    84→function createMockAccountLockout() {
+    85→  return {
+    86→    isAccountLocked: jest.fn(async () => ({ locked: false, lockedUntil: null, remainingAttempts: 5 })),
+    87→    getProgressiveDelay: jest.fn(async () => 0),
+    88→    recordFailedAttempt: jest.fn(async () => ({ locked: false, lockedUntil: null, remainingAttempts: 4 })),
+    89→    recordSuccessfulLogin: jest.fn(async () => undefined),
+    90→    unlockAccount: jest.fn(async () => true),
+    91→    getLockoutStats: jest.fn(async () => ({ totalLockedAccounts: 0, lockedAccounts: [] })),
+    92→  };
+    93→}
+    94→
+    95→function createMockRefreshTokenService(): RefreshTokenService {
+    96→  return {
+    97→    generateTokenPair: jest.fn(async (userId: string, tenantId: string, role: string, _meta?: any) => ({
+    98→      accessToken: 'access-token-' + userId,
+    99→      refreshToken: 'refresh-token-' + userId,
+   100→      family: 'family-' + userId,
+   101→    })),
+   102→    rotateRefreshToken: jest.fn(async (token: string, _meta?: any) => ({
+   103→      accessToken: 'new-access-token',
+   104→      refreshToken: 'new-rotated-refresh-token',
+   105→      family: 'new-family',
+   106→    })),
+   107→    revokeToken: jest.fn(async () => true),
+   108→    revokeAllUserTokens: jest.fn(async () => 1),
+   109→    getActiveSessions: jest.fn(async () => []),
+   110→  } as any;
+   111→}
+   112→
+   113→function createMockSecurityMetrics() {
+   114→  return {
+   115→    recordAuthSuccess: jest.fn(),
+   116→    recordAuthFailure: jest.fn(),
+   117→    recordTokenRotation: jest.fn(),
+   118→  };
+   119→}
+   120→
+   121→function createMockThreatIntel() {
+   122→  return {
+   123→    recordIpEvent: jest.fn(async () => undefined),
+   124→    getAlerts: jest.fn(async () => []),
+   125→    acknowledgeAlert: jest.fn(() => true),
+   126→    getAllReputations: jest.fn(async () => []),
+   127→    getIpReputation: jest.fn(async () => null),
+   128→    setIpBlocked: jest.fn(async () => undefined),
+   129→  };
+   130→}
+   131→
+   132→function createMockTotpService(): TotpService {
+   133→  return {
+   134→    generateSecret: jest.fn(async (userId: string, email: string) => ({
+   135→      qrCode: 'base64-qr-code',
+   136→      otpauthUri: 'otpauth://totp/AENEWS%20Agent%20OS%20X:test@example.com?secret=JBSWY3DPEHPK3PXP&issuer=AENEWS+Agent+OS+X',
+   137→      backupCodes: ['ABCD1234', 'EFGH5678', 'IJKL9012', 'MNOP3456'],
+   138→      encryptedSecret: 'encrypted-secret-base64',
+   139→    })),
+   140→    verifyToken: jest.fn(() => true),
+   141→    decryptSecret: jest.fn(() => 'JBSWY3DPEHPK3PXP'),
+   142→    hashBackupCodes: jest.fn(async (codes: string[]) => codes.map((c) => `$2b$10$hash_${c}`)),
+   143→    validateBackupCode: jest.fn(async () => ({ valid: true, usedBackupCodes: ['hashed-code'], backupCodeUsed: true })),
+   144→    generateBackupCodes: jest.fn(() => ['ABCD1234', 'EFGH5678']),
+   145→  } as any;
+   146→}
+   147→
+   148→function createMockEncryptionService(): EncryptionService {
+   149→  return {
+   150→    encrypt: jest.fn((plaintext: string) => Buffer.from(plaintext).toString('base64')),
+   151→    decrypt: jest.fn((encrypted: string) => Buffer.from(encrypted, 'base64').toString('utf-8')),
+   152→  } as any;
+   153→}
+   154→
+   155→function createMockEventService() {
+   156→  return {
+   157→    emit: jest.fn(async () => undefined),
+   158→  };
+   159→}
+   160→
+   161→// ─── Helper: Create Test App ─────────────────────────────────
+   162→
+   163→async function createTestApp(users: User[] = []): Promise<INestApplication> {
+   164→  const defaultUser = createMockUser();
+   165→  const allUsers = users.length > 0 ? users : [defaultUser];
+   166→
+   167→  const mockUserRepo = createMockUserRepo(allUsers);
+   168→  const mockTenantRepo = createMockTenantRepo();
+   169→  const accountLockout = createMockAccountLockout();
+   170→  const refreshTokenService = createMockRefreshTokenService();
+   171→  const securityMetrics = createMockSecurityMetrics();
+   172→  const threatIntel = createMockThreatIntel();
+   173→  const totpService = createMockTotpService();
+   174→  const encryptionService = createMockEncryptionService();
+   175→  const mockEventService = createMockEventService();
+   176→
+   177→  const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   178→
+   179→  const moduleFixture: TestingModule = await Test.createTestingModule({
+   180→    controllers: [AuthController],
+   181→    providers: [
+   182→      AuthService,
+   183→      { provide: 'UserRepository', useValue: mockUserRepo },
+   184→      { provide: 'TenantRepository', useValue: mockTenantRepo },
+   185→      { provide: JwtService, useValue: jwtService },
+   186→      { provide: EventService, useValue: mockEventService },
+   187→      { provide: AccountLockoutService, useValue: accountLockout },
+   188→      { provide: RefreshTokenService, useValue: refreshTokenService },
+   189→      { provide: SecurityMetricsService, useValue: securityMetrics },
+   190→      { provide: ThreatIntelligenceService, useValue: threatIntel },
+   191→      { provide: TotpService, useValue: totpService },
+   192→      { provide: EncryptionService, useValue: encryptionService },
+   193→      // Guard dependencies
+   194→      JwtAuthGuard,
+   195→      RolesGuard,
+   196→      { provide: Reflector, useValue: new Reflector() },
+   197→    ],
+   198→  }).compile();
+   199→
+   200→  const app = moduleFixture.createNestApplication();
+   201→  app.useGlobalPipes(
+   202→    new ValidationPipe({
+   203→      whitelist: true,
+   204→      forbidNonWhitelisted: true,
+   205→      transform: true,
+   206→    }),
+   207→  );
+   208→  await app.init();
+   209→  return app;
+   210→}
+   211→
+   212→// ─── Test Suite ────────────────────────────────────────────────
+   213→
+   214→describe('AuthController — Cookie-based Auth (Integration)', () => {
+   215→  let app: INestApplication;
+   216→  let refreshTokenService: ReturnType<typeof createMockRefreshTokenService>;
+   217→  let accountLockout: ReturnType<typeof createMockAccountLockout>;
+   218→  let totpService: ReturnType<typeof createMockTotpService>;
+   219→
+   220→  // Known password hash for test user
+   221→  const TEST_PASSWORD = 'SecurePass123!';
+   222→  let passwordHash: string;
+   223→
+   224→  beforeAll(async () => {
+   225→    passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+   226→  });
+   227→
+   228→  beforeEach(async () => {
+   229→    const user = createMockUser({ passwordHash });
+   230→    app = await createTestApp([user]);
+   231→    refreshTokenService = app.get(RefreshTokenService) as any;
+   232→    accountLockout = app.get(AccountLockoutService) as any;
+   233→    totpService = app.get(TotpService) as any;
+   234→  });
+   235→
+   236→  afterEach(async () => {
+   237→    await app.close();
+   238→  });
+   239→
+   240→  // ═══════════════════════════════════════════════════════════
+   241→  //  1. Login sets httpOnly refresh cookie
+   242→  // ═══════════════════════════════════════════════════════════
+   243→
+   244→  describe('POST auth/login — sets httpOnly refresh cookie', () => {
+   245→    it('should set a refresh_token cookie on successful login', async () => {
+   246→      const response = await request(app.getHttpServer())
+   247→        .post('/auth/login')
+   248→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   249→        .expect(201);
+   250→
+   251→      // Check that the cookie was set
+   252→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   253→      expect(cookies).toBeDefined();
+   254→
+   255→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   256→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   257→
+   258→      expect(refreshTokenCookie).toBeDefined();
+   259→      expect(refreshTokenCookie).toContain('HttpOnly');
+   260→      expect(refreshTokenCookie).toContain('SameSite=Strict');
+   261→      expect(refreshTokenCookie).toContain('Path=/api/v1/auth');
+   262→    });
+   263→
+   264→    it('should return access token and user info in the response body', async () => {
+   265→      const response = await request(app.getHttpServer())
+   266→        .post('/auth/login')
+   267→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   268→        .expect(201);
+   269→
+   270→      expect(response.body).toHaveProperty('accessToken');
+   271→      expect(response.body).toHaveProperty('user');
+   272→      expect(response.body.user.email).toBe('test@example.com');
+   273→      // Refresh token should NOT be in the response body (only in cookie)
+   274→      expect(response.body).not.toHaveProperty('refreshToken');
+   275→    });
+   276→
+   277→    it('should not set a cookie when login fails', async () => {
+   278→      const response = await request(app.getHttpServer())
+   279→        .post('/auth/login')
+   280→        .send({ email: 'test@example.com', password: 'WrongPassword!' })
+   281→        .expect(401);
+   282→
+   283→      // No refresh_token cookie should be set
+   284→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   285→      if (cookies) {
+   286→        const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   287→        const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   288→        expect(refreshTokenCookie).toBeUndefined();
+   289→      }
+   290→    });
+   291→  });
+   292→
+   293→  // ═══════════════════════════════════════════════════════════
+   294→  //  2. Refresh reads from cookie and returns new access token
+   295→  // ═══════════════════════════════════════════════════════════
+   296→
+   297→  describe('POST auth/refresh — reads from cookie', () => {
+   298→    it('should read the refresh token from cookie and return a new access token', async () => {
+   299→      const response = await request(app.getHttpServer())
+   300→        .post('/auth/refresh')
+   301→        .set('Cookie', 'refresh_token=refresh-token-user-123')
+   302→        .expect(201);
+   303→
+   304→      expect(response.body).toHaveProperty('accessToken');
+   305→      expect(response.body.accessToken).toBeTruthy();
+   306→    });
+   307→
+   308→    it('should set a new rotated refresh token cookie on refresh', async () => {
+   309→      const response = await request(app.getHttpServer())
+   310→        .post('/auth/refresh')
+   311→        .set('Cookie', 'refresh_token=old-refresh-token')
+   312→        .expect(201);
+   313→
+   314→      // Check that a new cookie was set (rotated refresh token)
+   315→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   316→      expect(cookies).toBeDefined();
+   317→
+   318→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   319→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   320→
+   321→      expect(refreshTokenCookie).toBeDefined();
+   322→      expect(refreshTokenCookie).toContain('HttpOnly');
+   323→    });
+   324→
+   325→    it('should call refreshTokenService.rotateRefreshToken with the cookie value', async () => {
+   326→      await request(app.getHttpServer())
+   327→        .post('/auth/refresh')
+   328→        .set('Cookie', 'refresh_token=my-refresh-token-value')
+   329→        .expect(201);
+   330→
+   331→      expect(refreshTokenService.rotateRefreshToken).toHaveBeenCalledWith(
+   332→        'my-refresh-token-value',
+   333→        expect.any(Object),
+   334→      );
+   335→    });
+   336→
+   337→    it('should return 401 when no refresh_token cookie is provided', async () => {
+   338→      await request(app.getHttpServer())
+   339→        .post('/auth/refresh')
+   340→        .expect(401);
+   341→    });
+   342→
+   343→    it('should return 401 when cookie is empty', async () => {
+   344→      await request(app.getHttpServer())
+   345→        .post('/auth/refresh')
+   346→        .set('Cookie', 'refresh_token=')
+   347→        .expect(401);
+   348→    });
+   349→  });
+   350→
+   351→  // ═══════════════════════════════════════════════════════════
+   352→  //  3. Logout clears cookie
+   353→  // ═══════════════════════════════════════════════════════════
+   354→
+   355→  describe('POST auth/logout — clears cookie', () => {
+   356→    it('should clear the refresh_token cookie on logout', async () => {
+   357→      // Need to be authenticated for logout
+   358→      const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   359→      const token = jwtService.sign({
+   360→        sub: 'user-123',
+   361→        email: 'test@example.com',
+   362→        role: UserRole.TENANT_ADMIN,
+   363→        tenantId: 'tenant-123',
+   364→      });
+   365→
+   366→      const response = await request(app.getHttpServer())
+   367→        .post('/auth/logout')
+   368→        .set('Authorization', `Bearer ${token}`)
+   369→        .set('Cookie', 'refresh_token=refresh-token-user-123')
+   370→        .expect(204);
+   371→
+   372→      // The cookie should be cleared (maxAge=0 or expires in the past)
+   373→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   374→      expect(cookies).toBeDefined();
+   375→
+   376→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   377→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   378→
+   379→      if (refreshTokenCookie) {
+   380→        // The cleared cookie should either have Max-Age=0 or be empty
+   381→        expect(
+   382→          refreshTokenCookie.includes('Max-Age=0') ||
+   383→          refreshTokenCookie.includes('refresh_token=;') ||
+   384→          refreshTokenCookie.match(/refresh_token=$/),
+   385→        ).toBe(true);
+   386→      }
+   387→    });
+   388→
+   389→    it('should call refreshTokenService.revokeToken with the cookie value', async () => {
+   390→      const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   391→      const token = jwtService.sign({
+   392→        sub: 'user-123',
+   393→        email: 'test@example.com',
+   394→        role: UserRole.TENANT_ADMIN,
+   395→        tenantId: 'tenant-123',
+   396→      });
+   397→
+   398→      await request(app.getHttpServer())
+   399→        .post('/auth/logout')
+   400→        .set('Authorization', `Bearer ${token}`)
+   401→        .set('Cookie', 'refresh_token=my-refresh-token')
+   402→        .expect(204);
+   403→
+   404→      expect(refreshTokenService.revokeToken).toHaveBeenCalledWith('my-refresh-token');
+   405→    });
+   406→
+   407→    it('should still succeed even without a refresh_token cookie', async () => {
+   408→      const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   409→      const token = jwtService.sign({
+   410→        sub: 'user-123',
+   411→        email: 'test@example.com',
+   412→        role: UserRole.TENANT_ADMIN,
+   413→        tenantId: 'tenant-123',
+   414→      });
+   415→
+   416→      await request(app.getHttpServer())
+   417→        .post('/auth/logout')
+   418→        .set('Authorization', `Bearer ${token}`)
+   419→        .expect(204);
+   420→    });
+   421→  });
+   422→
+   423→  // ═══════════════════════════════════════════════════════════
+   424→  //  4. 2FA Flow: login returns requires2FA, step2 completes
+   425→  // ═══════════════════════════════════════════════════════════
+   426→
+   427→  describe('2FA login flow', () => {
+   428→    it('should return requires2FA and tempToken when user has TOTP enabled', async () => {
+   429→      // Override the user to have TOTP enabled
+   430→      const userRepo = app.get('UserRepository');
+   431→      const totpUser = createMockUser({
+   432→        passwordHash,
+   433→        totpEnabled: true,
+   434→        totpSecret: 'encrypted-totp-secret',
+   435→      });
+   436→      (userRepo.findOne as jest.Mock).mockResolvedValue(totpUser);
+   437→
+   438→      const response = await request(app.getHttpServer())
+   439→        .post('/auth/login')
+   440→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   441→        .expect(201);
+   442→
+   443→      expect(response.body).toHaveProperty('requires2FA', true);
+   444→      expect(response.body).toHaveProperty('tempToken');
+   445→      expect(response.body).toHaveProperty('message');
+   446→      expect(response.body.tempToken).toBeTruthy();
+   447→    });
+   448→
+   449→    it('should NOT set a refresh cookie during login step 1 when 2FA is required', async () => {
+   450→      const userRepo = app.get('UserRepository');
+   451→      const totpUser = createMockUser({
+   452→        passwordHash,
+   453→        totpEnabled: true,
+   454→        totpSecret: 'encrypted-totp-secret',
+   455→      });
+   456→      (userRepo.findOne as jest.Mock).mockResolvedValue(totpUser);
+   457→
+   458→      const response = await request(app.getHttpServer())
+   459→        .post('/auth/login')
+   460→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   461→        .expect(201);
+   462→
+   463→      // No refresh_token cookie should be set until step 2 is completed
+   464→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   465→      if (cookies) {
+   466→        const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   467→        const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   468→        expect(refreshTokenCookie).toBeUndefined();
+   469→      }
+   470→    });
+   471→
+   472→    it('should complete 2FA step 2 with a valid TOTP code and set refresh cookie', async () => {
+   473→      const userRepo = app.get('UserRepository');
+   474→      const totpUser = createMockUser({
+   475→        passwordHash,
+   476→        totpEnabled: true,
+   477→        totpSecret: 'encrypted-totp-secret',
+   478→      });
+   479→      (userRepo.findOne as jest.Mock).mockResolvedValue(totpUser);
+   480→
+   481→      // Step 1: Login to get tempToken
+   482→      const loginResponse = await request(app.getHttpServer())
+   483→        .post('/auth/login')
+   484→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   485→        .expect(201);
+   486→
+   487→      const { tempToken } = loginResponse.body;
+   488→
+   489→      // Step 2: Complete 2FA with TOTP code
+   490→      const step2Response = await request(app.getHttpServer())
+   491→        .post('/auth/login/2fa')
+   492→        .send({ tempToken, code: '123456' })
+   493→        .expect(201);
+   494→
+   495→      // Should return access token and user info
+   496→      expect(step2Response.body).toHaveProperty('accessToken');
+   497→      expect(step2Response.body).toHaveProperty('user');
+   498→
+   499→      // Should set refresh_token cookie after step 2
+   500→      const cookies = step2Response.headers['set-cookie'] as string[] | string | undefined;
+   501→      expect(cookies).toBeDefined();
+   502→
+   503→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   504→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   505→      expect(refreshTokenCookie).toBeDefined();
+   506→      expect(refreshTokenCookie).toContain('HttpOnly');
+   507→    });
+   508→
+   509→    it('should complete 2FA step 2 with a backup code when TOTP fails', async () => {
+   510→      const userRepo = app.get('UserRepository');
+   511→      const totpUser = createMockUser({
+   512→        passwordHash,
+   513→        totpEnabled: true,
+   514→        totpSecret: 'encrypted-totp-secret',
+   515→        totpBackupCodes: JSON.stringify(['$2b$10$hash_ABCD1234']),
+   516→        totpUsedBackupCodes: '[]',
+   517→      });
+   518→      (userRepo.findOne as jest.Mock).mockResolvedValue(totpUser);
+   519→
+   520→      // Step 1: Login
+   521→      const loginResponse = await request(app.getHttpServer())
+   522→        .post('/auth/login')
+   523→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   524→        .expect(201);
+   525→
+   526→      const { tempToken } = loginResponse.body;
+   527→
+   528→      // Step 2: TOTP code invalid, but backup code valid
+   529→      (totpService.verifyToken as jest.Mock).mockReturnValueOnce(false);
+   530→      (totpService.validateBackupCode as jest.Mock).mockResolvedValueOnce({
+   531→        valid: true,
+   532→        usedBackupCodes: ['$2b$10$hash_ABCD1234'],
+   533→        backupCodeUsed: true,
+   534→      });
+   535→
+   536→      const step2Response = await request(app.getHttpServer())
+   537→        .post('/auth/login/2fa')
+   538→        .send({ tempToken, code: 'ABCD1234' })
+   539→        .expect(201);
+   540→
+   541→      expect(step2Response.body).toHaveProperty('accessToken');
+   542→    });
+   543→
+   544→    it('should reject 2FA step 2 with invalid TOTP and invalid backup code', async () => {
+   545→      const userRepo = app.get('UserRepository');
+   546→      const totpUser = createMockUser({
+   547→        passwordHash,
+   548→        totpEnabled: true,
+   549→        totpSecret: 'encrypted-totp-secret',
+   550→        totpBackupCodes: JSON.stringify(['$2b$10$hash_ABCD1234']),
+   551→        totpUsedBackupCodes: '[]',
+   552→      });
+   553→      (userRepo.findOne as jest.Mock).mockResolvedValue(totpUser);
+   554→
+   555→      // Step 1: Login
+   556→      const loginResponse = await request(app.getHttpServer())
+   557→        .post('/auth/login')
+   558→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   559→        .expect(201);
+   560→
+   561→      const { tempToken } = loginResponse.body;
+   562→
+   563→      // Step 2: Both TOTP and backup code invalid
+   564→      (totpService.verifyToken as jest.Mock).mockReturnValueOnce(false);
+   565→      (totpService.validateBackupCode as jest.Mock).mockResolvedValueOnce({ valid: false });
+   566→
+   567→      await request(app.getHttpServer())
+   568→        .post('/auth/login/2fa')
+   569→        .send({ tempToken, code: '000000' })
+   570→        .expect(401);
+   571→    });
+   572→
+   573→    it('should reject 2FA step 2 with an expired or invalid tempToken', async () => {
+   574→      await request(app.getHttpServer())
+   575→        .post('/auth/login/2fa')
+   576→        .send({ tempToken: 'invalid-token', code: '123456' })
+   577→        .expect(401);
+   578→    });
+   579→
+   580→    it('should reject 2FA step 2 with a non-2FA JWT token', async () => {
+   581→      const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   582→      // A regular JWT without step: '2fa'
+   583→      const regularToken = jwtService.sign({ sub: 'user-123' });
+   584→
+   585→      await request(app.getHttpServer())
+   586→        .post('/auth/login/2fa')
+   587→        .send({ tempToken: regularToken, code: '123456' })
+   588→        .expect(401);
+   589→    });
+   590→  });
+   591→
+   592→  // ═══════════════════════════════════════════════════════════
+   593→  //  5. Register sets httpOnly refresh cookie
+   594→  // ═══════════════════════════════════════════════════════════
+   595→
+   596→  describe('POST auth/register — sets httpOnly refresh cookie', () => {
+   597→    it('should set a refresh_token cookie on successful registration', async () => {
+   598→      const userRepo = app.get('UserRepository');
+   599→      // Ensure the user doesn't already exist
+   600→      (userRepo.findOne as jest.Mock).mockResolvedValueOnce(null);
+   601→
+   602→      const response = await request(app.getHttpServer())
+   603→        .post('/auth/register')
+   604→        .send({
+   605→          email: 'newuser@example.com',
+   606→          password: 'NewUserPass123!',
+   607→          firstName: 'New',
+   608→          lastName: 'User',
+   609→        })
+   610→        .expect(201);
+   611→
+   612→      expect(response.body).toHaveProperty('accessToken');
+   613→      expect(response.body).toHaveProperty('user');
+   614→
+   615→      // Check cookie
+   616→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   617→      expect(cookies).toBeDefined();
+   618→
+   619→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   620→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   621→      expect(refreshTokenCookie).toBeDefined();
+   622→      expect(refreshTokenCookie).toContain('HttpOnly');
+   623→      expect(refreshTokenCookie).toContain('SameSite=Strict');
+   624→    });
+   625→
+   626→    it('should not return refreshToken in the response body', async () => {
+   627→      const userRepo = app.get('UserRepository');
+   628→      (userRepo.findOne as jest.Mock).mockResolvedValueOnce(null);
+   629→
+   630→      const response = await request(app.getHttpServer())
+   631→        .post('/auth/register')
+   632→        .send({
+   633→          email: 'newuser2@example.com',
+   634→          password: 'NewUserPass123!',
+   635→          firstName: 'New',
+   636→          lastName: 'User',
+   637→        })
+   638→        .expect(201);
+   639→
+   640→      // Refresh token should only be in the cookie, not in the body
+   641→      expect(response.body).not.toHaveProperty('refreshToken');
+   642→    });
+   643→  });
+   644→
+   645→  // ═══════════════════════════════════════════════════════════
+   646→  //  6. Logout-all clears cookie
+   647→  // ═══════════════════════════════════════════════════════════
+   648→
+   649→  describe('DELETE auth/logout-all — clears cookie', () => {
+   650→    it('should clear the refresh_token cookie', async () => {
+   651→      const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   652→      const token = jwtService.sign({
+   653→        sub: 'user-123',
+   654→        email: 'test@example.com',
+   655→        role: UserRole.TENANT_ADMIN,
+   656→        tenantId: 'tenant-123',
+   657→      });
+   658→
+   659→      const response = await request(app.getHttpServer())
+   660→        .delete('/auth/logout-all')
+   661→        .set('Authorization', `Bearer ${token}`)
+   662→        .set('Cookie', 'refresh_token=some-refresh-token')
+   663→        .expect(204);
+   664→
+   665→      // Cookie should be cleared
+   666→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   667→      expect(cookies).toBeDefined();
+   668→    });
+   669→
+   670→    it('should call refreshTokenService.revokeAllUserTokens', async () => {
+   671→      const jwtService = new JwtService({ secret: 'test-jwt-secret' });
+   672→      const token = jwtService.sign({
+   673→        sub: 'user-123',
+   674→        email: 'test@example.com',
+   675→        role: UserRole.TENANT_ADMIN,
+   676→        tenantId: 'tenant-123',
+   677→      });
+   678→
+   679→      await request(app.getHttpServer())
+   680→        .delete('/auth/logout-all')
+   681→        .set('Authorization', `Bearer ${token}`)
+   682→        .expect(204);
+   683→
+   684→      expect(refreshTokenService.revokeAllUserTokens).toHaveBeenCalledWith('user-123');
+   685→    });
+   686→  });
+   687→
+   688→  // ═══════════════════════════════════════════════════════════
+   689→  //  7. Cookie attribute validation
+   690→  // ═══════════════════════════════════════════════════════════
+   691→
+   692→  describe('cookie attributes', () => {
+   693→    it('should set HttpOnly flag on the refresh cookie', async () => {
+   694→      const response = await request(app.getHttpServer())
+   695→        .post('/auth/login')
+   696→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   697→        .expect(201);
+   698→
+   699→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   700→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   701→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   702→      expect(refreshTokenCookie).toContain('HttpOnly');
+   703→    });
+   704→
+   705→    it('should set SameSite=Strict on the refresh cookie', async () => {
+   706→      const response = await request(app.getHttpServer())
+   707→        .post('/auth/login')
+   708→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   709→        .expect(201);
+   710→
+   711→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   712→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   713→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   714→      expect(refreshTokenCookie).toContain('SameSite=Strict');
+   715→    });
+   716→
+   717→    it('should set Path=/api/v1/auth on the refresh cookie', async () => {
+   718→      const response = await request(app.getHttpServer())
+   719→        .post('/auth/login')
+   720→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   721→        .expect(201);
+   722→
+   723→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   724→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   725→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   726→      expect(refreshTokenCookie).toContain('Path=/api/v1/auth');
+   727→    });
+   728→
+   729→    it('should set a Max-Age on the refresh cookie (7 days)', async () => {
+   730→      const response = await request(app.getHttpServer())
+   731→        .post('/auth/login')
+   732→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   733→        .expect(201);
+   734→
+   735→      const cookies = response.headers['set-cookie'] as string[] | string | undefined;
+   736→      const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+   737→      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+   738→      // Max-Age should be set (7 days = 604800 seconds, or 604800000 ms in some formats)
+   739→      expect(refreshTokenCookie).toMatch(/Max-Age=\d+/);
+   740→    });
+   741→  });
+   742→
+   743→  // ═══════════════════════════════════════════════════════════
+   744→  //  8. Edge cases
+   745→  // ═══════════════════════════════════════════════════════════
+   746→
+   747→  describe('edge cases', () => {
+   748→    it('should reject login with missing email', async () => {
+   749→      await request(app.getHttpServer())
+   750→        .post('/auth/login')
+   751→        .send({ password: TEST_PASSWORD })
+   752→        .expect(400);
+   753→    });
+   754→
+   755→    it('should reject login with missing password', async () => {
+   756→      await request(app.getHttpServer())
+   757→        .post('/auth/login')
+   758→        .send({ email: 'test@example.com' })
+   759→        .expect(400);
+   760→    });
+   761→
+   762→    it('should reject login with invalid email format', async () => {
+   763→      await request(app.getHttpServer())
+   764→        .post('/auth/login')
+   765→        .send({ email: 'not-an-email', password: TEST_PASSWORD })
+   766→        .expect(400);
+   767→    });
+   768→
+   769→    it('should reject registration with duplicate email', async () => {
+   770→      await request(app.getHttpServer())
+   771→        .post('/auth/register')
+   772→        .send({
+   773→          email: 'test@example.com', // already exists
+   774→          password: 'Password123!',
+   775→          firstName: 'Dupe',
+   776→          lastName: 'User',
+   777→        })
+   778→        .expect(409); // Conflict
+   779→    });
+   780→
+   781→    it('should handle account lockout during login', async () => {
+   782→      (accountLockout.isAccountLocked as jest.Mock).mockResolvedValueOnce({
+   783→        locked: true,
+   784→        lockedUntil: Date.now() + 15 * 60 * 1000,
+   785→        remainingAttempts: 0,
+   786→      });
+   787→
+   788→      await request(app.getHttpServer())
+   789→        .post('/auth/login')
+   790→        .send({ email: 'test@example.com', password: TEST_PASSWORD })
+   791→        .expect(401);
+   792→    });
+   793→
+   794→    it('should require authentication for logout endpoint', async () => {
+   795→      await request(app.getHttpServer())
+   796→        .post('/auth/logout')
+   797→        .expect(401);
+   798→    });
+   799→
+   800→    it('should require authentication for logout-all endpoint', async () => {
+   801→      await request(app.getHttpServer())
+   802→        .delete('/auth/logout-all')
+   803→        .expect(401);
+   804→    });
+   805→  });
+   806→});
+   807→

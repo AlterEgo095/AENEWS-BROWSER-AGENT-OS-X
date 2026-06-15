@@ -1,0 +1,275 @@
+     1→     1→import { BaseAgent, AgentContext, AgentResult } from '../../../modules/agent/agent.abstract';
+     2→     2→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     3→     3→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     4→     4→
+     5→     5→export class LegalAgent extends BaseAgent {
+     6→     6→  readonly name = 'LegalAgent';
+     7→     7→  readonly cluster = ClusterType.BUSINESS;
+     8→     8→  readonly capabilities = ['contract', 'compliance', 'review', 'risk', 'ip', 'privacy'];
+     9→     9→  readonly version = '2.0.0';
+    10→    10→  readonly description = 'Legal operations including contract management, compliance monitoring, legal review, risk assessment, intellectual property management, and privacy governance';
+    11→    11→
+    12→    12→  async execute(context: AgentContext): Promise<AgentResult> {
+    13→    13→    try {
+    14→    14→      const { config } = context;
+    15→    15→      const action = config.action || 'contract';
+    16→    16→      const startTime = Date.now();
+    17→    17→      this.emitEvent(AgentEventType.AGENT_STARTED, { action });
+    18→    18→
+    19→    19→      switch (action) {
+    20→    20→        case 'contract': {
+    21→    21→          const operation = config.operation || 'list';
+    22→    22→          const contractId = config.contractId;
+    23→    23→          const title = config.title;
+    24→    24→          const type = config.type || 'service_agreement';
+    25→    25→          const parties = config.parties || [];
+    26→    26→          const effectiveDate = config.effectiveDate;
+    27→    27→          const expirationDate = config.expirationDate;
+    28→    28→          const value = config.value;
+    29→    29→          const currency = config.currency || 'USD';
+    30→    30→          const terms = config.terms || {};
+    31→    31→          const status_ = config.status;
+    32→    32→          const ownerId = config.ownerId;
+    33→    33→          const department = config.department;
+    34→    34→          const limit = config.limit || 50;
+    35→    35→          const offset = config.offset || 0;
+    36→    36→          const includeAmendments = config.includeAmendments || false;
+    37→    37→          const includeRenewals = config.includeRenewals !== false;
+    38→    38→
+    39→    39→          if (operation === 'create' && !title) { return { success: false, error: '"title" is required to create a contract' }; }
+    40→    40→
+    41→    41→          this.logger.log(`Contract operation: ${operation}${contractId ? ` (ID: ${contractId})` : ''}`);
+    42→    42→
+    43→    43→          const llmResult = await this.executeWithLLM(
+    44→    44→            `You are a legal contract management expert. You manage contracts with realistic terms, renewal tracking, and compliance status.`,
+    45→    45→            `Process ${operation} contract. ${title ? `Title: "${title}"` : ''}. Type: ${type}. Return JSON with: contracts (array of {id, title, type, parties, effectiveDate, expirationDate, value, currency, status, ownerId, department, createdAt, updatedAt}), summary {totalContracts, activeContracts, expiringIn30Days, expiringIn90Days, totalValue, byType, byStatus}.`,
+    46→    46→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+    47→    47→          );
+    48→    48→
+    49→    49→          const parsed = this.safeJsonParse(llmResult);
+    50→    50→          if (parsed) {
+    51→    51→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+    52→    52→            return { success: true, data: { action, operation, contractId, title, type, parties, effectiveDate, expirationDate, value, currency, terms, queryStatus: status_, ownerId, department, limit, offset, includeAmendments, includeRenewals, contracts: parsed.contracts || [], amendments: undefined, renewals: undefined, summary: parsed.summary || { totalContracts: 0, activeContracts: 0, expiringIn30Days: 0, expiringIn90Days: 0, totalValue: 0, byType: {}, byStatus: {} }, status: 'contract_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: true } };
+    53→    53→          }
+    54→    54→
+    55→    55→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+    56→    56→          return { success: true, data: { action, operation, contractId, title, type, parties, effectiveDate, expirationDate, value, currency, terms, queryStatus: status_, ownerId, department, limit, offset, includeAmendments, includeRenewals, contracts: [
+    57→    57→            { id: 'ctr_1', title: 'Master Service Agreement - TechCorp', type: 'service_agreement', parties: [{ name: 'Our Company', role: 'client', signatory: 'CEO' }, { name: 'TechCorp Inc', role: 'vendor', signatory: 'VP Sales' }], effectiveDate: '2025-01-01', expirationDate: '2025-12-31', value: 250000, currency: 'USD', status: 'active', ownerId: 'legal_1', department: 'Procurement', createdAt: '2024-12-15T10:00:00Z', updatedAt: '2025-01-01T00:00:00Z' },
+    58→    58→            { id: 'ctr_2', title: 'SaaS License - Global Finance', type: 'license', parties: [{ name: 'Our Company', role: 'vendor', signatory: 'CRO' }, { name: 'Global Finance Ltd', role: 'client', signatory: 'CTO' }], effectiveDate: '2025-02-01', expirationDate: '2026-01-31', value: 180000, currency: 'USD', status: 'active', ownerId: 'legal_2', department: 'Sales', createdAt: '2025-01-20T14:00:00Z', updatedAt: '2025-02-01T00:00:00Z' },
+    59→    59→            { id: 'ctr_3', title: 'NDA - Innovate.io', type: 'nda', parties: [{ name: 'Our Company', role: 'client', signatory: 'CEO' }, { name: 'Innovate.io', role: 'vendor', signatory: 'Founder' }], effectiveDate: '2025-01-15', expirationDate: '2026-01-14', value: 0, currency: 'USD', status: 'active', ownerId: 'legal_1', department: 'Business Dev', createdAt: '2025-01-10T09:00:00Z', updatedAt: '2025-01-15T00:00:00Z' },
+    60→    60→          ], amendments: includeAmendments ? [{ id: 'amd_1', contractId: 'ctr_1', description: 'Updated payment terms to Net 45', effectiveDate: '2025-03-01', changes: [{ section: 'Section 4.2 - Payment Terms', original: 'Net 30', amended: 'Net 45' }] }] : undefined, renewals: includeRenewals ? { upcoming: [{ contractId: 'ctr_1', title: 'Master Service Agreement - TechCorp', expirationDate: '2025-12-31', autoRenew: true, renewalType: 'automatic', daysUntilExpiry: 305 }], renewalWindow: 90 } : undefined, summary: { totalContracts: 42, activeContracts: 35, expiringIn30Days: 2, expiringIn90Days: 5, totalValue: 4250000, byType: { service_agreement: 15, license: 12, nda: 10, employment: 5 }, byStatus: { active: 35, negotiation: 4, pending_signature: 2, expired: 1 } }, status: 'contract_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true } };
+    61→    61→        }
+    62→    62→
+    63→    63→        case 'compliance': {
+    64→    64→          const operation = config.operation || 'check';
+    65→    65→          const framework = config.framework;
+    66→    66→          const jurisdiction = config.jurisdiction || 'us';
+    67→    67→          const category = config.category;
+    68→    68→          const controlId = config.controlId;
+    69→    69→          const entityId = config.entityId;
+    70→    70→          const includeRemediation = config.includeRemediation !== false;
+    71→    71→          const includeEvidence = config.includeEvidence || false;
+    72→    72→          const severity = config.severity;
+    73→    73→          const limit = config.limit || 50;
+    74→    74→
+    75→    75→          this.logger.log(`Compliance operation: ${operation} (framework: ${framework || 'all'}, jurisdiction: ${jurisdiction})`);
+    76→    76→
+    77→    77→          const llmResult = await this.executeWithLLM(
+    78→    78→            `You are a compliance and regulatory expert. You assess compliance frameworks, track controls, identify violations, and provide remediation plans.`,
+    79→    79→            `Run compliance ${operation}. Framework: ${framework || 'all'}. Jurisdiction: ${jurisdiction}. Return JSON with: compliance {overallScore, frameworks (array), controls (array), violations (array), remediation (array if requested), evidence (array if requested), auditTrail}.`,
+    80→    80→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+    81→    81→          );
+    82→    82→
+    83→    83→          const parsed = this.safeJsonParse(llmResult);
+    84→    84→          if (parsed) {
+    85→    85→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+    86→    86→            return { success: true, data: { action, operation, framework, jurisdiction, category, controlId, entityId, includeRemediation, includeEvidence, severity, limit, compliance: parsed.compliance || { overallScore: 0, frameworks: [], controls: [], violations: [], remediation: undefined, evidence: undefined, auditTrail: [] }, status: 'compliance_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: true } };
+    87→    87→          }
+    88→    88→
+    89→    89→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+    90→    90→          return { success: true, data: { action, operation, framework, jurisdiction, category, controlId, entityId, includeRemediation, includeEvidence, severity, limit, compliance: { overallScore: 82, frameworks: [
+    91→    91→            { name: 'SOC 2 Type II', version: '2024', totalControls: 65, compliantControls: 58, score: 89, lastAssessed: '2025-02-01' },
+    92→    92→            { name: 'GDPR', version: '2018', totalControls: 42, compliantControls: 35, score: 83, lastAssessed: '2025-01-15' },
+    93→    93→            { name: 'ISO 27001', version: '2022', totalControls: 93, compliantControls: 72, score: 77, lastAssessed: '2025-01-20' },
+    94→    94→          ], controls: [
+    95→    95→            { id: 'ctl_1', framework: 'SOC 2', category: 'Access Control', description: 'Role-based access control implemented', status: 'compliant', severity: 'critical', lastAssessed: '2025-02-01', nextAssessment: '2025-05-01' },
+    96→    96→            { id: 'ctl_2', framework: 'GDPR', category: 'Data Processing', description: 'Data processing agreement with all vendors', status: 'partial', severity: 'high', lastAssessed: '2025-01-15', nextAssessment: '2025-04-15' },
+    97→    97→            { id: 'ctl_3', framework: 'ISO 27001', category: 'Incident Management', description: 'Incident response plan documented and tested', status: 'compliant', severity: 'high', lastAssessed: '2025-01-20', nextAssessment: '2025-04-20' },
+    98→    98→          ], violations: [
+    99→    99→            { id: 'viol_1', controlId: 'ctl_2', framework: 'GDPR', description: 'Missing DPA with 2 sub-processors', severity: 'high', detectedAt: '2025-01-15', status: 'remediating', dueDate: '2025-03-15' },
+   100→   100→          ], remediation: includeRemediation ? [
+   101→   101→            { violationId: 'viol_1', plan: 'Execute DPAs with remaining sub-processors within 60 days', assignee: 'Legal Team', dueDate: '2025-03-15', status: 'in_progress', progress: 45 },
+   102→   102→          ] : undefined, evidence: includeEvidence ? [
+   103→   103→            { controlId: 'ctl_1', evidenceType: 'system_screenshot', description: 'RBAC configuration dashboard', collectedAt: '2025-02-01', isValid: true, expiryDate: '2025-08-01' },
+   104→   104→          ] : undefined, auditTrail: [
+   105→   105→            { timestamp: '2025-02-01T10:00:00Z', action: 'Control assessment completed', user: 'compliance_auditor', controlId: 'ctl_1', details: 'SOC 2 access control review' },
+   106→   106→          ] }, status: 'compliance_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true } };
+   107→   107→        }
+   108→   108→
+   109→   109→        case 'review': {
+   110→   110→          const operation = config.operation || 'list';
+   111→   111→          const reviewId = config.reviewId;
+   112→   112→          const documentType = config.documentType || 'contract';
+   113→   113→          const documentId = config.documentId;
+   114→   114→          const documentContent = config.documentContent;
+   115→   115→          const reviewerId = config.reviewerId;
+   116→   116→          const priority = config.priority || 'medium';
+   117→   117→          const reviewType = config.reviewType || 'standard';
+   118→   118→          const jurisdiction = config.jurisdiction;
+   119→   119→          const checkClauses = config.checkClauses || [];
+   120→   120→          const includeRedlines = config.includeRedlines !== false;
+   121→   121→          const includeSuggestions = config.includeSuggestions !== false;
+   122→   122→          const limit = config.limit || 50;
+   123→   123→
+   124→   124→          if (operation === 'create' && !documentContent && !documentId) { return { success: false, error: '"documentContent" or "documentId" is required to create a legal review' }; }
+   125→   125→
+   126→   126→          this.logger.log(`Legal review operation: ${operation}${reviewId ? ` (ID: ${reviewId})` : ''} (type: ${documentType})`);
+   127→   127→
+   128→   128→          const llmResult = await this.executeWithLLM(
+   129→   129→            `You are a legal document review expert. You analyze contracts and legal documents for risks, compliance issues, and suggest improvements.`,
+   130→   130→            `Review ${documentType}. Type: ${reviewType}. ${checkClauses.length ? `Focus on: ${checkClauses.join(', ')}` : ''}. Return JSON with: review {id, documentType, documentId, status, reviewerId, submittedAt, completedAt, findings (array of {category, severity, clause, issue, recommendation, location}), redlines (array if requested), suggestions (array if requested), riskScore, summary}.`,
+   131→   131→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   132→   132→          );
+   133→   133→
+   134→   134→          const parsed = this.safeJsonParse(llmResult);
+   135→   135→          if (parsed) {
+   136→   136→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   137→   137→            return { success: true, data: { action, operation, reviewId, documentType, documentId, documentContent, reviewerId, priority, reviewType, jurisdiction, checkClauses, includeRedlines, includeSuggestions, limit, review: parsed.review || { id: '', documentType, documentId: documentId || '', status: 'pending', reviewerId: '', submittedAt: new Date().toISOString(), completedAt: '', findings: [], redlines: undefined, suggestions: undefined, riskScore: 0, summary: '' }, reviews: [], status: 'review_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: true } };
+   138→   138→          }
+   139→   139→
+   140→   140→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   141→   141→          return { success: true, data: { action, operation, reviewId, documentType, documentId, documentContent, reviewerId, priority, reviewType, jurisdiction, checkClauses, includeRedlines, includeSuggestions, limit, review: { id: `rev_${Date.now()}`, documentType, documentId: documentId || 'doc_1', status: 'in_review', reviewerId: reviewerId || 'legal_reviewer', submittedAt: new Date().toISOString(), completedAt: '', findings: [
+   142→   142→            { category: 'liability', severity: 'high', clause: 'Section 8.1 - Limitation of Liability', issue: 'Unlimited liability exposure for consequential damages', recommendation: 'Cap liability at 12 months of fees', location: { section: '8.1', paragraph: 2, line: 15 } },
+   143→   143→            { category: 'indemnification', severity: 'medium', clause: 'Section 9.2 - Indemnification', issue: 'Overly broad indemnification clause favoring counterparty', recommendation: 'Narrow indemnification to direct claims only, exclude third-party claims', location: { section: '9.2', paragraph: 1, line: 8 } },
+   144→   144→            { category: 'termination', severity: 'low', clause: 'Section 12.3 - Termination for Convenience', issue: 'Short notice period for termination without cause', recommendation: 'Extend notice period to 90 days', location: { section: '12.3', paragraph: 1, line: 3 } },
+   145→   145→          ], redlines: includeRedlines ? [
+   146→   146→            { original: 'The Provider shall be liable for all damages arising from performance', revised: 'The Provider\'s total liability shall not exceed twelve (12) months of fees paid', reason: 'Cap liability exposure', section: '8.1' },
+   147→   147→          ] : undefined, suggestions: includeSuggestions ? [
+   148→   148→            { suggestion: 'Add data protection addendum for GDPR compliance', category: 'compliance', priority: 'high', rationale: 'Required for EU customer data processing' },
+   149→   149→            { suggestion: 'Include dispute resolution mechanism', category: 'governance', priority: 'medium', rationale: 'Clarify jurisdiction and arbitration process' },
+   150→   150→          ] : undefined, riskScore: 35, summary: 'Document contains several areas requiring attention, primarily around liability exposure and indemnification breadth. Overall risk level is moderate.' }, reviews: [], status: 'review_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true } };
+   151→   151→        }
+   152→   152→
+   153→   153→        case 'risk': {
+   154→   154→          const operation = config.operation || 'assess';
+   155→   155→          const riskId = config.riskId;
+   156→   156→          const category = config.category;
+   157→   157→          const domain = config.domain;
+   158→   158→          const methodology = config.methodology || 'qualitative';
+   159→   159→          const impactScale = config.impactScale || 5;
+   160→   160→          const likelihoodScale = config.likelihoodScale || 5;
+   161→   161→          const includeMitigation = config.includeMitigation !== false;
+   162→   162→          const includeMonitoring = config.includeMonitoring || false;
+   163→   163→          const limit = config.limit || 50;
+   164→   164→
+   165→   165→          this.logger.log(`Legal risk operation: ${operation} (methodology: ${methodology})`);
+   166→   166→
+   167→   167→          const llmResult = await this.executeWithLLM(
+   168→   168→            `You are a legal risk assessment expert. You identify, evaluate, and prioritize legal risks with mitigation strategies and monitoring plans.`,
+   169→   169→            `Assess legal risks. Category: ${category || 'all'}. Domain: ${domain || 'general'}. Methodology: ${methodology}. Return JSON with: risks (array of {id, title, category, description, likelihood, impact, riskScore, riskLevel, owner, status, identifiedAt, lastReviewed}), riskMatrix, mitigation (array if requested), monitoring (object if requested), summary.`,
+   170→   170→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   171→   171→          );
+   172→   172→
+   173→   173→          const parsed = this.safeJsonParse(llmResult);
+   174→   174→          if (parsed) {
+   175→   175→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   176→   176→            return { success: true, data: { action, operation, riskId, category, domain, methodology, impactScale, likelihoodScale, includeMitigation, includeMonitoring, limit, risks: parsed.risks || [], riskMatrix: parsed.riskMatrix || { dimensions: { impact: impactScale, likelihood: likelihoodScale }, matrix: [] }, mitigation: undefined, monitoring: undefined, summary: parsed.summary || { totalRisks: 0, byLevel: { critical: 0, high: 0, medium: 0, low: 0 }, byCategory: {}, averageRiskScore: 0, trendsOverTime: [] }, status: 'risk_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: true } };
+   177→   177→          }
+   178→   178→
+   179→   179→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   180→   180→          return { success: true, data: { action, operation, riskId, category, domain, methodology, impactScale, likelihoodScale, includeMitigation, includeMonitoring, limit, risks: [
+   181→   181→            { id: 'risk_1', title: 'Data privacy non-compliance', category: 'data_privacy', description: 'Risk of GDPR/CCPA violations due to incomplete data processing agreements', likelihood: 3, impact: 5, riskScore: 15, riskLevel: 'high', owner: 'DPO', status: 'mitigating', identifiedAt: '2025-01-10', lastReviewed: '2025-02-15' },
+   182→   182→            { id: 'risk_2', title: 'IP infringement claims', category: 'ip', description: 'Potential patent infringement claims from competitors', likelihood: 2, impact: 4, riskScore: 8, riskLevel: 'medium', owner: 'General Counsel', status: 'assessed', identifiedAt: '2025-01-20', lastReviewed: '2025-02-01' },
+   183→   183→            { id: 'risk_3', title: 'Employment law violations', category: 'employment', description: 'Risk of misclassification of contractors vs employees', likelihood: 3, impact: 4, riskScore: 12, riskLevel: 'high', owner: 'HR Director', status: 'mitigating', identifiedAt: '2025-02-01', lastReviewed: '2025-02-20' },
+   184→   184→            { id: 'risk_4', title: 'Contract auto-renewal liability', category: 'contractual', description: 'Unnoticed auto-renewals creating financial obligations', likelihood: 4, impact: 2, riskScore: 8, riskLevel: 'medium', owner: 'Legal Ops', status: 'identified', identifiedAt: '2025-02-10', lastReviewed: '2025-02-10' },
+   185→   185→          ], riskMatrix: { dimensions: { impact: impactScale, likelihood: likelihoodScale }, matrix: [
+   186→   186→            { impactLevel: 5, likelihoodLevel: 3, riskScore: 15, riskLevel: 'high', count: 1 },
+   187→   187→            { impactLevel: 4, likelihoodLevel: 2, riskScore: 8, riskLevel: 'medium', count: 1 },
+   188→   188→            { impactLevel: 4, likelihoodLevel: 3, riskScore: 12, riskLevel: 'high', count: 1 },
+   189→   189→            { impactLevel: 2, likelihoodLevel: 4, riskScore: 8, riskLevel: 'medium', count: 1 },
+   190→   190→          ] }, mitigation: includeMitigation ? [
+   191→   191→            { riskId: 'risk_1', strategy: 'mitigate', actions: [{ description: 'Complete DPAs with all sub-processors', assignee: 'Legal Team', dueDate: '2025-03-15', status: 'in_progress' }, { description: 'Conduct data mapping exercise', assignee: 'DPO', dueDate: '2025-04-01', status: 'planned' }], residualRisk: 6 },
+   192→   192→            { riskId: 'risk_3', strategy: 'mitigate', actions: [{ description: 'Audit all contractor agreements', assignee: 'HR & Legal', dueDate: '2025-03-30', status: 'in_progress' }], residualRisk: 5 },
+   193→   193→          ] : undefined, monitoring: includeMonitoring ? { indicators: [
+   194→   194→            { riskId: 'risk_1', indicator: 'DPA completion rate', currentValue: 75, threshold: 100, trend: 'increasing' },
+   195→   195→            { riskId: 'risk_2', indicator: 'IP clearance rate for new features', currentValue: 85, threshold: 90, trend: 'stable' },
+   196→   196→          ], reviewSchedule: { frequency: 'monthly', nextReview: '2025-03-15' } } : undefined, summary: { totalRisks: 12, byLevel: { critical: 1, high: 4, medium: 5, low: 2 }, byCategory: { data_privacy: 3, ip: 2, employment: 3, contractual: 4 }, averageRiskScore: 10.5, trendsOverTime: [{ period: '2025-Q1', totalRisks: 12, averageScore: 10.5 }] }, status: 'risk_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true } };
+   197→   197→        }
+   198→   198→
+   199→   199→        case 'ip': {
+   200→   200→          const operation = config.operation || 'list';
+   201→   201→          const ipId = config.ipId;
+   202→   202→          const type = config.type || 'all';
+   203→   203→          const title = config.title;
+   204→   204→          const inventor = config.inventor;
+   205→   205→          const owner = config.owner;
+   206→   206→          const status_ = config.status;
+   207→   207→          const jurisdiction = config.jurisdiction;
+   208→   208→          const filingDate = config.filingDate;
+   209→   209→          const expirationDate = config.expirationDate;
+   210→   210→          const includeDeadlines = config.includeDeadlines !== false;
+   211→   211→          const includeValuation = config.includeValuation || false;
+   212→   212→          const limit = config.limit || 50;
+   213→   213→          const offset = config.offset || 0;
+   214→   214→
+   215→   215→          this.logger.log(`IP operation: ${operation}${ipId ? ` (ID: ${ipId})` : ''} (type: ${type})`);
+   216→   216→
+   217→   217→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   218→   218→          return { success: true, data: { action, operation, ipId, type, title, inventor, owner, queryStatus: status_, jurisdiction, filingDate, expirationDate, includeDeadlines, includeValuation, limit, offset, ipAssets: [
+   219→   219→            { id: 'ip_1', type: 'patent', title: 'Method for Real-Time Data Processing', description: 'Patent covering core data processing algorithm', inventor: 'Dr. Alex Chen', owner: 'Our Company', jurisdiction: 'US', filingNumber: 'US2025/001234', filingDate: '2024-06-15', grantDate: '', expirationDate: '2044-06-15', status: 'pending', protectionScope: 'Real-time processing of streaming data using distributed computing' },
+   220→   220→            { id: 'ip_2', type: 'trademark', title: 'ProductX', description: 'Brand name for flagship product line', inventor: 'Marketing Team', owner: 'Our Company', jurisdiction: 'US, EU', filingNumber: 'TM-2024-5678', filingDate: '2024-03-01', grantDate: '2024-09-15', expirationDate: '2034-09-15', status: 'registered', protectionScope: 'Software as a service platform' },
+   221→   221→            { id: 'ip_3', type: 'copyright', title: 'Platform UI Design System', description: 'Original design system and component library', inventor: 'Design Team', owner: 'Our Company', jurisdiction: 'Global', filingNumber: 'CR-2024-890', filingDate: '2024-01-15', grantDate: '2024-01-15', expirationDate: '2124-01-15', status: 'registered', protectionScope: 'User interface design, component architecture, and design tokens' },
+   222→   222→          ], deadlines: includeDeadlines ? [
+   223→   223→            { ipId: 'ip_1', title: 'Patent Response Deadline', deadlineType: 'response', dueDate: '2025-04-15', daysRemaining: 45, critical: true },
+   224→   224→            { ipId: 'ip_2', title: 'Trademark Renewal', deadlineType: 'renewal', dueDate: '2025-09-15', daysRemaining: 198, critical: false },
+   225→   225→          ] : undefined, valuation: includeValuation ? { totalPortfolioValue: 2850000, byType: { patent: 1800000, trademark: 650000, copyright: 400000 }, byStatus: { pending: 1200000, registered: 1650000 }, depreciationSchedule: [{ ipId: 'ip_1', year: 2025, value: 1800000 }] } : undefined, summary: { totalAssets: 18, byType: { patent: 5, trademark: 8, copyright: 4, trade_secret: 1 }, byStatus: { pending: 3, granted: 12, registered: 2, expired: 1 }, upcomingDeadlines: 3, atRiskAssets: 1 }, status: 'ip_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true } };
+   226→   226→        }
+   227→   227→
+   228→   228→        case 'privacy': {
+   229→   229→          const operation = config.operation || 'assess';
+   230→   230→          const assessmentId = config.assessmentId;
+   231→   231→          const regulation = config.regulation || 'gdpr';
+   232→   232→          const dataProcessingActivity = config.dataProcessingActivity;
+   233→   233→          const dataCategories = config.dataCategories || [];
+   234→   234→          const dataSubjects = config.dataSubjects || [];
+   235→   235→          const purposes = config.purposes || [];
+   236→   236→          const includeDpia = config.includeDpia || false;
+   237→   237→          const includeDataMap = config.includeDataMap !== false;
+   238→   238→          const includeConsentTracking = config.includeConsentTracking !== false;
+   239→   239→          const limit = config.limit || 50;
+   240→   240→
+   241→   241→          this.logger.log(`Privacy operation: ${operation} (regulation: ${regulation})`);
+   242→   242→
+   243→   243→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   244→   244→          return { success: true, data: { action, operation, assessmentId, regulation, dataProcessingActivity, dataCategories, dataSubjects, purposes, includeDpia, includeDataMap, includeConsentTracking, limit, privacy: { complianceScore: 78, regulations: [
+   245→   245→            { name: 'GDPR', jurisdiction: 'EU', compliant: false, score: 78, gaps: ['Missing DPAs with 2 sub-processors', 'Data retention policy needs update'], lastAssessed: '2025-02-15' },
+   246→   246→            { name: 'CCPA', jurisdiction: 'US-CA', compliant: true, score: 92, gaps: [], lastAssessed: '2025-01-30' },
+   247→   247→          ], dataInventory: includeDataMap ? { dataFlows: [
+   248→   248→            { source: 'Website Forms', destination: 'CRM System', dataCategories: ['Personal Identity', 'Contact Info'], purpose: 'Customer acquisition', legalBasis: 'Consent', retention: '3 years' },
+   249→   249→            { source: 'Product Usage', destination: 'Analytics Platform', dataCategories: ['Behavioral Data', 'Usage Patterns'], purpose: 'Product improvement', legalBasis: 'Legitimate Interest', retention: '2 years' },
+   250→   250→          ], processors: [
+   251→   251→            { name: 'Cloud Provider', dataCategories: ['All categories'], purposes: ['Infrastructure', 'Storage'], agreementStatus: 'active' },
+   252→   252→            { name: 'Analytics Partner', dataCategories: ['Usage Data'], purposes: ['Product Analytics'], agreementStatus: 'active' },
+   253→   253→          ], retentionPolicies: [
+   254→   254→            { category: 'Customer Data', retentionPeriod: '3 years post-relationship', legalBasis: 'Contractual obligation', deletionMethod: 'Automated purge' },
+   255→   255→            { category: 'Marketing Data', retentionPeriod: '2 years', legalBasis: 'Consent', deletionMethod: 'Manual review and deletion' },
+   256→   256→          ] } : undefined, dataSubjectRights: [
+   257→   257→            { right: 'Access', implementationStatus: 'implemented', processDocumented: true, avgResponseTime: 5 },
+   258→   258→            { right: 'Erasure', implementationStatus: 'implemented', processDocumented: true, avgResponseTime: 10 },
+   259→   259→            { right: 'Portability', implementationStatus: 'partial', processDocumented: true, avgResponseTime: 15 },
+   260→   260→            { right: 'Objection', implementationStatus: 'implemented', processDocumented: true, avgResponseTime: 8 },
+   261→   261→          ], dpia: includeDpia ? { required: true, conducted: true, riskLevel: 'medium', recommendations: ['Implement data minimization', 'Enhance encryption at rest'] } : undefined, consentTracking: includeConsentTracking ? { consentRecords: [], consentRates: { marketing: 72, analytics: 85, necessary: 100 } } : undefined, breachProtocol: { detectionMechanisms: ['Automated anomaly detection', 'Manual reporting', 'Third-party monitoring'], notificationTimeline: '72 hours to DPA, affected individuals without undue delay', responseTeam: ['DPO', 'Legal Counsel', 'IT Security', 'Communications'], lastDrillDate: '2025-01-20' }, incidents: [
+   262→   262→            { id: 'inc_1', type: 'violation', severity: 'medium', status: 'resolved', detectedAt: '2025-01-10', affectedDataSubjects: 150, description: 'Marketing email sent to unsubscribed users' },
+   263→   263→          ] }, status: 'privacy_operation_complete', timestamp: new Date().toISOString() }, metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true } };
+   264→   264→        }
+   265→   265→
+   266→   266→        default:
+   267→   267→          return { success: false, error: `Unknown action: ${action}. Supported actions: contract, compliance, review, risk, ip, privacy` };
+   268→   268→      }
+   269→   269→    } catch (error: any) {
+   270→   270→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   271→   271→      return { success: false, error: error.message };
+   272→   272→    }
+   273→   273→  }
+   274→   274→}
+   275→   275→

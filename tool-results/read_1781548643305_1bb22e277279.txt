@@ -1,0 +1,423 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→export class BrandingAgent extends BaseAgent {
+    10→  readonly name = 'BrandingAgent';
+    11→  readonly cluster = ClusterType.MARKETING;
+    12→  readonly capabilities = [
+    13→    'analyze',
+    14→    'design',
+    15→    'voice',
+    16→    'guidelines',
+    17→    'consistency',
+    18→    'audit',
+    19→  ];
+    20→  readonly version = '2.0.0';
+    21→  readonly description =
+    22→    'Analyzes brand perception, designs brand identity, defines brand voice, creates brand guidelines, monitors brand consistency, and conducts brand audits';
+    23→
+    24→  async execute(context: AgentContext): Promise<AgentResult> {
+    25→    try {
+    26→      const { config } = context;
+    27→      const action = config.action || 'analyze';
+    28→      const startTime = Date.now();
+    29→
+    30→      this.emitEvent(AgentEventType.AGENT_STARTED, { action });
+    31→
+    32→      switch (action) {
+    33→        case 'analyze': {
+    34→          const brandName = config.brandName;
+    35→          const industry = config.industry || '';
+    36→          const competitors = config.competitors || [];
+    37→          const analysisScope = config.analysisScope || 'full';
+    38→          const includeSentiment = config.includeSentiment !== false;
+    39→          const includeMarketPosition = config.includeMarketPosition !== false;
+    40→          const channels = config.channels || ['web', 'social', 'search'];
+    41→          const dateRange = config.dateRange || '30d';
+    42→
+    43→          if (!brandName) {
+    44→            return { success: false, error: '"brandName" is required for brand analysis' };
+    45→          }
+    46→
+    47→          this.logger.log(`Analyzing brand "${brandName}" (${analysisScope} scope, ${channels.length} channels)`);
+    48→
+    49→          const llmResult = await this.executeWithLLM(
+    50→            `You are a brand analysis expert. You evaluate brand health, sentiment, market position, and perception. You provide realistic scores (0-100) and actionable insights.`,
+    51→            `Analyze brand "${brandName}" in ${industry || 'general'} industry. Competitors: ${competitors.join(', ') || 'auto-identify'}. Scope: ${analysisScope}. Return JSON with: brandHealth {awareness, consideration, preference, loyalty, advocacy} (each 40-90), sentiment {overall, positive, neutral, negative, trend, keyThemes (array of {theme, sentiment, volume})}, marketPosition {marketShare, position, differentiation, topOfMind, competitorComparison (array)}, brandAssociations (array of {association, strength, unique}), perceptionMap {dimensions, position {x, y}, competitors (array)}.`,
+    52→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+    53→          );
+    54→
+    55→          const parsed = this.safeJsonParse(llmResult);
+    56→
+    57→          if (parsed) {
+    58→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+    59→            return {
+    60→              success: true,
+    61→              data: {
+    62→                action, brandName, industry, competitors, analysisScope, channels, dateRange,
+    63→                brandHealth: parsed.brandHealth || { awareness: 0, consideration: 0, preference: 0, loyalty: 0, advocacy: 0 },
+    64→                sentiment: includeSentiment ? (parsed.sentiment || { overall: 0, positive: 0, neutral: 0, negative: 0, trend: 'stable', keyThemes: [] }) : null,
+    65→                marketPosition: includeMarketPosition ? (parsed.marketPosition || { marketShare: 0, position: '', differentiation: 0, topOfMind: false, competitorComparison: [] }) : null,
+    66→                brandAssociations: parsed.brandAssociations || [],
+    67→                perceptionMap: parsed.perceptionMap || { dimensions: ['innovation', 'trust'], position: { x: 0, y: 0 }, competitors: [] },
+    68→                status: 'analyzed', timestamp: new Date().toISOString(),
+    69→              },
+    70→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+    71→            };
+    72→          }
+    73→
+    74→          // Intelligent fallback
+    75→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+    76→          return {
+    77→            success: true,
+    78→            data: {
+    79→              action, brandName, industry, competitors, analysisScope, channels, dateRange,
+    80→              brandHealth: { awareness: 68, consideration: 55, preference: 42, loyalty: 58, advocacy: 35 },
+    81→              sentiment: includeSentiment ? { overall: 0.65, positive: 58, neutral: 28, negative: 14, trend: 'improving', keyThemes: [{ theme: 'quality', sentiment: 0.78, volume: 450 }, { theme: 'customer service', sentiment: 0.62, volume: 320 }, { theme: 'value', sentiment: 0.55, volume: 280 }] } : null,
+    82→              marketPosition: includeMarketPosition ? { marketShare: 12.5, position: 'Challenger', differentiation: 72, topOfMind: false, competitorComparison: competitors.slice(0, 3).map((c: string) => ({ competitor: c, awareness: Math.floor(Math.random() * 30) + 50, sentiment: Math.round(Math.random() * 0.4 + 0.4), marketShare: Math.round(Math.random() * 15 + 5) })) } : null,
+    83→              brandAssociations: [{ association: 'reliability', strength: 82, unique: false }, { association: 'innovation', strength: 68, unique: true }, { association: 'value', strength: 72, unique: false }],
+    84→              perceptionMap: { dimensions: ['innovation', 'trust'], position: { x: 68, y: 75 }, competitors: competitors.slice(0, 2).map((c: string, i: number) => ({ name: c, x: 55 + i * 20, y: 60 + i * 15 })) },
+    85→              status: 'analyzed', timestamp: new Date().toISOString(),
+    86→            },
+    87→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+    88→          };
+    89→        }
+    90→
+    91→        case 'design': {
+    92→          const brandName = config.brandName;
+    93→          const designElements = config.designElements || ['logo', 'colors', 'typography'];
+    94→          const stylePreferences = config.stylePreferences || {};
+    95→          const industry = config.industry || '';
+    96→          const targetAudience = config.targetAudience || {};
+    97→          const competitorDesigns = config.competitorDesigns || [];
+    98→          const moodKeywords = config.moodKeywords || [];
+    99→          const includeVariations = config.includeVariations || false;
+   100→          const outputFormats = config.outputFormats || ['svg', 'png'];
+   101→
+   102→          if (!brandName) {
+   103→            return { success: false, error: '"brandName" is required for brand design' };
+   104→          }
+   105→
+   106→          this.logger.log(`Designing brand identity for "${brandName}" (elements: ${designElements.join(', ')})`);
+   107→
+   108→          const llmResult = await this.executeWithLLM(
+   109→            `You are a brand design expert. You create comprehensive brand identity systems including color palettes, typography, and design systems. You provide specific hex colors, font recommendations, and design principles.`,
+   110→            `Design brand identity for "${brandName}" in ${industry || 'general'} industry. Elements: ${designElements.join(', ')}. Mood: ${moodKeywords.join(', ') || 'professional, modern'}. Return JSON with: colorPalette {primary (array of {name, hex, rgb, usage}), secondary, accent, neutrals}, typography {heading {family, weights, sizes}, body {family, weights, sizes}, pairing}, designSystem {spacing, borderRadius, shadows, iconStyle}.`,
+   111→            { responseFormat: 'json', temperature: 0.5, maxTokens: 2048 },
+   112→          );
+   113→
+   114→          const parsed = this.safeJsonParse(llmResult);
+   115→
+   116→          if (parsed) {
+   117→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   118→            return {
+   119→              success: true,
+   120→              data: {
+   121→                action, brandName, designElements, stylePreferences, industry, targetAudience, moodKeywords, outputFormats,
+   122→                logo: designElements.includes('logo') ? { primary: '', secondary: '', icon: '', variations: [], usageGuidelines: { minSize: 24, clearSpace: 12, doNotModify: ['Do not stretch', 'Do not change colors', 'Do not add effects'] } } : null,
+   123→                colorPalette: parsed.colorPalette || { primary: [], secondary: [], accent: [], neutrals: [] },
+   124→                typography: parsed.typography || { heading: { family: '', weights: [], sizes: {} }, body: { family: '', weights: [], sizes: {} }, pairing: '' },
+   125→                designSystem: parsed.designSystem || { spacing: {}, borderRadius: {}, shadows: [], iconStyle: '' },
+   126→                status: 'designed', timestamp: new Date().toISOString(),
+   127→              },
+   128→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   129→            };
+   130→          }
+   131→
+   132→          // Intelligent fallback
+   133→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   134→          return {
+   135→            success: true,
+   136→            data: {
+   137→              action, brandName, designElements, stylePreferences, industry, targetAudience, moodKeywords, outputFormats,
+   138→              logo: designElements.includes('logo') ? { primary: '', secondary: '', icon: '', variations: includeVariations ? [{ name: 'horizontal', url: '' }, { name: 'stacked', url: '' }] : [], usageGuidelines: { minSize: 24, clearSpace: 12, doNotModify: ['Do not stretch', 'Do not change colors', 'Do not add effects'] } } : null,
+   139→              colorPalette: designElements.includes('colors') ? {
+   140→                primary: [{ name: 'Brand Primary', hex: '#2563EB', rgb: 'rgb(37, 99, 235)', usage: 'Primary buttons, links, headings' }],
+   141→                secondary: [{ name: 'Brand Secondary', hex: '#7C3AED', rgb: 'rgb(124, 58, 237)', usage: 'Secondary elements, highlights' }],
+   142→                accent: [{ name: 'Accent', hex: '#F59E0B', rgb: 'rgb(245, 158, 11)', usage: 'Call-to-action, important highlights' }],
+   143→                neutrals: [{ name: 'Dark', hex: '#1F2937', rgb: 'rgb(31, 41, 55)', usage: 'Body text' }, { name: 'Light', hex: '#F3F4F6', rgb: 'rgb(243, 244, 246)', usage: 'Backgrounds' }],
+   144→              } : null,
+   145→              typography: designElements.includes('typography') ? {
+   146→                heading: { family: 'Inter', weights: [600, 700, 800], sizes: { h1: '3rem', h2: '2.25rem', h3: '1.5rem', h4: '1.25rem' } },
+   147→                body: { family: 'Inter', weights: [400, 500], sizes: { base: '1rem', small: '0.875rem', large: '1.125rem' } },
+   148→                pairing: 'Inter heading + Inter body - clean, modern, highly legible',
+   149→              } : null,
+   150→              designSystem: { spacing: { xs: '0.25rem', sm: '0.5rem', md: '1rem', lg: '1.5rem', xl: '2rem', '2xl': '3rem' }, borderRadius: { sm: '0.25rem', md: '0.5rem', lg: '1rem', full: '9999px' }, shadows: [{ name: 'sm', value: '0 1px 2px rgba(0,0,0,0.05)' }, { name: 'md', value: '0 4px 6px rgba(0,0,0,0.1)' }], iconStyle: 'outline, 2px stroke weight' },
+   151→              status: 'designed', timestamp: new Date().toISOString(),
+   152→            },
+   153→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   154→          };
+   155→        }
+   156→
+   157→        case 'voice': {
+   158→          const brandName = config.brandName;
+   159→          const voiceAttributes = config.voiceAttributes || [];
+   160→          const toneRanges = config.toneRanges || {};
+   161→          const sampleContent = config.sampleContent || [];
+   162→          const industry = config.industry || '';
+   163→          const targetAudience = config.targetAudience || {};
+   164→          const includeExamples = config.includeExamples !== false;
+   165→          const competitorVoices = config.competitorVoices || [];
+   166→
+   167→          if (!brandName) {
+   168→            return { success: false, error: '"brandName" is required for brand voice definition' };
+   169→          }
+   170→
+   171→          this.logger.log(`Defining brand voice for "${brandName}" (attributes: ${voiceAttributes.join(', ') || 'auto-detect'})`);
+   172→
+   173→          const llmResult = await this.executeWithLLM(
+   174→            `You are a brand voice strategist. You define comprehensive brand voice guidelines including personality traits, tone spectrum, vocabulary, and messaging pillars.`,
+   175→            `Define brand voice for "${brandName}" in ${industry || 'general'}. Attributes: ${voiceAttributes.join(', ') || 'auto-detect'}. Return JSON with: voiceDefinition {personality (array of {trait, intensity, description}), toneSpectrum {formal, casual, serious, playful, traditional, modern, authoritative, approachable}, vocabulary {preferred, avoided, industry}, messagingPillars (array of {pillar, description, keyMessages})}, toneGuidelines {social, email, website, advertising, support}.`,
+   176→            { responseFormat: 'json', temperature: 0.5, maxTokens: 2048 },
+   177→          );
+   178→
+   179→          const parsed = this.safeJsonParse(llmResult);
+   180→
+   181→          if (parsed) {
+   182→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   183→            return {
+   184→              success: true,
+   185→              data: {
+   186→                action, brandName, industry, targetAudience,
+   187→                voiceDefinition: parsed.voiceDefinition || { personality: [], toneSpectrum: { formal: 0, casual: 0, serious: 0, playful: 0, traditional: 0, modern: 0, authoritative: 0, approachable: 0 }, vocabulary: { preferred: [], avoided: [], industry: [] }, messagingPillars: [] },
+   188→                toneGuidelines: parsed.toneGuidelines || { social: '', email: '', website: '', advertising: '', support: '' },
+   189→                examples: includeExamples ? { do: [], dont: [] } : null,
+   190→                competitorDifferentiation: [],
+   191→                status: 'defined', timestamp: new Date().toISOString(),
+   192→              },
+   193→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   194→            };
+   195→          }
+   196→
+   197→          // Intelligent fallback
+   198→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   199→          return {
+   200→            success: true,
+   201→            data: {
+   202→              action, brandName, industry, targetAudience,
+   203→              voiceDefinition: {
+   204→                personality: [{ trait: 'knowledgeable', intensity: 85, description: 'We speak with authority and expertise' }, { trait: 'approachable', intensity: 78, description: 'We make complex topics accessible' }, { trait: 'inspiring', intensity: 72, description: 'We motivate action and progress' }, { trait: 'authentic', intensity: 90, description: 'We are genuine and transparent' }],
+   205→                toneSpectrum: { formal: 30, casual: 70, serious: 35, playful: 65, traditional: 20, modern: 80, authoritative: 60, approachable: 85 },
+   206→                vocabulary: { preferred: ['empower', 'transform', 'innovate', 'streamline', 'accelerate'], avoided: ['cheap', 'basic', 'complicated', 'hassle'], industry: ['scalable', 'data-driven', 'ROI', 'optimization'] },
+   207→                messagingPillars: [{ pillar: 'Expertise', description: 'Demonstrating deep knowledge and authority', keyMessages: ['Industry-leading insights', 'Proven methodologies', 'Expert-backed recommendations'] }, { pillar: 'Simplicity', description: 'Making the complex accessible', keyMessages: ['Simple solutions for complex problems', 'Clear and actionable guidance', 'No jargon, just results'] }],
+   208→              },
+   209→              toneGuidelines: { social: 'Conversational and engaging, use questions and calls-to-action', email: 'Professional yet warm, focus on value and next steps', website: 'Clear and confident, guide users to action', advertising: 'Bold and benefit-focused, create urgency', support: 'Empathetic and solution-oriented, acknowledge concerns' },
+   210→              examples: includeExamples ? {
+   211→                do: [{ channel: 'social', scenario: 'Product launch', content: '🚀 Ready to transform your workflow? Our latest feature makes it 3x faster. Here\'s how...', reason: 'Benefit-focused with enthusiasm and specific value' }],
+   212→                dont: [{ channel: 'social', scenario: 'Product launch', content: 'We have released a new feature. Please check it out.', reason: 'Too passive and lacks excitement or value proposition' }],
+   213→              } : null,
+   214→              competitorDifferentiation: [],
+   215→              status: 'defined', timestamp: new Date().toISOString(),
+   216→            },
+   217→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   218→          };
+   219→        }
+   220→
+   221→        case 'guidelines': {
+   222→          const brandName = config.brandName;
+   223→          const guidelineSections = config.guidelineSections || ['overview', 'logo', 'colors', 'typography', 'voice', 'imagery'];
+   224→          const outputFormat = config.outputFormat || 'pdf';
+   225→          const includeTemplates = config.includeTemplates || false;
+   226→          const includeDosAndDonts = config.includeDosAndDonts !== false;
+   227→          const customSections = config.customSections || [];
+   228→          const version = config.version || '1.0';
+   229→
+   230→          if (!brandName) {
+   231→            return { success: false, error: '"brandName" is required for brand guidelines creation' };
+   232→          }
+   233→
+   234→          this.logger.log(`Creating brand guidelines for "${brandName}" (${guidelineSections.length} sections, format: ${outputFormat})`);
+   235→
+   236→          const llmResult = await this.executeWithLLM(
+   237→            `You are a brand guidelines expert. You create comprehensive brand guideline documents with clear rules, dos and don'ts, and usage templates.`,
+   238→            `Create brand guidelines for "${brandName}". Sections: ${guidelineSections.join(', ')}. Return JSON with: sections (array of {name, content, assets, rules}), dosAndDonts (array of {category, do, dont, example}).`,
+   239→            { responseFormat: 'json', temperature: 0.4, maxTokens: 2048 },
+   240→          );
+   241→
+   242→          const parsed = this.safeJsonParse(llmResult);
+   243→
+   244→          if (parsed) {
+   245→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   246→            return {
+   247→              success: true,
+   248→              data: {
+   249→                action, brandName, guidelineSections, outputFormat, version, includeTemplates, includeDosAndDonts, customSections,
+   250→                guidelinesId: `guide_${Date.now()}`,
+   251→                sections: parsed.sections || guidelineSections.map((s: string) => ({ name: s, content: '', assets: [], rules: [] })),
+   252→                templates: null, dosAndDonts: includeDosAndDonts ? (parsed.dosAndDonts || []) : [],
+   253→                status: 'created', timestamp: new Date().toISOString(),
+   254→              },
+   255→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   256→            };
+   257→          }
+   258→
+   259→          // Intelligent fallback
+   260→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   261→          return {
+   262→            success: true,
+   263→            data: {
+   264→              action, brandName, guidelineSections, outputFormat, version, includeTemplates, includeDosAndDonts, customSections,
+   265→              guidelinesId: `guide_${Date.now()}`,
+   266→              sections: guidelineSections.map((s: string) => ({ name: s, content: `Guidelines for ${s} usage and application in brand materials`, assets: [], rules: [`Maintain consistency in ${s} across all touchpoints`, `Follow the established ${s} standards for all communications`] })),
+   267→              templates: includeTemplates ? { socialMedia: [{ platform: 'Instagram', template: 'Post template with brand colors and fonts', dimensions: '1080x1080' }], email: [{ type: 'Newsletter', template: 'Branded email template' }], presentation: [{ type: 'Pitch deck', template: 'Branded slide template' }], document: [{ type: 'Letterhead', template: 'Official document template' }] } : null,
+   268→              dosAndDonts: includeDosAndDonts ? [
+   269→                { category: 'logo', do: 'Use approved logo variants with proper clear space', dont: 'Do not modify, stretch, or alter the logo proportions', example: 'Logo usage examples' },
+   270→                { category: 'colors', do: 'Use brand colors at specified opacities', dont: 'Do not use unapproved color combinations', example: 'Color palette reference' },
+   271→                { category: 'tone', do: 'Maintain consistent brand voice across channels', dont: 'Do not use jargon or overly technical language for general audiences', example: 'Voice and tone examples' },
+   272→              ] : [],
+   273→              status: 'created', timestamp: new Date().toISOString(),
+   274→            },
+   275→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   276→          };
+   277→        }
+   278→
+   279→        case 'consistency': {
+   280→          const brandName = config.brandName;
+   281→          const channels = config.channels || ['website', 'social', 'email', 'ads'];
+   282→          const checkElements = config.checkElements || ['logo', 'colors', 'typography', 'voice'];
+   283→          const urls = config.urls || [];
+   284→          const socialProfiles = config.socialProfiles || [];
+   285→          const strictness = config.strictness || 'standard';
+   286→          const generateFixes = config.generateFixes !== false;
+   287→
+   288→          if (!brandName) {
+   289→            return { success: false, error: '"brandName" is required for brand consistency check' };
+   290→          }
+   291→
+   292→          this.logger.log(`Checking brand consistency for "${brandName}" across ${channels.length} channels (strictness: ${strictness})`);
+   293→
+   294→          const llmResult = await this.executeWithLLM(
+   295→            `You are a brand consistency auditor. You evaluate how consistently a brand is presented across channels and identify discrepancies in visual identity, tone, and messaging.`,
+   296→            `Check brand consistency for "${brandName}" across ${channels.join(', ')}. Elements: ${checkElements.join(', ')}. Return JSON with: overallConsistencyScore (55-95), channelScores (object), elementScores (object), inconsistencies (array of {channel, element, issue, severity, expected, found, location}), visualConsistency {colorMatch, fontMatch, logoUsage, imageStyle}, voiceConsistency {toneMatch, vocabularyMatch, messagingAlignment}.`,
+   297→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   298→          );
+   299→
+   300→          const parsed = this.safeJsonParse(llmResult);
+   301→
+   302→          if (parsed) {
+   303→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   304→            return {
+   305→              success: true,
+   306→              data: {
+   307→                action, brandName, channels, checkElements, strictness,
+   308→                overallConsistencyScore: parsed.overallConsistencyScore || 0,
+   309→                channelScores: parsed.channelScores || {},
+   310→                elementScores: parsed.elementScores || {},
+   311→                inconsistencies: parsed.inconsistencies || [],
+   312→                fixes: generateFixes ? [] : [],
+   313→                visualConsistency: parsed.visualConsistency || { colorMatch: 0, fontMatch: 0, logoUsage: 0, imageStyle: 0 },
+   314→                voiceConsistency: parsed.voiceConsistency || { toneMatch: 0, vocabularyMatch: 0, messagingAlignment: 0 },
+   315→                status: 'checked', timestamp: new Date().toISOString(),
+   316→              },
+   317→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   318→            };
+   319→          }
+   320→
+   321→          // Intelligent fallback
+   322→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   323→          return {
+   324→            success: true,
+   325→            data: {
+   326→              action, brandName, channels, checkElements, strictness,
+   327→              overallConsistencyScore: 76,
+   328→              channelScores: { website: 85, social: 72, email: 78, ads: 68 },
+   329→              elementScores: { logo: 88, colors: 75, typography: 72, voice: 65 },
+   330→              inconsistencies: [
+   331→                { channel: 'social', element: 'colors', issue: 'Different shade of primary color used', severity: 'medium', expected: '#2563EB', found: '#3B82F6', location: 'Instagram profile posts' },
+   332→                { channel: 'ads', element: 'voice', issue: 'Tone is more casual than brand guidelines specify', severity: 'low', expected: 'Professional-confident', found: 'Casual-friendly', location: 'Facebook ad copy' },
+   333→              ],
+   334→              fixes: generateFixes ? [
+   335→                { channel: 'social', element: 'colors', issue: 'Color mismatch', suggestedFix: 'Update social media templates to use exact brand hex #2563EB', priority: 'medium' },
+   336→                { channel: 'ads', element: 'voice', issue: 'Tone inconsistency', suggestedFix: 'Create ad copy templates that align with brand voice guidelines', priority: 'low' },
+   337→              ] : [],
+   338→              visualConsistency: { colorMatch: 82, fontMatch: 78, logoUsage: 92, imageStyle: 70 },
+   339→              voiceConsistency: { toneMatch: 72, vocabularyMatch: 68, messagingAlignment: 75 },
+   340→              status: 'checked', timestamp: new Date().toISOString(),
+   341→            },
+   342→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   343→          };
+   344→        }
+   345→
+   346→        case 'audit': {
+   347→          const brandName = config.brandName;
+   348→          const auditDepth = config.auditDepth || 'comprehensive';
+   349→          const channels = config.channels || ['all'];
+   350→          const competitors = config.competitors || [];
+   351→          const includeMarketAnalysis = config.includeMarketAnalysis !== false;
+   352→          const includeCustomerPerception = config.includeCustomerPerception || false;
+   353→          const includeDigitalPresence = config.includeDigitalPresence !== false;
+   354→          const dateRange = config.dateRange || '90d';
+   355→
+   356→          if (!brandName) {
+   357→            return { success: false, error: '"brandName" is required for brand audit' };
+   358→          }
+   359→
+   360→          this.logger.log(`Running ${auditDepth} brand audit for "${brandName}" (${dateRange})`);
+   361→
+   362→          const llmResult = await this.executeWithLLM(
+   363→            `You are a brand audit specialist. You conduct comprehensive brand audits evaluating identity, visibility, consistency, reputation, and differentiation with realistic scores and actionable recommendations.`,
+   364→            `Audit brand "${brandName}". Depth: ${auditDepth}. Return JSON with: overallBrandScore (55-90), auditCategories {identity {score, findings, recommendations}, visibility {score, findings, recommendations}, consistency {score, findings, recommendations}, reputation {score, findings, recommendations}, differentiation {score, findings, recommendations}}, priorityActions (array of {action, impact, effort, timeline}).`,
+   365→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   366→          );
+   367→
+   368→          const parsed = this.safeJsonParse(llmResult);
+   369→
+   370→          if (parsed) {
+   371→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   372→            return {
+   373→              success: true,
+   374→              data: {
+   375→                action, brandName, auditDepth, channels, dateRange,
+   376→                overallBrandScore: parsed.overallBrandScore || 0,
+   377→                auditCategories: parsed.auditCategories || { identity: { score: 0, findings: [], recommendations: [] }, visibility: { score: 0, findings: [], recommendations: [] }, consistency: { score: 0, findings: [], recommendations: [] }, reputation: { score: 0, findings: [], recommendations: [] }, differentiation: { score: 0, findings: [], recommendations: [] } },
+   378→                marketAnalysis: null, customerPerception: null, digitalPresence: null,
+   379→                priorityActions: parsed.priorityActions || [],
+   380→                status: 'audited', timestamp: new Date().toISOString(),
+   381→              },
+   382→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   383→            };
+   384→          }
+   385→
+   386→          // Intelligent fallback
+   387→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   388→          return {
+   389→            success: true,
+   390→            data: {
+   391→              action, brandName, auditDepth, channels, dateRange,
+   392→              overallBrandScore: 72,
+   393→              auditCategories: {
+   394→                identity: { score: 78, findings: ['Brand identity is well-defined but inconsistently applied', 'Logo usage is strong across primary touchpoints'], recommendations: ['Create detailed brand identity toolkit', 'Establish approval workflows for brand assets'] },
+   395→                visibility: { score: 65, findings: ['Search visibility could be improved', 'Social media presence is growing but inconsistent'], recommendations: ['Increase content marketing investment', 'Optimize for branded search terms'] },
+   396→                consistency: { score: 72, findings: ['Visual consistency is moderate across channels', 'Tone varies significantly between platforms'], recommendations: ['Implement brand management platform', 'Conduct quarterly consistency reviews'] },
+   397→                reputation: { score: 76, findings: ['Overall sentiment is positive', 'Customer service mentions need attention'], recommendations: ['Develop proactive reputation management strategy', 'Address customer service feedback promptly'] },
+   398→                differentiation: { score: 68, findings: ['Competitive positioning could be sharper', 'Some messaging overlaps with key competitors'], recommendations: ['Refine unique value proposition', 'Develop distinctive brand narrative'] },
+   399→              },
+   400→              marketAnalysis: includeMarketAnalysis ? { marketPosition: 'Challenger', competitiveAdvantage: ['Strong technical capability', 'Customer-centric approach'], threats: ['Increasing competition', 'Market consolidation'], opportunities: ['Emerging market segment', 'Digital transformation trend'], competitorBenchmark: [] } : null,
+   401→              customerPerception: includeCustomerPerception ? { netPromoterScore: 42, customerSatisfaction: 78, brandRecall: 65, topAssociations: ['reliable', 'professional', 'innovative'], painPoints: ['Customer support response time', 'Onboarding complexity'] } : null,
+   402→              digitalPresence: includeDigitalPresence ? { domainAuthority: 52, socialFollowers: { twitter: 12500, linkedin: 8900, instagram: 5600 }, searchVisibility: 45, reviewScores: { google: 4.2, g2: 4.5 }, contentQuality: 72 } : null,
+   403→              priorityActions: [
+   404→                { action: 'Standardize brand voice guidelines across all channels', impact: 'high', effort: 'medium', timeline: '2-4 weeks' },
+   405→                { action: 'Launch content marketing program to improve search visibility', impact: 'high', effort: 'high', timeline: '1-3 months' },
+   406→                { action: 'Develop competitive differentiation messaging', impact: 'medium', effort: 'medium', timeline: '2-4 weeks' },
+   407→              ],
+   408→              status: 'audited', timestamp: new Date().toISOString(),
+   409→            },
+   410→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   411→          };
+   412→        }
+   413→
+   414→        default:
+   415→          return { success: false, error: `Unknown action: ${action}. Supported actions: analyze, design, voice, guidelines, consistency, audit` };
+   416→      }
+   417→    } catch (error: any) {
+   418→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   419→      return { success: false, error: error.message };
+   420→    }
+   421→  }
+   422→}
+   423→
