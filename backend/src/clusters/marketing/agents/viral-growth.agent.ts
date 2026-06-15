@@ -30,7 +30,7 @@ export class ViralGrowthAgent extends BaseAgent {
     'Viral growth hacking automation with viral loop design, referral automation, community building, influencer outreach, and content virality analysis';
 
   readonly missionCategories = [MissionCategory.MARKETING_GROWTH];
-  readonly creditCost = 2;
+  readonly creditCost = 3;
   readonly powerLevel = 2;
   readonly tier = 'advanced';
 

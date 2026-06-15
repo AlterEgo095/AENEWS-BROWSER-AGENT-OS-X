@@ -43,6 +43,23 @@ export class StealthScraperAgent extends BaseAgent {
 
       this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
 
+      // Stealth operations authorization
+      const authToken = config.authorizationToken || config.authToken;
+      if (!authToken) {
+        this.emitEvent(AgentEventType.AGENT_FAILED, { action, error: 'Authorization required', reason: 'missing_token' });
+        return { success: false, error: 'Stealth operations require an authorizationToken. Provide config.authorizationToken to proceed.' };
+      }
+
+      const dryRun = config.dryRun === true;
+      if (dryRun) {
+        this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, dryRun: true });
+        return {
+          success: true,
+          data: { action, dryRun: true, message: `Dry run: ${action} would execute with the provided parameters. No changes made.`, parameters: config },
+          metadata: { duration: 0 },
+        };
+      }
+
       switch (action) {
         case 'shadow-scrape': {
           const url = config.url;

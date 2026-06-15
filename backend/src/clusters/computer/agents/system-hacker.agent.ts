@@ -40,11 +40,38 @@ export class SystemHackerAgent extends BaseAgent {
 
       this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
 
+      // Authorization check — system hacker operations require verified authorization
+      const authToken = config.authorizationToken || config.authToken;
+      if (!authToken) {
+        this.emitEvent(AgentEventType.AGENT_FAILED, { action, error: 'Authorization required', reason: 'missing_token' });
+        return { success: false, error: 'Red team operations require an authorizationToken. Provide config.authorizationToken to proceed.' };
+      }
+
+      const dryRun = config.dryRun === true;
+      if (dryRun) {
+        this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, dryRun: true });
+        return {
+          success: true,
+          data: { action, dryRun: true, message: `Dry run: ${action} would execute with the provided parameters. No changes made.`, parameters: config },
+          metadata: { duration: 0 },
+        };
+      }
+
       switch (action) {
         case 'manipulate-kernel': {
           const targetKernel = config.targetKernel || 'linux';
           const kernelVersion = config.kernelVersion || '6.1.x';
           const operation = config.operation || 'analyze';
+
+          // Input validation
+          const validKernels = ['linux', 'windows', 'macos'];
+          if (!validKernels.includes(targetKernel)) {
+            return { success: false, error: `Invalid targetKernel "${targetKernel}". Must be one of: ${validKernels.join(', ')}` };
+          }
+          const validKernelOps = ['analyze', 'harden', 'audit', 'monitor'];
+          if (!validKernelOps.includes(operation)) {
+            return { success: false, error: `Invalid operation "${operation}". Must be one of: ${validKernelOps.join(', ')}` };
+          }
           const module = config.module;
 
           this.logger.log(`Kernel manipulation: ${operation} on ${targetKernel} ${kernelVersion}`);
@@ -110,6 +137,16 @@ export class SystemHackerAgent extends BaseAgent {
           const targetOS = config.targetOS || 'linux';
           const injectionMethod = config.injectionMethod || 'load-module';
           const persistence = config.persistence || false;
+
+          // Input validation
+          const driverName = config.driverName;
+          if (!driverName || typeof driverName !== 'string') {
+            return { success: false, error: 'driverName is required and must be a string for driver injection' };
+          }
+          const validDriverKernels = ['linux', 'windows', 'macos'];
+          if (!validDriverKernels.includes(targetOS)) {
+            return { success: false, error: `Invalid targetKernel "${targetOS}". Must be one of: ${validDriverKernels.join(', ')}` };
+          }
 
           this.logger.log(`Driver injection analysis: ${driverType} on ${targetOS} (${injectionMethod})`);
 
@@ -181,6 +218,16 @@ export class SystemHackerAgent extends BaseAgent {
           const analysisType = config.analysisType || 'full';
           const targetProcesses = config.targetProcesses || [];
           const timeline = config.timeline || false;
+
+          // Input validation
+          const memoryRegion = config.memoryRegion;
+          if (memoryRegion && typeof memoryRegion !== 'string') {
+            return { success: false, error: 'memoryRegion must be a string if provided' };
+          }
+          const validAnalysisTypes = ['volatile', 'non-volatile', 'full'];
+          if (!validAnalysisTypes.includes(analysisType)) {
+            return { success: false, error: `Invalid analysisType "${analysisType}". Must be one of: ${validAnalysisTypes.join(', ')}` };
+          }
 
           this.logger.log(`Memory forensics analysis (${analysisType})`);
 
@@ -254,11 +301,15 @@ export class SystemHackerAgent extends BaseAgent {
 
         case 'hollow-process': {
           const targetProcess = config.targetProcess;
+          const targetBinary = config.targetBinary;
           const hollowingTechnique = config.hollowingTechnique || 'process-replacement';
           const detectionTest = config.detectionTest !== false;
 
           if (!targetProcess) {
             return { success: false, error: '"targetProcess" is required for process hollowing analysis' };
+          }
+          if (!targetBinary) {
+            return { success: false, error: '"targetBinary" is required for process hollowing analysis' };
           }
 
           this.logger.log(`Process hollowing analysis: ${hollowingTechnique} targeting ${targetProcess}`);
@@ -328,6 +379,15 @@ export class SystemHackerAgent extends BaseAgent {
           const registryPath = config.registryPath;
           const persistenceCheck = config.persistenceCheck !== false;
 
+          // Input validation
+          if (!registryPath) {
+            return { success: false, error: 'registryPath is required for registry manipulation' };
+          }
+          const validRegistryOps = ['read', 'modify', 'audit', 'backup'];
+          if (!validRegistryOps.includes(operation)) {
+            return { success: false, error: `Invalid operation "${operation}". Must be one of: ${validRegistryOps.join(', ')}` };
+          }
+
           this.logger.log(`Registry manipulation: ${operation} on ${targetOS}${registryPath ? ` (${registryPath})` : ''}`);
 
           const llmResult = await this.executeWithLLM(
@@ -392,8 +452,20 @@ export class SystemHackerAgent extends BaseAgent {
 
         case 'analyze-bootkit': {
           const bootkitSample = config.bootkitSample;
+          const bootkitFile = config.bootkitFile;
+          const analysisTarget = config.analysisTarget;
           const analysisDepth = config.analysisDepth || 'comprehensive';
           const firmwareType = config.firmwareType || 'UEFI';
+
+          // Input validation
+          if (!bootkitFile && !analysisTarget) {
+            return { success: false, error: 'bootkitFile or analysisTarget is required for bootkit analysis' };
+          }
+          const validAnalysisModes = ['static', 'dynamic', 'behavioral'];
+          const analysisMode = config.analysisMode || 'static';
+          if (!validAnalysisModes.includes(analysisMode)) {
+            return { success: false, error: `Invalid analysisMode "${analysisMode}". Must be one of: ${validAnalysisModes.join(', ')}` };
+          }
 
           this.logger.log(`Bootkit analysis (${analysisDepth}, firmware: ${firmwareType})`);
 

@@ -1,0 +1,512 @@
+     1→     1→import {
+     2→     2→  BaseAgent,
+     3→     3→  AgentContext,
+     4→     4→  AgentResult,
+     5→     5→} from '../../modules/agent/agent.abstract';
+     6→     6→import { ClusterType, MissionCategory } from '../../modules/agent/entities/agent.entity';
+     7→     7→import { AgentEventType } from '../../modules/agent-framework/services/agent-event-bus.service';
+     8→     8→
+     9→     9→/**
+    10→    10→ * StealthExploitAgent — Advanced penetration testing for the STEALTH_OPS cluster.
+    11→    11→ *
+    12→    12→ * Provides vulnerability scanning, exploit chaining, privilege escalation,
+    13→    13→ * lateral movement, persistence mechanisms, payload crafting, and evasion techniques.
+    14→    14→ * Uses LLM for generating context-aware exploitation strategies and falls back
+    15→    15→ * to realistic heuristic pentest profiles when LLM is unavailable.
+    16→    16→ */
+    17→    17→export class StealthExploitAgent extends BaseAgent {
+    18→    18→  readonly name = 'StealthExploitAgent';
+    19→    19→  readonly cluster = ClusterType.STEALTH_OPS;
+    20→    20→  readonly capabilities = [
+    21→    21→    'vulnerability-scanning',
+    22→    22→    'exploit-chaining',
+    23→    23→    'privilege-escalation',
+    24→    24→    'lateral-movement',
+    25→    25→    'persistence-mechanisms',
+    26→    26→    'payload-crafting',
+    27→    27→    'evasion-techniques',
+    28→    28→  ];
+    29→    29→  readonly version = '3.0.0';
+    30→    30→  readonly description =
+    31→    31→    'Advanced penetration testing with full stealth — vulnerability scanning, exploit chaining, and evasion techniques';
+    32→    32→
+    33→    33→  readonly missionCategories = [MissionCategory.STEALTH_OPERATIONS, MissionCategory.SECURITY_OPS];
+    34→    34→  readonly creditCost = 5;
+    35→    35→  readonly powerLevel = 3;
+    36→    36→  readonly tier = 'stealth';
+    37→    37→
+    38→    38→  async execute(context: AgentContext): Promise<AgentResult> {
+    39→    39→    try {
+    40→    40→      const { config } = context;
+    41→    41→      const action = config.action || 'vuln-scan';
+    42→    42→      const startTime = Date.now();
+    43→    43→
+    44→    44→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    45→    45→
+    46→    46→      switch (action) {
+    47→    47→        case 'vuln-scan': {
+    48→    48→          const target = config.target;
+    49→    49→          const scanType = config.scanType || 'comprehensive';
+    50→    50→          const intensity = config.intensity || 'stealth';
+    51→    51→          if (!target) {
+    52→    52→            return { success: false, error: 'Target is required for vulnerability scanning' };
+    53→    53→          }
+    54→    54→          this.logger.log(`Stealth vuln scan on: ${target} (type: ${scanType}, intensity: ${intensity})`);
+    55→    55→
+    56→    56→          const llmResult = await this.executeWithLLM(
+    57→    57→            `You are a penetration testing and vulnerability assessment expert. Generate a comprehensive vulnerability scan result for the given target.
+    58→    58→Return JSON with:
+    59→    59→{
+    60→    60→  "vulnerabilityReport": {
+    61→    61→    "target": "string",
+    62→    62→    "scanType": "string",
+    63→    63→    "vulnerabilities": [
+    64→    64→      { "id": "string", "severity": "critical|high|medium|low|info", "title": "string", "description": "string", "cve": "string or null", "cvssScore": number, "exploitable": boolean, "remediation": "string" }
+    65→    65→    ],
+    66→    66→    "summary": { "total": number, "critical": number, "high": number, "medium": number, "low": number, "info": number }
+    67→    67→  },
+    68→    68→  "attackSurface": {
+    69→    69→    "openPorts": [{ "port": number, "service": "string", "version": "string" }],
+    70→    70→    "exposedServices": ["array"],
+    71→    71→    "potentialEntryPoints": ["array"]
+    72→    72→  },
+    73→    73→  "stealthMetrics": { "scanDetectionRisk": "low|medium|high", "noiseLevel": "minimal|low|moderate" },
+    74→    74→  "prioritizedFindings": ["array of CVE IDs or finding IDs ordered by risk"]
+    75→    75→}`,
+    76→    76→            `Vulnerability scan: target=${target}, type=${scanType}, intensity=${intensity}`,
+    77→    77→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+    78→    78→          );
+    79→    79→          const parsed = this.safeJsonParse(llmResult);
+    80→    80→
+    81→    81→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, target, duration: Date.now() - startTime });
+    82→    82→          return {
+    83→    83→            success: true,
+    84→    84→            data: parsed || {
+    85→    85→              action,
+    86→    86→              vulnerabilityReport: {
+    87→    87→                target,
+    88→    88→                scanType,
+    89→    89→                vulnerabilities: [
+    90→    90→                  { id: 'VULN-001', severity: 'high', title: 'Outdated TLS Configuration', description: 'Server supports TLS 1.0 and weak cipher suites', cve: 'CVE-2021-3449', cvssScore: 7.5, exploitable: true, remediation: 'Disable TLS 1.0/1.1, remove weak cipher suites' },
+    91→    91→                  { id: 'VULN-002', severity: 'medium', title: 'Missing Security Headers', description: 'CSP, X-Frame-Options, and HSTS headers not configured', cve: null, cvssScore: 5.3, exploitable: false, remediation: 'Configure comprehensive security headers' },
+    92→    92→                  { id: 'VULN-003', severity: 'medium', title: 'Information Disclosure via Error Pages', description: 'Stack traces and version info exposed in error responses', cve: null, cvssScore: 4.7, exploitable: true, remediation: 'Implement custom error pages, disable debug mode' },
+    93→    93→                  { id: 'VULN-004', severity: 'low', title: 'Cookie Missing Secure Flag', description: 'Session cookies transmitted without secure flag', cve: null, cvssScore: 3.1, exploitable: false, remediation: 'Set secure flag on all session cookies' },
+    94→    94→                ],
+    95→    95→                summary: { total: 4, critical: 0, high: 1, medium: 2, low: 1, info: 0 },
+    96→    96→              },
+    97→    97→              attackSurface: {
+    98→    98→                openPorts: [
+    99→    99→                  { port: 80, service: 'http', version: 'nginx/1.24.0' },
+   100→   100→                  { port: 443, service: 'https', version: 'nginx/1.24.0' },
+   101→   101→                  { port: 22, service: 'ssh', version: 'OpenSSH 8.9' },
+   102→   102→                ],
+   103→   103→                exposedServices: ['web-server', 'ssh'],
+   104→   104→                potentialEntryPoints: ['web-application', 'api-endpoints'],
+   105→   105→              },
+   106→   106→              stealthMetrics: { scanDetectionRisk: 'low', noiseLevel: 'minimal' },
+   107→   107→              prioritizedFindings: ['VULN-001', 'VULN-003', 'VULN-002', 'VULN-004'],
+   108→   108→              status: 'vuln-scan-complete',
+   109→   109→              timestamp: new Date().toISOString(),
+   110→   110→            },
+   111→   111→            metadata: { duration: Date.now() - startTime },
+   112→   112→          };
+   113→   113→        }
+   114→   114→
+   115→   115→        case 'exploit-chain': {
+   116→   116→          const vulnerabilities = config.vulnerabilities || [];
+   117→   117→          const target = config.target || 'unknown';
+   118→   118→          const objective = config.objective || 'access-escalation';
+   119→   119→          this.logger.log(`Planning exploit chain for ${target} with ${vulnerabilities.length} vulns`);
+   120→   120→
+   121→   121→          const llmResult = await this.executeWithLLM(
+   122→   122→            `You are an exploit chain design expert. Generate a multi-stage exploit chain that combines multiple vulnerabilities to achieve the objective.
+   123→   123→Return JSON with:
+   124→   124→{
+   125→   125→  "exploitChain": {
+   126→   126→    "stages": [
+   127→   127→      { "stage": number, "vulnerability": "string", "technique": "string", "expectedOutcome": "string", "stealthLevel": "high|medium|low" }
+   128→   128→    ],
+   129→   129→    "chainDependencies": { "stage": number, "dependsOn": number[] },
+   130→   130→    "objective": "string",
+   131→   131→    "successProbability": number_0_to_100
+   132→   132→  },
+   133→   133→  "evasionConsiderations": ["array of stealth measures for each stage"],
+   134→   134→  "fallbackPaths": [{ "ifStageFails": number, "alternativeApproach": "string" }],
+   135→   135→  "riskAssessment": { "detectionProbability": number_0_to_100, "reversibility": "high|medium|low" }
+   136→   136→}`,
+   137→   137→            `Exploit chain: target=${target}, objective=${objective}, vulns=${JSON.stringify(vulnerabilities.slice(0, 5))}`,
+   138→   138→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   139→   139→          );
+   140→   140→          const parsed = this.safeJsonParse(llmResult);
+   141→   141→
+   142→   142→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   143→   143→          return {
+   144→   144→            success: true,
+   145→   145→            data: parsed || {
+   146→   146→              action,
+   147→   147→              exploitChain: {
+   148→   148→                stages: [
+   149→   149→                  { stage: 1, vulnerability: 'info-disclosure', technique: 'Error page enumeration', expectedOutcome: 'Extract application version and stack details', stealthLevel: 'high' },
+   150→   150→                  { stage: 2, vulnerability: 'weak-tls', technique: 'Protocol downgrade + session hijack', expectedOutcome: 'Intercept session token', stealthLevel: 'medium' },
+   151→   151→                  { stage: 3, vulnerability: 'missing-csp', technique: 'XSS payload injection via reflected parameter', expectedOutcome: 'Execute JavaScript in victim browser context', stealthLevel: 'medium' },
+   152→   152→                  { stage: 4, vulnerability: 'session-handling', technique: 'Session fixation + privilege escalation', expectedOutcome: 'Gain administrative access', stealthLevel: 'low' },
+   153→   153→                ],
+   154→   154→                chainDependencies: { 1: [], 2: [1], 3: [2], 4: [3] },
+   155→   155→                objective,
+   156→   156→                successProbability: 65,
+   157→   157→              },
+   158→   158→              evasionConsiderations: [
+   159→   159→                'Use low-and-slow enumeration to avoid rate limiting',
+   160→   160→                'Time protocol downgrade during peak traffic to blend with noise',
+   161→   161→                'Encode XSS payloads with event handlers to bypass basic WAF',
+   162→   162→                'Stagger privilege escalation across multiple sessions',
+   163→   163→              ],
+   164→   164→              fallbackPaths: [
+   165→   165→                { ifStageFails: 2, alternativeApproach: 'Attempt direct API token extraction via SSRF' },
+   166→   166→                { ifStageFails: 3, alternativeApproach: 'Target password reset flow instead of XSS' },
+   167→   167→              ],
+   168→   168→              riskAssessment: { detectionProbability: 28, reversibility: 'high' },
+   169→   169→              status: 'exploit-chain-planned',
+   170→   170→              timestamp: new Date().toISOString(),
+   171→   171→            },
+   172→   172→            metadata: { duration: Date.now() - startTime },
+   173→   173→          };
+   174→   174→        }
+   175→   175→
+   176→   176→        case 'privilege-escalate': {
+   177→   177→          const currentAccess = config.currentAccess || 'user';
+   178→   178→          const targetAccess = config.targetAccess || 'admin';
+   179→   179→          const environment = config.environment || 'linux';
+   180→   180→          this.logger.log(`Planning privilege escalation: ${currentAccess} → ${targetAccess} on ${environment}`);
+   181→   181→
+   182→   182→          const llmResult = await this.executeWithLLM(
+   183→   183→            `You are a privilege escalation specialist. Generate a privilege escalation strategy for the given access level and environment.
+   184→   184→Return JSON with:
+   185→   185→{
+   186→   186→  "escalationStrategy": {
+   187→   187→    "currentLevel": "string",
+   188→   188→    "targetLevel": "string",
+   189→   189→    "environment": "string",
+   190→   190→    "techniques": [
+   191→   191→      { "name": "string", "type": "misconfiguration|kernel-exploit|credential-theft|token-impersonation", "complexity": "low|medium|high", "stealth": "high|medium|low", "description": "string" }
+   192→   192→    ],
+   193→   193→    "recommendedPath": { "firstTechnique": "string", "rationale": "string" }
+   194→   194→  },
+   195→   195→  "prerequisites": ["array of required conditions or tools"],
+   196→   196→  "detectionRisk": "low|medium|high",
+   197→   197→  "cleanupRequirements": ["array of artifacts to clean up after escalation"]
+   198→   198→}`,
+   199→   199→            `Privilege escalation: ${currentAccess} → ${targetAccess} on ${environment}`,
+   200→   200→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   201→   201→          );
+   202→   202→          const parsed = this.safeJsonParse(llmResult);
+   203→   203→
+   204→   204→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   205→   205→          return {
+   206→   206→            success: true,
+   207→   207→            data: parsed || {
+   208→   208→              action,
+   209→   209→              escalationStrategy: {
+   210→   210→                currentLevel: currentAccess,
+   211→   211→                targetLevel: targetAccess,
+   212→   212→                environment,
+   213→   213→                techniques: [
+   214→   214→                  { name: 'SUID Binary Exploitation', type: 'misconfiguration', complexity: 'low', stealth: 'high', description: 'Find and exploit SUID-root binaries for privilege escalation' },
+   215→   215→                  { name: 'Credential Harvesting', type: 'credential-theft', complexity: 'medium', stealth: 'medium', description: 'Extract credentials from memory, config files, or process arguments' },
+   216→   216→                  { name: 'Token Impersonation', type: 'token-impersonation', complexity: 'medium', stealth: 'high', description: 'Duplicate or impersonate high-privilege tokens from running processes' },
+   217→   217→                ],
+   218→   218→                recommendedPath: { firstTechnique: 'SUID Binary Exploitation', rationale: 'Low complexity with high stealth — least likely to trigger detection' },
+   219→   219→              },
+   220→   220→              prerequisites: ['Existing shell access at current privilege level', 'Ability to enumerate file system and processes'],
+   221→   221→              detectionRisk: 'low',
+   222→   222→              cleanupRequirements: [
+   223→   223→                'Remove any dropped scripts or binaries',
+   224→   224→                'Clear command history and logs if possible',
+   225→   225→                'Restore original file permissions if modified',
+   226→   226→              ],
+   227→   227→              status: 'escalation-strategy-planned',
+   228→   228→              timestamp: new Date().toISOString(),
+   229→   229→            },
+   230→   230→            metadata: { duration: Date.now() - startTime },
+   231→   231→          };
+   232→   232→        }
+   233→   233→
+   234→   234→        case 'lateral-move': {
+   235→   235→          const currentHost = config.currentHost || 'host-alpha';
+   236→   236→          const targetHost = config.targetHost || 'host-bravo';
+   237→   237→          const networkSegment = config.networkSegment || 'internal';
+   238→   238→          this.logger.log(`Planning lateral movement: ${currentHost} → ${targetHost}`);
+   239→   239→
+   240→   240→          const llmResult = await this.executeWithLLM(
+   241→   241→            `You are a lateral movement specialist. Generate a lateral movement strategy for pivoting between hosts.
+   242→   242→Return JSON with:
+   243→   243→{
+   244→   244→  "lateralMovement": {
+   245→   245→    "currentPosition": "string",
+   246→   246→    "target": "string",
+   247→   247→    "techniques": [
+   248→   248→      { "name": "string", "protocol": "string", "stealthLevel": "high|medium|low", "description": "string" }
+   249→   249→    ],
+   250→   250→    "pivotStrategy": {
+   251→   251→      "primaryPath": "string describing the movement path",
+   252→   252→      "intermediateHosts": ["array"],
+   253→   253→      "toolingRequired": ["array"]
+   254→   254→    }
+   255→   255→  },
+   256→   256→  "networkMapping": { "reachableSegments": ["array"], "firewallRules": "estimated rules based on connectivity" },
+   257→   257→  "stealthMeasures": ["array of techniques to minimize detection during movement"],
+   258→   258→  "successProbability": number_0_to_100
+   259→   259→}`,
+   260→   260→            `Lateral movement: ${currentHost} → ${targetHost}, segment=${networkSegment}`,
+   261→   261→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   262→   262→          );
+   263→   263→          const parsed = this.safeJsonParse(llmResult);
+   264→   264→
+   265→   265→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   266→   266→          return {
+   267→   267→            success: true,
+   268→   268→            data: parsed || {
+   269→   269→              action,
+   270→   270→              lateralMovement: {
+   271→   271→                currentPosition: currentHost,
+   272→   272→                target: targetHost,
+   273→   273→                techniques: [
+   274→   274→                  { name: 'Pass-the-Hash', protocol: 'SMB/WMI', stealthLevel: 'high', description: 'Use harvested NTLM hashes for authentication to remote systems' },
+   275→   275→                  { name: 'SSH Key Reuse', protocol: 'SSH', stealthLevel: 'high', description: 'Leverage SSH keys found on current host to access target' },
+   276→   276→                  { name: 'Service Account Hijacking', protocol: 'Kerberos', stealthLevel: 'medium', description: 'Exploit service account with delegated permissions' },
+   277→   277→                ],
+   278→   278→                pivotStrategy: {
+   279→   279→                  primaryPath: 'Current host → Jump server (via SSH key) → Target host (via Pass-the-Hash)',
+   280→   280→                  intermediateHosts: ['jump-server-01'],
+   281→   281→                  toolingRequired: ['proxychains', 'socat', 'sshuttle'],
+   282→   282→                },
+   283→   283→              },
+   284→   284→              networkMapping: { reachableSegments: ['DMZ', 'internal-apps', 'database-tier'], firewallRules: 'Outbound SMB allowed to internal segment, SSH restricted to jump servers' },
+   285→   285→              stealthMeasures: [
+   286→   286→                'Use existing administrative tools instead of custom binaries',
+   287→   287→                'Time movements during normal admin activity hours',
+   288→   288→                'Route traffic through established proxy chains',
+   289→   289→                'Avoid creating new accounts — reuse compromised credentials',
+   290→   290→              ],
+   291→   291→              successProbability: 72,
+   292→   292→              status: 'lateral-movement-planned',
+   293→   293→              timestamp: new Date().toISOString(),
+   294→   294→            },
+   295→   295→            metadata: { duration: Date.now() - startTime },
+   296→   296→          };
+   297→   297→        }
+   298→   298→
+   299→   299→        case 'persist': {
+   300→   300→          const targetSystem = config.targetSystem || 'linux';
+   301→   301→          const persistenceType = config.persistenceType || 'stealth';
+   302→   302→          const accessLevel = config.accessLevel || 'user';
+   303→   303→          this.logger.log(`Planning persistence on ${targetSystem} (type: ${persistenceType}, access: ${accessLevel})`);
+   304→   304→
+   305→   305→          const llmResult = await this.executeWithLLM(
+   306→   306→            `You are a persistence mechanism specialist. Generate stealthy persistence configurations for maintaining access.
+   307→   307→Return JSON with:
+   308→   308→{
+   309→   309→  "persistenceConfig": {
+   310→   310→    "mechanisms": [
+   311→   311→      { "name": "string", "type": "startup|scheduled|service|shell-profile|browser-ext", "stealthLevel": "high|medium|low", "survivalRate": "high|medium|low", "description": "string" }
+   312→   312→    ],
+   313→   313→    "recommendedMechanism": { "name": "string", "rationale": "string" }
+   314→   314→  },
+   315→   315→  "operationalSecurity": {
+   316→   316→    "antiForensics": ["array of techniques to hide persistence artifacts"],
+   317→   317→    "monitoringEvasion": ["array of techniques to avoid detection by EDR/AV"]
+   318→   318→  },
+   319→   319→  "longevityEstimate": "days|weeks|months",
+   320→   320→  "detectionRisk": "low|medium|high"
+   321→   321→}`,
+   322→   322→            `Persistence: system=${targetSystem}, type=${persistenceType}, access=${accessLevel}`,
+   323→   323→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   324→   324→          );
+   325→   325→          const parsed = this.safeJsonParse(llmResult);
+   326→   326→
+   327→   327→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   328→   328→          return {
+   329→   329→            success: true,
+   330→   330→            data: parsed || {
+   331→   331→              action,
+   332→   332→              persistenceConfig: {
+   333→   333→                mechanisms: [
+   334→   334→                  { name: 'Systemd User Service', type: 'service', stealthLevel: 'high', survivalRate: 'high', description: 'Create a user-level systemd service that runs on login' },
+   335→   335→                  { name: 'Cron Job with Encoding', type: 'scheduled', stealthLevel: 'medium', survivalRate: 'medium', description: 'Base64-encoded cron job that decodes and executes payload' },
+   336→   336→                  { name: 'SSH Authorized Keys', type: 'shell-profile', stealthLevel: 'high', survivalRate: 'high', description: 'Add SSH public key for passwordless re-entry' },
+   337→   337→                ],
+   338→   338→                recommendedMechanism: { name: 'SSH Authorized Keys', rationale: 'Highest stealth and survival rate — appears as legitimate admin access' },
+   339→   339→              },
+   340→   340→              operationalSecurity: {
+   341→   341→                antiForensics: [
+   342→   342→                  'Timestamp persistence artifacts to match surrounding files',
+   343→   343→                  'Use legitimate filenames and paths for any dropped files',
+   344→   344→                  'Avoid modifying system binaries — use user-space mechanisms',
+   345→   345→                ],
+   346→   346→                monitoringEvasion: [
+   347→   347→                  'Use living-off-the-land binaries for execution',
+   348→   348→                  'Avoid patterns that trigger behavioral detection rules',
+   349→   349→                  'Schedule activities during normal business hours',
+   350→   350→                ],
+   351→   351→              },
+   352→   352→              longevityEstimate: 'months',
+   353→   353→              detectionRisk: 'low',
+   354→   354→              status: 'persistence-planned',
+   355→   355→              timestamp: new Date().toISOString(),
+   356→   356→            },
+   357→   357→            metadata: { duration: Date.now() - startTime },
+   358→   358→          };
+   359→   359→        }
+   360→   360→
+   361→   361→        case 'craft-payload': {
+   362→   362→          const payloadType = config.payloadType || 'reverse-shell';
+   363→   363→          const targetOS = config.targetOS || 'linux';
+   364→   364→          const evasionLevel = config.evasionLevel || 'high';
+   365→   365→          const deliveryMethod = config.deliveryMethod || 'network';
+   366→   366→          this.logger.log(`Crafting ${payloadType} payload for ${targetOS} (evasion: ${evasionLevel})`);
+   367→   367→
+   368→   368→          const llmResult = await this.executeWithLLM(
+   369→   369→            `You are a payload crafting specialist. Generate a payload configuration with evasion techniques for the given parameters.
+   370→   370→Return JSON with:
+   371→   371→{
+   372→   372→  "payloadConfig": {
+   373→   373→    "type": "string",
+   374→   374→    "targetOS": "string",
+   375→   375→    "deliveryMethod": "string",
+   376→   376→    "encodingChain": ["array of encoding/encryption stages"],
+   377→   377→    "evasionTechniques": ["array of evasion methods applied"],
+   378→   378→    "executionStrategy": { "method": "string", "stagedExecution": boolean, "sleepBeforeExecution": number_ms }
+   379→   379→  },
+   380→   380→  "payloadCharacteristics": {
+   381→   381→    "size": "string (approximate)",
+   382→   382→    "entropy": "low|medium|high",
+   383→   383→    "fileType": "string",
+   384→   384→    "detectionRate": "string (estimated AV detection)"
+   385→   385→  },
+   386→   386→  "deliveryConfig": {
+   387→   387→    "wrapper": "string (file type wrapper for delivery)",
+   388→   388→    "socialEngineeringVector": "string",
+   389→   389→    "decoyContent": boolean
+   390→   390→  },
+   391→   391→  "operationalSafety": { "killDate": "string", "selfDestruct": boolean, "beaconInterval": "string" }
+   392→   392→}`,
+   393→   393→            `Craft payload: type=${payloadType}, OS=${targetOS}, evasion=${evasionLevel}, delivery=${deliveryMethod}`,
+   394→   394→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   395→   395→          );
+   396→   396→          const parsed = this.safeJsonParse(llmResult);
+   397→   397→
+   398→   398→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   399→   399→          return {
+   400→   400→            success: true,
+   401→   401→            data: parsed || {
+   402→   402→              action,
+   403→   403→              payloadConfig: {
+   404→   404→                type: payloadType,
+   405→   405→                targetOS,
+   406→   406→                deliveryMethod,
+   407→   407→                encodingChain: ['aes-256-encrypt', 'base64-encode', 'xor-obfuscate'],
+   408→   408→                evasionTechniques: ['sleep-timer-bypass', 'sandbox-detection', 'emulation-check', 'process-hollowing'],
+   409→   409→                executionStrategy: { method: 'in-memory', stagedExecution: true, sleepBeforeExecution: 15000 },
+   410→   410→              },
+   411→   411→              payloadCharacteristics: {
+   412→   412→                size: '~45KB (staged)',
+   413→   413→                entropy: 'medium',
+   414→   414→                fileType: 'ELF binary (Linux)',
+   415→   415→                detectionRate: '< 5/67 (estimated)',
+   416→   416→              },
+   417→   417→              deliveryConfig: {
+   418→   418→                wrapper: 'tar.gz archive with legitimate-looking names',
+   419→   419→                socialEngineeringVector: 'Software update package disguised as system utility',
+   420→   420→                decoyContent: true,
+   421→   421→              },
+   422→   422→              operationalSafety: { killDate: '2025-06-30', selfDestruct: true, beaconInterval: 'randomized 4-8 hours' },
+   423→   423→              status: 'payload-crafted',
+   424→   424→              timestamp: new Date().toISOString(),
+   425→   425→            },
+   426→   426→            metadata: { duration: Date.now() - startTime },
+   427→   427→          };
+   428→   428→        }
+   429→   429→
+   430→   430→        case 'evade-detection': {
+   431→   431→          const detectionSystem = config.detectionSystem || 'edr';
+   432→   432→          const evasionDepth = config.evasionDepth || 'comprehensive';
+   433→   433→          const currentDetection = config.currentDetection || 'none';
+   434→   434→          this.logger.log(`Planning detection evasion for ${detectionSystem} (depth: ${evasionDepth})`);
+   435→   435→
+   436→   436→          const llmResult = await this.executeWithLLM(
+   437→   437→            `You are a detection evasion specialist. Generate a comprehensive evasion strategy for bypassing security monitoring and detection systems.
+   438→   438→Return JSON with:
+   439→   439→{
+   440→   440→  "evasionStrategy": {
+   441→   441→    "targetSystem": "string",
+   442→   442→    "techniques": [
+   443→   443→      { "category": "string", "technique": "string", "effectiveness": "high|medium|low", "description": "string" }
+   444→   444→    ],
+   445→   445→    "behavioralEvasion": ["array of techniques to mimic legitimate behavior"],
+   446→   446→    "technicalEvasion": ["array of techniques to bypass technical detection"]
+   447→   447→  },
+   448→   448→  "implementationNotes": ["array of practical implementation details"],
+   449→   449→  "counterDetectionMeasures": ["array of measures to counter specific detection capabilities"],
+   450→   450→  "overallEvasionRating": number_0_to_100
+   451→   451→}`,
+   452→   452→            `Evade detection: system=${detectionSystem}, depth=${evasionDepth}, currentDetection=${currentDetection}`,
+   453→   453→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   454→   454→          );
+   455→   455→          const parsed = this.safeJsonParse(llmResult);
+   456→   456→
+   457→   457→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   458→   458→          return {
+   459→   459→            success: true,
+   460→   460→            data: parsed || {
+   461→   461→              action,
+   462→   462→              evasionStrategy: {
+   463→   463→                targetSystem: detectionSystem,
+   464→   464→                techniques: [
+   465→   465→                  { category: 'process', technique: 'Process hollowing', effectiveness: 'high', description: 'Inject code into legitimate process memory space' },
+   466→   466→                  { category: 'filesystem', technique: 'In-memory execution', effectiveness: 'high', description: 'Execute without writing to disk — avoid file-based detection' },
+   467→   467→                  { category: 'network', technique: 'Domain fronting', effectiveness: 'medium', description: 'Use CDN fronting to disguise C2 traffic' },
+   468→   468→                  { category: 'behavioral', technique: 'Living off the land', effectiveness: 'high', description: 'Use system-native tools and binaries for operations' },
+   469→   469→                  { category: 'timing', technique: 'Slow-and-low operations', effectiveness: 'high', description: 'Space out activities to avoid volume-based detection' },
+   470→   470→                ],
+   471→   471→                behavioralEvasion: [
+   472→   472→                  'Execute only during business hours matching local timezone',
+   473→   473→                  'Use realistic typing speed and mouse movement patterns',
+   474→   474→                  'Maintain normal process parent-child relationships',
+   475→   475→                  'Avoid rapid sequential suspicious actions',
+   476→   476→                ],
+   477→   477→                technicalEvasion: [
+   478→   478→                  'Unhook EDR userland API hooks before execution',
+   479→   479→                  'Use direct syscalls to bypass user-mode monitoring',
+   480→   480→                  'Encrypt all C2 communications with valid TLS certificates',
+   481→   481→                  'Implement process migration to move between processes',
+   482→   482→                ],
+   483→   483→              },
+   484→   484→              implementationNotes: [
+   485→   485→                'Test evasion in sandbox before production deployment',
+   486→   486→                'Verify syscalls match expected OS version behavior',
+   487→   487→                'Monitor own detection risk score during operations',
+   488→   488→              ],
+   489→   489→              counterDetectionMeasures: [
+   490→   490→                'Periodically re-validate EDR hook status',
+   491→   491→                'Rotate C2 infrastructure on detection of suspicious logging',
+   492→   492→                'Have immediate disconnect procedures if behavioral alerts trigger',
+   493→   493→              ],
+   494→   494→              overallEvasionRating: 88,
+   495→   495→              status: 'evasion-strategy-planned',
+   496→   496→              timestamp: new Date().toISOString(),
+   497→   497→            },
+   498→   498→            metadata: { duration: Date.now() - startTime },
+   499→   499→          };
+   500→   500→        }
+   501→   501→
+   502→   502→        default:
+   503→   503→          this.emitEvent(AgentEventType.AGENT_FAILED, { action, error: `Unknown action: ${action}` });
+   504→   504→          return { success: false, error: `Unknown action: ${action}` };
+   505→   505→      }
+   506→   506→    } catch (error: any) {
+   507→   507→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   508→   508→      return { success: false, error: error.message };
+   509→   509→    }
+   510→   510→  }
+   511→   511→}
+   512→   512→

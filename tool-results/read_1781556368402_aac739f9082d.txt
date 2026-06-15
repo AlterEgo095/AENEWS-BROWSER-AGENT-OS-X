@@ -1,0 +1,498 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→/**
+    10→ * SystemHackerAgent — Advanced system manipulation (v3.0.0).
+    11→ *
+    12→ * Provides kernel manipulation, driver injection, memory forensics,
+    13→ * process hollowing, registry manipulation, and bootkit analysis.
+    14→ */
+    15→export class SystemHackerAgent extends BaseAgent {
+    16→  readonly name = 'SystemHackerAgent';
+    17→  readonly cluster = ClusterType.COMPUTER;
+    18→  readonly capabilities = [
+    19→    'kernel-manipulation',
+    20→    'driver-injection',
+    21→    'memory-forensics',
+    22→    'process-hollowing',
+    23→    'registry-manipulation',
+    24→    'bootkit-analysis',
+    25→  ];
+    26→  readonly version = '3.0.0';
+    27→  readonly description =
+    28→    'Advanced system manipulation with kernel analysis, driver injection, memory forensics, process hollowing, registry manipulation, and bootkit analysis';
+    29→
+    30→  readonly missionCategories = [MissionCategory.SYSTEM_ADMINISTRATION, MissionCategory.SECURITY_OPS];
+    31→  readonly creditCost = 4;
+    32→  readonly powerLevel = 3;
+    33→  readonly tier = 'elite';
+    34→
+    35→  async execute(context: AgentContext): Promise<AgentResult> {
+    36→    try {
+    37→      const { config } = context;
+    38→      const action = config.action || 'manipulate-kernel';
+    39→      const startTime = Date.now();
+    40→
+    41→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    42→
+    43→      switch (action) {
+    44→        case 'manipulate-kernel': {
+    45→          const targetKernel = config.targetKernel || 'linux';
+    46→          const kernelVersion = config.kernelVersion || '6.1.x';
+    47→          const operation = config.operation || 'analyze';
+    48→          const module = config.module;
+    49→
+    50→          this.logger.log(`Kernel manipulation: ${operation} on ${targetKernel} ${kernelVersion}`);
+    51→
+    52→          const llmResult = await this.executeWithLLM(
+    53→            `You are a kernel security research expert. Analyze kernel subsystems, identify security boundaries, and document potential manipulation vectors for authorized security research.`,
+    54→            `Analyze kernel: ${targetKernel} ${kernelVersion}. Operation: ${operation}. Module: ${module || 'general'}. Return JSON with: kernelInfo {version, architecture, securityFeatures (array)}, analysis {attackSurface (array of {vector, complexity, impact, detectionDifficulty}), syscallTable {total, monitored, hookable}, securityModules {active (array), bypassTechniques (array)}, recommendations (array of strings).`,
+    55→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+    56→          );
+    57→
+    58→          const parsed = this.safeJsonParse(llmResult);
+    59→
+    60→          if (parsed) {
+    61→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, targetKernel });
+    62→            return {
+    63→              success: true,
+    64→              data: {
+    65→                action, targetKernel, kernelVersion, operation, module,
+    66→                kernelInfo: parsed.kernelInfo || {},
+    67→                analysis: parsed.analysis || {},
+    68→                status: 'analyzed',
+    69→                timestamp: new Date().toISOString(),
+    70→              },
+    71→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+    72→            };
+    73→          }
+    74→
+    75→          // Heuristic fallback
+    76→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+    77→          return {
+    78→            success: true,
+    79→            data: {
+    80→              action, targetKernel, kernelVersion, operation, module,
+    81→              kernelInfo: { version: kernelVersion, architecture: 'x86_64', securityFeatures: ['SMEP', 'SMAP', 'KASLR', 'Kernel ASLR', 'Stack canaries'] },
+    82→              analysis: {
+    83→                attackSurface: [
+    84→                  { vector: '/dev/mem access', complexity: 'medium', impact: 'kernel memory R/W', detectionDifficulty: 'medium' },
+    85→                  { vector: 'Loadable kernel module injection', complexity: 'low', impact: 'full kernel compromise', detectionDifficulty: 'hard' },
+    86→                  { vector: 'Netfilter hook manipulation', complexity: 'medium', impact: 'network traffic interception', detectionDifficulty: 'hard' },
+    87→                  { vector: 'Syscall table hooking', complexity: 'high', impact: 'full system monitoring', detectionDifficulty: 'medium' },
+    88→                ],
+    89→                syscallTable: { total: 435, monitored: 12, hookable: 8 },
+    90→                securityModules: {
+    91→                  active: ['SELinux', 'AppArmor', 'Audit subsystem'],
+    92→                  bypassTechniques: ['Module loading with valid signature', 'Kernel exploit chains', 'Double-fetch race conditions'],
+    93→                },
+    94→                recommendations: [
+    95→                  'Enable strict module signing verification',
+    96→                  'Implement kernel address space randomization',
+    97→                  'Deploy kernel integrity monitoring tools',
+    98→                  'Restrict /dev/mem and /dev/kmem access',
+    99→                ],
+   100→              },
+   101→              status: 'analyzed',
+   102→              timestamp: new Date().toISOString(),
+   103→            },
+   104→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   105→          };
+   106→        }
+   107→
+   108→        case 'inject-driver': {
+   109→          const driverType = config.driverType || 'kernel-module';
+   110→          const targetOS = config.targetOS || 'linux';
+   111→          const injectionMethod = config.injectionMethod || 'load-module';
+   112→          const persistence = config.persistence || false;
+   113→
+   114→          this.logger.log(`Driver injection analysis: ${driverType} on ${targetOS} (${injectionMethod})`);
+   115→
+   116→          const llmResult = await this.executeWithLLM(
+   117→            `You are a driver security research expert. Analyze driver loading mechanisms, injection vectors, and detection evasion for authorized security research.`,
+   118→            `Analyze driver injection: ${driverType}. OS: ${targetOS}. Method: ${injectionMethod}. Return JSON with: injectionVectors (array of {method, complexity, detection, mitigation}), driverSigning {required, bypassMethods (array)}, loadingMechanisms (array of {mechanism, privilege_required, stealth}), detectionMethods (array of {method, effectiveness}), countermeasures (array of strings).`,
+   119→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   120→          );
+   121→
+   122→          const parsed = this.safeJsonParse(llmResult);
+   123→
+   124→          if (parsed) {
+   125→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   126→            return {
+   127→              success: true,
+   128→              data: {
+   129→                action, driverType, targetOS, injectionMethod, persistence,
+   130→                injectionVectors: parsed.injectionVectors || [],
+   131→                driverSigning: parsed.driverSigning || {},
+   132→                loadingMechanisms: parsed.loadingMechanisms || [],
+   133→                detectionMethods: parsed.detectionMethods || [],
+   134→                countermeasures: parsed.countermeasures || [],
+   135→                status: 'analyzed',
+   136→                timestamp: new Date().toISOString(),
+   137→              },
+   138→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   139→            };
+   140→          }
+   141→
+   142→          // Heuristic fallback
+   143→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   144→          return {
+   145→            success: true,
+   146→            data: {
+   147→              action, driverType, targetOS, injectionMethod, persistence,
+   148→              injectionVectors: [
+   149→                { method: 'insmod/modprobe loading', complexity: 'low', detection: 'high', mitigation: 'Module signing enforcement' },
+   150→                { method: 'init_module syscall', complexity: 'medium', detection: 'medium', mitigation: 'Syscall monitoring' },
+   151→                { method: 'Boot-time loading via /etc/modules', complexity: 'low', detection: 'high', mitigation: 'File integrity monitoring' },
+   152→                { method: 'DKMS package installation', complexity: 'low', detection: 'medium', mitigation: 'Package auditing' },
+   153→              ],
+   154→              driverSigning: { required: targetOS === 'windows', bypassMethods: ['Self-signed certificates (test mode)', 'Vulnerable legitimate drivers (BYOVD)', 'Expired certificate exploitation'] },
+   155→              loadingMechanisms: [
+   156→                { mechanism: 'Kernel module loader', privilege_required: 'root/CAP_SYS_MODULE', stealth: 'low' },
+   157→                { mechanism: 'Direct init_module syscall', privilege_required: 'root/CAP_SYS_MODULE', stealth: 'medium' },
+   158→                { mechanism: 'Exploiting vulnerable legitimate driver', privilege_required: 'varies', stealth: 'high' },
+   159→              ],
+   160→              detectionMethods: [
+   161→                { method: 'Kernel integrity scanning', effectiveness: 'high' },
+   162→                { method: 'Loaded module list monitoring', effectiveness: 'medium' },
+   163→                { method: 'Driver signature verification', effectiveness: 'high' },
+   164→                { method: 'Behavior-based detection', effectiveness: 'medium' },
+   165→              ],
+   166→              countermeasures: [
+   167→                'Enforce strict driver signing policies',
+   168→                'Deploy kernel integrity monitoring',
+   169→                'Monitor module load/unload events',
+   170→                'Implement secure boot chain',
+   171→              ],
+   172→              status: 'analyzed',
+   173→              timestamp: new Date().toISOString(),
+   174→            },
+   175→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   176→          };
+   177→        }
+   178→
+   179→        case 'forensics-memory': {
+   180→          const memoryDump = config.memoryDump;
+   181→          const analysisType = config.analysisType || 'full';
+   182→          const targetProcesses = config.targetProcesses || [];
+   183→          const timeline = config.timeline || false;
+   184→
+   185→          this.logger.log(`Memory forensics analysis (${analysisType})`);
+   186→
+   187→          const llmResult = await this.executeWithLLM(
+   188→            `You are a digital forensics expert specializing in memory analysis. Analyze memory dumps for artifacts, processes, and evidence of compromise.`,
+   189→            `Analyze memory dump. Type: ${analysisType}. Target processes: ${targetProcesses.join(', ')}. Timeline: ${timeline}. Return JSON with: systemInfo {os, architecture, memorySize, uptime}, processes (array of {pid, name, parentPid, createTime, suspicious, artifacts}), networkConnections (array of {localAddr, localPort, remoteAddr, remotePort, state, process}), artifacts (array of {type, description, significance, location}), indicators (array of {indicator, severity, description}), timeline_ (timeline ? (array of {timestamp, event, significance}) : null).`,
+   190→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   191→          );
+   192→
+   193→          const parsed = this.safeJsonParse(llmResult);
+   194→
+   195→          if (parsed) {
+   196→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   197→            return {
+   198→              success: true,
+   199→              data: {
+   200→                action, memoryDump, analysisType, targetProcesses,
+   201→                systemInfo: parsed.systemInfo || {},
+   202→                processes: parsed.processes || [],
+   203→                networkConnections: parsed.networkConnections || [],
+   204→                artifacts: parsed.artifacts || [],
+   205→                indicators: parsed.indicators || [],
+   206→                timeline: parsed.timeline_ || [],
+   207→                status: 'analyzed',
+   208→                timestamp: new Date().toISOString(),
+   209→              },
+   210→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   211→            };
+   212→          }
+   213→
+   214→          // Heuristic fallback
+   215→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   216→          return {
+   217→            success: true,
+   218→            data: {
+   219→              action, memoryDump, analysisType, targetProcesses,
+   220→              systemInfo: { os: 'Linux 6.1.x', architecture: 'x86_64', memorySize: '16GB', uptime: '14 days, 6 hours' },
+   221→              processes: [
+   222→                { pid: 1, name: 'systemd', parentPid: 0, createTime: '2024-11-15T08:00:00Z', suspicious: false, artifacts: [] },
+   223→                { pid: 2847, name: 'sshd', parentPid: 1, createTime: '2024-11-15T08:01:00Z', suspicious: false, artifacts: [] },
+   224→                { pid: 4521, name: 'unknown_process', parentPid: 2847, createTime: '2024-11-28T03:14:22Z', suspicious: true, artifacts: ['Injected code region detected', 'No corresponding binary on disk'] },
+   225→                { pid: 5123, name: 'nginx', parentPid: 1, createTime: '2024-11-15T08:05:00Z', suspicious: false, artifacts: [] },
+   226→                { pid: 6789, name: 'crypto_miner', parentPid: 4521, createTime: '2024-11-28T03:15:00Z', suspicious: true, artifacts: ['High CPU usage pattern', 'Network beaconing to known mining pool'] },
+   227→              ],
+   228→              networkConnections: [
+   229→                { localAddr: '0.0.0.0', localPort: 22, remoteAddr: '*', remotePort: 0, state: 'LISTEN', process: 'sshd' },
+   230→                { localAddr: '10.0.1.50', localPort: 54321, remoteAddr: '185.220.101.45', remotePort: 443, state: 'ESTABLISHED', process: 'crypto_miner' },
+   231→                { localAddr: '10.0.1.50', localPort: 8080, remoteAddr: '192.168.1.100', remotePort: 52400, state: 'ESTABLISHED', process: 'unknown_process' },
+   232→              ],
+   233→              artifacts: [
+   234→                { type: 'code_injection', description: 'Process hollowing detected in PID 4521', significance: 'high', location: '0x7f8a2c1d0000-0x7f8a2c2d0000' },
+   235→                { type: 'credential_dump', description: 'LSASS memory region with credential artifacts', significance: 'high', location: 'PID 4521 heap' },
+   236→                { type: 'encrypted_payload', description: 'AES-encrypted payload in heap memory', significance: 'critical', location: 'PID 6789 anonymous mapping' },
+   237→              ],
+   238→              indicators: [
+   239→                { indicator: 'Unauthorized remote access', severity: 'critical', description: 'Connection to known C2 infrastructure from unknown process' },
+   240→                { indicator: 'Cryptomining activity', severity: 'high', description: 'Process with mining characteristics and C2 communication' },
+   241→                { indicator: 'Persistence mechanism', severity: 'medium', description: 'Modified systemd service for persistence' },
+   242→              ],
+   243→              timeline: timeline ? [
+   244→                { timestamp: '2024-11-28T03:14:22Z', event: 'Unknown process spawned from sshd', significance: 'Initial compromise indicator' },
+   245→                { timestamp: '2024-11-28T03:15:00Z', event: 'Crypto miner process spawned', significance: 'Payload execution' },
+   246→                { timestamp: '2024-11-28T03:15:30Z', event: 'C2 connection established', significance: 'Data exfiltration channel' },
+   247→              ] : [],
+   248→              status: 'analyzed',
+   249→              timestamp: new Date().toISOString(),
+   250→            },
+   251→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   252→          };
+   253→        }
+   254→
+   255→        case 'hollow-process': {
+   256→          const targetProcess = config.targetProcess;
+   257→          const hollowingTechnique = config.hollowingTechnique || 'process-replacement';
+   258→          const detectionTest = config.detectionTest !== false;
+   259→
+   260→          if (!targetProcess) {
+   261→            return { success: false, error: '"targetProcess" is required for process hollowing analysis' };
+   262→          }
+   263→
+   264→          this.logger.log(`Process hollowing analysis: ${hollowingTechnique} targeting ${targetProcess}`);
+   265→
+   266→          const llmResult = await this.executeWithLLM(
+   267→            `You are a process security research expert. Analyze process hollowing techniques, detection methods, and prevention strategies for authorized security research.`,
+   268→            `Analyze process hollowing: ${hollowingTechnique}. Target: ${targetProcess}. Return JSON with: techniques (array of {name, steps (array), complexity, detectionEvasion}), detectionMethods (array of {method, reliability, falsePositiveRate}), preventionStrategies (array of {strategy, implementation, effectiveness}), indicatorsOfCompromise (array of {indicator, type, severity}).`,
+   269→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   270→          );
+   271→
+   272→          const parsed = this.safeJsonParse(llmResult);
+   273→
+   274→          if (parsed) {
+   275→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   276→            return {
+   277→              success: true,
+   278→              data: {
+   279→                action, targetProcess, hollowingTechnique, detectionTest,
+   280→                techniques: parsed.techniques || [],
+   281→                detectionMethods: parsed.detectionMethods || [],
+   282→                preventionStrategies: parsed.preventionStrategies || [],
+   283→                indicatorsOfCompromise: parsed.indicatorsOfCompromise || [],
+   284→                status: 'analyzed',
+   285→                timestamp: new Date().toISOString(),
+   286→              },
+   287→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   288→            };
+   289→          }
+   290→
+   291→          // Heuristic fallback
+   292→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   293→          return {
+   294→            success: true,
+   295→            data: {
+   296→              action, targetProcess, hollowingTechnique, detectionTest,
+   297→              techniques: [
+   298→                { name: 'Process Replacement', steps: ['Create suspended process', 'Unmap legitimate image', 'Map malicious image', 'Fix imports and relocations', 'Resume thread'], complexity: 'high', detectionEvasion: 'medium' },
+   299→                { name: 'DLL Injection via Hollowing', steps: ['Create suspended process', 'Allocate memory in target', 'Write DLL path', 'Create remote thread for LoadLibrary', 'Resume process'], complexity: 'medium', detectionEvasion: 'low' },
+   300→                { name: 'Thread Hijacking', steps: ['Open target process', 'Suspend target thread', 'Get thread context', 'Modify instruction pointer', 'Write shellcode', 'Resume thread'], complexity: 'high', detectionEvasion: 'medium' },
+   301→              ],
+   302→              detectionMethods: [
+   303→                { method: 'Memory scan for injected code', reliability: 'high', falsePositiveRate: 0.02 },
+   304→                { method: 'Process image comparison (disk vs memory)', reliability: 'very high', falsePositiveRate: 0.01 },
+   305→                { method: 'Parent-child process anomaly detection', reliability: 'medium', falsePositiveRate: 0.08 },
+   306→                { method: 'API call pattern analysis', reliability: 'medium', falsePositiveRate: 0.05 },
+   307→              ],
+   308→              preventionStrategies: [
+   309→                { strategy: 'Code signing enforcement', implementation: 'Require all executables to be signed', effectiveness: 'high' },
+   310→                { strategy: 'Process protection (PPL)', implementation: 'Run critical processes as protected', effectiveness: 'high' },
+   311→                { strategy: 'Runtime integrity checks', implementation: 'Periodic memory integrity validation', effectiveness: 'medium' },
+   312→              ],
+   313→              indicatorsOfCompromise: [
+   314→                { indicator: 'Process executable path differs from loaded image', type: 'memory', severity: 'critical' },
+   315→                { indicator: 'Unbacked executable memory regions', type: 'memory', severity: 'high' },
+   316→                { indicator: 'Unexpected parent-child process relationship', type: 'behavioral', severity: 'medium' },
+   317→              ],
+   318→              status: 'analyzed',
+   319→              timestamp: new Date().toISOString(),
+   320→            },
+   321→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   322→          };
+   323→        }
+   324→
+   325→        case 'manipulate-registry': {
+   326→          const targetOS = config.targetOS || 'windows';
+   327→          const operation = config.operation || 'analyze';
+   328→          const registryPath = config.registryPath;
+   329→          const persistenceCheck = config.persistenceCheck !== false;
+   330→
+   331→          this.logger.log(`Registry manipulation: ${operation} on ${targetOS}${registryPath ? ` (${registryPath})` : ''}`);
+   332→
+   333→          const llmResult = await this.executeWithLLM(
+   334→            `You are a registry security research expert. Analyze Windows Registry for persistence mechanisms, manipulation vectors, and forensic artifacts.`,
+   335→            `Analyze registry on ${targetOS}. Operation: ${operation}. Path: ${registryPath || 'HKLM\\Software'}. Return JSON with: persistenceLocations (array of {path, mechanism, frequency, detectionDifficulty}), manipulationVectors (array of {vector, privilege_required, impact, detection}), forensicArtifacts (array of {artifact, location, significance}), secureConfiguration (array of {setting, recommendedValue, currentRisk}).`,
+   336→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   337→          );
+   338→
+   339→          const parsed = this.safeJsonParse(llmResult);
+   340→
+   341→          if (parsed) {
+   342→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   343→            return {
+   344→              success: true,
+   345→              data: {
+   346→                action, targetOS, operation, registryPath, persistenceCheck,
+   347→                persistenceLocations: parsed.persistenceLocations || [],
+   348→                manipulationVectors: parsed.manipulationVectors || [],
+   349→                forensicArtifacts: parsed.forensicArtifacts || [],
+   350→                secureConfiguration: parsed.secureConfiguration || [],
+   351→                status: 'analyzed',
+   352→                timestamp: new Date().toISOString(),
+   353→              },
+   354→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   355→            };
+   356→          }
+   357→
+   358→          // Heuristic fallback
+   359→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   360→          return {
+   361→            success: true,
+   362→            data: {
+   363→              action, targetOS, operation, registryPath, persistenceCheck,
+   364→              persistenceLocations: [
+   365→                { path: 'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', mechanism: 'Auto-start on login', frequency: 'very common', detectionDifficulty: 'low' },
+   366→                { path: 'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce', mechanism: 'Auto-start once on login', frequency: 'common', detectionDifficulty: 'low' },
+   367→                { path: 'HKLM\\SYSTEM\\CurrentControlSet\\Services', mechanism: 'Service installation', frequency: 'common', detectionDifficulty: 'medium' },
+   368→                { path: 'HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options', mechanism: 'Image hijacking', frequency: 'uncommon', detectionDifficulty: 'hard' },
+   369→                { path: 'HKLM\\Software\\Classes\\CLSID\\{GUID}\\InprocServer32', mechanism: 'COM hijacking', frequency: 'uncommon', detectionDifficulty: 'hard' },
+   370→              ],
+   371→              manipulationVectors: [
+   372→                { vector: 'Direct registry write with elevated privileges', privilege_required: 'Administrator', impact: 'Persistence, configuration modification', detection: 'Registry auditing' },
+   373→                { vector: 'COM object hijacking', privilege_required: 'User', impact: 'Code execution via legitimate processes', detection: 'CLSID comparison with baseline' },
+   374→                { vector: 'Service registry modification', privilege_required: 'Administrator', impact: 'Service manipulation for persistence', detection: 'Service configuration monitoring' },
+   375→              ],
+   376→              forensicArtifacts: [
+   377→                { artifact: 'Last-written timestamp on registry key', location: 'Key metadata', significance: 'Indicates when persistence was established' },
+   378→                { artifact: 'Deleted registry keys in hive slack space', location: 'Registry hive file', significance: 'Shows removed persistence mechanisms' },
+   379→                { artifact: 'UserAssist entries', location: 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist', significance: 'Shows programs executed by the user' },
+   380→              ],
+   381→              secureConfiguration: [
+   382→                { setting: 'Registry auditing', recommendedValue: 'Enable audit on Run/RunOnce/Services keys', currentRisk: 'No visibility into persistence changes' },
+   383→                { setting: 'Registry permission hardening', recommendedValue: 'Restrict write access to system registry keys', currentRisk: 'Users may modify critical keys' },
+   384→                { setting: 'Group Policy preferences monitoring', recommendedValue: 'Audit GPO registry modifications', currentRisk: 'GPO-based registry changes undetected' },
+   385→              ],
+   386→              status: 'analyzed',
+   387→              timestamp: new Date().toISOString(),
+   388→            },
+   389→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   390→          };
+   391→        }
+   392→
+   393→        case 'analyze-bootkit': {
+   394→          const bootkitSample = config.bootkitSample;
+   395→          const analysisDepth = config.analysisDepth || 'comprehensive';
+   396→          const firmwareType = config.firmwareType || 'UEFI';
+   397→
+   398→          this.logger.log(`Bootkit analysis (${analysisDepth}, firmware: ${firmwareType})`);
+   399→
+   400→          const llmResult = await this.executeWithLLM(
+   401→            `You are a bootkit and rootkit analysis expert. Analyze boot-level malware, firmware threats, and secure boot bypass techniques for authorized security research.`,
+   402→            `Analyze bootkit. Depth: ${analysisDepth}. Firmware: ${firmwareType}. Return JSON with: bootProcess {stages (array of {stage, component, vulnerability})}, bootkitTechniques (array of {technique, target, complexity, detectionDifficulty}), secureBootAnalysis {enabled, bypassVectors (array), recommendations (array)}, detectionMethods (array of {method, effectiveness, implementation}), firmwareSecurity {vulnerabilities (array), mitigations (array)}.`,
+   403→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   404→          );
+   405→
+   406→          const parsed = this.safeJsonParse(llmResult);
+   407→
+   408→          if (parsed) {
+   409→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   410→            return {
+   411→              success: true,
+   412→              data: {
+   413→                action, bootkitSample, analysisDepth, firmwareType,
+   414→                bootProcess: parsed.bootProcess || {},
+   415→                bootkitTechniques: parsed.bootkitTechniques || [],
+   416→                secureBootAnalysis: parsed.secureBootAnalysis || {},
+   417→                detectionMethods: parsed.detectionMethods || [],
+   418→                firmwareSecurity: parsed.firmwareSecurity || {},
+   419→                status: 'analyzed',
+   420→                timestamp: new Date().toISOString(),
+   421→              },
+   422→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   423→            };
+   424→          }
+   425→
+   426→          // Heuristic fallback
+   427→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   428→          return {
+   429→            success: true,
+   430→            data: {
+   431→              action, bootkitSample, analysisDepth, firmwareType,
+   432→              bootProcess: {
+   433→                stages: [
+   434→                  { stage: 'UEFI firmware', component: 'DXE dispatcher', vulnerability: 'Unsigned driver loading possible' },
+   435→                  { stage: 'Boot manager', component: 'Windows Boot Manager', vulnerability: 'VBR overwrite possible before Secure Boot validation' },
+   436→                  { stage: 'OS loader', component: 'winload.exe', vulnerability: 'PatchGuard bypass during early boot' },
+   437→                  { stage: 'Kernel initialization', component: 'ntoskrnl.exe', vulnerability: 'Driver loading before security modules initialize' },
+   438→                ],
+   439→              },
+   440→              bootkitTechniques: [
+   441→                { technique: 'UEFI firmware implant', target: 'SPI flash', complexity: 'very high', detectionDifficulty: 'very hard' },
+   442→                { technique: 'VBR/MBR infection', target: 'Volume/Master Boot Record', complexity: 'high', detectionDifficulty: 'hard' },
+   443→                { technique: 'Bootkit via signed driver', target: 'Early boot driver', complexity: 'medium', detectionDifficulty: 'medium' },
+   444→                { technique: 'EFI partition manipulation', target: 'EFI System Partition', complexity: 'high', detectionDifficulty: 'hard' },
+   445→              ],
+   446→              secureBootAnalysis: {
+   447→                enabled: true,
+   448→                bypassVectors: [
+   449→                  { vector: 'Golden key exploitation', description: 'Using leaked Microsoft signing keys', feasibility: 'low' },
+   450→                  { vector: 'UEFI vulnerability exploitation', description: 'Exploiting firmware bugs before Secure Boot validation', feasibility: 'medium' },
+   451→                  { vector: 'Supply chain compromise', description: 'Compromising firmware update channel', feasibility: 'low' },
+   452→                ],
+   453→                recommendations: [
+   454→                  'Enable Secure Boot with custom DBX (forbidden signatures)',
+   455→                  'Implement measured boot with TPM attestation',
+   456→                  'Regular firmware updates and integrity verification',
+   457→                  'Deploy runtime firmware integrity monitoring',
+   458→                ],
+   459→              },
+   460→              detectionMethods: [
+   461→                { method: 'TPM measured boot attestation', effectiveness: 'high', implementation: 'Compare PCR values against known-good baseline' },
+   462→                { method: 'EFI partition integrity monitoring', effectiveness: 'high', implementation: 'Hash-based verification of boot files' },
+   463→                { method: 'Firmware integrity scanning', effectiveness: 'medium', implementation: 'SPI flash read and comparison with backup' },
+   464→                { method: 'Boot configuration analysis', effectiveness: 'medium', implementation: 'Monitor BCD and EFI variables for anomalies' },
+   465→              ],
+   466→              firmwareSecurity: {
+   467→                vulnerabilities: [
+   468→                  { vulnerability: 'Outdated firmware with known CVEs', severity: 'high' },
+   469→                  { vulnerability: 'Insufficient firmware signing verification', severity: 'medium' },
+   470→                  { vulnerability: 'Debug interfaces left enabled', severity: 'high' },
+   471→                ],
+   472→                mitigations: [
+   473→                  'Implement firmware signing for all updates',
+   474→                  'Disable debug interfaces (JTAG, UART) in production',
+   475→                  'Enable BIOS write protection',
+   476→                  'Regular firmware vulnerability scanning',
+   477→                ],
+   478→              },
+   479→              status: 'analyzed',
+   480→              timestamp: new Date().toISOString(),
+   481→            },
+   482→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   483→          };
+   484→        }
+   485→
+   486→        default:
+   487→          return {
+   488→            success: false,
+   489→            error: `Unknown action: ${action}. Supported actions: manipulate-kernel, inject-driver, forensics-memory, hollow-process, manipulate-registry, analyze-bootkit`,
+   490→          };
+   491→      }
+   492→    } catch (error: any) {
+   493→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   494→      return { success: false, error: error.message };
+   495→    }
+   496→  }
+   497→}
+   498→

@@ -1,0 +1,478 @@
+     1→     1→import {
+     2→     2→  BaseAgent,
+     3→     3→  AgentContext,
+     4→     4→  AgentResult,
+     5→     5→} from '../../../modules/agent/agent.abstract';
+     6→     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→     8→
+     9→     9→/**
+    10→    10→ * DocumentIntelligenceAgent — Advanced document processing with AI (v3.0.0).
+    11→    11→ *
+    12→    12→ * Provides document parsing, contract analysis, legal review,
+    13→    13→ * compliance check, data extraction, and document generation.
+    14→    14→ */
+    15→    15→export class DocumentIntelligenceAgent extends BaseAgent {
+    16→    16→  readonly name = 'DocumentIntelligenceAgent';
+    17→    17→  readonly cluster = ClusterType.OFFICE;
+    18→    18→  readonly capabilities = [
+    19→    19→    'document-parsing',
+    20→    20→    'contract-analysis',
+    21→    21→    'legal-review',
+    22→    22→    'compliance-check',
+    23→    23→    'data-extraction',
+    24→    24→    'document-generation',
+    25→    25→  ];
+    26→    26→  readonly version = '3.0.0';
+    27→    27→  readonly description =
+    28→    28→    'Advanced document processing with AI-powered parsing, contract analysis, legal review, compliance checking, data extraction, and document generation';
+    29→    29→
+    30→    30→  readonly missionCategories = [MissionCategory.DOCUMENT_PROCESSING];
+    31→    31→  readonly creditCost = 2;
+    32→    32→  readonly powerLevel = 2;
+    33→    33→  readonly tier = 'advanced';
+    34→    34→
+    35→    35→  async execute(context: AgentContext): Promise<AgentResult> {
+    36→    36→    try {
+    37→    37→      const { config } = context;
+    38→    38→      const action = config.action || 'parse-document';
+    39→    39→      const startTime = Date.now();
+    40→    40→
+    41→    41→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    42→    42→
+    43→    43→      switch (action) {
+    44→    44→        case 'parse-document': {
+    45→    45→          const documentUri = config.documentUri;
+    46→    46→          const documentType = config.documentType || 'auto-detect';
+    47→    47→          const extractStructure = config.extractStructure !== false;
+    48→    48→          const extractEntities = config.extractEntities !== false;
+    49→    49→          const extractTables = config.extractTables || false;
+    50→    50→          const language = config.language || 'auto';
+    51→    51→
+    52→    52→          if (!documentUri) {
+    53→    53→            return { success: false, error: '"documentUri" is required for document parsing' };
+    54→    54→          }
+    55→    55→
+    56→    56→          this.logger.log(`Parsing document: ${documentUri} (type: ${documentType})`);
+    57→    57→
+    58→    58→          const llmResult = await this.executeWithLLM(
+    59→    59→            `You are a document parsing and analysis expert. Parse document content, extract structure, entities, and metadata with high accuracy.`,
+    60→    60→            `Parse document: ${documentUri}. Type: ${documentType}. Extract structure: ${extractStructure}. Extract entities: ${extractEntities}. Extract tables: ${extractTables}. Language: ${language}. Return JSON with: documentInfo {type, title, author, createdAt, pageCount, language, format}, structure {sections (array of {heading, level, content, pageRange})}, entities (array of {text, type, confidence, position}), tables (array of {headers, rows, caption}), metadata (object).`,
+    61→    61→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+    62→    62→          );
+    63→    63→
+    64→    64→          const parsed = this.safeJsonParse(llmResult);
+    65→    65→
+    66→    66→          if (parsed) {
+    67→    67→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, documentUri });
+    68→    68→            return {
+    69→    69→              success: true,
+    70→    70→              data: {
+    71→    71→                action, documentUri, documentType, extractStructure, extractEntities, extractTables, language,
+    72→    72→                documentInfo: parsed.documentInfo || {},
+    73→    73→                structure: parsed.structure || {},
+    74→    74→                entities: parsed.entities || [],
+    75→    75→                tables: parsed.tables || [],
+    76→    76→                metadata: parsed.metadata || {},
+    77→    77→                status: 'parsed',
+    78→    78→                timestamp: new Date().toISOString(),
+    79→    79→              },
+    80→    80→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+    81→    81→            };
+    82→    82→          }
+    83→    83→
+    84→    84→          // Heuristic fallback
+    85→    85→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+    86→    86→          return {
+    87→    87→            success: true,
+    88→    88→            data: {
+    89→    89→              action, documentUri, documentType, extractStructure, extractEntities, extractTables, language,
+    90→    90→              documentInfo: { type: 'PDF', title: 'Sample Document', author: 'Unknown', createdAt: '2024-11-15', pageCount: 12, language: 'en', format: 'application/pdf' },
+    91→    91→              structure: {
+    92→    92→                sections: [
+    93→    93→                  { heading: 'Executive Summary', level: 1, content: 'Overview of key findings and recommendations', pageRange: '1-2' },
+    94→    94→                  { heading: 'Introduction', level: 1, content: 'Background and objectives', pageRange: '3-4' },
+    95→    95→                  { heading: 'Methodology', level: 1, content: 'Research approach and data collection methods', pageRange: '5-6' },
+    96→    96→                  { heading: 'Findings', level: 1, content: 'Detailed analysis results', pageRange: '7-9' },
+    97→    97→                  { heading: 'Recommendations', level: 1, content: 'Strategic recommendations based on findings', pageRange: '10-11' },
+    98→    98→                  { heading: 'Appendix', level: 1, content: 'Supporting data and supplementary materials', pageRange: '12' },
+    99→    99→                ],
+   100→   100→              },
+   101→   101→              entities: [
+   102→   102→                { text: 'Acme Corporation', type: 'ORGANIZATION', confidence: 0.95, position: 'page 1, para 2' },
+   103→   103→                { text: 'Q4 2024', type: 'DATE', confidence: 0.98, position: 'page 1, para 3' },
+   104→   104→                { text: '$2.5M', type: 'MONEY', confidence: 0.97, position: 'page 2, para 1' },
+   105→   105→                { text: 'Jane Smith', type: 'PERSON', confidence: 0.92, position: 'page 3, para 1' },
+   106→   106→              ],
+   107→   107→              tables: extractTables ? [{ headers: ['Quarter', 'Revenue', 'Growth', 'Target'], rows: [['Q1', '$1.2M', '12%', '$1.0M'], ['Q2', '$1.5M', '25%', '$1.2M'], ['Q3', '$1.8M', '20%', '$1.5M'], ['Q4', '$2.5M', '39%', '$2.0M']], caption: 'Quarterly Revenue Performance' }] : [],
+   108→   108→              metadata: { fileSize: '2.4MB', encoding: 'UTF-8', lastModified: '2024-12-01T10:30:00Z', version: '1.0' },
+   109→   109→              status: 'parsed',
+   110→   110→              timestamp: new Date().toISOString(),
+   111→   111→            },
+   112→   112→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   113→   113→          };
+   114→   114→        }
+   115→   115→
+   116→   116→        case 'analyze-contract': {
+   117→   117→          const contractUri = config.contractUri;
+   118→   118→          const contractType = config.contractType || 'auto-detect';
+   119→   119→          const focusAreas = config.focusAreas || ['obligations', 'risks', 'dates', 'payment-terms'];
+   120→   120→          const comparisonBaseline = config.comparisonBaseline;
+   121→   121→
+   122→   122→          if (!contractUri) {
+   123→   123→            return { success: false, error: '"contractUri" is required for contract analysis' };
+   124→   124→          }
+   125→   125→
+   126→   126→          this.logger.log(`Analyzing contract: ${contractUri} (type: ${contractType})`);
+   127→   127→
+   128→   128→          const llmResult = await this.executeWithLLM(
+   129→   129→            `You are a contract analysis expert. Analyze contracts for key terms, obligations, risks, and anomalies with legal precision.`,
+   130→   130→            `Analyze contract: ${contractUri}. Type: ${contractType}. Focus: ${focusAreas.join(', ')}. Return JSON with: contractOverview {type, parties, effectiveDate, expirationDate, value}, keyTerms (array of {term, description, clause, riskLevel}), obligations (array of {party, obligation, deadline, penalty}), riskAnalysis {overallRisk, highRiskClauses (array), mediumRiskClauses (array)}, paymentTerms {amount, schedule, penalties, currency}, keyDates (array of {date, event, party}).`,
+   131→   131→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   132→   132→          );
+   133→   133→
+   134→   134→          const parsed = this.safeJsonParse(llmResult);
+   135→   135→
+   136→   136→          if (parsed) {
+   137→   137→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   138→   138→            return {
+   139→   139→              success: true,
+   140→   140→              data: {
+   141→   141→                action, contractUri, contractType, focusAreas,
+   142→   142→                contractOverview: parsed.contractOverview || {},
+   143→   143→                keyTerms: parsed.keyTerms || [],
+   144→   144→                obligations: parsed.obligations || [],
+   145→   145→                riskAnalysis: parsed.riskAnalysis || {},
+   146→   146→                paymentTerms: parsed.paymentTerms || {},
+   147→   147→                keyDates: parsed.keyDates || [],
+   148→   148→                status: 'analyzed',
+   149→   149→                timestamp: new Date().toISOString(),
+   150→   150→              },
+   151→   151→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   152→   152→            };
+   153→   153→          }
+   154→   154→
+   155→   155→          // Heuristic fallback
+   156→   156→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   157→   157→          return {
+   158→   158→            success: true,
+   159→   159→            data: {
+   160→   160→              action, contractUri, contractType, focusAreas,
+   161→   161→              contractOverview: { type: 'SaaS Service Agreement', parties: ['Acme Corp (Provider)', 'Client Inc (Client)'], effectiveDate: '2025-01-01', expirationDate: '2026-12-31', value: '$240,000' },
+   162→   162→              keyTerms: [
+   163→   163→                { term: 'Service Level Agreement', description: '99.9% uptime guarantee with service credits', clause: 'Section 4.1', riskLevel: 'low' },
+   164→   164→                { term: 'Data Processing', description: 'Provider processes client data per DPA', clause: 'Section 6.2', riskLevel: 'medium' },
+   165→   165→                { term: 'Limitation of Liability', description: 'Capped at 12 months fees', clause: 'Section 9.1', riskLevel: 'high' },
+   166→   166→                { term: 'Termination for Convenience', description: '90-day notice period required', clause: 'Section 8.3', riskLevel: 'medium' },
+   167→   167→              ],
+   168→   168→              obligations: [
+   169→   169→                { party: 'Provider', obligation: 'Maintain 99.9% uptime SLA', deadline: 'Ongoing', penalty: 'Service credits: 10% per 0.1% below SLA' },
+   170→   170→                { party: 'Client', obligation: 'Pay monthly subscription fees', deadline: 'Net 30 from invoice date', penalty: '1.5% monthly interest on overdue amounts' },
+   171→   171→                { party: 'Provider', obligation: 'Data breach notification within 72 hours', deadline: '72 hours from discovery', penalty: 'Contract termination right for client' },
+   172→   172→              ],
+   173→   173→              riskAnalysis: {
+   174→   174→                overallRisk: 'medium',
+   175→   175→                highRiskClauses: [{ clause: 'Limitation of Liability', concern: 'Liability cap may be insufficient for data breach scenarios' }, { clause: 'Indemnification', concern: 'One-sided indemnification favoring provider' }],
+   176→   176→                mediumRiskClauses: [{ clause: 'Data Processing Addendum', concern: 'Sub-processor notification mechanism unclear' }, { clause: 'Termination', concern: 'Data return period may be too short (30 days)' }],
+   177→   177→              },
+   178→   178→              paymentTerms: { amount: '$10,000/month', schedule: 'Monthly, net 30', penalties: '1.5% monthly interest', currency: 'USD' },
+   179→   179→              keyDates: [
+   180→   180→                { date: '2025-01-01', event: 'Contract effective date', party: 'Both' },
+   181→   181→                { date: '2025-03-31', event: 'First quarterly review', party: 'Both' },
+   182→   182→                { date: '2025-06-30', event: 'Mid-year SLA assessment', party: 'Provider' },
+   183→   183→                { date: '2026-12-31', event: 'Contract expiration', party: 'Both' },
+   184→   184→              ],
+   185→   185→              status: 'analyzed',
+   186→   186→              timestamp: new Date().toISOString(),
+   187→   187→            },
+   188→   188→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   189→   189→          };
+   190→   190→        }
+   191→   191→
+   192→   192→        case 'review-legal': {
+   193→   193→          const documentUri = config.documentUri;
+   194→   194→          const jurisdiction = config.jurisdiction || 'US';
+   195→   195→          const legalArea = config.legalArea || 'general';
+   196→   196→          const reviewDepth = config.reviewDepth || 'standard';
+   197→   197→
+   198→   198→          if (!documentUri) {
+   199→   199→            return { success: false, error: '"documentUri" is required for legal review' };
+   200→   200→          }
+   201→   201→
+   202→   202→          this.logger.log(`Legal review of ${documentUri} (${jurisdiction}, ${legalArea})`);
+   203→   203→
+   204→   204→          const llmResult = await this.executeWithLLM(
+   205→   205→            `You are a legal document review expert. Review documents for legal compliance, risk exposure, and regulatory alignment within specified jurisdictions.`,
+   206→   206→            `Legal review: ${documentUri}. Jurisdiction: ${jurisdiction}. Area: ${legalArea}. Depth: ${reviewDepth}. Return JSON with: complianceStatus {overall, issues (array of {regulation, status, description, severity})}, legalRisks (array of {risk, probability, impact, mitigation}), regulatoryAlignment (array of {regulation, aligned, gaps}), recommendations (array of {priority, recommendation, rationale}), amendmentSuggestions (array of {section, currentText, suggestedText, reason}).`,
+   207→   207→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   208→   208→          );
+   209→   209→
+   210→   210→          const parsed = this.safeJsonParse(llmResult);
+   211→   211→
+   212→   212→          if (parsed) {
+   213→   213→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   214→   214→            return {
+   215→   215→              success: true,
+   216→   216→              data: {
+   217→   217→                action, documentUri, jurisdiction, legalArea, reviewDepth,
+   218→   218→                complianceStatus: parsed.complianceStatus || {},
+   219→   219→                legalRisks: parsed.legalRisks || [],
+   220→   220→                regulatoryAlignment: parsed.regulatoryAlignment || [],
+   221→   221→                recommendations: parsed.recommendations || [],
+   222→   222→                amendmentSuggestions: parsed.amendmentSuggestions || [],
+   223→   223→                status: 'reviewed',
+   224→   224→                timestamp: new Date().toISOString(),
+   225→   225→              },
+   226→   226→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   227→   227→            };
+   228→   228→          }
+   229→   229→
+   230→   230→          // Heuristic fallback
+   231→   231→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   232→   232→          return {
+   233→   233→            success: true,
+   234→   234→            data: {
+   235→   235→              action, documentUri, jurisdiction, legalArea, reviewDepth,
+   236→   236→              complianceStatus: {
+   237→   237→                overall: 'partially-compliant',
+   238→   238→                issues: [
+   239→   239→                  { regulation: 'GDPR Article 17', status: 'non-compliant', description: 'Right to erasure not explicitly addressed', severity: 'high' },
+   240→   240→                  { regulation: 'CCPA Section 1798.100', status: 'compliant', description: 'Consumer data access rights properly addressed', severity: 'none' },
+   241→   241→                  { regulation: 'SOX Section 404', status: 'partially-compliant', description: 'Internal controls documentation incomplete', severity: 'medium' },
+   242→   242→                ],
+   243→   243→              },
+   244→   244→              legalRisks: [
+   245→   245→                { risk: 'Data breach liability exposure', probability: 0.15, impact: 'high', mitigation: 'Add specific data breach liability caps and insurance requirements' },
+   246→   246→                { risk: 'Regulatory fine for GDPR non-compliance', probability: 0.25, impact: 'high', mitigation: 'Implement comprehensive data subject rights procedures' },
+   247→   247→              ],
+   248→   248→              regulatoryAlignment: [
+   249→   249→                { regulation: 'GDPR', aligned: false, gaps: ['Missing DPO appointment clause', 'No cross-border transfer mechanism', 'Incomplete data subject rights'] },
+   250→   250→                { regulation: 'CCPA', aligned: true, gaps: [] },
+   251→   251→                { regulation: 'HIPAA', aligned: true, gaps: ['Minor: Business associate agreement language needs update'] },
+   252→   252→              ],
+   253→   253→              recommendations: [
+   254→   254→                { priority: 'high', recommendation: 'Add GDPR-compliant data processing terms', rationale: 'Required for EU data subjects and cross-border transfers' },
+   255→   255→                { priority: 'high', recommendation: 'Include right to erasure provisions', rationale: 'GDPR Article 17 compliance requirement' },
+   256→   256→                { priority: 'medium', recommendation: 'Update force majeure clause for pandemic coverage', rationale: 'Recent legal precedents require broader coverage' },
+   257→   257→              ],
+   258→   258→              amendmentSuggestions: [
+   259→   259→                { section: 'Section 6 - Data Processing', currentText: 'Provider shall process data per applicable laws', suggestedText: 'Provider shall process data per applicable laws including GDPR, maintain a DPO, and execute DPAs with sub-processors', reason: 'GDPR compliance gap' },
+   260→   260→              ],
+   261→   261→              status: 'reviewed',
+   262→   262→              timestamp: new Date().toISOString(),
+   263→   263→            },
+   264→   264→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   265→   265→          };
+   266→   266→        }
+   267→   267→
+   268→   268→        case 'check-compliance': {
+   269→   269→          const documentUri = config.documentUri;
+   270→   270→          const framework = config.framework || 'SOC2';
+   271→   271→          const checkDepth = config.checkDepth || 'full';
+   272→   272→          const autoRemediate = config.autoRemediate || false;
+   273→   273→
+   274→   274→          if (!documentUri) {
+   275→   275→            return { success: false, error: '"documentUri" is required for compliance check' };
+   276→   276→          }
+   277→   277→
+   278→   278→          this.logger.log(`Compliance check of ${documentUri} (${framework}, ${checkDepth})`);
+   279→   279→
+   280→   280→          const llmResult = await this.executeWithLLM(
+   281→   281→            `You are a compliance audit expert. Check documents and processes against compliance frameworks with detailed gap analysis and remediation guidance.`,
+   282→   282→            `Compliance check: ${documentUri}. Framework: ${framework}. Depth: ${checkDepth}. Return JSON with: overallCompliance {score, status, lastAudit}, controls (array of {controlId, name, status, evidence, gaps}), findings (array of {id, severity, description, control, remediation, dueDate}), remediationPlan (array of {priority, action, owner, timeline, effort}).`,
+   283→   283→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   284→   284→          );
+   285→   285→
+   286→   286→          const parsed = this.safeJsonParse(llmResult);
+   287→   287→
+   288→   288→          if (parsed) {
+   289→   289→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   290→   290→            return {
+   291→   291→              success: true,
+   292→   292→              data: {
+   293→   293→                action, documentUri, framework, checkDepth, autoRemediate,
+   294→   294→                overallCompliance: parsed.overallCompliance || {},
+   295→   295→                controls: parsed.controls || [],
+   296→   296→                findings: parsed.findings || [],
+   297→   297→                remediationPlan: parsed.remediationPlan || [],
+   298→   298→                status: 'checked',
+   299→   299→                timestamp: new Date().toISOString(),
+   300→   300→              },
+   301→   301→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   302→   302→            };
+   303→   303→          }
+   304→   304→
+   305→   305→          // Heuristic fallback
+   306→   306→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   307→   307→          return {
+   308→   308→            success: true,
+   309→   309→            data: {
+   310→   310→              action, documentUri, framework, checkDepth, autoRemediate,
+   311→   311→              overallCompliance: { score: 78, status: 'partially-compliant', lastAudit: '2024-09-15' },
+   312→   312→              controls: [
+   313→   313→                { controlId: 'CC6.1', name: 'Logical Access Controls', status: 'compliant', evidence: 'IAM policies reviewed, MFA enforced', gaps: [] },
+   314→   314→                { controlId: 'CC6.2', name: 'Data Encryption', status: 'compliant', evidence: 'AES-256 at rest, TLS 1.3 in transit', gaps: [] },
+   315→   315→                { controlId: 'CC7.1', name: 'Incident Response', status: 'partially-compliant', evidence: 'IR plan exists but untested', gaps: ['No tabletop exercise in past 12 months', 'Missing communication plan'] },
+   316→   316→                { controlId: 'CC8.1', name: 'Change Management', status: 'non-compliant', evidence: 'Ad-hoc process without documentation', gaps: ['No formal change approval process', 'Missing rollback procedures', 'No change advisory board'] },
+   317→   317→              ],
+   318→   318→              findings: [
+   319→   319→                { id: 'F-001', severity: 'high', description: 'Change management process not formally documented', control: 'CC8.1', remediation: 'Implement ITIL-based change management with CAB approval', dueDate: '2025-03-01' },
+   320→   320→                { id: 'F-002', severity: 'medium', description: 'Incident response plan not tested in past year', control: 'CC7.1', remediation: 'Conduct tabletop exercise and update plan', dueDate: '2025-02-15' },
+   321→   321→              ],
+   322→   322→              remediationPlan: [
+   323→   323→                { priority: 'high', action: 'Formalize change management process', owner: 'IT Operations', timeline: '6 weeks', effort: 'high' },
+   324→   324→                { priority: 'medium', action: 'Conduct IR tabletop exercise', owner: 'Security Team', timeline: '3 weeks', effort: 'medium' },
+   325→   325→                { priority: 'low', action: 'Update security awareness training', owner: 'HR', timeline: '4 weeks', effort: 'low' },
+   326→   326→              ],
+   327→   327→              status: 'checked',
+   328→   328→              timestamp: new Date().toISOString(),
+   329→   329→            },
+   330→   330→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   331→   331→          };
+   332→   332→        }
+   333→   333→
+   334→   334→        case 'extract-data': {
+   335→   335→          const documentUri = config.documentUri;
+   336→   336→          const extractionSchema = config.extractionSchema || {};
+   337→   337→          const extractionType = config.extractionType || 'structured';
+   338→   338→          const outputFormat = config.outputFormat || 'json';
+   339→   339→
+   340→   340→          if (!documentUri) {
+   341→   341→            return { success: false, error: '"documentUri" is required for data extraction' };
+   342→   342→          }
+   343→   343→
+   344→   344→          this.logger.log(`Extracting data from ${documentUri} (${extractionType}, format: ${outputFormat})`);
+   345→   345→
+   346→   346→          const llmResult = await this.executeWithLLM(
+   347→   347→            `You are a data extraction expert. Extract structured data from documents according to specified schemas with high accuracy and confidence scoring.`,
+   348→   348→            `Extract data from: ${documentUri}. Type: ${extractionType}. Schema: ${JSON.stringify(extractionSchema)}. Output: ${outputFormat}. Return JSON with: extractedData (object matching schema), confidence {overall, fieldConfidence (object)}, validation {isValid, errors (array), warnings (array)}, statistics {fieldsExtracted, fieldsMissing, averageConfidence}.`,
+   349→   349→            { responseFormat: 'json', temperature: 0.1, maxTokens: 2048 },
+   350→   350→          );
+   351→   351→
+   352→   352→          const parsed = this.safeJsonParse(llmResult);
+   353→   353→
+   354→   354→          if (parsed) {
+   355→   355→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   356→   356→            return {
+   357→   357→              success: true,
+   358→   358→              data: {
+   359→   359→                action, documentUri, extractionSchema, extractionType, outputFormat,
+   360→   360→                extractedData: parsed.extractedData || {},
+   361→   361→                confidence: parsed.confidence || { overall: 0, fieldConfidence: {} },
+   362→   362→                validation: parsed.validation || { isValid: false, errors: [], warnings: [] },
+   363→   363→                statistics: parsed.statistics || { fieldsExtracted: 0, fieldsMissing: 0, averageConfidence: 0 },
+   364→   364→                status: 'extracted',
+   365→   365→                timestamp: new Date().toISOString(),
+   366→   366→              },
+   367→   367→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   368→   368→            };
+   369→   369→          }
+   370→   370→
+   371→   371→          // Heuristic fallback
+   372→   372→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   373→   373→          return {
+   374→   374→            success: true,
+   375→   375→            data: {
+   376→   376→              action, documentUri, extractionSchema, extractionType, outputFormat,
+   377→   377→              extractedData: {
+   378→   378→                invoiceNumber: 'INV-2024-0847',
+   379→   379→                date: '2024-11-15',
+   380→   380→                dueDate: '2024-12-15',
+   381→   381→                vendor: { name: 'Tech Solutions Inc.', address: '123 Innovation Drive, San Francisco, CA 94102', taxId: 'XX-XXX1234' },
+   382→   382→                customer: { name: 'Acme Corporation', address: '456 Business Ave, New York, NY 10001' },
+   383→   383→                lineItems: [
+   384→   384→                  { description: 'Cloud Hosting Services - November', quantity: 1, unitPrice: 5000, total: 5000 },
+   385→   385→                  { description: 'Premium Support Package', quantity: 1, unitPrice: 2000, total: 2000 },
+   386→   386→                  { description: 'Additional Storage (1TB)', quantity: 3, unitPrice: 100, total: 300 },
+   387→   387→                ],
+   388→   388→                subtotal: 7300,
+   389→   389→                tax: 584,
+   390→   390→                total: 7884,
+   391→   391→                currency: 'USD',
+   392→   392→              },
+   393→   393→              confidence: { overall: 0.94, fieldConfidence: { invoiceNumber: 0.99, date: 0.98, vendor: 0.95, lineItems: 0.92, total: 0.97 } },
+   394→   394→              validation: { isValid: true, errors: [], warnings: ['Tax calculation assumes 8% rate — verify jurisdiction'] },
+   395→   395→              statistics: { fieldsExtracted: 12, fieldsMissing: 0, averageConfidence: 0.94 },
+   396→   396→              status: 'extracted',
+   397→   397→              timestamp: new Date().toISOString(),
+   398→   398→            },
+   399→   399→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   400→   400→          };
+   401→   401→        }
+   402→   402→
+   403→   403→        case 'generate-document': {
+   404→   404→          const templateType = config.templateType;
+   405→   405→          const templateData = config.templateData || {};
+   406→   406→          const outputFormat = config.outputFormat || 'pdf';
+   407→   407→          const language = config.language || 'en';
+   408→   408→          const style = config.style || 'professional';
+   409→   409→
+   410→   410→          if (!templateType) {
+   411→   411→            return { success: false, error: '"templateType" is required for document generation' };
+   412→   412→          }
+   413→   413→
+   414→   414→          this.logger.log(`Generating ${templateType} document (${outputFormat}, style: ${style})`);
+   415→   415→
+   416→   416→          const llmResult = await this.executeWithLLM(
+   417→   417→            `You are a document generation expert. Generate professional documents from templates with proper formatting, legal language, and style consistency.`,
+   418→   418→            `Generate document. Template: ${templateType}. Data: ${JSON.stringify(templateData)}. Format: ${outputFormat}. Language: ${language}. Style: ${style}. Return JSON with: document {title, sections (array of {heading, content, formatting})}, metadata {template, generatedAt, version, pageCount}, variablesUsed (array of strings), qualityScore {completeness, formatting, language, overall}.`,
+   419→   419→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   420→   420→          );
+   421→   421→
+   422→   422→          const parsed = this.safeJsonParse(llmResult);
+   423→   423→
+   424→   424→          if (parsed) {
+   425→   425→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   426→   426→            return {
+   427→   427→              success: true,
+   428→   428→              data: {
+   429→   429→                action, templateType, templateData, outputFormat, language, style,
+   430→   430→                document: parsed.document || {},
+   431→   431→                metadata: parsed.metadata || {},
+   432→   432→                variablesUsed: parsed.variablesUsed || [],
+   433→   433→                qualityScore: parsed.qualityScore || {},
+   434→   434→                status: 'generated',
+   435→   435→                timestamp: new Date().toISOString(),
+   436→   436→              },
+   437→   437→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   438→   438→            };
+   439→   439→          }
+   440→   440→
+   441→   441→          // Heuristic fallback
+   442→   442→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   443→   443→          return {
+   444→   444→            success: true,
+   445→   445→            data: {
+   446→   446→              action, templateType, templateData, outputFormat, language, style,
+   447→   447→              document: {
+   448→   448→                title: `${templateType.charAt(0).toUpperCase() + templateType.slice(1)} — Generated Document`,
+   449→   449→                sections: [
+   450→   450→                  { heading: 'Header', content: `Generated ${templateType} document for ${templateData.recipient || '[Recipient]'}`, formatting: 'centered, bold, 18pt' },
+   451→   451→                  { heading: 'Introduction', content: `This document serves as a formal ${templateType} between the parties identified herein. All terms and conditions are binding upon execution.`, formatting: 'justified, 12pt' },
+   452→   452→                  { heading: 'Terms and Conditions', content: 'The parties agree to the terms outlined in this document. All obligations shall be fulfilled within the specified timeframe and in accordance with applicable laws.', formatting: 'justified, 12pt' },
+   453→   453→                  { heading: 'Signatures', content: '[Authorized Signature Block]', formatting: 'left-aligned, 12pt' },
+   454→   454→                ],
+   455→   455→              },
+   456→   456→              metadata: { template: templateType, generatedAt: new Date().toISOString(), version: '1.0', pageCount: 2 },
+   457→   457→              variablesUsed: Object.keys(templateData),
+   458→   458→              qualityScore: { completeness: 0.82, formatting: 0.90, language: 0.88, overall: 0.87 },
+   459→   459→              status: 'generated',
+   460→   460→              timestamp: new Date().toISOString(),
+   461→   461→            },
+   462→   462→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   463→   463→          };
+   464→   464→        }
+   465→   465→
+   466→   466→        default:
+   467→   467→          return {
+   468→   468→            success: false,
+   469→   469→            error: `Unknown action: ${action}. Supported actions: parse-document, analyze-contract, review-legal, check-compliance, extract-data, generate-document`,
+   470→   470→          };
+   471→   471→      }
+   472→   472→    } catch (error: any) {
+   473→   473→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   474→   474→      return { success: false, error: error.message };
+   475→   475→    }
+   476→   476→  }
+   477→   477→}
+   478→   478→

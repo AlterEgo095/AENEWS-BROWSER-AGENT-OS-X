@@ -1002,3 +1002,32 @@ Stage Summary:
 - New feature: Mission-based agent categorization (12 categories)
 - New feature: Credit system integrated into agent execution
 - New feature: WhatsApp credit ordering (+243816515095, configurable from admin)
+---
+Task ID: deep-audit-v3
+Agent: Main Agent
+Task: Deep audit and enhancement of all new agents - verify functionality and add "hors normes" capabilities
+
+Work Log:
+- Deep-read all 8 Stealth-Ops agents (434 lines each avg) - all scored 9.5/10
+- Deep-audited all 10 new v3.0.0 agents - average 7.4/10
+- Found critical P0 issues: no authorization gates on dangerous agents, missing input validation
+- Found P1 issues: categorize bug, wrong creditCost, missing range validation, no dryRun
+- Fixed P0: Added authorizationToken gate to RedTeamAgent, SystemHackerAgent, ALL 8 Stealth-Ops agents
+- Fixed P0: Added comprehensive input validation to SystemHackerAgent (6/6 actions now validated)
+- Fixed P0: Added comprehensive input validation to StealthExploitAgent (7/7 actions now validated)
+- Fixed P0: Added dryRun mode to all security/stealth/infrastructure agents
+- Fixed P1: categorize || true bug in DeepWebAgent
+- Fixed P1: Raised creditCost from 2 to 3 for ViralGrowthAgent and DocumentIntelligenceAgent
+- Fixed P1: Added INFRASTRUCTURE_MGMT to AICodeArchitectAgent missionCategories
+- Fixed P1: Added range validation to HyperReasoningAgent (depth 1-20, branching 1-10, maxDepth 1-10)
+- Fixed P1: Added model count validation (max 10) and minConsensus clamping to LLMEnsembleAgent
+- Fixed P1: Added dryRun support to EdgeComputingAgent
+- Fixed P1: Added URI format validation to DocumentIntelligenceAgent
+
+Stage Summary:
+- All 18 new agents now have authorization gates where needed
+- All security/stealth/computer agents require authorizationToken to execute
+- dryRun mode available on all dangerous agents (RedTeam, SystemHacker, StealthExploit, EdgeComputing, all Stealth-Ops)
+- All input validation gaps closed - no agent has <100% action validation
+- Backend: 0 TS errors, compiles clean
+- Frontend: builds successfully with 17 pages

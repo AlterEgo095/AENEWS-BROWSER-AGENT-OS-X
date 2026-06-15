@@ -28,7 +28,7 @@ export class DocumentIntelligenceAgent extends BaseAgent {
     'Advanced document processing with AI-powered parsing, contract analysis, legal review, compliance checking, data extraction, and document generation';
 
   readonly missionCategories = [MissionCategory.DOCUMENT_PROCESSING];
-  readonly creditCost = 2;
+  readonly creditCost = 3;
   readonly powerLevel = 2;
   readonly tier = 'advanced';
 
@@ -51,6 +51,11 @@ export class DocumentIntelligenceAgent extends BaseAgent {
 
           if (!documentUri) {
             return { success: false, error: '"documentUri" is required for document parsing' };
+          }
+
+          const validPrefixes = ['file://', 's3://', 'https://', 'http://', '/'];
+          if (!validPrefixes.some(p => documentUri.startsWith(p))) {
+            return { success: false, error: 'Invalid documentUri format. Must start with file://, s3://, https://, http://, or /' };
           }
 
           this.logger.log(`Parsing document: ${documentUri} (type: ${documentType})`);
@@ -121,6 +126,11 @@ export class DocumentIntelligenceAgent extends BaseAgent {
 
           if (!contractUri) {
             return { success: false, error: '"contractUri" is required for contract analysis' };
+          }
+
+          const validPrefixes = ['file://', 's3://', 'https://', 'http://', '/'];
+          if (!validPrefixes.some(p => contractUri.startsWith(p))) {
+            return { success: false, error: 'Invalid contractUri format. Must start with file://, s3://, https://, http://, or /' };
           }
 
           this.logger.log(`Analyzing contract: ${contractUri} (type: ${contractType})`);
@@ -197,6 +207,11 @@ export class DocumentIntelligenceAgent extends BaseAgent {
 
           if (!documentUri) {
             return { success: false, error: '"documentUri" is required for legal review' };
+          }
+
+          const validPrefixes = ['file://', 's3://', 'https://', 'http://', '/'];
+          if (!validPrefixes.some(p => documentUri.startsWith(p))) {
+            return { success: false, error: 'Invalid documentUri format. Must start with file://, s3://, https://, http://, or /' };
           }
 
           this.logger.log(`Legal review of ${documentUri} (${jurisdiction}, ${legalArea})`);

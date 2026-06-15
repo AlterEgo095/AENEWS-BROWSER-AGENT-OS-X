@@ -29,7 +29,7 @@ export class AICodeArchitectAgent extends BaseAgent {
   readonly description =
     'AI-powered code architecture design with pattern recommendation, tech stack selection, microservices design, API design, and database schema design';
 
-  readonly missionCategories = [MissionCategory.CODE_DEVELOPMENT];
+  readonly missionCategories = [MissionCategory.CODE_DEVELOPMENT, MissionCategory.INFRASTRUCTURE_MGMT];
   readonly creditCost = 3;
   readonly powerLevel = 2;
   readonly tier = 'advanced';

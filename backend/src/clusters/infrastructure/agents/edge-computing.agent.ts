@@ -38,6 +38,16 @@ export class EdgeComputingAgent extends BaseAgent {
       const action = config.action || 'deploy-edge';
       const startTime = Date.now();
 
+      const dryRun = config.dryRun === true;
+      if (dryRun) {
+        this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, dryRun: true });
+        return {
+          success: true,
+          data: { action, dryRun: true, message: `Dry run: ${action} would execute with the provided parameters. No infrastructure changes made.`, parameters: config },
+          metadata: { duration: 0 },
+        };
+      }
+
       this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
 
       switch (action) {

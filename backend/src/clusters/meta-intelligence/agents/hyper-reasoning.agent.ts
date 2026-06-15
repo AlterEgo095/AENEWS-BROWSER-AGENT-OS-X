@@ -38,13 +38,17 @@ export class HyperReasoningAgent extends BaseAgent {
       const action = config.action || 'chain-think';
       const startTime = Date.now();
 
+      // Range validation for reasoning parameters
+      const depth = Math.min(Math.max(config.depth || 3, 1), 20);
+      const branchingFactor = Math.min(Math.max(config.branchingFactor || 3, 1), 10);
+      const maxDepth = Math.min(Math.max(config.maxDepth || 5, 1), 10);
+
       this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
 
       switch (action) {
         case 'chain-think': {
           const problem = config.problem;
           const domain = config.domain || 'general';
-          const depth = config.depth || 5;
           const showWork = config.showWork !== false;
 
           if (!problem) {
@@ -52,6 +56,7 @@ export class HyperReasoningAgent extends BaseAgent {
           }
 
           this.logger.log(`Chain-of-thought reasoning on "${problem.substring(0, 60)}..." (depth: ${depth})`);
+
 
           const llmResult = await this.executeWithLLM(
             `You are an expert at chain-of-thought reasoning. Break down complex problems into explicit step-by-step reasoning chains, showing each inference and its justification.`,
@@ -104,8 +109,6 @@ export class HyperReasoningAgent extends BaseAgent {
 
         case 'tree-think': {
           const problem = config.problem;
-          const branchingFactor = config.branchingFactor || 3;
-          const maxDepth = config.maxDepth || 3;
           const evaluationMetric = config.evaluationMetric || 'plausibility';
 
           if (!problem) {

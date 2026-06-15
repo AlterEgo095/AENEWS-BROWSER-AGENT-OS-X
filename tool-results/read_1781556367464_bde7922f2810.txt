@@ -1,0 +1,486 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→/**
+    10→ * ViralGrowthAgent — Viral growth hacking automation (v3.0.0).
+    11→ *
+    12→ * Provides growth hacking, viral loop design, referral automation,
+    13→ * community building, influencer outreach, and content virality analysis.
+    14→ * Uses LLM for intelligent growth strategy when available,
+    15→ * falling back to heuristic-based simulation data.
+    16→ */
+    17→export class ViralGrowthAgent extends BaseAgent {
+    18→  readonly name = 'ViralGrowthAgent';
+    19→  readonly cluster = ClusterType.MARKETING;
+    20→  readonly capabilities = [
+    21→    'growth-hacking',
+    22→    'viral-loop-design',
+    23→    'referral-automation',
+    24→    'community-building',
+    25→    'influencer-outreach',
+    26→    'content-virality-analysis',
+    27→  ];
+    28→  readonly version = '3.0.0';
+    29→  readonly description =
+    30→    'Viral growth hacking automation with viral loop design, referral automation, community building, influencer outreach, and content virality analysis';
+    31→
+    32→  readonly missionCategories = [MissionCategory.MARKETING_GROWTH];
+    33→  readonly creditCost = 2;
+    34→  readonly powerLevel = 2;
+    35→  readonly tier = 'advanced';
+    36→
+    37→  async execute(context: AgentContext): Promise<AgentResult> {
+    38→    try {
+    39→      const { config } = context;
+    40→      const action = config.action || 'hack-growth';
+    41→      const startTime = Date.now();
+    42→
+    43→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    44→
+    45→      switch (action) {
+    46→        case 'hack-growth': {
+    47→          const product = config.product;
+    48→          const currentMetrics = config.currentMetrics || {};
+    49→          const targetMetrics = config.targetMetrics || {};
+    50→          const budget = config.budget || 'low';
+    51→          const timeline = config.timeline || '30d';
+    52→          const channels = config.channels || ['social', 'content', 'referral'];
+    53→
+    54→          if (!product) {
+    55→            return { success: false, error: '"product" is required for growth hacking' };
+    56→          }
+    57→
+    58→          this.logger.log(`Growth hacking for "${product}" (budget: ${budget}, timeline: ${timeline})`);
+    59→
+    60→          const llmResult = await this.executeWithLLM(
+    61→            `You are a growth hacking expert. Design creative, low-cost growth strategies that leverage product-led growth, viral mechanics, and unconventional acquisition channels.`,
+    62→            `Design growth strategy for "${product}". Current metrics: ${JSON.stringify(currentMetrics)}. Target: ${JSON.stringify(targetMetrics)}. Budget: ${budget}. Timeline: ${timeline}. Channels: ${channels.join(', ')}. Return JSON with: experiments (array of {name, hypothesis, channel, effort, expectedImpact, timeframe, steps (array of strings)}), quickWins (array of {name, description, estimatedImpact, effortHours}), northStarMetric {metric, currentValue, targetValue, strategy}, riskFactors (array of strings).`,
+    63→            { responseFormat: 'json', temperature: 0.5, maxTokens: 2048 },
+    64→          );
+    65→
+    66→          const parsed = this.safeJsonParse(llmResult);
+    67→
+    68→          if (parsed) {
+    69→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, experiments: parsed.experiments?.length || 0 });
+    70→            return {
+    71→              success: true,
+    72→              data: {
+    73→                action, product, currentMetrics, targetMetrics, budget, timeline, channels,
+    74→                experiments: parsed.experiments || [],
+    75→                quickWins: parsed.quickWins || [],
+    76→                northStarMetric: parsed.northStarMetric || {},
+    77→                riskFactors: parsed.riskFactors || [],
+    78→                status: 'strategized',
+    79→                timestamp: new Date().toISOString(),
+    80→              },
+    81→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+    82→            };
+    83→          }
+    84→
+    85→          // Heuristic fallback
+    86→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+    87→          return {
+    88→            success: true,
+    89→            data: {
+    90→              action, product, currentMetrics, targetMetrics, budget, timeline, channels,
+    91→              experiments: [
+    92→                { name: 'Invite-Only Beta Launch', hypothesis: 'Scarcity drives FOMO and increases signup conversion by 40%', channel: 'referral', effort: 'medium', expectedImpact: 'high', timeframe: '2 weeks', steps: ['Implement invite code system', 'Create waitlist page', 'Seed 100 early adopters', 'Track viral coefficient'] },
+    93→                { name: 'Product Hunt Launch Strategy', hypothesis: 'Coordinated launch on PH drives 5K signups in 24h', channel: 'social', effort: 'high', expectedImpact: 'high', timeframe: '1 week', steps: ['Prepare launch assets', 'Build hunter relationships', 'Schedule launch timing', 'Prepare team for live Q&A'] },
+    94→                { name: 'Content Flywheel', hypothesis: 'SEO + social content combo drives 30% MoM organic growth', channel: 'content', effort: 'medium', expectedImpact: 'medium', timeframe: '3 months', steps: ['Identify 50 high-volume keywords', 'Create pillar content', 'Build social amplification loop', 'Measure and iterate'] },
+    95→              ],
+    96→              quickWins: [
+    97→                { name: 'Email Signature Viral', description: 'Add "Sent via [Product] — try free" to all outgoing emails', estimatedImpact: '500 new signups/month', effortHours: 2 },
+    98→                { name: 'Onboarding Share Trigger', description: 'Prompt users to share after first "aha moment"', estimatedImpact: '15% increase in referrals', effortHours: 8 },
+    99→                { name: 'Watermark Free Tier', description: 'Add subtle branding to free tier outputs', estimatedImpact: '200 organic visits/day', effortHours: 4 },
+   100→              ],
+   101→              northStarMetric: { metric: 'Weekly Active Users', currentValue: currentMetrics.wau || 1200, targetValue: targetMetrics.wau || 10000, strategy: 'Focus on activation rate and referral virality' },
+   102→              riskFactors: ['Churn may increase with rapid growth', 'Support capacity may not scale', 'Viral mechanics could degrade product experience'],
+   103→              status: 'strategized',
+   104→              timestamp: new Date().toISOString(),
+   105→            },
+   106→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   107→          };
+   108→        }
+   109→
+   110→        case 'design-viral-loop': {
+   111→          const product = config.product;
+   112→          const userJourney = config.userJourney || [];
+   113→          const viralCoefficient = config.viralCoefficient || 1.0;
+   114→          const loopType = config.loopType || 'inherent';
+   115→
+   116→          if (!product) {
+   117→            return { success: false, error: '"product" is required for viral loop design' };
+   118→          }
+   119→
+   120→          this.logger.log(`Designing viral loop for "${product}" (type: ${loopType}, target k: ${viralCoefficient})`);
+   121→
+   122→          const llmResult = await this.executeWithLLM(
+   123→            `You are a viral product design expert. Design viral loops that naturally encourage users to invite others, with clear mechanics for sharing, incentives, and tracking.`,
+   124→            `Design viral loop for "${product}". Type: ${loopType}. Target viral coefficient: ${viralCoefficient}. User journey: ${JSON.stringify(userJourney)}. Return JSON with: loopDesign {name, type, trigger, sharingMechanism, incentiveStructure, trackingPoints (array)}, loopStages (array of {stage, userAction, viralAction, conversionRate}), projectedMetrics {viralCoefficient, cycleTime, organicGrowthRate}, optimizationPoints (array of {point, currentPerformance, suggestedImprovement, expectedImpact}).`,
+   125→            { responseFormat: 'json', temperature: 0.4, maxTokens: 2048 },
+   126→          );
+   127→
+   128→          const parsed = this.safeJsonParse(llmResult);
+   129→
+   130→          if (parsed) {
+   131→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   132→            return {
+   133→              success: true,
+   134→              data: {
+   135→                action, product, viralCoefficient, loopType,
+   136→                loopDesign: parsed.loopDesign || {},
+   137→                loopStages: parsed.loopStages || [],
+   138→                projectedMetrics: parsed.projectedMetrics || {},
+   139→                optimizationPoints: parsed.optimizationPoints || [],
+   140→                status: 'designed',
+   141→                timestamp: new Date().toISOString(),
+   142→              },
+   143→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   144→            };
+   145→          }
+   146→
+   147→          // Heuristic fallback
+   148→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   149→          return {
+   150→            success: true,
+   151→            data: {
+   152→              action, product, viralCoefficient, loopType,
+   153→              loopDesign: {
+   154→                name: 'Collaborative Value Loop',
+   155→                type: 'inherent',
+   156→                trigger: 'User creates shareable content/collaboration',
+   157→                sharingMechanism: 'Unique share link with embedded context',
+   158→                incentiveStructure: 'Both inviter and invitee receive premium features',
+   159→                trackingPoints: ['Share link generated', 'Link clicked', 'Signup completed', 'First action completed', 'Invite sent by new user'],
+   160→              },
+   161→              loopStages: [
+   162→                { stage: 'Awareness', userAction: 'Receives shared link from friend', viralAction: 'Clicks link to view shared content', conversionRate: 0.35 },
+   163→                { stage: 'Activation', userAction: 'Signs up to interact with content', viralAction: 'Creates own content to share', conversionRate: 0.45 },
+   164→                { stage: 'Engagement', userAction: 'Uses product for own needs', viralAction: 'Invites collaborators', conversionRate: 0.25 },
+   165→                { stage: 'Advocacy', userAction: 'Shares results/creations', viralAction: 'Shares on social channels', conversionRate: 0.15 },
+   166→              ],
+   167→              projectedMetrics: { viralCoefficient: 1.3, cycleTime: '5 days', organicGrowthRate: '12% weekly' },
+   168→              optimizationPoints: [
+   169→                { point: 'Share link click-through', currentPerformance: '35%', suggestedImprovement: 'Add preview thumbnail and personalized message', expectedImpact: '+15% CTR' },
+   170→                { point: 'Signup after viewing', currentPerformance: '45%', suggestedImprovement: 'Reduce friction with social login and instant value', expectedImpact: '+10% conversion' },
+   171→                { point: 'First share by new user', currentPerformance: '25%', suggestedImprovement: 'Trigger share prompt at peak delight moment', expectedImpact: '+8% share rate' },
+   172→              ],
+   173→              status: 'designed',
+   174→              timestamp: new Date().toISOString(),
+   175→            },
+   176→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   177→          };
+   178→        }
+   179→
+   180→        case 'automate-referrals': {
+   181→          const programName = config.programName;
+   182→          const rewardType = config.rewardType || 'dual-sided';
+   183→          const rewardValue = config.rewardValue || '10 credits';
+   184→          const segment = config.segment || 'all-users';
+   185→
+   186→          if (!programName) {
+   187→            return { success: false, error: '"programName" is required for referral automation' };
+   188→          }
+   189→
+   190→          this.logger.log(`Automating referral program "${programName}" (${rewardType}, segment: ${segment})`);
+   191→
+   192→          const llmResult = await this.executeWithLLM(
+   193→            `You are a referral program design expert. Create automated referral programs with optimal incentive structures, fraud prevention, and tracking.`,
+   194→            `Design referral program "${programName}". Reward type: ${rewardType}. Reward value: ${rewardValue}. Segment: ${segment}. Return JSON with: programConfig {name, rewardStructure {inviterReward, inviteeReward, milestoneBonuses (array)}, fraudPrevention {rules (array), detectionMethods (array)}, automation {triggers (array), touchpoints (array), channels (array)}, tracking {metrics (array), attributionModel, reportingCadence}.`,
+   195→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   196→          );
+   197→
+   198→          const parsed = this.safeJsonParse(llmResult);
+   199→
+   200→          if (parsed) {
+   201→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   202→            return {
+   203→              success: true,
+   204→              data: {
+   205→                action, programName, rewardType, rewardValue, segment,
+   206→                programConfig: parsed.programConfig || {},
+   207→                fraudPrevention: parsed.fraudPrevention || {},
+   208→                automation: parsed.automation || {},
+   209→                tracking: parsed.tracking || {},
+   210→                status: 'automated',
+   211→                timestamp: new Date().toISOString(),
+   212→              },
+   213→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   214→            };
+   215→          }
+   216→
+   217→          // Heuristic fallback
+   218→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   219→          return {
+   220→            success: true,
+   221→            data: {
+   222→              action, programName, rewardType, rewardValue, segment,
+   223→              programConfig: {
+   224→                name: programName,
+   225→                rewardStructure: {
+   226→                  inviterReward: '10 credits per referral',
+   227→                  inviteeReward: '5 credits on signup',
+   228→                  milestoneBonuses: [{ referrals: 5, bonus: '25 extra credits' }, { referrals: 10, bonus: '1 month premium' }, { referrals: 25, bonus: 'Lifetime premium' }],
+   229→                },
+   230→                fraudPrevention: { rules: ['Same IP limit: 2 per 24h', 'Same device fingerprint limit', 'Minimum account age: 7 days before reward', 'Invitee must complete onboarding'], detectionMethods: ['IP correlation', 'Device fingerprinting', 'Behavioral analysis', 'Velocity checks'] },
+   231→                automation: { triggers: ['User completes onboarding', 'User achieves first milestone', 'Referral milestone reached', 'Referral churn detected'], touchpoints: ['In-app notification', 'Email confirmation', 'Milestone celebration'], channels: ['Email', 'In-app', 'SMS (opt-in)'] },
+   232→                tracking: { metrics: ['Referral rate', 'Conversion rate', 'Viral coefficient', 'Revenue per referral', 'Time to first referral', 'Fraud rate'], attributionModel: 'Last-touch with 30-day cookie', reportingCadence: 'Weekly' },
+   233→              },
+   234→              status: 'automated',
+   235→              timestamp: new Date().toISOString(),
+   236→            },
+   237→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   238→          };
+   239→        }
+   240→
+   241→        case 'build-community': {
+   242→          const communityName = config.communityName;
+   243→          const platform = config.platform || 'discord';
+   244→          const niche = config.niche;
+   245→          const targetSize = config.targetSize || 1000;
+   246→
+   247→          if (!communityName || !niche) {
+   248→            return { success: false, error: '"communityName" and "niche" are required for community building' };
+   249→          }
+   250→
+   251→          this.logger.log(`Building community "${communityName}" (${platform}, niche: ${niche})`);
+   252→
+   253→          const llmResult = await this.executeWithLLM(
+   254→            `You are a community building expert. Design community growth strategies with engagement frameworks, content calendars, and member retention tactics.`,
+   255→            `Design community strategy for "${communityName}" on ${platform}. Niche: ${niche}. Target size: ${targetSize}. Return JSON with: strategy {phases (array of {name, duration, goals, tactics})}, engagementFramework {daily, weekly, monthly, quarterly}, contentCalendar {firstMonth (array of {week, theme, contentTypes (array)})}, memberLifecycle {stages (array of {stage, description, actions, retentionRisk})}, growthTactics (array of {tactic, effort, expectedGrowth}).`,
+   256→            { responseFormat: 'json', temperature: 0.4, maxTokens: 2048 },
+   257→          );
+   258→
+   259→          const parsed = this.safeJsonParse(llmResult);
+   260→
+   261→          if (parsed) {
+   262→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   263→            return {
+   264→              success: true,
+   265→              data: {
+   266→                action, communityName, platform, niche, targetSize,
+   267→                strategy: parsed.strategy || {},
+   268→                engagementFramework: parsed.engagementFramework || {},
+   269→                contentCalendar: parsed.contentCalendar || {},
+   270→                memberLifecycle: parsed.memberLifecycle || {},
+   271→                growthTactics: parsed.growthTactics || [],
+   272→                status: 'built',
+   273→                timestamp: new Date().toISOString(),
+   274→              },
+   275→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   276→            };
+   277→          }
+   278→
+   279→          // Heuristic fallback
+   280→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   281→          return {
+   282→            success: true,
+   283→            data: {
+   284→              action, communityName, platform, niche, targetSize,
+   285→              strategy: {
+   286→                phases: [
+   287→                  { name: 'Seed', duration: '2 weeks', goals: ['50 founding members', '3 daily active threads'], tactics: ['Invite from existing network', 'Cross-post in related communities', 'Host AMA with founder'] },
+   288→                  { name: 'Sprout', duration: '4 weeks', goals: ['200 members', '10 DAU', 'First UGC'], tactics: ['Weekly challenges', 'Member spotlight series', 'Referral rewards'] },
+   289→                  { name: 'Grow', duration: '8 weeks', goals: ['1000 members', '50 DAU', 'Self-sustaining engagement'], tactics: ['Ambassador program', 'Partnerships with adjacent communities', 'Content syndication'] },
+   290→                ],
+   291→              },
+   292→              engagementFramework: {
+   293→                daily: ['Discussion prompts', 'Resource sharing', 'Quick questions thread'],
+   294→                weekly: ['Challenge or contest', 'Community roundup', 'Office hours'],
+   295→                monthly: ['Town hall', 'Member appreciation', 'Strategy review'],
+   296→                quarterly: ['Community retreat/event', 'Roadmap feedback session', 'Awards ceremony'],
+   297→              },
+   298→              contentCalendar: {
+   299→                firstMonth: [
+   300→                  { week: 1, theme: 'Welcome & Introductions', contentTypes: ['Icebreaker thread', 'Getting started guide', 'Founder intro'] },
+   301→                  { week: 2, theme: 'Deep Dive Topic #1', contentTypes: ['Expert Q&A', 'Resource compilation', 'Discussion thread'] },
+   302→                  { week: 3, theme: 'Member Showcase', contentTypes: ['Member spotlight', 'Project sharing', 'Feedback session'] },
+   303→                  { week: 4, theme: 'Challenge & Collaboration', contentTypes: ['Weekly challenge', 'Pair project', 'Town hall'] },
+   304→                ],
+   305→              },
+   306→              memberLifecycle: {
+   307→                stages: [
+   308→                  { stage: 'Visitor', description: 'Just discovered the community', actions: ['Browse channels', 'Read pinned content'], retentionRisk: 'high' },
+   309→                  { stage: 'Lurker', description: 'Reading but not posting', actions: ['React to messages', 'Save bookmarks'], retentionRisk: 'medium' },
+   310→                  { stage: 'Contributor', description: 'Actively posting and helping', actions: ['Answer questions', 'Share resources'], retentionRisk: 'low' },
+   311→                  { stage: 'Champion', description: 'Community leader and advocate', actions: ['Mentor new members', 'Create content'], retentionRisk: 'very low' },
+   312→                ],
+   313→              },
+   314→              growthTactics: [
+   315→                { tactic: 'SEO-optimized community landing page', effort: 'medium', expectedGrowth: '+100/month' },
+   316→                { tactic: 'Twitter/X community highlights', effort: 'low', expectedGrowth: '+50/month' },
+   317→                { tactic: 'Partner community cross-promotion', effort: 'medium', expectedGrowth: '+80/month' },
+   318→              ],
+   319→              status: 'built',
+   320→              timestamp: new Date().toISOString(),
+   321→            },
+   322→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   323→          };
+   324→        }
+   325→
+   326→        case 'outreach-influencers': {
+   327→          const campaign = config.campaign;
+   328→          const niches = config.niches || [];
+   329→          const budget = config.budget || 5000;
+   330→          const platforms = config.platforms || ['youtube', 'twitter', 'instagram'];
+   331→
+   332→          if (!campaign) {
+   333→            return { success: false, error: '"campaign" is required for influencer outreach' };
+   334→          }
+   335→
+   336→          this.logger.log(`Influencer outreach for "${campaign}" (budget: $${budget})`);
+   337→
+   338→          const llmResult = await this.executeWithLLM(
+   339→            `You are an influencer marketing expert. Design outreach campaigns with influencer identification, outreach templates, negotiation strategies, and ROI tracking.`,
+   340→            `Design influencer outreach for "${campaign}". Niches: ${niches.join(', ')}. Budget: $${budget}. Platforms: ${platforms.join(', ')}. Return JSON with: influencerTargets (array of {tier, followerRange, estimatedCost, expectedReach, engagementRate}), outreachTemplates {initial, followUp, negotiation}, campaignStructure {phases (array of {name, duration, deliverables})}, roiModel {estimatedCPM, expectedConversions, projectedROI}, riskMitigation (array of strings).`,
+   341→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   342→          );
+   343→
+   344→          const parsed = this.safeJsonParse(llmResult);
+   345→
+   346→          if (parsed) {
+   347→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   348→            return {
+   349→              success: true,
+   350→              data: {
+   351→                action, campaign, niches, budget, platforms,
+   352→                influencerTargets: parsed.influencerTargets || [],
+   353→                outreachTemplates: parsed.outreachTemplates || {},
+   354→                campaignStructure: parsed.campaignStructure || {},
+   355→                roiModel: parsed.roiModel || {},
+   356→                riskMitigation: parsed.riskMitigation || [],
+   357→                status: 'outreached',
+   358→                timestamp: new Date().toISOString(),
+   359→              },
+   360→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   361→            };
+   362→          }
+   363→
+   364→          // Heuristic fallback
+   365→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   366→          return {
+   367→            success: true,
+   368→            data: {
+   369→              action, campaign, niches, budget, platforms,
+   370→              influencerTargets: [
+   371→                { tier: 'micro', followerRange: '10K-50K', estimatedCost: 500, expectedReach: 25000, engagementRate: 4.2 },
+   372→                { tier: 'mid', followerRange: '50K-250K', estimatedCost: 2000, expectedReach: 120000, engagementRate: 2.8 },
+   373→                { tier: 'macro', followerRange: '250K-1M', estimatedCost: 5000, expectedReach: 500000, engagementRate: 1.5 },
+   374→              ],
+   375→              outreachTemplates: {
+   376→                initial: 'Hi [Name], I love your content on [topic]! We are [product] and think your audience would love what we do. Would you be open to a quick chat about a potential collaboration?',
+   377→                followUp: 'Hey [Name], just following up on my last message. We have some exciting updates and would love to discuss how we can create value for your audience together.',
+   378→                negotiation: 'Thanks for your interest! Here is our proposed package: [details]. We are flexible and open to creative collaboration ideas that align with your audience interests.',
+   379→              },
+   380→              campaignStructure: {
+   381→                phases: [
+   382→                  { name: 'Outreach & Selection', duration: '2 weeks', deliverables: ['Identify 20 influencers', 'Send initial outreach', 'Negotiate 5-8 partnerships'] },
+   383→                  { name: 'Content Creation', duration: '2 weeks', deliverables: ['Brief creation', 'Content review', 'Approval process'] },
+   384→                  { name: 'Launch & Amplify', duration: '1 week', deliverables: ['Coordinated posting', 'Cross-promotion', 'Community engagement'] },
+   385→                  { name: 'Measure & Optimize', duration: '1 week', deliverables: ['Performance tracking', 'ROI analysis', 'Learnings document'] },
+   386→                ],
+   387→              },
+   388→              roiModel: { estimatedCPM: 8.5, expectedConversions: 450, projectedROI: 2.8 },
+   389→              riskMitigation: ['Require content approval before posting', 'Include performance guarantees in contracts', 'Diversify across influencer tiers', 'Maintain brand safety guidelines'],
+   390→              status: 'outreached',
+   391→              timestamp: new Date().toISOString(),
+   392→            },
+   393→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   394→          };
+   395→        }
+   396→
+   397→        case 'analyze-virality': {
+   398→          const contentId = config.contentId;
+   399→          const contentUrl = config.contentUrl;
+   400→          const platform = config.platform || 'multi';
+   401→          const timeRange = config.timeRange || '7d';
+   402→
+   403→          if (!contentId && !contentUrl) {
+   404→            return { success: false, error: '"contentId" or "contentUrl" is required for virality analysis' };
+   405→          }
+   406→
+   407→          this.logger.log(`Analyzing virality for ${contentId || contentUrl} (${platform}, ${timeRange})`);
+   408→
+   409→          const llmResult = await this.executeWithLLM(
+   410→            `You are a content virality analyst. Analyze content performance, identify viral triggers, and provide actionable recommendations for increasing content spread.`,
+   411→            `Analyze virality for content: ${contentId || contentUrl}. Platform: ${platform}. Time range: ${timeRange}. Return JSON with: viralityScore {overall, breakdown {shareability, emotionalImpact, timeliness, novelty}}, performanceMetrics {views, shares, shareRate, amplificationRate, viralCoefficient}, viralTriggers (array of {trigger, impact, description}), sharePatterns {platforms (array of {name, shares, shareRate, peakTime}), demographics (array of {segment, shareRate})}, recommendations (array of {type, suggestion, expectedImpact}).`,
+   412→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   413→          );
+   414→
+   415→          const parsed = this.safeJsonParse(llmResult);
+   416→
+   417→          if (parsed) {
+   418→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   419→            return {
+   420→              success: true,
+   421→              data: {
+   422→                action, contentId, contentUrl, platform, timeRange,
+   423→                viralityScore: parsed.viralityScore || {},
+   424→                performanceMetrics: parsed.performanceMetrics || {},
+   425→                viralTriggers: parsed.viralTriggers || [],
+   426→                sharePatterns: parsed.sharePatterns || {},
+   427→                recommendations: parsed.recommendations || [],
+   428→                status: 'analyzed',
+   429→                timestamp: new Date().toISOString(),
+   430→              },
+   431→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   432→            };
+   433→          }
+   434→
+   435→          // Heuristic fallback
+   436→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   437→          return {
+   438→            success: true,
+   439→            data: {
+   440→              action, contentId, contentUrl, platform, timeRange,
+   441→              viralityScore: { overall: 78, breakdown: { shareability: 85, emotionalImpact: 72, timeliness: 90, novelty: 65 } },
+   442→              performanceMetrics: { views: 245000, shares: 18200, shareRate: 7.4, amplificationRate: 3.2, viralCoefficient: 1.8 },
+   443→              viralTriggers: [
+   444→                { trigger: 'Emotional surprise', impact: 'high', description: 'Content creates unexpected emotional response that drives impulse sharing' },
+   445→                { trigger: 'Social currency', impact: 'high', description: 'Sharing makes the user appear knowledgeable or in-the-know' },
+   446→                { trigger: 'Practical value', impact: 'medium', description: 'Content provides actionable information worth saving and sharing' },
+   447→                { trigger: 'Identity signaling', impact: 'medium', description: 'Content allows users to express group identity through sharing' },
+   448→              ],
+   449→              sharePatterns: {
+   450→                platforms: [
+   451→                  { name: 'Twitter/X', shares: 8500, shareRate: 9.2, peakTime: '9-11 AM' },
+   452→                  { name: 'LinkedIn', shares: 4200, shareRate: 5.8, peakTime: '8-9 AM' },
+   453→                  { name: 'Reddit', shares: 3100, shareRate: 6.5, peakTime: '12-2 PM' },
+   454→                  { name: 'WhatsApp', shares: 2400, shareRate: 4.1, peakTime: '7-9 PM' },
+   455→                ],
+   456→                demographics: [
+   457→                  { segment: 'Tech professionals 25-34', shareRate: 12.3 },
+   458→                  { segment: 'Marketing managers 30-45', shareRate: 8.7 },
+   459→                  { segment: 'Startup founders 22-35', shareRate: 15.1 },
+   460→                ],
+   461→              },
+   462→              recommendations: [
+   463→                { type: 'timing', suggestion: 'Repost during peak sharing windows (9-11 AM EST) for 35% higher amplification', expectedImpact: '+35% shares' },
+   464→                { type: 'format', suggestion: 'Create thread format version for Twitter/X to increase dwell time and engagement', expectedImpact: '+20% share rate' },
+   465→                { type: 'audience', suggestion: 'Target startup founder communities where share rate is highest (15.1%)', expectedImpact: '+40% reach' },
+   466→              ],
+   467→              status: 'analyzed',
+   468→              timestamp: new Date().toISOString(),
+   469→            },
+   470→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   471→          };
+   472→        }
+   473→
+   474→        default:
+   475→          return {
+   476→            success: false,
+   477→            error: `Unknown action: ${action}. Supported actions: hack-growth, design-viral-loop, automate-referrals, build-community, outreach-influencers, analyze-virality`,
+   478→          };
+   479→      }
+   480→    } catch (error: any) {
+   481→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   482→      return { success: false, error: error.message };
+   483→    }
+   484→  }
+   485→}
+   486→

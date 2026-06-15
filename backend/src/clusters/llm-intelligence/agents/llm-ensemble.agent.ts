@@ -38,14 +38,16 @@ export class LLMEnsembleAgent extends BaseAgent {
       const action = config.action || 'ensemble-reason';
       const startTime = Date.now();
 
+      // Validate model count to prevent cost explosion
+      const models = (config.models || ['gpt-4', 'claude-3']).slice(0, 10);
+      const minConsensus = Math.min(Math.max(config.minConsensus || 0.7, 0), 1);
+
       this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
 
       switch (action) {
         case 'ensemble-reason': {
           const query = config.query;
-          const models = config.models || ['gpt-4', 'claude-3', 'gemini-pro'];
           const strategy = config.strategy || 'weighted-voting';
-          const minConsensus = config.minConsensus || 0.7;
           const maxRounds = config.maxRounds || 3;
 
           if (!query) {

@@ -191,7 +191,7 @@ export class DeepWebAgent extends BaseAgent {
           const maxPages = config.maxPages || 50;
           const respectRobots = config.respectRobots !== false;
           const extractContent = config.extractContent !== false;
-          const categorize = config.categorize || true;
+          const categorize = config.categorize !== false;
 
           if (!seedUrls.length) {
             return { success: false, error: '"seedUrls" is required for .onion crawling' };
