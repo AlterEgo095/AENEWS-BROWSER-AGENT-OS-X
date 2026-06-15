@@ -12,6 +12,7 @@ import { AnalyticsAgent } from './agents/analytics.agent';
 import { AdsAgent } from './agents/ads.agent';
 import { BrandingAgent } from './agents/branding.agent';
 import { InfluencerAgent } from './agents/influencer.agent';
+import { ViralGrowthAgent } from './agents/viral-growth.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createMarketingAgents(
@@ -29,6 +30,7 @@ function createMarketingAgents(
     new AdsAgent(),
     new BrandingAgent(),
     new InfluencerAgent(),
+    new ViralGrowthAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 
 export class DependencyAgent extends BaseAgent {
   readonly name = 'DependencyAgent';
@@ -18,6 +18,11 @@ export class DependencyAgent extends BaseAgent {
   readonly version = '1.0.0';
   readonly description =
     'Manages project dependencies including installation, updates, security auditing, conflict resolution, and lockfile management';
+
+  readonly missionCategories = [MissionCategory.CODE_DEVELOPMENT];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

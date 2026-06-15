@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 export class BrowserAuditorAgent extends BaseAgent {
@@ -12,6 +12,11 @@ export class BrowserAuditorAgent extends BaseAgent {
   readonly capabilities = ['audit-browser', 'check-navigation', 'verify-sessions', 'test-interactions'];
   readonly version = '2.0.0';
   readonly description = 'Audits the browser automation subsystem for navigation correctness, session management, and interaction reliability';
+
+  readonly missionCategories = [MissionCategory.AI_ORCHESTRATION, MissionCategory.SECURITY_OPS];
+  readonly creditCost = 2;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

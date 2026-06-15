@@ -1,0 +1,583 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→export class CloudAgent extends BaseAgent {
+    10→  readonly name = 'CloudAgent';
+    11→  readonly cluster = ClusterType.INFRASTRUCTURE;
+    12→  readonly capabilities = [
+    13→    'provision',
+    14→    'scale',
+    15→    'migrate',
+    16→    'configure',
+    17→    'cost',
+    18→    'monitor',
+    19→  ];
+    20→  readonly version = '2.0.0';
+    21→  readonly description =
+    22→    'Manages cloud infrastructure operations including provisioning resources, scaling instances, migrating workloads, configuring services, tracking costs, and monitoring cloud health';
+    23→
+    24→  async execute(context: AgentContext): Promise<AgentResult> {
+    25→    try {
+    26→      const { config } = context;
+    27→      const action = config.action || 'provision';
+    28→      const startTime = Date.now();
+    29→
+    30→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    31→
+    32→      switch (action) {
+    33→        case 'provision': {
+    34→          const provider = config.provider || 'aws';
+    35→          const resourceType = config.resourceType;
+    36→          if (!resourceType) {
+    37→            return {
+    38→              success: false,
+    39→              error: 'Resource type is required for provision action',
+    40→            };
+    41→          }
+    42→          const region = config.region || 'us-east-1';
+    43→          const instanceType = config.instanceType || 't3.medium';
+    44→          const imageId = config.imageId;
+    45→          const count = config.count || 1;
+    46→          const tags = config.tags || {};
+    47→          const vpcId = config.vpcId;
+    48→          const subnetId = config.subnetId;
+    49→          const securityGroups = config.securityGroups || [];
+    50→          const userData = config.userData;
+    51→          const iamRole = config.iamRole;
+    52→          const storageSize = config.storageSize || 20;
+    53→          const storageType = config.storageType || 'gp3';
+    54→          const enableMonitoring = config.enableMonitoring ?? true;
+    55→          this.logger.log(
+    56→            `Provisioning ${count}x ${resourceType} on ${provider} in ${region}`,
+    57→          );
+    58→
+    59→          const llmResult = await this.executeWithLLM(
+    60→            `You are a cloud infrastructure provisioning expert. Generate realistic cloud resource provisioning details. Return JSON with "provisionedResources" array (each item has resourceId, type, state, endpoint), "estimatedMonthlyCost" number, "recommendedOptimizations" array of strings, and "provisioningNotes" string.`,
+    61→            `Provision ${count}x ${resourceType} on ${provider} in ${region} with instance type ${instanceType}, storage ${storageSize}GB ${storageType}, monitoring ${enableMonitoring}. Image: ${imageId || 'default'}. VPC: ${vpcId || 'default'}. Subnet: ${subnetId || 'default'}. Security groups: ${securityGroups.length || 'default'}.`,
+    62→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+    63→          );
+    64→          const parsed = this.safeJsonParse(llmResult);
+    65→
+    66→          const resultData = parsed
+    67→            ? {
+    68→                action,
+    69→                provider,
+    70→                resourceType,
+    71→                region,
+    72→                instanceType,
+    73→                imageId,
+    74→                count,
+    75→                tags,
+    76→                vpcId,
+    77→                subnetId,
+    78→                securityGroups,
+    79→                userData,
+    80→                iamRole,
+    81→                storageSize,
+    82→                storageType,
+    83→                enableMonitoring,
+    84→                provisionedResources: parsed.provisionedResources || [],
+    85→                estimatedMonthlyCost: parsed.estimatedMonthlyCost || 0,
+    86→                recommendedOptimizations: parsed.recommendedOptimizations || [],
+    87→                provisioningNotes: parsed.provisioningNotes || '',
+    88→                status: 'provisioning_initiated',
+    89→                timestamp: new Date().toISOString(),
+    90→              }
+    91→            : {
+    92→                action,
+    93→                provider,
+    94→                resourceType,
+    95→                region,
+    96→                instanceType,
+    97→                imageId,
+    98→                count,
+    99→                tags,
+   100→                vpcId,
+   101→                subnetId,
+   102→                securityGroups,
+   103→                userData,
+   104→                iamRole,
+   105→                storageSize,
+   106→                storageType,
+   107→                enableMonitoring,
+   108→                provisionedResources: Array.from({ length: count }, (_, i) => ({
+   109→                  resourceId: `${provider === 'aws' ? 'i-' : provider === 'gcp' ? 'gce-' : 'vm-'}${Math.random().toString(36).substring(2, 10)}`,
+   110→                  type: resourceType,
+   111→                  state: 'pending',
+   112→                  endpoint: resourceType === 'database' ? `db-${Math.random().toString(36).substring(2, 8)}.${region}.rds.amazonaws.com` : resourceType === 'cache' ? `cache-${Math.random().toString(36).substring(2, 8)}.${region}.cache.amazonaws.com` : `ec2-${Math.random().toString(36).substring(2, 8)}.${region}.compute.amazonaws.com`,
+   113→                })),
+   114→                estimatedMonthlyCost: count * (instanceType === 't3.micro' ? 7.59 : instanceType === 't3.small' ? 15.18 : instanceType === 't3.medium' ? 30.37 : instanceType === 't3.large' ? 60.74 : instanceType === 'm5.large' ? 70.61 : instanceType === 'c5.large' ? 61.14 : 30.37),
+   115→                recommendedOptimizations: [
+   116→                  'Consider reserved instances for 30-60% savings on 1-year commitment',
+   117→                  'Enable auto-scaling to optimize resource utilization during off-peak hours',
+   118→                  'Use spot instances for non-critical workloads to reduce costs by up to 90%',
+   119→                ],
+   120→                provisioningNotes: `Provisioned ${count}x ${instanceType} instances in ${region}. Resources are in pending state and will be available within 2-5 minutes.`,
+   121→                status: 'provisioning_initiated',
+   122→                timestamp: new Date().toISOString(),
+   123→              };
+   124→
+   125→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   126→          return {
+   127→            success: true,
+   128→            data: resultData,
+   129→            metadata: { duration: Date.now() - startTime },
+   130→          };
+   131→        }
+   132→
+   133→        case 'scale': {
+   134→          const resourceId = config.resourceId;
+   135→          if (!resourceId) {
+   136→            return {
+   137→              success: false,
+   138→              error: 'Resource ID is required for scale action',
+   139→            };
+   140→          }
+   141→          const direction = config.direction || 'out';
+   142→          const targetCount = config.targetCount;
+   143→          if (!targetCount) {
+   144→            return {
+   145→              success: false,
+   146→              error: 'Target count is required for scale action',
+   147→            };
+   148→          }
+   149→          const minCount = config.minCount || 1;
+   150→          const maxCount = config.maxCount || 10;
+   151→          const cooldownPeriod = config.cooldownPeriod || 300;
+   152→          const scalePolicy = config.scalePolicy || 'simple';
+   153→          const metricThreshold = config.metricThreshold;
+   154→          this.logger.log(
+   155→            `Scaling ${direction} resource ${resourceId} to ${targetCount} instances`,
+   156→          );
+   157→
+   158→          const llmResult = await this.executeWithLLM(
+   159→            `You are a cloud scaling expert. Generate realistic scaling operation details. Return JSON with "previousCount" number, "currentCount" number, "scalingActivityId" string, "scalingRecommendations" array of strings, and "estimatedCostImpact" object with monthlyChange number and currency string.`,
+   160→            `Scale ${direction} resource ${resourceId} to ${targetCount} instances. Min: ${minCount}, Max: ${maxCount}, Policy: ${scalePolicy}, Cooldown: ${cooldownPeriod}s. Metric threshold: ${metricThreshold || 'default'}.`,
+   161→            { responseFormat: 'json', temperature: 0.3, maxTokens: 1024 },
+   162→          );
+   163→          const parsed = this.safeJsonParse(llmResult);
+   164→
+   165→          const previousCount = direction === 'out' ? Math.max(1, targetCount - 2) : targetCount + 2;
+   166→          const resultData = parsed
+   167→            ? {
+   168→                action,
+   169→                resourceId,
+   170→                direction,
+   171→                targetCount,
+   172→                minCount,
+   173→                maxCount,
+   174→                cooldownPeriod,
+   175→                scalePolicy,
+   176→                metricThreshold,
+   177→                previousCount: parsed.previousCount ?? previousCount,
+   178→                currentCount: parsed.currentCount ?? targetCount,
+   179→                scalingActivityId: parsed.scalingActivityId || `sa-${Math.random().toString(36).substring(2, 10)}`,
+   180→                scalingRecommendations: parsed.scalingRecommendations || [],
+   181→                estimatedCostImpact: parsed.estimatedCostImpact || { monthlyChange: 0, currency: 'USD' },
+   182→                status: 'scaling_initiated',
+   183→                timestamp: new Date().toISOString(),
+   184→              }
+   185→            : {
+   186→                action,
+   187→                resourceId,
+   188→                direction,
+   189→                targetCount,
+   190→                minCount,
+   191→                maxCount,
+   192→                cooldownPeriod,
+   193→                scalePolicy,
+   194→                metricThreshold,
+   195→                previousCount,
+   196→                currentCount: targetCount,
+   197→                scalingActivityId: `sa-${Math.random().toString(36).substring(2, 10)}`,
+   198→                scalingRecommendations: [
+   199→                  'Monitor CPU utilization for 15 minutes after scaling to ensure stability',
+   200→                  'Consider enabling predictive scaling for recurring traffic patterns',
+   201→                  'Review auto-scaling group health check settings to prevent thrashing',
+   202→                ],
+   203→                estimatedCostImpact: {
+   204→                  monthlyChange: direction === 'out' ? (targetCount - previousCount) * 30.37 : -(previousCount - targetCount) * 30.37,
+   205→                  currency: 'USD',
+   206→                },
+   207→                status: 'scaling_initiated',
+   208→                timestamp: new Date().toISOString(),
+   209→              };
+   210→
+   211→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   212→          return {
+   213→            success: true,
+   214→            data: resultData,
+   215→            metadata: { duration: Date.now() - startTime },
+   216→          };
+   217→        }
+   218→
+   219→        case 'migrate': {
+   220→          const sourceProvider = config.sourceProvider;
+   221→          const targetProvider = config.targetProvider;
+   222→          if (!sourceProvider || !targetProvider) {
+   223→            return {
+   224→              success: false,
+   225→              error:
+   226→                'Source and target providers are required for migrate action',
+   227→            };
+   228→          }
+   229→          const resourceIds = config.resourceIds || [];
+   230→          const sourceRegion = config.sourceRegion || 'us-east-1';
+   231→          const targetRegion = config.targetRegion || 'us-west-2';
+   232→          const migrationType = config.migrationType || 'live';
+   233→          const preserveIp = config.preserveIp || false;
+   234→          const dnsCutover = config.dnsCutover || true;
+   235→          const dataSyncStrategy = config.dataSyncStrategy || 'incremental';
+   236→          const rollbackEnabled = config.rollbackEnabled ?? true;
+   237→          const maintenanceWindow = config.maintenanceWindow;
+   238→          this.logger.log(
+   239→            `Migrating ${resourceIds.length} resources from ${sourceProvider}/${sourceRegion} to ${targetProvider}/${targetRegion}`,
+   240→          );
+   241→
+   242→          const llmResult = await this.executeWithLLM(
+   243→            `You are a cloud migration specialist. Generate realistic migration plan details. Return JSON with "migrationId" string, "progress" number (0-100), "estimatedDowntime" string, "migrationSteps" array of objects with step string and estimatedDuration string, "riskAssessment" object with level string and factors array of strings, and "dataTransferEstimate" object with sizeGB number and transferTime string.`,
+   244→            `Migrate ${resourceIds.length || 3} resources from ${sourceProvider}/${sourceRegion} to ${targetProvider}/${targetRegion}. Migration type: ${migrationType}. Data sync: ${dataSyncStrategy}. Preserve IP: ${preserveIp}. DNS cutover: ${dnsCutover}.`,
+   245→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   246→          );
+   247→          const parsed = this.safeJsonParse(llmResult);
+   248→
+   249→          const resultData = parsed
+   250→            ? {
+   251→                action,
+   252→                sourceProvider,
+   253→                targetProvider,
+   254→                resourceIds,
+   255→                sourceRegion,
+   256→                targetRegion,
+   257→                migrationType,
+   258→                preserveIp,
+   259→                dnsCutover,
+   260→                dataSyncStrategy,
+   261→                rollbackEnabled,
+   262→                maintenanceWindow,
+   263→                migrationId: parsed.migrationId || `mig-${Math.random().toString(36).substring(2, 10)}`,
+   264→                progress: parsed.progress || 0,
+   265→                phases: ['pre_migration_check', 'data_replication', 'dns_cutover', 'validation', 'cleanup'] as string[],
+   266→                currentPhase: 'pre_migration_check',
+   267→                estimatedDowntime: parsed.estimatedDowntime || '5-15 minutes',
+   268→                migrationSteps: parsed.migrationSteps || [],
+   269→                riskAssessment: parsed.riskAssessment || { level: 'medium', factors: ['Data consistency during sync', 'DNS propagation delay'] },
+   270→                dataTransferEstimate: parsed.dataTransferEstimate || { sizeGB: 500, transferTime: '2-4 hours' },
+   271→                status: 'migration_initiated',
+   272→                timestamp: new Date().toISOString(),
+   273→              }
+   274→            : {
+   275→                action,
+   276→                sourceProvider,
+   277→                targetProvider,
+   278→                resourceIds,
+   279→                sourceRegion,
+   280→                targetRegion,
+   281→                migrationType,
+   282→                preserveIp,
+   283→                dnsCutover,
+   284→                dataSyncStrategy,
+   285→                rollbackEnabled,
+   286→                maintenanceWindow,
+   287→                migrationId: `mig-${Math.random().toString(36).substring(2, 10)}`,
+   288→                progress: 0,
+   289→                phases: ['pre_migration_check', 'data_replication', 'dns_cutover', 'validation', 'cleanup'] as string[],
+   290→                currentPhase: 'pre_migration_check',
+   291→                estimatedDowntime: migrationType === 'live' ? '2-5 minutes' : '15-30 minutes',
+   292→                migrationSteps: [
+   293→                  { step: 'Validate source environment compatibility', estimatedDuration: '10 min' },
+   294→                  { step: 'Create target infrastructure resources', estimatedDuration: '15 min' },
+   295→                  { step: 'Configure data replication pipeline', estimatedDuration: '20 min' },
+   296→                  { step: 'Perform initial data sync', estimatedDuration: '2-4 hours' },
+   297→                  { step: 'Validate data consistency', estimatedDuration: '30 min' },
+   298→                  { step: 'Execute DNS cutover', estimatedDuration: '5 min' },
+   299→                  { step: 'Monitor and validate traffic', estimatedDuration: '1 hour' },
+   300→                  { step: 'Decommission source resources', estimatedDuration: '30 min' },
+   301→                ],
+   302→                riskAssessment: {
+   303→                  level: 'medium',
+   304→                  factors: [
+   305→                    'Data consistency during incremental sync window',
+   306→                    'DNS propagation delay may cause split traffic',
+   307→                    'Application compatibility across cloud providers',
+   308→                    'Network latency between source and target regions',
+   309→                  ],
+   310→                },
+   311→                dataTransferEstimate: { sizeGB: resourceIds.length * 150 + 200, transferTime: '2-6 hours' },
+   312→                status: 'migration_initiated',
+   313→                timestamp: new Date().toISOString(),
+   314→              };
+   315→
+   316→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   317→          return {
+   318→            success: true,
+   319→            data: resultData,
+   320→            metadata: { duration: Date.now() - startTime },
+   321→          };
+   322→        }
+   323→
+   324→        case 'configure': {
+   325→          const resourceId = config.resourceId;
+   326→          if (!resourceId) {
+   327→            return {
+   328→              success: false,
+   329→              error: 'Resource ID is required for configure action',
+   330→            };
+   331→          }
+   332→          const settings = config.settings;
+   333→          if (!settings || typeof settings !== 'object') {
+   334→            return {
+   335→              success: false,
+   336→              error: 'Settings object is required for configure action',
+   337→            };
+   338→          }
+   339→          const applyImmediately = config.applyImmediately ?? true;
+   340→          const backupBeforeChange = config.backupBeforeChange ?? true;
+   341→          const dryRun = config.dryRun || false;
+   342→          const changeSet = config.changeSet || [];
+   343→          const approvalRequired = config.approvalRequired || false;
+   344→          this.logger.log(
+   345→            `Configuring resource ${resourceId} with ${Object.keys(settings).length} settings${dryRun ? ' (dry run)' : ''}`,
+   346→          );
+   347→
+   348→          const llmResult = await this.executeWithLLM(
+   349→            `You are a cloud configuration management expert. Analyze the configuration changes and provide impact assessment. Return JSON with "appliedSettings" array of strings (names of settings applied), "failedSettings" array of strings (names that would fail), "requiresRestart" boolean, "impactAssessment" object with riskLevel string and affectedServices array of strings, and "recommendedAdditionalSettings" array of objects with key string, value any, and reason string.`,
+   350→            `Configure resource ${resourceId} with settings: ${JSON.stringify(settings)}. Apply immediately: ${applyImmediately}. Dry run: ${dryRun}. Backup first: ${backupBeforeChange}.`,
+   351→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   352→          );
+   353→          const parsed = this.safeJsonParse(llmResult);
+   354→
+   355→          const settingKeys = Object.keys(settings);
+   356→          const resultData = parsed
+   357→            ? {
+   358→                action,
+   359→                resourceId,
+   360→                settings,
+   361→                applyImmediately,
+   362→                backupBeforeChange,
+   363→                dryRun,
+   364→                changeSet,
+   365→                approvalRequired,
+   366→                appliedSettings: parsed.appliedSettings || settingKeys,
+   367→                failedSettings: parsed.failedSettings || [],
+   368→                requiresRestart: parsed.requiresRestart ?? false,
+   369→                impactAssessment: parsed.impactAssessment || { riskLevel: 'low', affectedServices: [] },
+   370→                recommendedAdditionalSettings: parsed.recommendedAdditionalSettings || [],
+   371→                status: dryRun ? 'dry_run_completed' : 'configuration_applied',
+   372→                timestamp: new Date().toISOString(),
+   373→              }
+   374→            : {
+   375→                action,
+   376→                resourceId,
+   377→                settings,
+   378→                applyImmediately,
+   379→                backupBeforeChange,
+   380→                dryRun,
+   381→                changeSet,
+   382→                approvalRequired,
+   383→                appliedSettings: settingKeys,
+   384→                failedSettings: [],
+   385→                requiresRestart: settingKeys.some(k => ['engine', 'port', 'storageType', 'instanceClass'].includes(k)),
+   386→                impactAssessment: {
+   387→                  riskLevel: settingKeys.length > 5 ? 'medium' : 'low',
+   388→                  affectedServices: ['application-layer', 'monitoring', 'logging'],
+   389→                },
+   390→                recommendedAdditionalSettings: [
+   391→                  { key: 'backupRetentionPeriod', value: 7, reason: 'Ensure adequate backup retention for compliance' },
+   392→                  { key: 'performanceInsightsEnabled', value: true, reason: 'Enable performance monitoring for query optimization' },
+   393→                ],
+   394→                status: dryRun ? 'dry_run_completed' : 'configuration_applied',
+   395→                timestamp: new Date().toISOString(),
+   396→              };
+   397→
+   398→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   399→          return {
+   400→            success: true,
+   401→            data: resultData,
+   402→            metadata: { duration: Date.now() - startTime },
+   403→          };
+   404→        }
+   405→
+   406→        case 'cost': {
+   407→          const provider = config.provider || 'all';
+   408→          const period = config.period || 'current_month';
+   409→          const groupBy = config.groupBy || 'service';
+   410→          const granularity = config.granularity || 'daily';
+   411→          const serviceFilter = config.serviceFilter || [];
+   412→          const tagFilter = config.tagFilter || {};
+   413→          const budgetAlertThreshold = config.budgetAlertThreshold;
+   414→          const forecastEnabled = config.forecastEnabled ?? true;
+   415→          const optimizationSuggestions = config.optimizationSuggestions ?? true;
+   416→          this.logger.log(
+   417→            `Retrieving cost analysis for ${provider} (${period}, grouped by ${groupBy})`,
+   418→          );
+   419→
+   420→          const llmResult = await this.executeWithLLM(
+   421→            `You are a cloud cost optimization expert. Generate realistic cloud cost analysis. Return JSON with "totalCost" number, "costBreakdown" array of objects with group string, cost number, change number (percent), "forecastedCost" number, "savings" array of objects with type string, description string, estimatedMonthlySavings number, and "budgetAlert" object or null with threshold number and current number.`,
+   422→            `Analyze costs for ${provider} provider(s) over ${period}, grouped by ${groupBy} with ${granularity} granularity. Service filter: ${serviceFilter.length ? serviceFilter.join(', ') : 'all'}. Forecast: ${forecastEnabled}. Optimization: ${optimizationSuggestions}. Budget threshold: ${budgetAlertThreshold || 'none'}.`,
+   423→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   424→          );
+   425→          const parsed = this.safeJsonParse(llmResult);
+   426→
+   427→          const resultData = parsed
+   428→            ? {
+   429→                action,
+   430→                provider,
+   431→                period,
+   432→                groupBy,
+   433→                granularity,
+   434→                serviceFilter,
+   435→                tagFilter,
+   436→                budgetAlertThreshold,
+   437→                forecastEnabled,
+   438→                optimizationSuggestions,
+   439→                totalCost: parsed.totalCost || 4287.53,
+   440→                currency: 'USD',
+   441→                costBreakdown: parsed.costBreakdown || [],
+   442→                forecastedCost: parsed.forecastedCost || 5140.00,
+   443→                savings: parsed.savings || [],
+   444→                budgetAlert: parsed.budgetAlert || null,
+   445→                status: 'cost_analysis_completed',
+   446→                timestamp: new Date().toISOString(),
+   447→              }
+   448→            : {
+   449→                action,
+   450→                provider,
+   451→                period,
+   452→                groupBy,
+   453→                granularity,
+   454→                serviceFilter,
+   455→                tagFilter,
+   456→                budgetAlertThreshold,
+   457→                forecastEnabled,
+   458→                optimizationSuggestions,
+   459→                totalCost: 4287.53,
+   460→                currency: 'USD',
+   461→                costBreakdown: [
+   462→                  { group: 'EC2 Instances', cost: 1842.30, change: 5.2 },
+   463→                  { group: 'RDS Databases', cost: 985.60, change: -2.1 },
+   464→                  { group: 'S3 Storage', cost: 456.28, change: 12.8 },
+   465→                  { group: 'Lambda Functions', cost: 312.45, change: -8.3 },
+   466→                  { group: 'CloudFront CDN', cost: 198.90, change: 3.7 },
+   467→                  { group: 'ElastiCache', cost: 245.00, change: 0.0 },
+   468→                  { group: 'EBS Volumes', cost: 147.00, change: 1.4 },
+   469→                  { group: 'Other Services', cost: 100.00, change: -1.0 },
+   470→                ],
+   471→                forecastedCost: 5140.00,
+   472→                savings: [
+   473→                  { type: 'reserved_instance', description: 'Purchase reserved instances for 3 production EC2 instances (1-year term)', estimatedMonthlySavings: 442.15 },
+   474→                  { type: 'right_sizing', description: 'Downsize 2 underutilized t3.large instances to t3.medium based on CPU metrics', estimatedMonthlySavings: 121.48 },
+   475→                  { type: 'storage_tier', description: 'Move S3 objects older than 90 days to Infrequent Access storage class', estimatedMonthlySavings: 91.26 },
+   476→                  { type: 'spot_instance', description: 'Use spot instances for batch processing workloads with flexible execution', estimatedMonthlySavings: 156.80 },
+   477→                  { type: 'idle_resources', description: 'Terminate 3 idle EC2 instances and 2 unattached EBS volumes', estimatedMonthlySavings: 87.50 },
+   478→                ],
+   479→                budgetAlert: budgetAlertThreshold ? { threshold: budgetAlertThreshold, current: 4287.53 } : null,
+   480→                status: 'cost_analysis_completed',
+   481→                timestamp: new Date().toISOString(),
+   482→              };
+   483→
+   484→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   485→          return {
+   486→            success: true,
+   487→            data: resultData,
+   488→            metadata: { duration: Date.now() - startTime },
+   489→          };
+   490→        }
+   491→
+   492→        case 'monitor': {
+   493→          const resourceIds = config.resourceIds || [];
+   494→          const metrics = config.metrics || [
+   495→            'cpu',
+   496→            'memory',
+   497→            'network',
+   498→            'disk',
+   499→          ];
+   500→          const interval = config.interval || '5m';
+   501→          const timeRange = config.timeRange || '1h';
+   502→          const alertThresholds = config.alertThresholds || {};
+   503→          const healthCheckEnabled = config.healthCheckEnabled ?? true;
+   504→          const uptimeTracking = config.uptimeTracking ?? true;
+   505→          const customMetrics = config.customMetrics || [];
+   506→          this.logger.log(
+   507→            `Monitoring ${resourceIds.length || 'all'} resources (metrics: ${metrics.join(', ')}, interval: ${interval})`,
+   508→          );
+   509→
+   510→          const llmResult = await this.executeWithLLM(
+   511→            `You are a cloud monitoring expert. Generate realistic cloud health monitoring data. Return JSON with "resourceHealth" array of objects with resourceId string, status string, metrics object with numeric values, "activeAlerts" array of objects with resourceId string, metric string, severity string, message string, and "overallStatus" string.`,
+   512→            `Monitor ${resourceIds.length || 5} cloud resources. Metrics: ${metrics.join(', ')}. Interval: ${interval}. Time range: ${timeRange}. Health check: ${healthCheckEnabled}. Uptime tracking: ${uptimeTracking}. Custom metrics: ${customMetrics.join(', ') || 'none'}.`,
+   513→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   514→          );
+   515→          const parsed = this.safeJsonParse(llmResult);
+   516→
+   517→          const defaultResourceIds = resourceIds.length ? resourceIds : ['i-0a1b2c3d4e5f', 'i-6g7h8i9j0k1l', 'db-prod-primary', 'cache-session-01', 'lb-web-frontend'];
+   518→          const resultData = parsed
+   519→            ? {
+   520→                action,
+   521→                resourceIds,
+   522→                metrics,
+   523→                interval,
+   524→                timeRange,
+   525→                alertThresholds,
+   526→                healthCheckEnabled,
+   527→                uptimeTracking,
+   528→                customMetrics,
+   529→                resourceHealth: parsed.resourceHealth || [],
+   530→                activeAlerts: parsed.activeAlerts || [],
+   531→                overallStatus: parsed.overallStatus || 'healthy',
+   532→                status: 'monitoring_active',
+   533→                timestamp: new Date().toISOString(),
+   534→              }
+   535→            : {
+   536→                action,
+   537→                resourceIds,
+   538→                metrics,
+   539→                interval,
+   540→                timeRange,
+   541→                alertThresholds,
+   542→                healthCheckEnabled,
+   543→                uptimeTracking,
+   544→                customMetrics,
+   545→                resourceHealth: defaultResourceIds.map((id: string) => ({
+   546→                  resourceId: id,
+   547→                  status: id.startsWith('db') ? 'warning' : 'healthy',
+   548→                  metrics: {
+   549→                    cpuUtilization: id.startsWith('db') ? 78.5 : id.startsWith('cache') ? 35.2 : 45.8 + Math.random() * 20,
+   550→                    memoryUtilization: id.startsWith('db') ? 82.3 : id.startsWith('cache') ? 68.9 : 52.1 + Math.random() * 15,
+   551→                    networkInBytes: Math.floor(125000 + Math.random() * 500000),
+   552→                    networkOutBytes: Math.floor(98000 + Math.random() * 350000),
+   553→                    diskReadOps: Math.floor(150 + Math.random() * 300),
+   554→                    diskWriteOps: Math.floor(80 + Math.random() * 200),
+   555→                  },
+   556→                })),
+   557→                activeAlerts: [
+   558→                  { resourceId: 'db-prod-primary', metric: 'memoryUtilization', severity: 'warning', message: 'Memory utilization at 82.3% - approaching threshold of 85%' },
+   559→                  { resourceId: 'db-prod-primary', metric: 'cpuUtilization', severity: 'info', message: 'CPU utilization elevated at 78.5% - monitor for sustained increase' },
+   560→                ],
+   561→                overallStatus: 'healthy',
+   562→                status: 'monitoring_active',
+   563→                timestamp: new Date().toISOString(),
+   564→              };
+   565→
+   566→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   567→          return {
+   568→            success: true,
+   569→            data: resultData,
+   570→            metadata: { duration: Date.now() - startTime },
+   571→          };
+   572→        }
+   573→
+   574→        default:
+   575→          return { success: false, error: `Unknown action: ${action}` };
+   576→      }
+   577→    } catch (error: any) {
+   578→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message, agent: this.name });
+   579→      return { success: false, error: error.message };
+   580→    }
+   581→  }
+   582→}
+   583→

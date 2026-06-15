@@ -10,6 +10,7 @@ import { NetworkAgent } from './agents/network.agent';
 import { BackupAgent } from './agents/backup.agent';
 import { SystemInfoAgent } from './agents/system-info.agent';
 import { SoftwareAgent } from './agents/software.agent';
+import { SystemHackerAgent } from './agents/system-hacker.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createComputerAgents(
@@ -25,6 +26,7 @@ function createComputerAgents(
     new BackupAgent(),
     new SystemInfoAgent(),
     new SoftwareAgent(),
+    new SystemHackerAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

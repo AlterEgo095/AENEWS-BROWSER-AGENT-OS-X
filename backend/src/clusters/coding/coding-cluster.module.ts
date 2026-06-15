@@ -11,10 +11,11 @@ import { DeploymentAgent } from './agents/deployment.agent';
 import { VersionControlAgent } from './agents/version-control.agent';
 import { DependencyAgent } from './agents/dependency.agent';
 import { DebuggingAgent } from './agents/debugging.agent';
+import { AICodeArchitectAgent } from './agents/ai-code-architect.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 /**
- * Factory function that creates all 8 Coding Cluster agent instances
+ * Factory function that creates all 9 Coding Cluster agent instances
  * and injects LLM/Bridge/EventBus services.
  */
 function createCodingAgents(
@@ -31,6 +32,7 @@ function createCodingAgents(
     new VersionControlAgent(),
     new DependencyAgent(),
     new DebuggingAgent(),
+    new AICodeArchitectAgent(),
   ];
 
   // Inject services into all agents
@@ -51,7 +53,7 @@ export class CodingClusterModule implements OnModuleInit {
   ) {}
 
   /**
-   * On module initialization, register all 8 coding cluster agents
+   * On module initialization, register all 9 coding cluster agents
    * into the centralized AgentRegistryService with injected services.
    */
   onModuleInit() {

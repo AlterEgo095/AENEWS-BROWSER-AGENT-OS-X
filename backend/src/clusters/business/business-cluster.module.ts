@@ -12,6 +12,7 @@ import { LegalAgent } from './agents/legal.agent';
 import { ProcurementAgent } from './agents/procurement.agent';
 import { ReportingAgent } from './agents/reporting.agent';
 import { DecisionAgent } from './agents/decision.agent';
+import { BusinessIntelligenceAgent } from './agents/business-intelligence.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createBusinessAgents(
@@ -29,6 +30,7 @@ function createBusinessAgents(
     new ProcurementAgent(),
     new ReportingAgent(),
     new DecisionAgent(),
+    new BusinessIntelligenceAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

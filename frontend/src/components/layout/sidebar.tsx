@@ -18,6 +18,7 @@ import {
   Shield,
   Settings,
   Radio,
+  Wallet,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,7 @@ const mainNavItems = [
   { href: '/missions', label: 'Missions', icon: Rocket },
   { href: '/tasks', label: 'Tasks', icon: ListTodo },
   { href: '/events', label: 'Events', icon: Activity },
+  { href: '/credits', label: 'Credits', icon: Wallet },
   { href: '/live', label: 'Live Monitor', icon: Radio },
 ];
 

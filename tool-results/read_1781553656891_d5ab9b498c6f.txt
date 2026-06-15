@@ -1,0 +1,484 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→/**
+    10→ * AICodeArchitectAgent — AI-powered code architecture design (v3.0.0).
+    11→ *
+    12→ * Provides architecture design, pattern recommendation, tech stack selection,
+    13→ * microservices design, API design, and database schema design capabilities.
+    14→ * Uses LLM for intelligent architecture analysis when available,
+    15→ * falling back to heuristic-based simulation data.
+    16→ */
+    17→export class AICodeArchitectAgent extends BaseAgent {
+    18→  readonly name = 'AICodeArchitectAgent';
+    19→  readonly cluster = ClusterType.CODING;
+    20→  readonly capabilities = [
+    21→    'architecture-design',
+    22→    'pattern-recommendation',
+    23→    'tech-stack-selection',
+    24→    'microservices-design',
+    25→    'api-design',
+    26→    'database-schema-design',
+    27→  ];
+    28→  readonly version = '3.0.0';
+    29→  readonly description =
+    30→    'AI-powered code architecture design with pattern recommendation, tech stack selection, microservices design, API design, and database schema design';
+    31→
+    32→  async execute(context: AgentContext): Promise<AgentResult> {
+    33→    try {
+    34→      const { config } = context;
+    35→      const action = config.action || 'design-architecture';
+    36→      const startTime = Date.now();
+    37→
+    38→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    39→
+    40→      switch (action) {
+    41→        case 'design-architecture': {
+    42→          const projectName = config.projectName;
+    43→          const projectType = config.projectType || 'web-application';
+    44→          const requirements = config.requirements || [];
+    45→          const constraints = config.constraints || [];
+    46→          const scale = config.scale || 'medium';
+    47→          const domain = config.domain || 'general';
+    48→
+    49→          if (!projectName) {
+    50→            return { success: false, error: '"projectName" is required for architecture design' };
+    51→          }
+    52→
+    53→          this.logger.log(`Designing architecture for "${projectName}" (${projectType}, scale: ${scale})`);
+    54→
+    55→          const llmResult = await this.executeWithLLM(
+    56→            `You are a senior software architect. Design comprehensive system architectures with clear component boundaries, data flows, and technology choices. Return structured JSON.`,
+    57→            `Design architecture for project "${projectName}" of type ${projectType}. Scale: ${scale}. Domain: ${domain}. Requirements: ${JSON.stringify(requirements)}. Constraints: ${JSON.stringify(constraints)}. Return JSON with: architecture {style, components (array of {name, type, responsibility, technology, dependencies}), dataFlow (array of {from, to, data, protocol}), deploymentStrategy, scalabilityPlan}, diagrams {componentDiagram, deploymentDiagram}, qualityAttributes (array of {attribute, strategy, priority}).`,
+    58→            { responseFormat: 'json', temperature: 0.3, maxTokens: 4096 },
+    59→          );
+    60→
+    61→          const parsed = this.safeJsonParse(llmResult);
+    62→
+    63→          if (parsed) {
+    64→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, projectName });
+    65→            return {
+    66→              success: true,
+    67→              data: {
+    68→                action, projectName, projectType, scale, domain, requirements, constraints,
+    69→                architecture: parsed.architecture || { style: '', components: [], dataFlow: [], deploymentStrategy: '', scalabilityPlan: '' },
+    70→                diagrams: parsed.diagrams || { componentDiagram: '', deploymentDiagram: '' },
+    71→                qualityAttributes: parsed.qualityAttributes || [],
+    72→                status: 'designed',
+    73→                timestamp: new Date().toISOString(),
+    74→              },
+    75→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+    76→            };
+    77→          }
+    78→
+    79→          // Heuristic fallback
+    80→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+    81→          return {
+    82→            success: true,
+    83→            data: {
+    84→              action, projectName, projectType, scale, domain, requirements, constraints,
+    85→              architecture: {
+    86→                style: 'microservices',
+    87→                components: [
+    88→                  { name: 'API Gateway', type: 'gateway', responsibility: 'Request routing, rate limiting, authentication', technology: 'Kong / Nginx', dependencies: ['Auth Service', 'User Service'] },
+    89→                  { name: 'Auth Service', type: 'service', responsibility: 'Authentication, authorization, token management', technology: 'Node.js + Express', dependencies: ['User DB', 'Redis Cache'] },
+    90→                  { name: 'User Service', type: 'service', responsibility: 'User management, profiles, preferences', technology: 'TypeScript + NestJS', dependencies: ['User DB'] },
+    91→                  { name: 'Core Business Service', type: 'service', responsibility: 'Primary business logic and domain operations', technology: 'TypeScript + NestJS', dependencies: ['Business DB', 'Event Bus'] },
+    92→                  { name: 'Event Bus', type: 'infrastructure', responsibility: 'Asynchronous event processing and service decoupling', technology: 'RabbitMQ / Kafka', dependencies: [] },
+    93→                  { name: 'Cache Layer', type: 'infrastructure', responsibility: 'Response caching, session storage, rate limiting', technology: 'Redis Cluster', dependencies: [] },
+    94→                ],
+    95→                dataFlow: [
+    96→                  { from: 'Client', to: 'API Gateway', data: 'HTTP Requests', protocol: 'HTTPS' },
+    97→                  { from: 'API Gateway', to: 'Auth Service', data: 'Auth Tokens', protocol: 'gRPC' },
+    98→                  { from: 'API Gateway', to: 'Core Business Service', data: 'Business Requests', protocol: 'gRPC' },
+    99→                  { from: 'Core Business Service', to: 'Event Bus', data: 'Domain Events', protocol: 'AMQP' },
+   100→                ],
+   101→                deploymentStrategy: 'Containerized with Kubernetes, auto-scaling with HPA, blue-green deployments',
+   102→                scalabilityPlan: 'Horizontal scaling of stateless services, read replicas for databases, CDN for static assets',
+   103→              },
+   104→              diagrams: { componentDiagram: 'Component diagram generated via LLM fallback', deploymentDiagram: 'Deployment diagram generated via LLM fallback' },
+   105→              qualityAttributes: [
+   106→                { attribute: 'Availability', strategy: 'Multi-AZ deployment, circuit breakers, health checks', priority: 'high' },
+   107→                { attribute: 'Performance', strategy: 'Caching, connection pooling, async processing', priority: 'high' },
+   108→                { attribute: 'Security', strategy: 'Zero-trust, mTLS, secret management', priority: 'high' },
+   109→                { attribute: 'Scalability', strategy: 'Microservices, event-driven, auto-scaling', priority: 'medium' },
+   110→                { attribute: 'Maintainability', strategy: 'Clean architecture, domain-driven design, comprehensive logging', priority: 'medium' },
+   111→              ],
+   112→              status: 'designed',
+   113→              timestamp: new Date().toISOString(),
+   114→            },
+   115→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   116→          };
+   117→        }
+   118→
+   119→        case 'recommend-patterns': {
+   120→          const context_ = config.context;
+   121→          const language = config.language || 'typescript';
+   122→          const framework = config.framework;
+   123→          const problemDomain = config.problemDomain || 'general';
+   124→          const existingPatterns = config.existingPatterns || [];
+   125→
+   126→          if (!context_) {
+   127→            return { success: false, error: '"context" is required for pattern recommendation' };
+   128→          }
+   129→
+   130→          this.logger.log(`Recommending patterns for ${language}${framework ? `/${framework}` : ''} (${problemDomain})`);
+   131→
+   132→          const llmResult = await this.executeWithLLM(
+   133→            `You are a software design patterns expert. Recommend appropriate design patterns based on the given context, considering language idioms, framework conventions, and domain requirements.`,
+   134→            `Recommend design patterns for: ${context_}. Language: ${language}. Framework: ${framework || 'none'}. Domain: ${problemDomain}. Existing patterns: ${existingPatterns.join(', ')}. Return JSON with: recommended (array of {name, category, applicability, implementation, pros, cons, complexity}), antiPatterns (array of {name, reason, alternative}), patternCombinations (array of {patterns, benefit, useCase}).`,
+   135→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   136→          );
+   137→
+   138→          const parsed = this.safeJsonParse(llmResult);
+   139→
+   140→          if (parsed) {
+   141→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, patternsFound: parsed.recommended?.length || 0 });
+   142→            return {
+   143→              success: true,
+   144→              data: {
+   145→                action, context: context_, language, framework, problemDomain, existingPatterns,
+   146→                recommended: parsed.recommended || [],
+   147→                antiPatterns: parsed.antiPatterns || [],
+   148→                patternCombinations: parsed.patternCombinations || [],
+   149→                status: 'recommended',
+   150→                timestamp: new Date().toISOString(),
+   151→              },
+   152→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   153→            };
+   154→          }
+   155→
+   156→          // Heuristic fallback
+   157→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   158→          return {
+   159→            success: true,
+   160→            data: {
+   161→              action, context: context_, language, framework, problemDomain, existingPatterns,
+   162→              recommended: [
+   163→                { name: 'Repository Pattern', category: 'structural', applicability: 'Data access abstraction layer', implementation: 'Define interfaces for data operations, implement with specific ORM/DB drivers', pros: ['Testability', 'Swap data sources easily', 'Separation of concerns'], cons: ['Additional abstraction layer', 'More boilerplate'], complexity: 'medium' },
+   164→                { name: 'CQRS', category: 'architectural', applicability: 'Separation of read and write operations', implementation: 'Separate command and query models with distinct data stores', pros: ['Optimized read/write performance', 'Scalability', 'Clear separation'], cons: ['Eventual consistency', 'Increased complexity', 'Data synchronization'], complexity: 'high' },
+   165→                { name: 'Observer Pattern', category: 'behavioral', applicability: 'Event-driven communication between services', implementation: 'Event emitter/subscription with typed event contracts', pros: ['Loose coupling', 'Extensibility', 'Async processing'], cons: ['Debugging complexity', 'Event ordering challenges'], complexity: 'medium' },
+   166→                { name: 'Strategy Pattern', category: 'behavioral', applicability: 'Runtime algorithm selection', implementation: 'Define strategy interface with multiple implementations', pros: ['Open/closed principle', 'Runtime flexibility', 'Testability'], cons: ['Client must know strategies', 'Increased objects'], complexity: 'low' },
+   167→              ],
+   168→              antiPatterns: [
+   169→                { name: 'God Object', reason: 'Single class handles too many responsibilities', alternative: 'Single Responsibility Principle with proper class decomposition' },
+   170→                { name: 'Premature Optimization', reason: 'Optimizing before measuring actual bottlenecks', alternative: 'Profile first, then optimize the proven bottlenecks' },
+   171→              ],
+   172→              patternCombinations: [
+   173→                { patterns: ['Repository + Unit of Work'], benefit: 'Transactional consistency with data access abstraction', useCase: 'Complex domain operations requiring atomic changes' },
+   174→                { patterns: ['CQRS + Event Sourcing'], benefit: 'Full audit trail with optimized read/write paths', useCase: 'Systems requiring complete event history and high query throughput' },
+   175→              ],
+   176→              status: 'recommended',
+   177→              timestamp: new Date().toISOString(),
+   178→            },
+   179→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   180→          };
+   181→        }
+   182→
+   183→        case 'select-tech-stack': {
+   184→          const projectType = config.projectType || 'web-application';
+   185→          const requirements = config.requirements || [];
+   186→          const teamSize = config.teamSize || '5-10';
+   187→          const budget = config.budget || 'medium';
+   188→          const timeline = config.timeline || '6-12 months';
+   189→          const existingTech = config.existingTech || [];
+   190→
+   191→          this.logger.log(`Selecting tech stack for ${projectType} (team: ${teamSize}, budget: ${budget})`);
+   192→
+   193→          const llmResult = await this.executeWithLLM(
+   194→            `You are a technology selection expert. Recommend optimal tech stacks based on project requirements, team capabilities, and constraints. Return structured JSON.`,
+   195→            `Select tech stack for ${projectType}. Requirements: ${JSON.stringify(requirements)}. Team: ${teamSize}. Budget: ${budget}. Timeline: ${timeline}. Existing tech: ${existingTech.join(', ')}. Return JSON with: frontend {framework, language, buildTool, testing, rationale}, backend {framework, language, runtime, apiStyle, rationale}, database {primary, cache, search, rationale}, infrastructure {hosting, containerization, ciCd, monitoring, rationale}, alternativesConsidered (array of {category, alternative, reasonNotSelected}).`,
+   196→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   197→          );
+   198→
+   199→          const parsed = this.safeJsonParse(llmResult);
+   200→
+   201→          if (parsed) {
+   202→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   203→            return {
+   204→              success: true,
+   205→              data: {
+   206→                action, projectType, requirements, teamSize, budget, timeline, existingTech,
+   207→                frontend: parsed.frontend || {},
+   208→                backend: parsed.backend || {},
+   209→                database: parsed.database || {},
+   210→                infrastructure: parsed.infrastructure || {},
+   211→                alternativesConsidered: parsed.alternativesConsidered || [],
+   212→                status: 'selected',
+   213→                timestamp: new Date().toISOString(),
+   214→              },
+   215→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   216→            };
+   217→          }
+   218→
+   219→          // Heuristic fallback
+   220→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   221→          return {
+   222→            success: true,
+   223→            data: {
+   224→              action, projectType, requirements, teamSize, budget, timeline, existingTech,
+   225→              frontend: { framework: 'Next.js 16', language: 'TypeScript', buildTool: 'Turbopack', testing: 'Vitest + Playwright', rationale: 'Full-stack SSR framework with excellent DX and performance' },
+   226→              backend: { framework: 'NestJS', language: 'TypeScript', runtime: 'Node.js 22', apiStyle: 'REST + GraphQL', rationale: 'Enterprise-grade TypeScript backend with modular architecture' },
+   227→              database: { primary: 'PostgreSQL 16', cache: 'Redis 7', search: 'Elasticsearch 8', rationale: 'Battle-tested relational DB with excellent JSON support and full-text search' },
+   228→              infrastructure: { hosting: 'AWS / GCP', containerization: 'Docker + Kubernetes', ciCd: 'GitHub Actions', monitoring: 'Prometheus + Grafana', rationale: 'Industry standard with extensive ecosystem support' },
+   229→              alternativesConsidered: [
+   230→                { category: 'frontend', alternative: 'Remix', reasonNotSelected: 'Smaller ecosystem, less mature than Next.js' },
+   231→                { category: 'backend', alternative: 'Go + Fiber', reasonNotSelected: 'Team has stronger TypeScript skills, shared types across stack' },
+   232→                { category: 'database', alternative: 'MongoDB', reasonNotSelected: 'Relational data model better fits requirements for ACID compliance' },
+   233→              ],
+   234→              status: 'selected',
+   235→              timestamp: new Date().toISOString(),
+   236→            },
+   237→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   238→          };
+   239→        }
+   240→
+   241→        case 'design-microservices': {
+   242→          const domain = config.domain;
+   243→          const boundedContexts = config.boundedContexts || [];
+   244→          const communicationStyle = config.communicationStyle || 'event-driven';
+   245→          const dataOwnership = config.dataOwnership || 'database-per-service';
+   246→
+   247→          if (!domain) {
+   248→            return { success: false, error: '"domain" is required for microservices design' };
+   249→          }
+   250→
+   251→          this.logger.log(`Designing microservices for domain "${domain}" (${communicationStyle})`);
+   252→
+   253→          const llmResult = await this.executeWithLLM(
+   254→            `You are a microservices architecture expert. Design microservice boundaries, communication patterns, and data management strategies following domain-driven design principles.`,
+   255→            `Design microservices for domain: "${domain}". Bounded contexts: ${JSON.stringify(boundedContexts)}. Communication: ${communicationStyle}. Data ownership: ${dataOwnership}. Return JSON with: services (array of {name, boundedContext, responsibilities, apiContract, dataStore, dependencies, teamSize}), communication (array of {from, to, type, protocol, async}), sharedKernel (array), sagas (array of {name, steps, compensation}), infrastructure {serviceDiscovery, apiGateway, eventStore, configManagement}.`,
+   256→            { responseFormat: 'json', temperature: 0.3, maxTokens: 4096 },
+   257→          );
+   258→
+   259→          const parsed = this.safeJsonParse(llmResult);
+   260→
+   261→          if (parsed) {
+   262→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, services: parsed.services?.length || 0 });
+   263→            return {
+   264→              success: true,
+   265→              data: {
+   266→                action, domain, boundedContexts, communicationStyle, dataOwnership,
+   267→                services: parsed.services || [],
+   268→                communication: parsed.communication || [],
+   269→                sharedKernel: parsed.sharedKernel || [],
+   270→                sagas: parsed.sagas || [],
+   271→                infrastructure: parsed.infrastructure || {},
+   272→                status: 'designed',
+   273→                timestamp: new Date().toISOString(),
+   274→              },
+   275→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   276→            };
+   277→          }
+   278→
+   279→          // Heuristic fallback
+   280→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   281→          return {
+   282→            success: true,
+   283→            data: {
+   284→              action, domain, boundedContexts, communicationStyle, dataOwnership,
+   285→              services: [
+   286→                { name: 'Identity Service', boundedContext: 'Authentication', responsibilities: ['User authentication', 'Token management', 'SSO'], apiContract: 'REST + OAuth2', dataStore: 'PostgreSQL', dependencies: ['Notification Service'], teamSize: 3 },
+   287→                { name: 'Catalog Service', boundedContext: 'Product Management', responsibilities: ['Product CRUD', 'Category management', 'Inventory tracking'], apiContract: 'REST + GraphQL', dataStore: 'PostgreSQL + Elasticsearch', dependencies: ['Event Bus'], teamSize: 4 },
+   288→                { name: 'Order Service', boundedContext: 'Order Processing', responsibilities: ['Order lifecycle', 'Payment coordination', 'Fulfillment tracking'], apiContract: 'REST + Events', dataStore: 'PostgreSQL', dependencies: ['Catalog Service', 'Payment Service', 'Notification Service'], teamSize: 5 },
+   289→                { name: 'Payment Service', boundedContext: 'Billing', responsibilities: ['Payment processing', 'Refund handling', 'Invoice generation'], apiContract: 'REST + Webhooks', dataStore: 'PostgreSQL', dependencies: ['Event Bus'], teamSize: 3 },
+   290→                { name: 'Notification Service', boundedContext: 'Communication', responsibilities: ['Email sending', 'Push notifications', 'SMS delivery'], apiContract: 'Async Events', dataStore: 'MongoDB', dependencies: [], teamSize: 2 },
+   291→              ],
+   292→              communication: [
+   293→                { from: 'Order Service', to: 'Payment Service', type: 'synchronous', protocol: 'gRPC', async: false },
+   294→                { from: 'Order Service', to: 'Notification Service', type: 'asynchronous', protocol: 'AMQP', async: true },
+   295→                { from: 'Payment Service', to: 'Notification Service', type: 'asynchronous', protocol: 'AMQP', async: true },
+   296→                { from: 'Catalog Service', to: 'Order Service', type: 'asynchronous', protocol: 'AMQP', async: true },
+   297→              ],
+   298→              sharedKernel: ['Money value object', 'Address value object', 'Event base class', 'Error codes enum'],
+   299→              sagas: [
+   300→                { name: 'Order Fulfillment Saga', steps: ['Create order', 'Reserve inventory', 'Process payment', 'Confirm order', 'Ship order'], compensation: ['Cancel order', 'Release inventory', 'Refund payment'] },
+   301→                { name: 'Payment Refund Saga', steps: ['Initiate refund', 'Reverse payment', 'Update order status', 'Send notification'], compensation: ['Cancel refund', 'Restore payment'] },
+   302→              ],
+   303→              infrastructure: { serviceDiscovery: 'Consul', apiGateway: 'Kong', eventStore: 'Kafka', configManagement: 'Spring Cloud Config / Consul' },
+   304→              status: 'designed',
+   305→              timestamp: new Date().toISOString(),
+   306→            },
+   307→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   308→          };
+   309→        }
+   310→
+   311→        case 'design-api': {
+   312→          const apiName = config.apiName;
+   313→          const apiStyle = config.apiStyle || 'rest';
+   314→          const versioning = config.versioning || 'url-path';
+   315→          const authMethod = config.authMethod || 'oauth2';
+   316→          const resources = config.resources || [];
+   317→
+   318→          if (!apiName) {
+   319→            return { success: false, error: '"apiName" is required for API design' };
+   320→          }
+   321→
+   322→          this.logger.log(`Designing API "${apiName}" (${apiStyle}, auth: ${authMethod})`);
+   323→
+   324→          const llmResult = await this.executeWithLLM(
+   325→            `You are an API design expert. Design comprehensive API contracts with proper resource modeling, authentication, versioning, and documentation standards.`,
+   326→            `Design API "${apiName}" with style: ${apiStyle}. Versioning: ${versioning}. Auth: ${authMethod}. Resources: ${JSON.stringify(resources)}. Return JSON with: endpoints (array of {method, path, description, requestSchema, responseSchema, authRequired, rateLimit}), models (array of {name, fields (array of {name, type, required, description})}), errorCodes (array of {code, message, httpStatus}), authConfig {flows, scopes, tokenExpiry}, versioningStrategy {method, currentVersion, deprecationPolicy}.`,
+   327→            { responseFormat: 'json', temperature: 0.3, maxTokens: 4096 },
+   328→          );
+   329→
+   330→          const parsed = this.safeJsonParse(llmResult);
+   331→
+   332→          if (parsed) {
+   333→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, apiName, endpoints: parsed.endpoints?.length || 0 });
+   334→            return {
+   335→              success: true,
+   336→              data: {
+   337→                action, apiName, apiStyle, versioning, authMethod, resources,
+   338→                endpoints: parsed.endpoints || [],
+   339→                models: parsed.models || [],
+   340→                errorCodes: parsed.errorCodes || [],
+   341→                authConfig: parsed.authConfig || {},
+   342→                versioningStrategy: parsed.versioningStrategy || {},
+   343→                status: 'designed',
+   344→                timestamp: new Date().toISOString(),
+   345→              },
+   346→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   347→            };
+   348→          }
+   349→
+   350→          // Heuristic fallback
+   351→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   352→          return {
+   353→            success: true,
+   354→            data: {
+   355→              action, apiName, apiStyle, versioning, authMethod, resources,
+   356→              endpoints: [
+   357→                { method: 'GET', path: '/api/v1/users', description: 'List all users with pagination', requestSchema: { page: 'number', limit: 'number', filter: 'string' }, responseSchema: { data: 'User[]', meta: 'PaginationMeta' }, authRequired: true, rateLimit: '100/min' },
+   358→                { method: 'GET', path: '/api/v1/users/:id', description: 'Get user by ID', requestSchema: { id: 'string' }, responseSchema: { data: 'User' }, authRequired: true, rateLimit: '200/min' },
+   359→                { method: 'POST', path: '/api/v1/users', description: 'Create a new user', requestSchema: { email: 'string', name: 'string', role: 'string' }, responseSchema: { data: 'User' }, authRequired: true, rateLimit: '50/min' },
+   360→                { method: 'PUT', path: '/api/v1/users/:id', description: 'Update user by ID', requestSchema: { email: 'string', name: 'string' }, responseSchema: { data: 'User' }, authRequired: true, rateLimit: '50/min' },
+   361→                { method: 'DELETE', path: '/api/v1/users/:id', description: 'Delete user by ID', requestSchema: { id: 'string' }, responseSchema: { data: 'null' }, authRequired: true, rateLimit: '20/min' },
+   362→              ],
+   363→              models: [
+   364→                { name: 'User', fields: [{ name: 'id', type: 'UUID', required: true, description: 'Unique user identifier' }, { name: 'email', type: 'string', required: true, description: 'User email address' }, { name: 'name', type: 'string', required: true, description: 'Display name' }, { name: 'role', type: 'enum', required: true, description: 'admin | user | viewer' }, { name: 'createdAt', type: 'ISO8601', required: true, description: 'Creation timestamp' }] },
+   365→              ],
+   366→              errorCodes: [
+   367→                { code: 'VALIDATION_ERROR', message: 'Request validation failed', httpStatus: 400 },
+   368→                { code: 'UNAUTHORIZED', message: 'Authentication required', httpStatus: 401 },
+   369→                { code: 'FORBIDDEN', message: 'Insufficient permissions', httpStatus: 403 },
+   370→                { code: 'NOT_FOUND', message: 'Resource not found', httpStatus: 404 },
+   371→                { code: 'RATE_LIMITED', message: 'Too many requests', httpStatus: 429 },
+   372→                { code: 'INTERNAL_ERROR', message: 'Internal server error', httpStatus: 500 },
+   373→              ],
+   374→              authConfig: { flows: ['authorization_code', 'client_credentials'], scopes: ['read', 'write', 'admin'], tokenExpiry: '1h (access), 7d (refresh)' },
+   375→              versioningStrategy: { method: 'url-path', currentVersion: 'v1', deprecationPolicy: '6 months sunset period with header warnings' },
+   376→              status: 'designed',
+   377→              timestamp: new Date().toISOString(),
+   378→            },
+   379→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   380→          };
+   381→        }
+   382→
+   383→        case 'design-schema': {
+   384→          const schemaName = config.schemaName;
+   385→          const databaseType = config.databaseType || 'postgresql';
+   386→          const entities = config.entities || [];
+   387→          const relationships = config.relationships || [];
+   388→          const normalization = config.normalization || '3NF';
+   389→
+   390→          if (!schemaName) {
+   391→            return { success: false, error: '"schemaName" is required for database schema design' };
+   392→          }
+   393→
+   394→          this.logger.log(`Designing schema "${schemaName}" (${databaseType}, normalization: ${normalization})`);
+   395→
+   396→          const llmResult = await this.executeWithLLM(
+   397→            `You are a database design expert. Design optimized database schemas with proper normalization, indexing strategies, and migration paths.`,
+   398→            `Design database schema "${schemaName}" for ${databaseType}. Entities: ${JSON.stringify(entities)}. Relationships: ${JSON.stringify(relationships)}. Normalization: ${normalization}. Return JSON with: tables (array of {name, columns (array of {name, type, nullable, default, constraints}), primaryKey, indexes (array of {name, columns, type}), foreignKeys (array of {column, references, onDelete})}), erDiagram, migrationStrategy {approach, estimatedSteps}, performanceConsiderations (array of strings).`,
+   399→            { responseFormat: 'json', temperature: 0.3, maxTokens: 4096 },
+   400→          );
+   401→
+   402→          const parsed = this.safeJsonParse(llmResult);
+   403→
+   404→          if (parsed) {
+   405→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, schemaName, tables: parsed.tables?.length || 0 });
+   406→            return {
+   407→              success: true,
+   408→              data: {
+   409→                action, schemaName, databaseType, entities, relationships, normalization,
+   410→                tables: parsed.tables || [],
+   411→                erDiagram: parsed.erDiagram || '',
+   412→                migrationStrategy: parsed.migrationStrategy || { approach: '', estimatedSteps: 0 },
+   413→                performanceConsiderations: parsed.performanceConsiderations || [],
+   414→                status: 'designed',
+   415→                timestamp: new Date().toISOString(),
+   416→              },
+   417→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   418→            };
+   419→          }
+   420→
+   421→          // Heuristic fallback
+   422→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   423→          return {
+   424→            success: true,
+   425→            data: {
+   426→              action, schemaName, databaseType, entities, relationships, normalization,
+   427→              tables: [
+   428→                {
+   429→                  name: 'users',
+   430→                  columns: [
+   431→                    { name: 'id', type: 'UUID', nullable: false, default: 'gen_random_uuid()', constraints: ['PRIMARY KEY'] },
+   432→                    { name: 'email', type: 'VARCHAR(255)', nullable: false, default: null, constraints: ['UNIQUE', 'NOT NULL'] },
+   433→                    { name: 'password_hash', type: 'VARCHAR(255)', nullable: false, default: null, constraints: ['NOT NULL'] },
+   434→                    { name: 'name', type: 'VARCHAR(100)', nullable: false, default: null, constraints: ['NOT NULL'] },
+   435→                    { name: 'role', type: 'ENUM', nullable: false, default: "'user'", constraints: ['NOT NULL'] },
+   436→                    { name: 'created_at', type: 'TIMESTAMPTZ', nullable: false, default: 'NOW()', constraints: ['NOT NULL'] },
+   437→                    { name: 'updated_at', type: 'TIMESTAMPTZ', nullable: false, default: 'NOW()', constraints: ['NOT NULL'] },
+   438→                  ],
+   439→                  primaryKey: 'id',
+   440→                  indexes: [{ name: 'idx_users_email', columns: ['email'], type: 'UNIQUE' }, { name: 'idx_users_role', columns: ['role'], type: 'BTREE' }],
+   441→                  foreignKeys: [],
+   442→                },
+   443→                {
+   444→                  name: 'orders',
+   445→                  columns: [
+   446→                    { name: 'id', type: 'UUID', nullable: false, default: 'gen_random_uuid()', constraints: ['PRIMARY KEY'] },
+   447→                    { name: 'user_id', type: 'UUID', nullable: false, default: null, constraints: ['NOT NULL'] },
+   448→                    { name: 'status', type: 'ENUM', nullable: false, default: "'pending'", constraints: ['NOT NULL'] },
+   449→                    { name: 'total_amount', type: 'DECIMAL(10,2)', nullable: false, default: '0', constraints: ['NOT NULL', 'CHECK >= 0'] },
+   450→                    { name: 'created_at', type: 'TIMESTAMPTZ', nullable: false, default: 'NOW()', constraints: ['NOT NULL'] },
+   451→                  ],
+   452→                  primaryKey: 'id',
+   453→                  indexes: [{ name: 'idx_orders_user_id', columns: ['user_id'], type: 'BTREE' }, { name: 'idx_orders_status', columns: ['status'], type: 'BTREE' }, { name: 'idx_orders_created_at', columns: ['created_at'], type: 'BTREE' }],
+   454→                  foreignKeys: [{ column: 'user_id', references: 'users(id)', onDelete: 'CASCADE' }],
+   455→                },
+   456→              ],
+   457→              erDiagram: 'ER diagram: users 1:N orders',
+   458→              migrationStrategy: { approach: 'Incremental migrations with reversible steps', estimatedSteps: 4 },
+   459→              performanceConsiderations: [
+   460→                'Add composite indexes for common query patterns',
+   461→                'Consider partitioning orders table by date for large datasets',
+   462→                'Use partial indexes for frequently filtered status columns',
+   463→                'Implement connection pooling for high-concurrency scenarios',
+   464→              ],
+   465→              status: 'designed',
+   466→              timestamp: new Date().toISOString(),
+   467→            },
+   468→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   469→          };
+   470→        }
+   471→
+   472→        default:
+   473→          return {
+   474→            success: false,
+   475→            error: `Unknown action: ${action}. Supported actions: design-architecture, recommend-patterns, select-tech-stack, design-microservices, design-api, design-schema`,
+   476→          };
+   477→      }
+   478→    } catch (error: any) {
+   479→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   480→      return { success: false, error: error.message };
+   481→    }
+   482→  }
+   483→}
+   484→

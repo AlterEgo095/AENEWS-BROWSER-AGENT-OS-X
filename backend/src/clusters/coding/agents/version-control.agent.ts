@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 
 export class VersionControlAgent extends BaseAgent {
   readonly name = 'VersionControlAgent';
@@ -19,6 +19,11 @@ export class VersionControlAgent extends BaseAgent {
   readonly version = '1.0.0';
   readonly description =
     'Manages Git and version control operations including commits, branches, merges, diffs, logs, and tags';
+
+  readonly missionCategories = [MissionCategory.CODE_DEVELOPMENT];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

@@ -116,6 +116,7 @@ const CLUSTER_CAPABILITIES: Record<ClusterType, string[]> = {
   [ClusterType.WATCHDOG]: ['health-monitoring', 'anomaly-detection', 'alerting', 'recovery', 'circuit-breaker'],
   [ClusterType.SELF_EVOLUTION]: ['self-improvement', 'code-modification', 'pattern-learning', 'evolution'],
   [ClusterType.CERTIFICATION]: ['quality-assurance', 'testing', 'auditing', 'certification', 'compliance-check'],
+  [ClusterType.STEALTH_OPS]: ['stealth-navigation', 'fingerprint-spoofing', 'proxy-rotation', 'anti-detection', 'covert-ops'],
 };
 
 // ─── Service ─────────────────────────────────────────────────────

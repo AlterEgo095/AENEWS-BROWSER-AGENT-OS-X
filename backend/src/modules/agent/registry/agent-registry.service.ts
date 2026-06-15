@@ -59,6 +59,10 @@ export class AgentRegistryService {
   private healthService: any = null;
   private healthServiceResolved = false;
 
+  /** Lazily-resolved credit service (optional) */
+  private creditService: any = null;
+  private creditServiceResolved = false;
+
   constructor(
     private readonly moduleRef: ModuleRef,
     @Optional() private readonly circuitBreakerService: CircuitBreakerService,
@@ -94,6 +98,32 @@ export class AgentRegistryService {
     }
 
     return this.healthService;
+  }
+
+  // ─── Lazy Credit Service Resolution ─────────────────────────────
+
+  /**
+   * Lazily resolve the CreditService from the DI container.
+   * Uses ModuleRef to avoid hard circular dependencies.
+   * If the credit module is not loaded, gracefully falls back.
+   */
+  private resolveCreditService(): any {
+    if (this.creditServiceResolved) return this.creditService;
+
+    try {
+      const { CreditService } = require('../../credit/credit.service');
+      this.creditService = this.moduleRef.get(CreditService, { strict: false });
+      this.creditServiceResolved = true;
+
+      if (this.creditService) {
+        this.logger.debug('CreditService connected to AgentRegistryService');
+      }
+    } catch {
+      this.creditServiceResolved = true; // don't retry on every call
+      this.creditService = null;
+    }
+
+    return this.creditService;
   }
 
   /**
@@ -510,16 +540,50 @@ export class AgentRegistryService {
   }
 
   /**
-   * Internal agent execution with tracking.
+   * Internal agent execution with tracking and credit integration.
+   *
+   * Credit Integration:
+   *   - Before execution: Check if the user has enough credits for the agent's creditCost
+   *   - If insufficient credits, throw an error with a descriptive message
+   *   - After successful execution: Deduct the credits from the user's account
+   *   - If credit service is unavailable, execution proceeds without credit checks
    */
   private async executeAgentInternal(
     key: string,
     agent: BaseAgent,
     context: AgentContext,
   ): Promise<AgentResult> {
+    // ── Credit Check: Verify sufficient credits before execution ──
+    const creditService = this.resolveCreditService();
+    if (creditService) {
+      const hasCredits = await creditService.hasCredits(context.tenantId, agent.creditCost);
+      if (!hasCredits) {
+        throw new Error(`Insufficient credits. Agent "${agent.name}" requires ${agent.creditCost} credits.`);
+      }
+    }
+
     this.incrementActiveExecutions(key);
     try {
       const result = await agent.wrapExecution(context);
+
+      // ── Credit Deduction: Deduct credits after successful execution ──
+      if (creditService && result.success) {
+        try {
+          await creditService.deductCredits(
+            context.tenantId,
+            agent.creditCost,
+            agent.name,
+            context.missionId,
+            `Executed ${agent.name} (v${agent.version})`,
+          );
+        } catch (error: any) {
+          // Log but don't fail the execution if credit deduction fails
+          this.logger.warn(
+            `Failed to deduct credits for agent ${key}: ${error.message}`,
+          );
+        }
+      }
+
       return result;
     } finally {
       this.decrementActiveExecutions(key);

@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { proxyToBackend } from '@/lib/backend-proxy'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -10,6 +11,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
+    // Try backend proxy first
+    const backendResult = await proxyToBackend(`/credits/balance?userId=${encodeURIComponent(userId)}`)
+    if (backendResult?.ok) {
+      return NextResponse.json(backendResult.data)
+    }
+
+    // Fallback to Prisma/SQLite
     const user = await db.user.findUnique({
       where: { id: userId },
       select: {

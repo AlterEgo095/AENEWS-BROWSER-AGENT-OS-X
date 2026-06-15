@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
@@ -33,6 +33,11 @@ export class LLMPlannerAgent extends BaseAgent {
   readonly version = '3.0.0';
   readonly description =
     'Intelligent mission planner using LLM reasoning for optimal execution strategies';
+
+  readonly missionCategories = [MissionCategory.AI_ORCHESTRATION];
+  readonly creditCost = 2;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

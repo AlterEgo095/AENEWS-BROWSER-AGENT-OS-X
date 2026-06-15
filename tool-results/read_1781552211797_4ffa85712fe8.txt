@@ -1,0 +1,602 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→/**
+    10→ * ErrorAnalyzerAgent — LLM-powered error analysis for the Watchdog Cluster.
+    11→ *
+    12→ * Analyzes error traces from failed missions and agents, identifies root causes,
+    13→ * classifies errors by type and severity, and suggests remediation strategies.
+    14→ *
+    15→ * When LLM is available: Uses real LLM calls for intelligent error diagnosis
+    16→ * and root cause analysis.
+    17→ * Falls back to pattern-matching and heuristic analysis when LLM is unavailable.
+    18→ *
+    19→ * Supported actions:
+    20→ * - analyze-error     → Full error analysis returning root cause, category, severity, recoverability, and remediation
+    21→ * - classify-error    → Classify an error into a structured taxonomy (type, category, severity, tags)
+    22→ * - suggest-remediation → Generate remediation suggestions based on an error classification
+    23→ * - trace-root-cause  → Deep root-cause tracing that follows the causal chain across components
+    24→ */
+    25→export class ErrorAnalyzerAgent extends BaseAgent {
+    26→  readonly name = 'ErrorAnalyzerAgent';
+    27→  readonly cluster = ClusterType.WATCHDOG;
+    28→  readonly capabilities = [
+    29→    'analyze-error',
+    30→    'classify-error',
+    31→    'suggest-remediation',
+    32→    'trace-root-cause',
+    33→  ];
+    34→  readonly version = '2.0.0';
+    35→  readonly description =
+    36→    'LLM-powered error analysis: identifies root causes, classifies errors by type and severity, and suggests remediation strategies';
+    37→
+    38→  async execute(context: AgentContext): Promise<AgentResult> {
+    39→    try {
+    40→      const { config } = context;
+    41→      const action = config.action || 'analyze-error';
+    42→      const startTime = Date.now();
+    43→
+    44→      switch (action) {
+    45→        case 'analyze-error': {
+    46→          const errorId = config.errorId || `err-${Date.now()}`;
+    47→          const errorMessage = config.errorMessage || '';
+    48→          const stackTrace = config.stackTrace || '';
+    49→          const sourceAgent = config.sourceAgent || '';
+    50→          const sourceCluster = config.sourceCluster || '';
+    51→          const missionId = config.missionId || '';
+    52→
+    53→          if (!errorMessage) {
+    54→            return { success: false, error: '"errorMessage" is required for error analysis' };
+    55→          }
+    56→
+    57→          this.logger.log(
+    58→            `Analyzing error "${errorId}" from agent ${sourceAgent || 'unknown'} (cluster: ${sourceCluster || 'unknown'})`,
+    59→          );
+    60→
+    61→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, errorId, sourceAgent });
+    62→
+    63→          // Try LLM-powered error analysis
+    64→          const llmResult = await this.executeWithLLM(
+    65→            `You are an error analysis expert. Analyze the following error and provide a comprehensive diagnosis.
+    66→Return a JSON object with this exact structure:
+    67→{
+    68→  "rootCause": {
+    69→    "identified": true,
+    70→    "category": "infrastructure|application|data|configuration|dependency|resource|network|timeout|permission|unknown",
+    71→    "type": "timeout|connection-refused|auth-failure|null-pointer|out-of-memory|stack-overflow|data-corruption|misconfiguration|unknown",
+    72→    "description": "...",
+    73→    "confidence": 0.91,
+    74→    "evidence": ["..."],
+    75→    "location": "..."
+    76→  },
+    77→  "errorCategory": "transient|persistent|intermittent|cascading|systemic",
+    78→  "severity": "low|medium|high|critical|fatal",
+    79→  "isRecoverable": true,
+    80→  "estimatedRecoveryEffort": "trivial|moderate|significant|major|unknown",
+    81→  "affectedComponents": ["..."],
+    82→  "suggestedRemediation": [
+    83→    { "id": "rem-1", "strategy": "retry|reassign|simplify|fallback|escalate|restart|patch|reconfigure", "description": "...", "priority": "critical|high|medium|low", "estimatedSuccessRate": 0.85, "estimatedTime": 5000, "riskLevel": "low|medium|high", "automated": true, "prerequisites": [] }
+    84→  ]
+    85→}`,
+    86→            `Error ID: ${errorId}\nError message: ${errorMessage}\nStack trace: ${stackTrace.slice(0, 3000)}\nSource agent: ${sourceAgent}\nSource cluster: ${sourceCluster}\nMission ID: ${missionId}`,
+    87→            { responseFormat: 'json' },
+    88→          );
+    89→
+    90→          if (llmResult) {
+    91→            const parsed = this.safeJsonParse(llmResult);
+    92→            if (parsed && parsed.rootCause) {
+    93→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, errorId, category: parsed.rootCause.category, severity: parsed.severity });
+    94→              return {
+    95→                success: true,
+    96→                data: {
+    97→                  action,
+    98→                  errorId,
+    99→                  errorMessage,
+   100→                  stackTrace: config.includeStackTrace ?? true ? stackTrace : undefined,
+   101→                  sourceAgent,
+   102→                  sourceCluster,
+   103→                  missionId,
+   104→                  taskId: config.taskId || '',
+   105→                  errorTimestamp: config.errorTimestamp || new Date().toISOString(),
+   106→                  correlationId: config.correlationId || '',
+   107→                  analysis: {
+   108→                    rootCause: parsed.rootCause,
+   109→                    errorCategory: parsed.errorCategory || 'unknown',
+   110→                    severity: parsed.severity || 'medium',
+   111→                    isRecoverable: parsed.isRecoverable ?? true,
+   112→                    estimatedRecoveryEffort: parsed.estimatedRecoveryEffort || 'unknown',
+   113→                    affectedComponents: parsed.affectedComponents || [],
+   114→                    suggestedRemediation: parsed.suggestedRemediation || [],
+   115→                    context: (config.includeContext ?? true)
+   116→                      ? {
+   117→                          systemState: {},
+   118→                          recentChanges: [],
+   119→                          relatedErrors: [],
+   120→                          resourceUtilization: { cpu: 0, memory: 0, disk: 0, network: 0 },
+   121→                        }
+   122→                      : undefined,
+   123→                  },
+   124→                  status: 'error_analyzed',
+   125→                  generatedBy: 'llm',
+   126→                  timestamp: new Date().toISOString(),
+   127→                },
+   128→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   129→              };
+   130→            }
+   131→          }
+   132→
+   133→          // Fallback: pattern-based analysis
+   134→          this.logger.log('LLM unavailable — falling back to pattern-based error analysis');
+   135→          const patternAnalysis = this.patternBasedAnalysis(errorMessage, stackTrace);
+   136→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, errorId, source: 'fallback' });
+   137→          return {
+   138→            success: true,
+   139→            data: {
+   140→              action,
+   141→              errorId,
+   142→              errorMessage,
+   143→              stackTrace: config.includeStackTrace ?? true ? stackTrace : undefined,
+   144→              sourceAgent,
+   145→              sourceCluster,
+   146→              missionId,
+   147→              taskId: config.taskId || '',
+   148→              errorTimestamp: config.errorTimestamp || new Date().toISOString(),
+   149→              correlationId: config.correlationId || '',
+   150→              analysis: patternAnalysis,
+   151→              status: 'error_analyzed',
+   152→              generatedBy: 'fallback',
+   153→              timestamp: new Date().toISOString(),
+   154→            },
+   155→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   156→          };
+   157→        }
+   158→
+   159→        case 'classify-error': {
+   160→          const errorMessage = config.errorMessage || '';
+   161→          const stackTrace = config.stackTrace || '';
+   162→          const errorCode = config.errorCode || '';
+   163→
+   164→          if (!errorMessage && !errorCode) {
+   165→            return { success: false, error: '"errorMessage" or "errorCode" is required for error classification' };
+   166→          }
+   167→
+   168→          this.logger.log(`Classifying error from agent ${config.sourceAgent || 'unknown'}`);
+   169→          this.emitEvent(AgentEventType.AGENT_STARTED, { action });
+   170→
+   171→          const llmResult = await this.executeWithLLM(
+   172→            `You are an error classification expert. Classify the following error into a structured taxonomy.
+   173→Return a JSON object with this structure:
+   174→{
+   175→  "type": "runtime|logic|syntax|resource|network|authentication|authorization|validation|timeout|data_integrity|concurrency|configuration|dependency|unknown",
+   176→  "category": "transient|persistent|intermittent|cascading|systemic",
+   177→  "severity": "low|medium|high|critical|fatal",
+   178→  "isRecoverable": true,
+   179→  "isRetryable": true,
+   180→  "requiresHumanIntervention": false,
+   181→  "tags": ["..."],
+   182→  "taxonomy": {
+   183→    "domain": "...",
+   184→    "subdomain": "...",
+   185→    "errorFamily": "...",
+   186→    "errorClass": "..."
+   187→  }
+   188→}`,
+   189→            `Error message: ${errorMessage}\nError code: ${errorCode}\nStack trace: ${stackTrace.slice(0, 2000)}\nHTTP status: ${config.httpStatus || 'N/A'}`,
+   190→            { responseFormat: 'json' },
+   191→          );
+   192→
+   193→          if (llmResult) {
+   194→            const parsed = this.safeJsonParse(llmResult);
+   195→            if (parsed && parsed.type) {
+   196→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, type: parsed.type, severity: parsed.severity });
+   197→              return {
+   198→                success: true,
+   199→                data: {
+   200→                  action,
+   201→                  errorMessage,
+   202→                  stackTrace,
+   203→                  errorCode,
+   204→                  httpStatus: config.httpStatus || 0,
+   205→                  sourceAgent: config.sourceAgent || '',
+   206→                  sourceCluster: config.sourceCluster || '',
+   207→                  classification: {
+   208→                    type: parsed.type,
+   209→                    category: parsed.category || 'unknown',
+   210→                    severity: parsed.severity || 'medium',
+   211→                    isRecoverable: parsed.isRecoverable ?? true,
+   212→                    isRetryable: parsed.isRetryable ?? false,
+   213→                    requiresHumanIntervention: parsed.requiresHumanIntervention ?? false,
+   214→                    tags: parsed.tags || [],
+   215→                    relatedPatterns: config.includeRelatedPatterns ?? true ? [] : undefined,
+   216→                    taxonomy: parsed.taxonomy || { domain: '', subdomain: '', errorFamily: '', errorClass: '' },
+   217→                  },
+   218→                  status: 'error_classified',
+   219→                  generatedBy: 'llm',
+   220→                  timestamp: new Date().toISOString(),
+   221→                },
+   222→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   223→              };
+   224→            }
+   225→          }
+   226→
+   227→          // Fallback: regex-based classification
+   228→          this.logger.log('LLM unavailable — falling back to regex-based classification');
+   229→          const classification = this.regexBasedClassification(errorMessage, errorCode);
+   230→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   231→          return {
+   232→            success: true,
+   233→            data: {
+   234→              action,
+   235→              errorMessage,
+   236→              stackTrace,
+   237→              errorCode,
+   238→              httpStatus: config.httpStatus || 0,
+   239→              sourceAgent: config.sourceAgent || '',
+   240→              sourceCluster: config.sourceCluster || '',
+   241→              classification,
+   242→              status: 'error_classified',
+   243→              generatedBy: 'fallback',
+   244→              timestamp: new Date().toISOString(),
+   245→            },
+   246→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   247→          };
+   248→        }
+   249→
+   250→        case 'suggest-remediation': {
+   251→          const errorId = config.errorId || '';
+   252→          const errorCategory = config.errorCategory || '';
+   253→          const severity = config.severity || 'medium';
+   254→          const rootCauseCategory = config.rootCauseCategory || '';
+   255→          const isRecoverable = config.isRecoverable ?? true;
+   256→
+   257→          if (!errorId && !errorCategory) {
+   258→            return { success: false, error: '"errorId" or "errorCategory" is required for remediation suggestions' };
+   259→          }
+   260→
+   261→          this.logger.log(
+   262→            `Suggesting remediation for error ${errorId || errorCategory} (severity: ${severity})`,
+   263→          );
+   264→
+   265→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, errorId, severity });
+   266→
+   267→          const llmResult = await this.executeWithLLM(
+   268→            `You are a remediation expert. Generate specific remediation suggestions for the given error.
+   269→Return a JSON object with this structure:
+   270→{
+   271→  "suggestions": [
+   272→    { "id": "rem-1", "strategy": "retry|reassign|simplify|fallback|escalate|restart|patch|reconfigure|ignore", "title": "...", "description": "...", "priority": "critical|high|medium|low", "estimatedSuccessRate": 0.85, "estimatedTime": 5000, "riskLevel": "low|medium|high", "automated": true, "prerequisites": [], "sideEffects": [], "validationSteps": [] }
+   273→  ],
+   274→  "recommended": { "strategy": "...", "suggestionId": "...", "rationale": "..." },
+   275→  "preventionMeasures": [
+   276→    { "measure": "...", "description": "...", "effort": "low|medium|high", "impact": "low|medium|high" }
+   277→  ]
+   278→}`,
+   279→            `Error ID: ${errorId}\nError category: ${errorCategory}\nSeverity: ${severity}\nRoot cause: ${rootCauseCategory}\nRecoverable: ${isRecoverable}\nConstraints: ${JSON.stringify(config.contextConstraints || [])}`,
+   280→            { responseFormat: 'json' },
+   281→          );
+   282→
+   283→          if (llmResult) {
+   284→            const parsed = this.safeJsonParse(llmResult);
+   285→            if (parsed && parsed.suggestions) {
+   286→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, suggestionCount: parsed.suggestions.length });
+   287→              return {
+   288→                success: true,
+   289→                data: {
+   290→                  action,
+   291→                  errorId,
+   292→                  errorCategory,
+   293→                  severity,
+   294→                  rootCauseCategory,
+   295→                  isRecoverable,
+   296→                  contextConstraints: config.contextConstraints || [],
+   297→                  preferredStrategies: config.preferredStrategies || [],
+   298→                  maxSuggestions: config.maxSuggestions || 5,
+   299→                  includeAutomatedOnly: config.includeAutomatedOnly ?? false,
+   300→                  remediation: {
+   301→                    suggestions: parsed.suggestions,
+   302→                    recommended: parsed.recommended || { strategy: '', suggestionId: '', rationale: '' },
+   303→                    escalationThreshold: { maxRetries: 3, timeoutSeconds: 300, escalationTarget: '' },
+   304→                    preventionMeasures: parsed.preventionMeasures || [],
+   305→                  },
+   306→                  status: 'remediation_suggested',
+   307→                  generatedBy: 'llm',
+   308→                  timestamp: new Date().toISOString(),
+   309→                },
+   310→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   311→              };
+   312→            }
+   313→          }
+   314→
+   315→          // Fallback
+   316→          this.logger.log('LLM unavailable — falling back to template remediation');
+   317→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   318→          return {
+   319→            success: true,
+   320→            data: {
+   321→              action,
+   322→              errorId,
+   323→              errorCategory,
+   324→              severity,
+   325→              rootCauseCategory,
+   326→              isRecoverable,
+   327→              contextConstraints: config.contextConstraints || [],
+   328→              preferredStrategies: config.preferredStrategies || [],
+   329→              maxSuggestions: config.maxSuggestions || 5,
+   330→              includeAutomatedOnly: config.includeAutomatedOnly ?? false,
+   331→              remediation: {
+   332→                suggestions: isRecoverable
+   333→                  ? [{ id: 'rem-1', strategy: 'retry' as const, title: 'Retry the operation', description: 'Retry the failed operation with exponential backoff', priority: 'high' as const, estimatedSuccessRate: 0.7, estimatedTime: 10000, riskLevel: 'low' as const, automated: true, prerequisites: [] as string[], sideEffects: [] as string[], validationSteps: ['Verify operation succeeds on retry'] as string[] }]
+   334→                  : [{ id: 'rem-1', strategy: 'escalate' as const, title: 'Escalate to human operator', description: 'Error is not automatically recoverable — requires human intervention', priority: 'critical' as const, estimatedSuccessRate: 0.9, estimatedTime: 0, riskLevel: 'low' as const, automated: false, prerequisites: [] as string[], sideEffects: [] as string[], validationSteps: [] as string[] }],
+   335→                recommended: { strategy: isRecoverable ? 'retry' : 'escalate', suggestionId: 'rem-1', rationale: 'Template recommendation (LLM unavailable for context-aware suggestions)' },
+   336→                escalationThreshold: { maxRetries: 3, timeoutSeconds: 300, escalationTarget: '' },
+   337→                preventionMeasures: [],
+   338→              },
+   339→              status: 'remediation_suggested',
+   340→              generatedBy: 'fallback',
+   341→              timestamp: new Date().toISOString(),
+   342→            },
+   343→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   344→          };
+   345→        }
+   346→
+   347→        case 'trace-root-cause': {
+   348→          const errorId = config.errorId || '';
+   349→          const errorMessage = config.errorMessage || '';
+   350→          const stackTrace = config.stackTrace || '';
+   351→
+   352→          if (!errorId && !errorMessage) {
+   353→            return { success: false, error: '"errorId" or "errorMessage" is required for root cause tracing' };
+   354→          }
+   355→
+   356→          this.logger.log(
+   357→            `Tracing root cause for error ${errorId || 'direct-input'}`,
+   358→          );
+   359→
+   360→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, errorId });
+   361→
+   362→          const llmResult = await this.executeWithLLM(
+   363→            `You are a root cause analysis expert. Trace the root cause of the following error through the causal chain.
+   364→Return a JSON object with this structure:
+   365→{
+   366→  "rootCause": {
+   367→    "identified": true,
+   368→    "category": "infrastructure|application|data|configuration|dependency|resource|network|timeout|permission|unknown",
+   369→    "description": "...",
+   370→    "confidence": 0.9,
+   371→    "evidence": ["..."],
+   372→    "location": "...",
+   373→    "component": "...",
+   374→    "firstOccurrence": "..."
+   375→  },
+   376→  "causalChain": [
+   377→    { "step": 1, "component": "...", "event": "...", "timestamp": "...", "type": "trigger|propagation|amplification|manifestation", "details": "...", "confidence": 0.9 }
+   378→  ],
+   379→  "contributingFactors": [
+   380→    { "factor": "...", "weight": 0.8, "description": "...", "category": "...", "actionable": true }
+   381→  ],
+   382→  "blastRadius": {
+   383→    "directlyAffected": ["..."],
+   384→    "indirectlyAffected": ["..."],
+   385→    "potentiallyAffected": ["..."],
+   386→    "totalComponentsAtRisk": 3
+   387→  }
+   388→}`,
+   389→            `Error ID: ${errorId}\nError message: ${errorMessage}\nStack trace: ${stackTrace.slice(0, 3000)}\nSource agent: ${config.sourceAgent || ''}\nSource cluster: ${config.sourceCluster || ''}`,
+   390→            { responseFormat: 'json' },
+   391→          );
+   392→
+   393→          if (llmResult) {
+   394→            const parsed = this.safeJsonParse(llmResult);
+   395→            if (parsed && parsed.rootCause) {
+   396→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, errorId, identified: parsed.rootCause.identified });
+   397→              return {
+   398→                success: true,
+   399→                data: {
+   400→                  action,
+   401→                  errorId,
+   402→                  errorMessage,
+   403→                  sourceAgent: config.sourceAgent || '',
+   404→                  sourceCluster: config.sourceCluster || '',
+   405→                  maxTraceDepth: config.maxTraceDepth || 10,
+   406→                  timeRange: config.timeRange || '1h',
+   407→                  crossComponentTrace: config.crossComponentTrace ?? true,
+   408→                  trace: {
+   409→                    rootCause: parsed.rootCause,
+   410→                    causalChain: parsed.causalChain || [],
+   411→                    timeline: (config.includeTimeline ?? true) ? parsed.causalChain?.map((c: any) => ({
+   412→                      timestamp: c.timestamp || new Date().toISOString(),
+   413→                      event: c.event || '',
+   414→                      component: c.component || '',
+   415→                      type: c.type === 'trigger' ? 'cause' as const : c.type === 'manifestation' ? 'symptom' as const : 'propagation' as const,
+   416→                      severity: 'error' as const,
+   417→                      details: c.details || '',
+   418→                    })) : undefined,
+   419→                    dependencyGraph: (config.includeDependencyGraph ?? true) ? { nodes: [], edges: [], failedNodes: [] } : undefined,
+   420→                    contributingFactors: parsed.contributingFactors || [],
+   421→                    blastRadius: parsed.blastRadius || { directlyAffected: [], indirectlyAffected: [], potentiallyAffected: [], totalComponentsAtRisk: 0 },
+   422→                  },
+   423→                  status: 'root_cause_traced',
+   424→                  generatedBy: 'llm',
+   425→                  timestamp: new Date().toISOString(),
+   426→                },
+   427→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   428→              };
+   429→            }
+   430→          }
+   431→
+   432→          // Fallback: stack trace parsing
+   433→          this.logger.log('LLM unavailable — falling back to stack trace parsing');
+   434→          const traceResult = this.parseStackTrace(errorMessage, stackTrace);
+   435→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, errorId, source: 'fallback' });
+   436→          return {
+   437→            success: true,
+   438→            data: {
+   439→              action,
+   440→              errorId,
+   441→              errorMessage,
+   442→              sourceAgent: config.sourceAgent || '',
+   443→              sourceCluster: config.sourceCluster || '',
+   444→              maxTraceDepth: config.maxTraceDepth || 10,
+   445→              timeRange: config.timeRange || '1h',
+   446→              crossComponentTrace: config.crossComponentTrace ?? true,
+   447→              trace: traceResult,
+   448→              status: 'root_cause_traced',
+   449→              generatedBy: 'fallback',
+   450→              timestamp: new Date().toISOString(),
+   451→            },
+   452→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   453→          };
+   454→        }
+   455→
+   456→        default:
+   457→          return { success: false, error: `Unknown action: ${action}. Supported: analyze-error, classify-error, suggest-remediation, trace-root-cause` };
+   458→      }
+   459→    } catch (error: any) {
+   460→      return { success: false, error: error.message };
+   461→    }
+   462→  }
+   463→
+   464→  // ── Pattern-Based Analysis Fallback ───────────────────────────────
+   465→
+   466→  private patternBasedAnalysis(errorMessage: string, stackTrace: string) {
+   467→    const msg = errorMessage.toLowerCase();
+   468→    let category: string = 'unknown';
+   469→    let type: string = 'unknown';
+   470→    let severity: string = 'medium';
+   471→    let isRecoverable = true;
+   472→
+   473→    if (msg.includes('timeout') || msg.includes('timed out')) {
+   474→      category = 'timeout'; type = 'timeout'; severity = 'high'; isRecoverable = true;
+   475→    } else if (msg.includes('connection') || msg.includes('econnrefused') || msg.includes('network')) {
+   476→      category = 'network'; type = 'connection-refused'; severity = 'high'; isRecoverable = true;
+   477→    } else if (msg.includes('auth') || msg.includes('unauthorized') || msg.includes('forbidden')) {
+   478→      category = 'permission'; type = 'auth-failure'; severity = 'critical'; isRecoverable = false;
+   479→    } else if (msg.includes('memory') || msg.includes('oom') || msg.includes('out of memory')) {
+   480→      category = 'resource'; type = 'out-of-memory'; severity = 'critical'; isRecoverable = false;
+   481→    } else if (msg.includes('config') || msg.includes('env') || msg.includes('missing')) {
+   482→      category = 'configuration'; type = 'misconfiguration'; severity = 'high'; isRecoverable = true;
+   483→    } else if (msg.includes('null') || msg.includes('undefined') || msg.includes('cannot read')) {
+   484→      category = 'application'; type = 'null-pointer'; severity = 'high'; isRecoverable = false;
+   485→    }
+   486→
+   487→    return {
+   488→      rootCause: {
+   489→        identified: category !== 'unknown',
+   490→        category,
+   491→        type,
+   492→        description: `Pattern-based diagnosis: ${errorMessage.slice(0, 200)}`,
+   493→        confidence: category !== 'unknown' ? 0.7 : 0.3,
+   494→        evidence: [errorMessage.slice(0, 500)],
+   495→        location: stackTrace ? stackTrace.split('\n')[0] || '' : '',
+   496→      },
+   497→      errorCategory: isRecoverable ? 'transient' : 'persistent',
+   498→      severity,
+   499→      isRecoverable,
+   500→      estimatedRecoveryEffort: isRecoverable ? 'moderate' : 'significant',
+   501→      affectedComponents: [],
+   502→      errorPattern: {
+   503→        isFirstOccurrence: true,
+   504→        occurrenceCount: 0,
+   505→        frequency: 'one-time',
+   506→        trendingDirection: 'unknown',
+   507→      },
+   508→      suggestedRemediation: [],
+   509→      context: {
+   510→        systemState: {},
+   511→        recentChanges: [],
+   512→        relatedErrors: [],
+   513→        resourceUtilization: { cpu: 0, memory: 0, disk: 0, network: 0 },
+   514→      },
+   515→    };
+   516→  }
+   517→
+   518→  private regexBasedClassification(errorMessage: string, errorCode: string) {
+   519→    const msg = (errorMessage || '').toLowerCase();
+   520→    let type = 'unknown';
+   521→    let category = 'transient';
+   522→    let severity = 'medium';
+   523→    let isRecoverable = true;
+   524→    let isRetryable = false;
+   525→
+   526→    if (msg.includes('timeout')) { type = 'timeout'; isRetryable = true; }
+   527→    else if (msg.includes('connection') || msg.includes('network')) { type = 'network'; isRetryable = true; }
+   528→    else if (msg.includes('auth') || msg.includes('unauthorized')) { type = 'authentication'; severity = 'critical'; isRecoverable = false; }
+   529→    else if (msg.includes('null') || msg.includes('undefined')) { type = 'runtime'; severity = 'high'; }
+   530→    else if (msg.includes('syntax') || msg.includes('parse')) { type = 'syntax'; severity = 'high'; isRecoverable = false; }
+   531→    else if (msg.includes('memory') || msg.includes('oom')) { type = 'resource'; severity = 'critical'; }
+   532→
+   533→    return {
+   534→      type,
+   535→      category,
+   536→      severity,
+   537→      isRecoverable,
+   538→      isRetryable,
+   539→      requiresHumanIntervention: !isRecoverable,
+   540→      tags: [type, category, severity],
+   541→      taxonomy: { domain: 'application', subdomain: type, errorFamily: category, errorClass: type },
+   542→    };
+   543→  }
+   544→
+   545→  private parseStackTrace(errorMessage: string, stackTrace: string) {
+   546→    const lines = stackTrace.split('\n').filter((l) => l.trim());
+   547→    const causalChain = lines.slice(0, 5).map((line, i) => ({
+   548→      step: i + 1,
+   549→      component: line.trim().split(' ')[0] || 'unknown',
+   550→      event: line.trim().slice(0, 100),
+   551→      timestamp: new Date().toISOString(),
+   552→      type: (i === 0 ? 'trigger' : i === lines.length - 1 ? 'manifestation' : 'propagation') as 'trigger' | 'propagation' | 'amplification' | 'manifestation',
+   553→      details: line.trim(),
+   554→      confidence: 0.5,
+   555→    }));
+   556→
+   557→    return {
+   558→      rootCause: {
+   559→        identified: causalChain.length > 0,
+   560→        category: 'application',
+   561→        description: `Stack trace analysis: ${errorMessage.slice(0, 200)}`,
+   562→        confidence: 0.4,
+   563→        evidence: lines.slice(0, 3),
+   564→        location: lines[0] || '',
+   565→        component: causalChain[0]?.component || '',
+   566→        firstOccurrence: new Date().toISOString(),
+   567→      },
+   568→      causalChain,
+   569→      timeline: causalChain.map((c) => ({
+   570→        timestamp: c.timestamp,
+   571→        event: c.event,
+   572→        component: c.component,
+   573→        type: 'cause' as const,
+   574→        severity: 'error' as const,
+   575→        details: c.details,
+   576→      })),
+   577→      dependencyGraph: {
+   578→        nodes: causalChain.map((c) => ({
+   579→          id: c.component,
+   580→          type: 'component',
+   581→          name: c.component,
+   582→          status: 'unknown' as const,
+   583→        })),
+   584→        edges: causalChain.slice(1).map((c, i) => ({
+   585→          from: causalChain[i].component,
+   586→          to: c.component,
+   587→          type: 'calls' as const,
+   588→          status: 'degraded' as const,
+   589→        })),
+   590→        failedNodes: [causalChain[0]?.component].filter(Boolean),
+   591→      },
+   592→      contributingFactors: [],
+   593→      blastRadius: {
+   594→        directlyAffected: causalChain.map((c) => c.component),
+   595→        indirectlyAffected: [],
+   596→        potentiallyAffected: [],
+   597→        totalComponentsAtRisk: causalChain.length,
+   598→      },
+   599→    };
+   600→  }
+   601→}
+   602→

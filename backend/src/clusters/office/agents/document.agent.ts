@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 export class DocumentAgent extends BaseAgent {
@@ -20,6 +20,11 @@ export class DocumentAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Document processing including creation, editing, format conversion, merging, templating, and content extraction';
+
+  readonly missionCategories = [MissionCategory.DOCUMENT_PROCESSING];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     const action = context.config?.action || 'create';

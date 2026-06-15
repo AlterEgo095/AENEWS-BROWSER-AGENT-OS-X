@@ -10,6 +10,7 @@ import { CalendarAgent } from './agents/calendar.agent';
 import { SpreadsheetAgent } from './agents/spreadsheet.agent';
 import { PresentationAgent } from './agents/presentation.agent';
 import { TaskManagerAgent } from './agents/task-manager.agent';
+import { DocumentIntelligenceAgent } from './agents/document-intelligence.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createOfficeAgents(
@@ -25,6 +26,7 @@ function createOfficeAgents(
     new SpreadsheetAgent(),
     new PresentationAgent(),
     new TaskManagerAgent(),
+    new DocumentIntelligenceAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

@@ -1,4 +1,4 @@
-import { AgentStatus, ClusterType, EventSeverity, MissionState, MissionPriority, TaskStatus, CollaborationPattern } from './types';
+import { AgentStatus, ClusterType, EventSeverity, MissionState, MissionPriority, TaskStatus, CollaborationPattern, MissionCategory } from './types';
 
 export const clusterColors: Record<ClusterType, string> = {
   [ClusterType.BROWSER]: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
@@ -16,6 +16,7 @@ export const clusterColors: Record<ClusterType, string> = {
   [ClusterType.WATCHDOG]: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
   [ClusterType.SELF_EVOLUTION]: 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30',
   [ClusterType.CERTIFICATION]: 'bg-lime-500/20 text-lime-400 border-lime-500/30',
+  [ClusterType.STEALTH_OPS]: 'border-purple-500/50 bg-purple-500/10 text-purple-400',
 };
 
 export const clusterIcons: Record<ClusterType, string> = {
@@ -34,6 +35,7 @@ export const clusterIcons: Record<ClusterType, string> = {
   [ClusterType.WATCHDOG]: '👁️',
   [ClusterType.SELF_EVOLUTION]: '🧬',
   [ClusterType.CERTIFICATION]: '✅',
+  [ClusterType.STEALTH_OPS]: '👻',
 };
 
 export const statusColors: Record<AgentStatus, string> = {
@@ -179,4 +181,35 @@ export const connectorModeColors: Record<string, string> = {
   active: 'bg-emerald-500/15 text-emerald-400',
   passive: 'bg-slate-500/15 text-slate-400',
   hybrid: 'bg-cyan-500/15 text-cyan-400',
+};
+
+// Mission Category Configuration
+export const missionCategoryConfig: Record<MissionCategory, { label: string; icon: string; description: string; color: string }> = {
+  [MissionCategory.RESEARCH_ANALYSIS]: { label: 'Research & Analysis', icon: '🔍', description: 'Web search, OSINT, data analysis, intelligence gathering', color: 'from-blue-500 to-cyan-500' },
+  [MissionCategory.CONTENT_CREATION]: { label: 'Content Creation', icon: '✍️', description: 'Writing, presentations, media generation', color: 'from-pink-500 to-rose-500' },
+  [MissionCategory.CODE_DEVELOPMENT]: { label: 'Code & Development', icon: '💻', description: 'Coding, deployment, debugging, architecture', color: 'from-green-500 to-emerald-500' },
+  [MissionCategory.SECURITY_OPS]: { label: 'Security Operations', icon: '🔒', description: 'Security testing, encryption, forensics, red teaming', color: 'from-red-500 to-orange-500' },
+  [MissionCategory.STEALTH_OPERATIONS]: { label: 'Stealth Operations', icon: '👻', description: 'Undetectable operations, covert wrappers, stealth browsing', color: 'from-purple-600 to-violet-600' },
+  [MissionCategory.BUSINESS_INTELLIGENCE]: { label: 'Business Intelligence', icon: '📊', description: 'BI, analytics, reporting, forecasting', color: 'from-amber-500 to-yellow-500' },
+  [MissionCategory.MARKETING_GROWTH]: { label: 'Marketing & Growth', icon: '🚀', description: 'Marketing, SEO, social media, growth hacking', color: 'from-orange-500 to-amber-500' },
+  [MissionCategory.INFRASTRUCTURE_MGMT]: { label: 'Infrastructure', icon: '🏗️', description: 'DevOps, cloud, monitoring, edge computing', color: 'from-slate-500 to-gray-500' },
+  [MissionCategory.AUTOMATION_WORKFLOW]: { label: 'Automation & Workflows', icon: '🤖', description: 'Browser automation, scraping, task orchestration', color: 'from-teal-500 to-cyan-500' },
+  [MissionCategory.DOCUMENT_PROCESSING]: { label: 'Documents & Office', icon: '📄', description: 'Office, documents, spreadsheets, contracts', color: 'from-indigo-500 to-blue-500' },
+  [MissionCategory.AI_ORCHESTRATION]: { label: 'AI & Orchestration', icon: '🧠', description: 'Meta-intelligence, swarm, self-evolution, reasoning', color: 'from-violet-500 to-purple-500' },
+  [MissionCategory.SYSTEM_ADMINISTRATION]: { label: 'System Admin', icon: '🖥️', description: 'Terminal, file system, process management', color: 'from-zinc-500 to-neutral-500' },
+};
+
+// Tier Configuration
+export const tierConfig: Record<string, { label: string; color: string; bgColor: string; borderColor: string; glow?: string }> = {
+  standard: { label: 'Standard', color: 'text-slate-400', bgColor: 'bg-slate-500/10', borderColor: 'border-slate-500/30' },
+  advanced: { label: 'Advanced', color: 'text-blue-400', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/30' },
+  elite: { label: 'Elite', color: 'text-amber-400', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/30', glow: 'shadow-amber-500/10' },
+  stealth: { label: 'Stealth', color: 'text-purple-400', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/30', glow: 'shadow-purple-500/10' },
+};
+
+// Power Level Labels
+export const powerLevelLabels: Record<number, string> = {
+  1: 'Standard Power',
+  2: 'Advanced Power',
+  3: 'Elite Power',
 };

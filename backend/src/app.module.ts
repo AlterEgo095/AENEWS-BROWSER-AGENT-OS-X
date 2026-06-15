@@ -39,6 +39,7 @@ import { IntelligentOrchestrationClusterModule } from './clusters/intelligent-or
 import { WatchdogClusterModule } from './clusters/watchdog/watchdog.module';
 import { SelfEvolutionClusterModule } from './clusters/self-evolution/self-evolution-cluster.module';
 import { CertificationClusterModule } from './clusters/certification/certification-cluster.module';
+import { StealthOpsModule } from './clusters/stealth-ops/stealth-ops.module';
 import { AgentFrameworkModule } from './modules/agent-framework/agent-framework.module';
 import { SoftwareFactoryModule } from './modules/software-factory/software-factory.module';
 import { CodingConnectorModule } from './modules/connectors/coding/coding-connector.module';
@@ -52,6 +53,7 @@ import { SecurityConnectorModule } from './modules/connectors/security/security-
 import { ConnectorHealthModule } from './modules/connectors/health/connector-health.module';
 import { LLMModule } from './modules/llm/llm.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
+import { CreditModule } from './modules/credit/credit.module';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -202,6 +204,7 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
     WatchdogClusterModule,
     SelfEvolutionClusterModule,
     CertificationClusterModule,
+    StealthOpsModule,
 
     // ─── Extended Agent Framework + Software Factory (from src/) ───
     // Provides: memory, events, bridge, orchestrator, 80+ agents (BaseAgentService pattern),
@@ -255,6 +258,11 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
     // Provides: Slow query logger, response caching, compression,
     // connection pool monitoring, performance profiling
     PerformanceModule,
+
+    // ─── Credit Module ───
+    // Provides: Credit account management, transactions, admin settings,
+    // agent execution credit deduction
+    CreditModule,
   ],
   controllers: [AppController],
   providers: [

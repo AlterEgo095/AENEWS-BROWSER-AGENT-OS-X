@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 import PptxGenJS from 'pptxgenjs';
 import * as path from 'path';
@@ -220,6 +220,11 @@ export class PresentationAgent extends BaseAgent {
   readonly version = '3.0.0';
   readonly description =
     'Premium LLM-powered presentation generation with 11 layouts, 6 themes, gradients, and professional PPTX output';
+
+  readonly missionCategories = [MissionCategory.DOCUMENT_PROCESSING];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   private outputDir = '/home/z/my-project/download';
 

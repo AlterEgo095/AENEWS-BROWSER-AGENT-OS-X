@@ -1,12 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Agent, AgentStatus, ClusterType } from './entities/agent.entity';
+import { Agent, AgentStatus, ClusterType, MissionCategory } from './entities/agent.entity';
 import { Execution } from './entities/execution.entity';
 import { Task } from '../task/entities/task.entity';
 import { AgentRegistryService } from './registry/agent-registry.service';
 import { AgentLifecycleService } from './lifecycle/agent-lifecycle.service';
 import { AgentContext, AgentResult } from './agent.abstract';
+import { getMissionCategoriesForCluster } from './utils/mission-category-mapping';
 
 @Injectable()
 export class AgentService {
@@ -171,6 +172,92 @@ export class AgentService {
 
       throw error;
     }
+  }
+
+  /**
+   * Get all mission categories with human-readable labels.
+   */
+  async getMissionCategories(): Promise<Array<{ value: string; label: string }>> {
+    const labels: Record<MissionCategory, string> = {
+      [MissionCategory.RESEARCH_ANALYSIS]: 'Research & Analysis',
+      [MissionCategory.CONTENT_CREATION]: 'Content Creation',
+      [MissionCategory.CODE_DEVELOPMENT]: 'Code Development',
+      [MissionCategory.SECURITY_OPS]: 'Security Operations',
+      [MissionCategory.STEALTH_OPERATIONS]: 'Stealth Operations',
+      [MissionCategory.BUSINESS_INTELLIGENCE]: 'Business Intelligence',
+      [MissionCategory.MARKETING_GROWTH]: 'Marketing & Growth',
+      [MissionCategory.INFRASTRUCTURE_MGMT]: 'Infrastructure Management',
+      [MissionCategory.AUTOMATION_WORKFLOW]: 'Automation & Workflow',
+      [MissionCategory.DOCUMENT_PROCESSING]: 'Document Processing',
+      [MissionCategory.AI_ORCHESTRATION]: 'AI Orchestration',
+      [MissionCategory.SYSTEM_ADMINISTRATION]: 'System Administration',
+    };
+
+    return Object.values(MissionCategory).map((value) => ({
+      value,
+      label: labels[value],
+    }));
+  }
+
+  /**
+   * Get agents filtered by a specific mission category.
+   * Uses PostgreSQL array overlap operator (@>) for efficient array containment check.
+   */
+  async getAgentsByMissionCategory(
+    category: MissionCategory,
+    tenantId?: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: Agent[]; total: number }> {
+    const query = this.agentRepository
+      .createQueryBuilder('agent')
+      .where(':category = ANY(agent.missionCategories)', { category });
+
+    if (tenantId) {
+      query.andWhere('agent.tenantId = :tenantId', { tenantId });
+    }
+
+    query
+      .orderBy('agent.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await query.getManyAndCount();
+    return { data, total };
+  }
+
+  /**
+   * Get a structured agent catalog grouped by mission categories.
+   * Returns agents organized by category for user-facing display.
+   */
+  async getAgentCatalog(tenantId?: string): Promise<Record<string, Agent[]>> {
+    const query = this.agentRepository
+      .createQueryBuilder('agent')
+      .where('agent.isEnabled = true');
+
+    if (tenantId) {
+      query.andWhere('agent.tenantId = :tenantId', { tenantId });
+    }
+
+    const agents = await query.orderBy('agent.name', 'ASC').getMany();
+
+    // Build catalog grouped by mission categories
+    const catalog: Record<string, Agent[]> = {};
+
+    for (const agent of agents) {
+      const categories = agent.missionCategories && agent.missionCategories.length > 0
+        ? agent.missionCategories
+        : getMissionCategoriesForCluster(agent.cluster);
+
+      for (const category of categories) {
+        if (!catalog[category]) {
+          catalog[category] = [];
+        }
+        catalog[category].push(agent);
+      }
+    }
+
+    return catalog;
   }
 
   /**

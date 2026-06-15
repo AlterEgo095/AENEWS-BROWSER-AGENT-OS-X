@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { ClusterType, AgentStatus } from './entities/agent.entity';
+import { ClusterType, AgentStatus, MissionCategory } from './entities/agent.entity';
 import { LLMService } from '../llm/llm.service';
 import {
   AgentBridgeService,
@@ -48,6 +48,10 @@ export abstract class BaseAgent {
   abstract readonly capabilities: string[];
   abstract readonly version: string;
   abstract readonly description: string;
+  readonly missionCategories: MissionCategory[] = [];
+  readonly creditCost: number = 1;
+  readonly powerLevel: number = 1;
+  readonly tier: string = 'standard';
 
   protected status: AgentStatus = AgentStatus.IDLE;
   protected config: Record<string, any> = {};
@@ -352,6 +356,10 @@ export abstract class BaseAgent {
       capabilities: this.capabilities,
       version: this.version,
       description: this.description,
+      missionCategories: this.missionCategories,
+      creditCost: this.creditCost,
+      powerLevel: this.powerLevel,
+      tier: this.tier,
       status: this.status,
       hasLLM: !!this.llmService,
       hasBridge: !!this.bridgeService,

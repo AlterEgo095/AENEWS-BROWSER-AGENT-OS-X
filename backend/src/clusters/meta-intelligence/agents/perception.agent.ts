@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 export class PerceptionAgent extends BaseAgent {
@@ -20,6 +20,11 @@ export class PerceptionAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Perception capabilities for analyzing, classifying, detecting, segmenting, recognizing, and extracting information from multi-modal inputs';
+
+  readonly missionCategories = [MissionCategory.AI_ORCHESTRATION];
+  readonly creditCost = 2;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   private buildHeuristicFallback(action: string, config: Record<string, any>, startTime: number): AgentResult {
     const timestamp = new Date().toISOString();

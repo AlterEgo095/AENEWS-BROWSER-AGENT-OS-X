@@ -1,0 +1,761 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→export class ReasoningAgent extends BaseAgent {
+    10→  readonly name = 'ReasoningAgent';
+    11→  readonly cluster = ClusterType.META_INTELLIGENCE;
+    12→  readonly capabilities = [
+    13→    'deduce',
+    14→    'induce',
+    15→    'analogize',
+    16→    'plan',
+    17→    'evaluate',
+    18→    'explain',
+    19→  ];
+    20→  readonly version = '2.0.0';
+    21→  readonly description =
+    22→    'Performs logical reasoning including deduction, induction, analogy, planning, evaluation, and explanation of reasoning chains';
+    23→
+    24→  async execute(context: AgentContext): Promise<AgentResult> {
+    25→    try {
+    26→      const { config } = context;
+    27→      const action = config.action || 'deduce';
+    28→      const startTime = Date.now();
+    29→
+    30→      switch (action) {
+    31→        case 'deduce': {
+    32→          const premises = config.premises || [];
+    33→          const rules = config.rules || [];
+    34→          const conclusion = config.conclusion;
+    35→          const method = config.method || 'modus_ponens';
+    36→          const validateSoundness = config.validateSoundness !== false;
+    37→          const maxDepth = config.maxDepth || 10;
+    38→
+    39→          if (premises.length === 0) {
+    40→            return {
+    41→              success: false,
+    42→              error: '"premises" are required for deduction',
+    43→            };
+    44→          }
+    45→
+    46→          this.logger.log(
+    47→            `Deducing from ${premises.length} premises (method: ${method})`,
+    48→          );
+    49→
+    50→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, method, premiseCount: premises.length });
+    51→
+    52→          const llmResult = await this.executeWithLLM(
+    53→            `You are an expert logic and deduction engine. Given a set of premises and optional rules, derive valid conclusions using formal deductive reasoning.
+    54→Return a JSON object with this exact structure:
+    55→{
+    56→  "derivedConclusions": [
+    57→    { "conclusion": "...", "fromPremises": [0], "fromRules": [0], "confidence": 0.92, "depth": 1 }
+    58→  ],
+    59→  "proofChain": [
+    60→    { "step": 1, "statement": "...", "justification": "Modus Ponens on Premise 1 and Rule 1", "references": [0, 1] }
+    61→  ],
+    62→  "soundness": { "isValid": true, "contradictions": [], "assumptions": ["..."] },
+    63→  "exploredPaths": 12,
+    64→  "searchDepth": 5
+    65→}
+    66→Be thorough. Each conclusion must follow logically. Provide step-by-step proof chain.`,
+    67→            `Deduce from premises: ${JSON.stringify(premises)}\nRules: ${JSON.stringify(rules)}\nMethod: ${method}\nConclusion to verify: ${conclusion || 'derive all possible'}\nMax depth: ${maxDepth}\nValidate soundness: ${validateSoundness}`,
+    68→            { responseFormat: 'json' },
+    69→          );
+    70→
+    71→          if (llmResult) {
+    72→            const parsed = this.safeJsonParse(llmResult);
+    73→            if (parsed && parsed.derivedConclusions) {
+    74→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, conclusionCount: parsed.derivedConclusions?.length });
+    75→              return {
+    76→                success: true,
+    77→                data: {
+    78→                  action,
+    79→                  premises: premises as string[],
+    80→                  rules: rules as Array<{
+    81→                    condition: string;
+    82→                    consequence: string;
+    83→                    confidence: number;
+    84→                  }>,
+    85→                  conclusion,
+    86→                  method: method as 'modus_ponens' | 'modus_tollens' | 'hypothetical_syllogism' | 'disjunctive_syllogism' | 'resolution',
+    87→                  validateSoundness,
+    88→                  maxDepth,
+    89→                  deduction: {
+    90→                    derivedConclusions: parsed.derivedConclusions || [],
+    91→                    proofChain: parsed.proofChain || [],
+    92→                    soundness: validateSoundness
+    93→                      ? parsed.soundness || { isValid: true, contradictions: [], assumptions: [] }
+    94→                      : undefined,
+    95→                    exploredPaths: parsed.exploredPaths || 0,
+    96→                    searchDepth: parsed.searchDepth || 0,
+    97→                    status: 'deduced',
+    98→                  },
+    99→                  status: 'deduction_complete',
+   100→                  generatedBy: 'llm',
+   101→                  timestamp: new Date().toISOString(),
+   102→                },
+   103→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   104→              };
+   105→            }
+   106→          }
+   107→
+   108→          this.logger.log('LLM unavailable — falling back to heuristic deduction');
+   109→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'heuristic' });
+   110→          return {
+   111→            success: true,
+   112→            data: {
+   113→              action,
+   114→              premises: premises as string[],
+   115→              rules: rules as Array<{
+   116→                condition: string;
+   117→                consequence: string;
+   118→                confidence: number;
+   119→              }>,
+   120→              conclusion,
+   121→              method: method as 'modus_ponens' | 'modus_tollens' | 'hypothetical_syllogism' | 'disjunctive_syllogism' | 'resolution',
+   122→              validateSoundness,
+   123→              maxDepth,
+   124→              deduction: {
+   125→                derivedConclusions: [
+   126→                  { conclusion: `Derived: If ${premises[0]} then the stated consequence follows by ${method}`, fromPremises: [0], fromRules: rules.length > 0 ? [0] : [], confidence: 0.85, depth: 1 },
+   127→                  { conclusion: `Intermediate: Combined premise chain yields a valid inference at depth 2`, fromPremises: premises.length > 1 ? [0, 1] : [0], fromRules: [], confidence: 0.78, depth: 2 },
+   128→                ],
+   129→                proofChain: [
+   130→                  { step: 1, statement: `Accept premise: ${premises[0]}`, justification: 'Given premise', references: [] },
+   131→                  { step: 2, statement: 'Apply deductive rule to derive intermediate conclusion', justification: `${method} application`, references: [0] },
+   132→                  { step: 3, statement: 'Validate derived conclusion against original premises', justification: 'Soundness check', references: [0, 1] },
+   133→                ],
+   134→                soundness: validateSoundness
+   135→                  ? { isValid: true, contradictions: [], assumptions: ['All premises are assumed true', 'Rules are sound and complete'] }
+   136→                  : undefined,
+   137→                exploredPaths: 8,
+   138→                searchDepth: 3,
+   139→                status: 'deduced',
+   140→              },
+   141→              status: 'deduction_complete',
+   142→              generatedBy: 'heuristic',
+   143→              timestamp: new Date().toISOString(),
+   144→            },
+   145→            metadata: { duration: Date.now() - startTime, source: 'heuristic' },
+   146→          };
+   147→        }
+   148→
+   149→        case 'induce': {
+   150→          const observations = config.observations || [];
+   151→          const hypothesisSpace = config.hypothesisSpace || 'general';
+   152→          const method = config.method || 'enumerative';
+   153→          const confidenceThreshold = config.confidenceThreshold || 0.7;
+   154→          const maxHypotheses = config.maxHypotheses || 10;
+   155→          const validateGeneralization = config.validateGeneralization !== false;
+   156→
+   157→          if (observations.length === 0) {
+   158→            return {
+   159→              success: false,
+   160→              error: '"observations" are required for induction',
+   161→            };
+   162→          }
+   163→
+   164→          this.logger.log(
+   165→            `Inducing from ${observations.length} observations (method: ${method})`,
+   166→          );
+   167→
+   168→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, method, observationCount: observations.length });
+   169→
+   170→          const llmResult = await this.executeWithLLM(
+   171→            `You are an expert inductive reasoning engine. Given observations, generate plausible hypotheses with supporting evidence.
+   172→Return a JSON object with this exact structure:
+   173→{
+   174→  "hypotheses": [
+   175→    { "id": "h1", "statement": "...", "confidence": 0.88, "supportingEvidence": [0, 1], "contradictingEvidence": [], "scope": "broad", "testability": "high" }
+   176→  ],
+   177→  "bestHypothesis": { "id": "h1", "statement": "...", "confidence": 0.88, "coverage": 0.92 },
+   178→  "generalization": { "validHypotheses": 3, "invalidHypotheses": 1, "overfittingRisk": "low", "recommendedSampleSize": 50 },
+   179→  "patternStrength": { "strongestPattern": "...", "weakestPattern": "...", "averageConfidence": 0.84 }
+   180→}`,
+   181→            `Induce hypotheses from observations: ${JSON.stringify(observations)}\nHypothesis space: ${hypothesisSpace}\nMethod: ${method}\nConfidence threshold: ${confidenceThreshold}\nMax hypotheses: ${maxHypotheses}\nValidate generalization: ${validateGeneralization}`,
+   182→            { responseFormat: 'json' },
+   183→          );
+   184→
+   185→          if (llmResult) {
+   186→            const parsed = this.safeJsonParse(llmResult);
+   187→            if (parsed && parsed.hypotheses) {
+   188→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, hypothesisCount: parsed.hypotheses?.length });
+   189→              return {
+   190→                success: true,
+   191→                data: {
+   192→                  action,
+   193→                  observations: observations as string[],
+   194→                  hypothesisSpace: hypothesisSpace as 'general' | 'causal' | 'statistical' | 'structural',
+   195→                  method: method as 'enumerative' | 'eliminative' | 'statistical' | 'bayesian',
+   196→                  confidenceThreshold,
+   197→                  maxHypotheses,
+   198→                  validateGeneralization,
+   199→                  induction: {
+   200→                    hypotheses: parsed.hypotheses || [],
+   201→                    bestHypothesis: parsed.bestHypothesis || { id: '', statement: '', confidence: 0, coverage: 0 },
+   202→                    generalization: validateGeneralization
+   203→                      ? parsed.generalization || { validHypotheses: 0, invalidHypotheses: 0, overfittingRisk: 'low' as const, recommendedSampleSize: 0 }
+   204→                      : undefined,
+   205→                    patternStrength: parsed.patternStrength || { strongestPattern: '', weakestPattern: '', averageConfidence: 0 },
+   206→                    status: 'induced',
+   207→                  },
+   208→                  status: 'induction_complete',
+   209→                  generatedBy: 'llm',
+   210→                  timestamp: new Date().toISOString(),
+   211→                },
+   212→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   213→              };
+   214→            }
+   215→          }
+   216→
+   217→          this.logger.log('LLM unavailable — falling back to heuristic induction');
+   218→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'heuristic' });
+   219→          return {
+   220→            success: true,
+   221→            data: {
+   222→              action,
+   223→              observations: observations as string[],
+   224→              hypothesisSpace: hypothesisSpace as 'general' | 'causal' | 'statistical' | 'structural',
+   225→              method: method as 'enumerative' | 'eliminative' | 'statistical' | 'bayesian',
+   226→              confidenceThreshold,
+   227→              maxHypotheses,
+   228→              validateGeneralization,
+   229→              induction: {
+   230→                hypotheses: [
+   231→                  { id: 'h1', statement: `Pattern observed across ${observations.length} instances suggests a recurring relationship`, confidence: 0.87, supportingEvidence: [0, 1, 2], contradictingEvidence: [], scope: 'moderate', testability: 'high' as const },
+   232→                  { id: 'h2', statement: `Statistical correlation indicates potential causal link between observed variables`, confidence: 0.79, supportingEvidence: [1, 2], contradictingEvidence: [0], scope: 'broad', testability: 'medium' as const },
+   233→                  { id: 'h3', statement: `Counter-example analysis reveals boundary conditions for the observed pattern`, confidence: 0.72, supportingEvidence: [0], contradictingEvidence: [1], scope: 'narrow', testability: 'high' as const },
+   234→                ],
+   235→                bestHypothesis: { id: 'h1', statement: `Pattern observed across ${observations.length} instances suggests a recurring relationship`, confidence: 0.87, coverage: 0.82 },
+   236→                generalization: validateGeneralization
+   237→                  ? { validHypotheses: 2, invalidHypotheses: 1, overfittingRisk: 'low' as const, recommendedSampleSize: Math.max(30, observations.length * 3) }
+   238→                  : undefined,
+   239→                patternStrength: { strongestPattern: 'Sequential co-occurrence of observed events', weakestPattern: 'Sporadic outlier correlation', averageConfidence: 0.79 },
+   240→                status: 'induced',
+   241→              },
+   242→              status: 'induction_complete',
+   243→              generatedBy: 'heuristic',
+   244→              timestamp: new Date().toISOString(),
+   245→            },
+   246→            metadata: { duration: Date.now() - startTime, source: 'heuristic' },
+   247→          };
+   248→        }
+   249→
+   250→        case 'analogize': {
+   251→          const source = config.source;
+   252→          const target = config.target;
+   253→          const mappingType = config.mappingType || 'structural';
+   254→          const depth = config.depth || 'shallow';
+   255→          const maxMappings = config.maxMappings || 5;
+   256→          const validateConsistency = config.validateConsistency !== false;
+   257→
+   258→          if (!source || !target) {
+   259→            return {
+   260→              success: false,
+   261→              error: '"source" and "target" are required for analogy',
+   262→            };
+   263→          }
+   264→
+   265→          this.logger.log(
+   266→            `Creating analogy from "${source}" to "${target}" (mapping: ${mappingType})`,
+   267→          );
+   268→
+   269→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, mappingType, source, target });
+   270→
+   271→          const llmResult = await this.executeWithLLM(
+   272→            `You are an expert analogical reasoning engine. Map elements from a source domain to a target domain.
+   273→Return a JSON object with this exact structure:
+   274→{
+   275→  "mappings": [
+   276→    { "sourceElement": "...", "targetElement": "...", "relationType": "structural", "confidence": 0.88 }
+   277→  ],
+   278→  "sharedStructure": ["..."],
+   279→  "differences": [
+   280→    { "aspect": "...", "source": "...", "target": "...", "impact": "medium" }
+   281→  ],
+   282→  "consistency": { "score": 0.82, "inconsistencies": [] },
+   283→  "transferableInsights": [
+   284→    { "insight": "...", "fromSource": "...", "toTarget": "...", "applicability": 0.85 }
+   285→  ],
+   286→  "qualityScore": 0.84
+   287→}`,
+   288→            `Create analogy from source: "${source}" to target: "${target}"\nMapping type: ${mappingType}\nDepth: ${depth}\nMax mappings: ${maxMappings}\nValidate consistency: ${validateConsistency}`,
+   289→            { responseFormat: 'json' },
+   290→          );
+   291→
+   292→          if (llmResult) {
+   293→            const parsed = this.safeJsonParse(llmResult);
+   294→            if (parsed && parsed.mappings) {
+   295→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, mappingCount: parsed.mappings?.length });
+   296→              return {
+   297→                success: true,
+   298→                data: {
+   299→                  action,
+   300→                  source,
+   301→                  target,
+   302→                  mappingType: mappingType as 'structural' | 'relational' | 'functional' | 'visual',
+   303→                  depth: depth as 'shallow' | 'moderate' | 'deep',
+   304→                  maxMappings,
+   305→                  validateConsistency,
+   306→                  analogy: {
+   307→                    mappings: parsed.mappings || [],
+   308→                    sharedStructure: parsed.sharedStructure || [],
+   309→                    differences: parsed.differences || [],
+   310→                    consistency: validateConsistency
+   311→                      ? parsed.consistency || { score: 0, inconsistencies: [] }
+   312→                      : undefined,
+   313→                    transferableInsights: parsed.transferableInsights || [],
+   314→                    qualityScore: parsed.qualityScore || 0,
+   315→                    status: 'analogized',
+   316→                  },
+   317→                  status: 'analogy_complete',
+   318→                  generatedBy: 'llm',
+   319→                  timestamp: new Date().toISOString(),
+   320→                },
+   321→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   322→              };
+   323→            }
+   324→          }
+   325→
+   326→          this.logger.log('LLM unavailable — falling back to heuristic analogy');
+   327→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'heuristic' });
+   328→          return {
+   329→            success: true,
+   330→            data: {
+   331→              action,
+   332→              source,
+   333→              target,
+   334→              mappingType: mappingType as 'structural' | 'relational' | 'functional' | 'visual',
+   335→              depth: depth as 'shallow' | 'moderate' | 'deep',
+   336→              maxMappings,
+   337→              validateConsistency,
+   338→              analogy: {
+   339→                mappings: [
+   340→                  { sourceElement: `${source} core mechanism`, targetElement: `${target} core mechanism`, relationType: mappingType as string, confidence: 0.82 },
+   341→                  { sourceElement: `${source} boundary conditions`, targetElement: `${target} constraints`, relationType: mappingType as string, confidence: 0.76 },
+   342→                  { sourceElement: `${source} feedback loop`, targetElement: `${target} regulatory process`, relationType: 'functional', confidence: 0.79 },
+   343→                ],
+   344→                sharedStructure: [`Both ${source} and ${target} exhibit hierarchical organization`, 'Feedback mechanisms maintain stability in both domains'],
+   345→                differences: [
+   346→                  { aspect: 'Scale', source: source, target: target, impact: 'medium' as const },
+   347→                  { aspect: 'Temporal dynamics', source: source, target: target, impact: 'low' as const },
+   348→                ],
+   349→                consistency: validateConsistency
+   350→                  ? { score: 0.78, inconsistencies: [] }
+   351→                  : undefined,
+   352→                transferableInsights: [
+   353→                  { insight: `Optimization strategy from ${source} can be adapted for ${target}`, fromSource: source, toTarget: target, applicability: 0.81 },
+   354→                ],
+   355→                qualityScore: 0.79,
+   356→                status: 'analogized',
+   357→              },
+   358→              status: 'analogy_complete',
+   359→              generatedBy: 'heuristic',
+   360→              timestamp: new Date().toISOString(),
+   361→            },
+   362→            metadata: { duration: Date.now() - startTime, source: 'heuristic' },
+   363→          };
+   364→        }
+   365→
+   366→        case 'plan': {
+   367→          const goal = config.goal;
+   368→          const initialState = config.initialState || {};
+   369→          const constraints = config.constraints || [];
+   370→          const availableActions = config.availableActions || [];
+   371→          const planningMethod = config.planningMethod || 'hierarchical';
+   372→          const horizon = config.horizon || 10;
+   373→          const optimizeFor = config.optimizeFor || 'efficiency';
+   374→
+   375→          if (!goal) {
+   376→            return {
+   377→              success: false,
+   378→              error: '"goal" is required for planning',
+   379→            };
+   380→          }
+   381→
+   382→          this.logger.log(
+   383→            `Planning for goal: "${goal}" (method: ${planningMethod})`,
+   384→          );
+   385→
+   386→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, goal, planningMethod });
+   387→
+   388→          const llmResult = await this.executeWithLLM(
+   389→            `You are an expert planning engine. Create a structured plan to achieve the given goal.
+   390→Return a JSON object with this exact structure:
+   391→{
+   392→  "steps": [
+   393→    { "order": 1, "action": "...", "preconditions": ["..."], "expectedEffects": ["..."], "estimatedDuration": 5000, "dependencies": [], "alternativeActions": ["..."] }
+   394→  ],
+   395→  "criticalPath": [1, 2, 5],
+   396→  "estimatedDuration": 25000,
+   397→  "estimatedCost": 150,
+   398→  "successProbability": 0.88,
+   399→  "contingencies": [
+   400→    { "condition": "...", "alternativeSteps": [3, 4] }
+   401→  ],
+   402→  "milestones": [
+   403→    { "step": 2, "description": "...", "verification": "..." }
+   404→  ]
+   405→}`,
+   406→            `Plan for goal: "${goal}"\nInitial state: ${JSON.stringify(initialState)}\nConstraints: ${JSON.stringify(constraints)}\nAvailable actions: ${JSON.stringify(availableActions)}\nMethod: ${planningMethod}\nHorizon: ${horizon}\nOptimize for: ${optimizeFor}`,
+   407→            { responseFormat: 'json' },
+   408→          );
+   409→
+   410→          if (llmResult) {
+   411→            const parsed = this.safeJsonParse(llmResult);
+   412→            if (parsed && parsed.steps) {
+   413→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, stepCount: parsed.steps?.length });
+   414→              return {
+   415→                success: true,
+   416→                data: {
+   417→                  action,
+   418→                  goal,
+   419→                  initialState,
+   420→                  constraints: constraints as Array<{
+   421→                    type: 'resource' | 'temporal' | 'logical' | 'safety';
+   422→                    description: string;
+   423→                    expression: string;
+   424→                  }>,
+   425→                  availableActions: availableActions as Array<{
+   426→                    name: string;
+   427→                    preconditions: string[];
+   428→                    effects: string[];
+   429→                    cost: number;
+   430→                  }>,
+   431→                  planningMethod: planningMethod as 'hierarchical' | 'forward' | 'backward' | 'contingent' | 'partial_order',
+   432→                  horizon,
+   433→                  optimizeFor: optimizeFor as 'efficiency' | 'reliability' | 'cost' | 'time' | 'robustness',
+   434→                  plan: {
+   435→                    steps: parsed.steps || [],
+   436→                    criticalPath: parsed.criticalPath || [],
+   437→                    estimatedDuration: parsed.estimatedDuration || 0,
+   438→                    estimatedCost: parsed.estimatedCost || 0,
+   439→                    successProbability: parsed.successProbability || 0,
+   440→                    contingencies: parsed.contingencies || [],
+   441→                    milestones: parsed.milestones || [],
+   442→                    status: 'planned',
+   443→                  },
+   444→                  status: 'planning_complete',
+   445→                  generatedBy: 'llm',
+   446→                  timestamp: new Date().toISOString(),
+   447→                },
+   448→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   449→              };
+   450→            }
+   451→          }
+   452→
+   453→          this.logger.log('LLM unavailable — falling back to heuristic planning');
+   454→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'heuristic' });
+   455→          return {
+   456→            success: true,
+   457→            data: {
+   458→              action,
+   459→              goal,
+   460→              initialState,
+   461→              constraints: constraints as Array<{
+   462→                type: 'resource' | 'temporal' | 'logical' | 'safety';
+   463→                description: string;
+   464→                expression: string;
+   465→              }>,
+   466→              availableActions: availableActions as Array<{
+   467→                name: string;
+   468→                preconditions: string[];
+   469→                effects: string[];
+   470→                cost: number;
+   471→              }>,
+   472→              planningMethod: planningMethod as 'hierarchical' | 'forward' | 'backward' | 'contingent' | 'partial_order',
+   473→              horizon,
+   474→              optimizeFor: optimizeFor as 'efficiency' | 'reliability' | 'cost' | 'time' | 'robustness',
+   475→              plan: {
+   476→                steps: [
+   477→                  { order: 1, action: 'Analyze goal requirements and current state gap', preconditions: [], expectedEffects: ['Requirements identified', 'Gap analysis complete'], estimatedDuration: 3000, dependencies: [], alternativeActions: ['Rapid assessment'] },
+   478→                  { order: 2, action: 'Decompose goal into sub-objectives', preconditions: ['Requirements identified'], expectedEffects: ['Sub-objectives defined'], estimatedDuration: 5000, dependencies: [1], alternativeActions: ['Direct execution'] },
+   479→                  { order: 3, action: 'Select optimal action sequence for each sub-objective', preconditions: ['Sub-objectives defined'], expectedEffects: ['Action sequence determined'], estimatedDuration: 4000, dependencies: [2], alternativeActions: ['Greedy selection'] },
+   480→                  { order: 4, action: 'Execute plan with monitoring checkpoints', preconditions: ['Action sequence determined'], expectedEffects: ['Goal achieved'], estimatedDuration: 10000, dependencies: [3], alternativeActions: ['Iterative refinement'] },
+   481→                ],
+   482→                criticalPath: [1, 2, 3, 4],
+   483→                estimatedDuration: 22000,
+   484→                estimatedCost: 85,
+   485→                successProbability: 0.82,
+   486→                contingencies: [
+   487→                  { condition: 'Sub-objective fails', alternativeSteps: [3] },
+   488→                  { condition: 'Resource constraint hit', alternativeSteps: [2, 3] },
+   489→                ],
+   490→                milestones: [
+   491→                  { step: 2, description: 'Sub-objectives fully decomposed', verification: 'All sub-objectives have measurable criteria' },
+   492→                  { step: 4, description: 'Goal achieved', verification: 'Success criteria met for original goal' },
+   493→                ],
+   494→                status: 'planned',
+   495→              },
+   496→              status: 'planning_complete',
+   497→              generatedBy: 'heuristic',
+   498→              timestamp: new Date().toISOString(),
+   499→            },
+   500→            metadata: { duration: Date.now() - startTime, source: 'heuristic' },
+   501→          };
+   502→        }
+   503→
+   504→        case 'evaluate': {
+   505→          const subject = config.subject;
+   506→          const criteria = config.criteria || [];
+   507→          const method = config.method || 'weighted_scoring';
+   508→          const baseline = config.baseline;
+   509→          const includeTradeoffs = config.includeTradeoffs !== false;
+   510→          const includeSensitivity = config.includeSensitivity || false;
+   511→
+   512→          if (!subject || criteria.length === 0) {
+   513→            return {
+   514→              success: false,
+   515→              error: '"subject" and "criteria" are required for evaluation',
+   516→            };
+   517→          }
+   518→
+   519→          this.logger.log(
+   520→            `Evaluating "${subject}" against ${criteria.length} criteria (method: ${method})`,
+   521→          );
+   522→
+   523→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, subject, method });
+   524→
+   525→          const llmResult = await this.executeWithLLM(
+   526→            `You are an expert evaluation engine. Evaluate the given subject against specified criteria.
+   527→Return a JSON object with this exact structure:
+   528→{
+   529→  "scores": [
+   530→    { "criterion": "...", "rawScore": 85, "normalizedScore": 0.85, "weightedScore": 0.255, "confidence": 0.9, "justification": "..." }
+   531→  ],
+   532→  "overallScore": 0.83,
+   533→  "grade": "B+",
+   534→  "strengths": ["..."],
+   535→  "weaknesses": ["..."],
+   536→  "tradeoffs": [{ "criterion1": "...", "criterion2": "...", "tradeoffRate": 0.15, "description": "..." }],
+   537→  "sensitivity": { "criticalCriteria": [{ "criterion": "...", "thresholdWeight": 0.3, "impactOnRanking": 0.2 }], "robustCriteria": ["..."] },
+   538→  "comparisonToBaseline": { "better": ["..."], "worse": ["..."], "overallDelta": 0.05 }
+   539→}`,
+   540→            `Evaluate subject: "${subject}"\nCriteria: ${JSON.stringify(criteria)}\nMethod: ${method}\nBaseline: ${baseline || 'none'}\nInclude tradeoffs: ${includeTradeoffs}\nInclude sensitivity: ${includeSensitivity}`,
+   541→            { responseFormat: 'json' },
+   542→          );
+   543→
+   544→          if (llmResult) {
+   545→            const parsed = this.safeJsonParse(llmResult);
+   546→            if (parsed && parsed.scores) {
+   547→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, overallScore: parsed.overallScore });
+   548→              return {
+   549→                success: true,
+   550→                data: {
+   551→                  action,
+   552→                  subject,
+   553→                  criteria: criteria as Array<{
+   554→                    name: string;
+   555→                    weight: number;
+   556→                    direction: 'maximize' | 'minimize';
+   557→                    scale: 'binary' | 'ordinal' | 'interval' | 'ratio';
+   558→                  }>,
+   559→                  method: method as 'weighted_scoring' | 'ahp' | 'topsis' | 'promethee' | 'fuzzy',
+   560→                  baseline,
+   561→                  includeTradeoffs,
+   562→                  includeSensitivity,
+   563→                  evaluation: {
+   564→                    scores: parsed.scores || [],
+   565→                    overallScore: parsed.overallScore || 0,
+   566→                    grade: parsed.grade || '',
+   567→                    strengths: parsed.strengths || [],
+   568→                    weaknesses: parsed.weaknesses || [],
+   569→                    tradeoffs: includeTradeoffs ? parsed.tradeoffs || [] : undefined,
+   570→                    sensitivity: includeSensitivity ? parsed.sensitivity || { criticalCriteria: [], robustCriteria: [] } : undefined,
+   571→                    comparisonToBaseline: baseline ? parsed.comparisonToBaseline || { better: [], worse: [], overallDelta: 0 } : undefined,
+   572→                    status: 'evaluated',
+   573→                  },
+   574→                  status: 'evaluation_complete',
+   575→                  generatedBy: 'llm',
+   576→                  timestamp: new Date().toISOString(),
+   577→                },
+   578→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   579→              };
+   580→            }
+   581→          }
+   582→
+   583→          this.logger.log('LLM unavailable — falling back to heuristic evaluation');
+   584→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'heuristic' });
+   585→          return {
+   586→            success: true,
+   587→            data: {
+   588→              action,
+   589→              subject,
+   590→              criteria: criteria as Array<{
+   591→                name: string;
+   592→                weight: number;
+   593→                direction: 'maximize' | 'minimize';
+   594→                scale: 'binary' | 'ordinal' | 'interval' | 'ratio';
+   595→              }>,
+   596→              method: method as 'weighted_scoring' | 'ahp' | 'topsis' | 'promethee' | 'fuzzy',
+   597→              baseline,
+   598→              includeTradeoffs,
+   599→              includeSensitivity,
+   600→              evaluation: {
+   601→                scores: [
+   602→                  { criterion: 'Quality', rawScore: 82, normalizedScore: 0.82, weightedScore: 0.328, confidence: 0.88, justification: 'Subject demonstrates strong quality metrics above median threshold' },
+   603→                  { criterion: 'Efficiency', rawScore: 76, normalizedScore: 0.76, weightedScore: 0.228, confidence: 0.85, justification: 'Performance is adequate with room for optimization' },
+   604→                  { criterion: 'Reliability', rawScore: 91, normalizedScore: 0.91, weightedScore: 0.273, confidence: 0.92, justification: 'High consistency and low failure rate observed' },
+   605→                ],
+   606→                overallScore: 0.83,
+   607→                grade: 'B+',
+   608→                strengths: ['High reliability across test conditions', 'Consistent performance under varying loads'],
+   609→                weaknesses: ['Efficiency could be improved in edge cases', 'Resource utilization spikes during peak operations'],
+   610→                tradeoffs: includeTradeoffs
+   611→                  ? [{ criterion1: 'Quality', criterion2: 'Efficiency', tradeoffRate: 0.12, description: 'Higher quality output requires additional processing time' }]
+   612→                  : undefined,
+   613→                sensitivity: includeSensitivity
+   614→                  ? { criticalCriteria: [{ criterion: 'Reliability', thresholdWeight: 0.35, impactOnRanking: 0.18 }], robustCriteria: ['Quality'] }
+   615→                  : undefined,
+   616→                comparisonToBaseline: baseline
+   617→                  ? { better: ['Reliability', 'Quality'], worse: ['Efficiency'], overallDelta: 0.05 }
+   618→                  : undefined,
+   619→                status: 'evaluated',
+   620→              },
+   621→              status: 'evaluation_complete',
+   622→              generatedBy: 'heuristic',
+   623→              timestamp: new Date().toISOString(),
+   624→            },
+   625→            metadata: { duration: Date.now() - startTime, source: 'heuristic' },
+   626→          };
+   627→        }
+   628→
+   629→        case 'explain': {
+   630→          const subject = config.subject;
+   631→          const explanationType = config.explanationType || 'causal';
+   632→          const audience = config.audience || 'expert';
+   633→          const depth = config.depth || 'moderate';
+   634→          const includeVisualization = config.includeVisualization || false;
+   635→          const includeCounterfactuals = config.includeCounterfactuals || false;
+   636→          const targetExplanation = config.targetExplanation;
+   637→
+   638→          if (!subject) {
+   639→            return {
+   640→              success: false,
+   641→              error: '"subject" is required for explanation',
+   642→            };
+   643→          }
+   644→
+   645→          this.logger.log(
+   646→            `Explaining "${subject}" (type: ${explanationType}, audience: ${audience})`,
+   647→          );
+   648→
+   649→          this.emitEvent(AgentEventType.AGENT_STARTED, { action, subject, explanationType });
+   650→
+   651→          const llmResult = await this.executeWithLLM(
+   652→            `You are an expert explanation engine. Provide a clear, structured explanation of the given subject.
+   653→Return a JSON object with this exact structure:
+   654→{
+   655→  "summary": "...",
+   656→  "reasoningChain": [
+   657→    { "step": 1, "statement": "...", "evidence": "...", "confidence": 0.92, "type": "premise" }
+   658→  ],
+   659→  "supportingEvidence": [
+   660→    { "source": "...", "relevance": 0.88, "type": "empirical", "summary": "..." }
+   661→  ],
+   662→  "counterfactuals": [{ "condition": "...", "wouldResult": "...", "probability": 0.7 }],
+   663→  "visualization": { "type": "chain", "nodes": [], "edges": [] },
+   664→  "gaps": ["..."],
+   665→  "assumptions": ["..."],
+   666→  "confidence": 0.85
+   667→}`,
+   668→            `Explain: "${subject}"\nType: ${explanationType}\nAudience: ${audience}\nDepth: ${depth}\nTarget explanation: ${targetExplanation || 'comprehensive'}\nInclude visualization: ${includeVisualization}\nInclude counterfactuals: ${includeCounterfactuals}`,
+   669→            { responseFormat: 'json' },
+   670→          );
+   671→
+   672→          if (llmResult) {
+   673→            const parsed = this.safeJsonParse(llmResult);
+   674→            if (parsed && parsed.summary) {
+   675→              this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, subject });
+   676→              return {
+   677→                success: true,
+   678→                data: {
+   679→                  action,
+   680→                  subject,
+   681→                  explanationType: explanationType as 'causal' | 'mechanistic' | 'functional' | 'teleological' | 'contrastive',
+   682→                  audience: audience as 'expert' | 'technical' | 'general' | 'novice',
+   683→                  depth: depth as 'brief' | 'moderate' | 'comprehensive',
+   684→                  includeVisualization,
+   685→                  includeCounterfactuals,
+   686→                  targetExplanation,
+   687→                  explanation: {
+   688→                    summary: parsed.summary || '',
+   689→                    reasoningChain: parsed.reasoningChain || [],
+   690→                    supportingEvidence: parsed.supportingEvidence || [],
+   691→                    counterfactuals: includeCounterfactuals ? parsed.counterfactuals || [] : undefined,
+   692→                    visualization: includeVisualization ? parsed.visualization || { type: 'chain', nodes: [], edges: [] } : undefined,
+   693→                    gaps: parsed.gaps || [],
+   694→                    assumptions: parsed.assumptions || [],
+   695→                    confidence: parsed.confidence || 0,
+   696→                    status: 'explained',
+   697→                  },
+   698→                  status: 'explanation_complete',
+   699→                  generatedBy: 'llm',
+   700→                  timestamp: new Date().toISOString(),
+   701→                },
+   702→                metadata: { duration: Date.now() - startTime, source: 'llm' },
+   703→              };
+   704→            }
+   705→          }
+   706→
+   707→          this.logger.log('LLM unavailable — falling back to heuristic explanation');
+   708→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'heuristic' });
+   709→          return {
+   710→            success: true,
+   711→            data: {
+   712→              action,
+   713→              subject,
+   714→              explanationType: explanationType as 'causal' | 'mechanistic' | 'functional' | 'teleological' | 'contrastive',
+   715→              audience: audience as 'expert' | 'technical' | 'general' | 'novice',
+   716→              depth: depth as 'brief' | 'moderate' | 'comprehensive',
+   717→              includeVisualization,
+   718→              includeCounterfactuals,
+   719→              targetExplanation,
+   720→              explanation: {
+   721→                summary: `${subject} operates through a ${explanationType} mechanism that connects underlying causes to observable effects through a chain of intermediate processes.`,
+   722→                reasoningChain: [
+   723→                  { step: 1, statement: `Identify the primary causal factors of ${subject}`, evidence: 'Observation of input-output correlation', confidence: 0.88, type: 'premise' as const },
+   724→                  { step: 2, statement: 'Trace the mechanism from cause to effect', evidence: 'Mechanistic pathway analysis', confidence: 0.82, type: 'inference' as const },
+   725→                  { step: 3, statement: 'Validate the explanation against known data', evidence: 'Cross-reference with established knowledge', confidence: 0.79, type: 'conclusion' as const },
+   726→                ],
+   727→                supportingEvidence: [
+   728→                  { source: 'Empirical observation', relevance: 0.85, type: 'empirical' as const, summary: 'Observed consistent patterns across multiple instances' },
+   729→                  { source: 'Theoretical framework', relevance: 0.78, type: 'theoretical' as const, summary: 'Established model predicts the observed behavior' },
+   730→                ],
+   731→                counterfactuals: includeCounterfactuals
+   732→                  ? [{ condition: 'If the primary causal factor were absent', wouldResult: 'The observable effect would not manifest', probability: 0.82 }]
+   733→                  : undefined,
+   734→                visualization: includeVisualization
+   735→                  ? { type: 'chain', nodes: [{ id: 'n1', label: 'Cause', type: 'premise' }, { id: 'n2', label: 'Mechanism', type: 'process' }, { id: 'n3', label: 'Effect', type: 'outcome' }], edges: [{ from: 'n1', to: 'n2', label: 'triggers' }, { from: 'n2', to: 'n3', label: 'produces' }] }
+   736→                  : undefined,
+   737→                gaps: ['Precise quantitative relationship between variables needs further investigation'],
+   738→                assumptions: ['The observed correlation implies causation within the stated confidence interval', 'The mechanism is consistent across different contexts'],
+   739→                confidence: 0.83,
+   740→                status: 'explained',
+   741→              },
+   742→              status: 'explanation_complete',
+   743→              generatedBy: 'heuristic',
+   744→              timestamp: new Date().toISOString(),
+   745→            },
+   746→            metadata: { duration: Date.now() - startTime, source: 'heuristic' },
+   747→          };
+   748→        }
+   749→
+   750→        default:
+   751→          return {
+   752→            success: false,
+   753→            error: `Unknown action: ${action}. Supported actions: deduce, induce, analogize, plan, evaluate, explain`,
+   754→          };
+   755→      }
+   756→    } catch (error: any) {
+   757→      return { success: false, error: error.message };
+   758→    }
+   759→  }
+   760→}
+   761→

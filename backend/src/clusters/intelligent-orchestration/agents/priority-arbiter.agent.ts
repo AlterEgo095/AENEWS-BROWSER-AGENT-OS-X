@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
@@ -23,6 +23,11 @@ export class PriorityArbiterAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Resolves priority conflicts, rebalances task queues, and handles escalation/de-escalation to ensure the most important work is processed first';
+
+  readonly missionCategories = [MissionCategory.AI_ORCHESTRATION];
+  readonly creditCost = 2;
+  readonly powerLevel = 2;
+  readonly tier = 'advanced';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

@@ -15,7 +15,7 @@ import {
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AgentService } from './agent.service';
-import { ClusterType } from './entities/agent.entity';
+import { ClusterType, MissionCategory } from './entities/agent.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { AgentContext } from './agent.abstract';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -135,6 +135,33 @@ export class AgentController {
       pagination.page,
       pagination.limit,
     );
+  }
+
+  @Get('mission-categories')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
+  @ApiOperation({ summary: 'Get all mission categories with labels' })
+  async getMissionCategories() {
+    return this.agentService.getMissionCategories();
+  }
+
+  @Get('by-mission/:category')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
+  @ApiOperation({ summary: 'Get agents filtered by mission category' })
+  async findByMissionCategory(
+    @Param('category') category: MissionCategory,
+    @Query() pagination: PaginationDto,
+    @Req() req?: Request & { user?: any; tenantId?: string },
+  ) {
+    const tenantId = req?.tenantId;
+    return this.agentService.getAgentsByMissionCategory(category, tenantId, pagination.page, pagination.limit);
+  }
+
+  @Get('catalog')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN, UserRole.OPERATOR, UserRole.VIEWER)
+  @ApiOperation({ summary: 'Get agent catalog grouped by mission categories' })
+  async getCatalog(@Req() req?: Request & { user?: any; tenantId?: string }) {
+    const tenantId = req?.tenantId;
+    return this.agentService.getAgentCatalog(tenantId);
   }
 
   @Get('stats')

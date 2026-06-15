@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 export class ScalingAgent extends BaseAgent {
@@ -20,6 +20,11 @@ export class ScalingAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Manages auto-scaling operations including manual and automatic scaling, load balancing configuration, capacity planning, resource optimization, and predictive scaling based on historical patterns';
+
+  readonly missionCategories = [MissionCategory.INFRASTRUCTURE_MGMT];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

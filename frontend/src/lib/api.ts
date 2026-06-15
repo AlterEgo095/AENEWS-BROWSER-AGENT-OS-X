@@ -693,6 +693,23 @@ class ApiClient {
     getDAGTrace: (executionId: string) =>
       this.request<{ success: boolean; data: import('./types').DAGTrace }>(`/swarm/dag/${executionId}/trace`),
   };
+
+  // Credits
+  async getCreditsBalance(userId: string) {
+    return this.request<import('./types').CreditInfo>(`/credits?userId=${userId}`);
+  }
+
+  async getCreditsPackages() {
+    return this.request<import('./types').CreditPackage[]>('/credits/packages');
+  }
+
+  async getCreditsWhatsappNumber() {
+    return this.request<{ number: string }>('/credits/whatsapp-number');
+  }
+
+  async getCreditsOrderInfo() {
+    return this.request<{ packages: import('./types').CreditPackage[]; whatsappNumber: string }>('/credits/order');
+  }
 }
 
 export const api = new ApiClient();

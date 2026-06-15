@@ -1,0 +1,1022 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState, useCallback } from 'react';
+     4→import {
+     5→  Network,
+     6→  RefreshCw,
+     7→  Activity,
+     8→  CheckCircle2,
+     9→  AlertTriangle,
+    10→  XCircle,
+    11→  Cpu,
+    12→  Unplug,
+    13→  Layers,
+    14→  Zap,
+    15→  ArrowRight,
+    16→  Clock,
+    17→  TrendingUp,
+    18→  BarChart3,
+    19→  Target,
+    20→  GitBranch,
+    21→  Send,
+    22→  Loader2,
+    23→} from 'lucide-react';
+    24→import { api } from '@/lib/api';
+    25→
+    26→import {
+    27→  cn,
+    28→  clusterIcons,
+    29→  clusterColors,
+    30→  collaborationPatternColors,
+    31→  collaborationPatternIcons,
+    32→  clusterHealthStatusColors,
+    33→  clusterHealthDotColors,
+    34→  connectorModeColors,
+    35→  formatRelativeTime,
+    36→} from '@/lib/utils';
+    37→import type {
+    38→  ClusterHealthInfo,
+    39→  UnifiedConnectorInfo,
+    40→  OrchestrationStatistics,
+    41→  OrchestrationHistoryItem,
+    42→  CollaborationPattern,
+    43→  DecompositionResult,
+    44→  CollaborationResult,
+    45→  ClusterType,
+    46→} from '@/lib/types';
+    47→import { ClusterType as CT } from '@/lib/types';
+    48→import { useWebSocket } from '@/hooks/use-websocket';
+    49→
+    50→// Cluster label map
+    51→const clusterLabels: Record<ClusterType, string> = {
+    52→  [CT.BROWSER]: 'Browser',
+    53→  [CT.COMPUTER]: 'Computer',
+    54→  [CT.CODING]: 'Coding',
+    55→  [CT.OFFICE]: 'Office',
+    56→  [CT.MARKETING]: 'Marketing',
+    57→  [CT.BUSINESS]: 'Business',
+    58→  [CT.INFRASTRUCTURE]: 'Infrastructure',
+    59→  [CT.SECURITY]: 'Security',
+    60→  [CT.META_INTELLIGENCE]: 'Meta Intelligence',
+    61→  [CT.LLM_INTELLIGENCE]: 'LLM Intelligence',
+    62→  [CT.INTELLIGENT_ORCHESTRATION]: 'Intelligent Orchestration',
+    63→  [CT.WATCHDOG]: 'Watchdog',
+    64→  [CT.SELF_EVOLUTION]: 'Self Evolution',
+    65→  [CT.CERTIFICATION]: 'Certification',
+    66→};
+    67→
+    68→// Pattern labels
+    69→const patternLabels: Record<CollaborationPattern, string> = {
+    70→  delegation: 'Delegation',
+    71→  handoff: 'Handoff',
+    72→  parallel: 'Parallel',
+    73→  pipeline: 'Pipeline',
+    74→  consensus: 'Consensus',
+    75→  swarm: 'Swarm',
+    76→};
+    77→
+    78→// Status icon helper
+    79→function StatusIcon({ status }: { status: string }) {
+    80→  switch (status) {
+    81→    case 'healthy':
+    82→    case 'connected':
+    83→    case 'completed':
+    84→    case 'active':
+    85→      return <CheckCircle2 className="h-4 w-4 text-emerald-400" />;
+    86→    case 'degraded':
+    87→    case 'initializing':
+    88→    case 'coordinating':
+    89→    case 'running':
+    90→      return <AlertTriangle className="h-4 w-4 text-amber-400" />;
+    91→    case 'critical':
+    92→    case 'error':
+    93→    case 'failed':
+    94→      return <XCircle className="h-4 w-4 text-red-400" />;
+    95→    case 'offline':
+    96→    case 'disconnected':
+    97→    case 'passive':
+    98→      return <Unplug className="h-4 w-4 text-gray-400" />;
+    99→    default:
+   100→      return <Activity className="h-4 w-4 text-slate-400" />;
+   101→  }
+   102→}
+   103→
+   104→// ---------- Cluster Health Card ----------
+   105→function ClusterHealthCard({ info }: { info: ClusterHealthInfo }) {
+   106→  return (
+   107→    <div className="rounded-xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/30">
+   108→      <div className="flex items-center justify-between">
+   109→        <div className="flex items-center gap-2.5">
+   110→          <span className="text-lg">{clusterIcons[info.cluster]}</span>
+   111→          <div>
+   112→            <h4 className="text-sm font-semibold text-foreground">
+   113→              {clusterLabels[info.cluster] || info.cluster.replace(/-/g, ' ')}
+   114→            </h4>
+   115→            <p className="text-[11px] text-muted-foreground">
+   116→              {info.activeAgents}/{info.totalAgents} agents
+   117→            </p>
+   118→          </div>
+   119→        </div>
+   120→        <div className="flex items-center gap-1.5">
+   121→          <div className={cn('h-2 w-2 rounded-full', clusterHealthDotColors[info.status])} />
+   122→          <span
+   123→            className={cn(
+   124→              'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase',
+   125→              clusterHealthStatusColors[info.status]
+   126→            )}
+   127→          >
+   128→            {info.status}
+   129→          </span>
+   130→        </div>
+   131→      </div>
+   132→      {/* Health Bar */}
+   133→      <div className="mt-3">
+   134→        <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+   135→          <span>Health</span>
+   136→          <span className={cn(
+   137→            'font-semibold',
+   138→            info.health >= 90 ? 'text-emerald-400' : info.health >= 60 ? 'text-amber-400' : 'text-red-400'
+   139→          )}>
+   140→            {info.health}%
+   141→          </span>
+   142→        </div>
+   143→        <div className="h-1.5 w-full rounded-full bg-white/5">
+   144→          <div
+   145→            className={cn(
+   146→              'h-full rounded-full transition-all duration-500',
+   147→              info.health >= 90 ? 'bg-emerald-400' : info.health >= 60 ? 'bg-amber-400' : 'bg-red-400'
+   148→            )}
+   149→            style={{ width: `${info.health}%` }}
+   150→          />
+   151→        </div>
+   152→      </div>
+   153→      {/* Stats Row */}
+   154→      <div className="mt-3 flex gap-3">
+   155→        <div className="flex items-center gap-1.5">
+   156→          <Zap className="h-3 w-3 text-emerald-400" />
+   157→          <span className="text-[11px] text-muted-foreground">{info.activeTasks} active</span>
+   158→        </div>
+   159→        <div className="flex items-center gap-1.5">
+   160→          <CheckCircle2 className="h-3 w-3 text-cyan-400" />
+   161→          <span className="text-[11px] text-muted-foreground">{info.completedTasks} done</span>
+   162→        </div>
+   163→        {info.failedTasks > 0 && (
+   164→          <div className="flex items-center gap-1.5">
+   165→            <XCircle className="h-3 w-3 text-red-400" />
+   166→            <span className="text-[11px] text-red-400">{info.failedTasks} fail</span>
+   167→          </div>
+   168→        )}
+   169→      </div>
+   170→      <div className="mt-2 flex items-center gap-1.5">
+   171→        <Clock className="h-3 w-3 text-muted-foreground/60" />
+   172→        <span className="text-[10px] text-muted-foreground/60">avg {info.avgResponseTime}ms</span>
+   173→      </div>
+   174→    </div>
+   175→  );
+   176→}
+   177→
+   178→// ---------- Connector Card ----------
+   179→function ConnectorCard({ connector }: { connector: UnifiedConnectorInfo }) {
+   180→  return (
+   181→    <div className="rounded-lg border border-border bg-card p-3 transition-all duration-200 hover:border-primary/20">
+   182→      <div className="flex items-center justify-between">
+   183→        <div className="flex items-center gap-2.5 min-w-0">
+   184→          <div className={cn(
+   185→            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+   186→            connector.status === 'connected' ? 'bg-emerald-500/15' :
+   187→            connector.status === 'error' ? 'bg-red-500/15' :
+   188→            connector.status === 'initializing' ? 'bg-amber-500/15' :
+   189→            'bg-gray-500/15'
+   190→          )}>
+   191→            <Cpu className={cn(
+   192→              'h-4 w-4',
+   193→              connector.status === 'connected' ? 'text-emerald-400' :
+   194→              connector.status === 'error' ? 'text-red-400' :
+   195→              connector.status === 'initializing' ? 'text-amber-400' :
+   196→              'text-gray-400'
+   197→            )} />
+   198→          </div>
+   199→          <div className="min-w-0">
+   200→            <p className="text-sm font-medium text-foreground truncate">{connector.name}</p>
+   201→            <p className="text-[10px] text-muted-foreground">{connector.type}</p>
+   202→          </div>
+   203→        </div>
+   204→        <div className="flex items-center gap-2 shrink-0">
+   205→          <span className={cn(
+   206→            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+   207→            connectorModeColors[connector.mode]
+   208→          )}>
+   209→            {connector.mode}
+   210→          </span>
+   211→          <StatusIcon status={connector.status} />
+   212→        </div>
+   213→      </div>
+   214→      {/* Health & Stats */}
+   215→      <div className="mt-2.5 flex items-center gap-4">
+   216→        <div className="flex-1">
+   217→          <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+   218→            <span>Health</span>
+   219→            <span className={cn(
+   220→              'font-semibold',
+   221→              connector.health >= 90 ? 'text-emerald-400' :
+   222→              connector.health >= 60 ? 'text-amber-400' :
+   223→              connector.health > 0 ? 'text-red-400' : 'text-gray-500'
+   224→            )}>
+   225→              {connector.health}%
+   226→            </span>
+   227→          </div>
+   228→          <div className="h-1 w-full rounded-full bg-white/5">
+   229→            <div
+   230→              className={cn(
+   231→                'h-full rounded-full transition-all',
+   232→                connector.health >= 90 ? 'bg-emerald-400' :
+   233→                connector.health >= 60 ? 'bg-amber-400' :
+   234→                connector.health > 0 ? 'bg-red-400' : 'bg-gray-500'
+   235→              )}
+   236→              style={{ width: `${connector.health}%` }}
+   237→            />
+   238→          </div>
+   239→        </div>
+   240→        <div className="text-right">
+   241→          <p className="text-[10px] text-muted-foreground">Hit Rate</p>
+   242→          <p className="text-xs font-semibold text-foreground">{connector.hitRate}%</p>
+   243→        </div>
+   244→        <div className="text-right">
+   245→          <p className="text-[10px] text-muted-foreground">Execs</p>
+   246→          <p className="text-xs font-semibold text-foreground">{connector.totalExecutions.toLocaleString()}</p>
+   247→        </div>
+   248→      </div>
+   249→      {/* Capabilities */}
+   250→      <div className="mt-2 flex flex-wrap gap-1">
+   251→        {connector.capabilities.slice(0, 3).map((cap) => (
+   252→          <span key={cap} className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+   253→            {cap}
+   254→          </span>
+   255→        ))}
+   256→        {connector.capabilities.length > 3 && (
+   257→          <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+   258→            +{connector.capabilities.length - 3}
+   259→          </span>
+   260→        )}
+   261→      </div>
+   262→    </div>
+   263→  );
+   264→}
+   265→
+   266→// ---------- Statistics Overview Card ----------
+   267→function StatCard({
+   268→  title,
+   269→  value,
+   270→  subtitle,
+   271→  icon: Icon,
+   272→  color = 'text-primary',
+   273→}: {
+   274→  title: string;
+   275→  value: string | number;
+   276→  subtitle?: string;
+   277→  icon: React.ElementType;
+   278→  color?: string;
+   279→}) {
+   280→  return (
+   281→    <div className="rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary/30">
+   282→      <div className="flex items-start justify-between">
+   283→        <div>
+   284→          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</p>
+   285→          <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
+   286→          {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
+   287→        </div>
+   288→        <div className={cn('rounded-lg p-2.5', color.replace('text-', 'bg-') + '/15')}>
+   289→          <Icon className={cn('h-5 w-5', color)} />
+   290→        </div>
+   291→      </div>
+   292→    </div>
+   293→  );
+   294→}
+   295→
+   296→// ---------- History Item ----------
+   297→function HistoryItem({ item }: { item: OrchestrationHistoryItem }) {
+   298→  const typeColors: Record<string, string> = {
+   299→    collaboration: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
+   300→    decomposition: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+   301→    coordination: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+   302→  };
+   303→  const statusColorMap: Record<string, string> = {
+   304→    completed: 'text-emerald-400',
+   305→    running: 'text-amber-400',
+   306→    failed: 'text-red-400',
+   307→    coordinating: 'text-amber-400',
+   308→  };
+   309→
+   310→  return (
+   311→    <div className="flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 transition-colors hover:border-primary/20">
+   312→      <div className="flex-1 min-w-0">
+   313→        <div className="flex items-center gap-2">
+   314→          <p className="text-sm font-medium text-foreground truncate">{item.description}</p>
+   315→        </div>
+   316→        <div className="flex items-center gap-2 mt-1">
+   317→          <span className={cn('rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase', typeColors[item.type])}>
+   318→            {item.type}
+   319→          </span>
+   320→          {item.pattern && (
+   321→            <span className={cn('rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase', collaborationPatternColors[item.pattern])}>
+   322→              {collaborationPatternIcons[item.pattern]} {patternLabels[item.pattern]}
+   323→            </span>
+   324→          )}
+   325→          <span className={cn('text-[10px] font-medium', statusColorMap[item.status] || 'text-slate-400')}>
+   326→            {item.status}
+   327→          </span>
+   328→        </div>
+   329→      </div>
+   330→      <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+   331→        {formatRelativeTime(item.createdAt)}
+   332→      </span>
+   333→    </div>
+   334→  );
+   335→}
+   336→
+   337→// ---------- Pattern Usage Bar ----------
+   338→function PatternUsageBar({ pattern, count, max }: { pattern: CollaborationPattern; count: number; max: number }) {
+   339→  const pct = max > 0 ? (count / max) * 100 : 0;
+   340→  return (
+   341→    <div className="flex items-center gap-3">
+   342→      <div className="flex items-center gap-2 w-28 shrink-0">
+   343→        <span className="text-sm">{collaborationPatternIcons[pattern]}</span>
+   344→        <span className="text-xs font-medium text-foreground">{patternLabels[pattern]}</span>
+   345→      </div>
+   346→      <div className="flex-1 h-2 rounded-full bg-white/5">
+   347→        <div
+   348→          className={cn('h-full rounded-full transition-all duration-500', collaborationPatternColors[pattern].split(' ')[0])}
+   349→          style={{ width: `${pct}%` }}
+   350→        />
+   351→      </div>
+   352→      <span className="text-xs font-semibold text-foreground w-12 text-right">{count}</span>
+   353→    </div>
+   354→  );
+   355→}
+   356→
+   357→// ---------- Main Page ----------
+   358→export default function OrchestrationPage() {
+   359→  // Data states
+   360→  const [clusterHealth, setClusterHealth] = useState<ClusterHealthInfo[]>([]);
+   361→  const [connectors, setConnectors] = useState<UnifiedConnectorInfo[]>([]);
+   362→  const [stats, setStats] = useState<OrchestrationStatistics | null>(null);
+   363→  const [history, setHistory] = useState<OrchestrationHistoryItem[]>([]);
+   364→  const [loading, setLoading] = useState(true);
+   365→
+   366→  // Form states
+   367→  const [decomposeDesc, setDecomposeDesc] = useState('');
+   368→  const [decomposeObjectives, setDecomposeObjectives] = useState('');
+   369→  const [decomposeResult, setDecomposeResult] = useState<DecompositionResult | null>(null);
+   370→  const [decomposing, setDecomposing] = useState(false);
+   371→
+   372→  const [collabPattern, setCollabPattern] = useState<CollaborationPattern>('pipeline');
+   373→  const [collabDesc, setCollabDesc] = useState('');
+   374→  const [collabObjectives, setCollabObjectives] = useState('');
+   375→  const [collabResult, setCollabResult] = useState<CollaborationResult | null>(null);
+   376→  const [launchingCollab, setLaunchingCollab] = useState(false);
+   377→
+   378→  // Active section for tab-like navigation
+   379→  const [activeSection, setActiveSection] = useState<'overview' | 'decompose' | 'collaborate'>('overview');
+   380→
+   381→  // WebSocket for live updates
+   382→  const { subscribe, unsubscribe, lastEvent } = useWebSocket();
+   383→
+   384→  const handleOrchestrationEvent = useCallback((event: { type: string; payload: Record<string, unknown> }) => {
+   385→    if (event.type === 'orchestration:collaboration' || event.type === 'orchestration:coordination') {
+   386→      // Refresh history on live events
+   387→      fetchHistory();
+   388→    }
+   389→  }, []);
+   390→
+   391→  useEffect(() => {
+   392→    subscribe('orchestration:collaboration', handleOrchestrationEvent);
+   393→    subscribe('orchestration:coordination', handleOrchestrationEvent);
+   394→    return () => {
+   395→      unsubscribe('orchestration:collaboration', handleOrchestrationEvent);
+   396→      unsubscribe('orchestration:coordination', handleOrchestrationEvent);
+   397→    };
+   398→  }, [subscribe, unsubscribe, handleOrchestrationEvent]);
+   399→
+   400→  // Log last event for debugging
+   401→  useEffect(() => {
+   402→    if (lastEvent?.type?.startsWith('orchestration:')) {
+   403→      // Live event received — could show toast
+   404→    }
+   405→  }, [lastEvent]);
+   406→
+   407→  useEffect(() => {
+   408→    fetchAllData();
+   409→  }, []);
+   410→
+   411→  async function fetchAllData() {
+   412→    setLoading(true);
+   413→    try {
+   414→      const results = await Promise.allSettled([
+   415→        api.orchestration.getClusterHealth(),
+   416→        api.orchestration.getConnectors(),
+   417→        api.orchestration.getStatistics(),
+   418→        api.orchestration.getHistory(undefined, 10),
+   419→      ]);
+   420→
+   421→      if (results[0].status === 'fulfilled') setClusterHealth(results[0].value);
+   422→
+   423→      if (results[1].status === 'fulfilled') setConnectors(results[1].value);
+   424→
+   425→      if (results[2].status === 'fulfilled') setStats(results[2].value);
+   426→
+   427→      if (results[3].status === 'fulfilled') setHistory(results[3].value);
+   428→    } catch {
+   429→    } finally {
+   430→      setLoading(false);
+   431→    }
+   432→  }
+   433→
+   434→  async function fetchHistory() {
+   435→    try {
+   436→      const result = await api.orchestration.getHistory(undefined, 10);
+   437→      setHistory(result);
+   438→    } catch {
+   439→      // keep existing
+   440→    }
+   441→  }
+   442→
+   443→  async function handleDecompose() {
+   444→    if (!decomposeDesc.trim()) return;
+   445→    setDecomposing(true);
+   446→    setDecomposeResult(null);
+   447→    try {
+   448→      const objectives = decomposeObjectives
+   449→        .split('\n')
+   450→        .map((o) => o.trim())
+   451→        .filter(Boolean);
+   452→      const result = await api.orchestration.decompose(null, decomposeDesc, objectives);
+   453→      setDecomposeResult(result);
+   454→    } catch {
+   455→      // Decomposition failed
+   456→      setDecomposeResult(null);
+   457→    } finally {
+   458→      setDecomposing(false);
+   459→    }
+   460→  }
+   461→
+   462→  async function handleCollaborate() {
+   463→    if (!collabDesc.trim()) return;
+   464→    setLaunchingCollab(true);
+   465→    setCollabResult(null);
+   466→    try {
+   467→      const objectives = collabObjectives
+   468→        .split('\n')
+   469→        .map((o) => o.trim())
+   470→        .filter(Boolean);
+   471→      const result = await api.orchestration.collaborate(collabPattern, collabDesc, objectives);
+   472→      setCollabResult(result);
+   473→    } catch {
+   474→      // Collaboration failed
+   475→      setCollabResult(null);
+   476→    } finally {
+   477→      setLaunchingCollab(false);
+   478→    }
+   479→  }
+   480→
+   481→  const healthyClusters = clusterHealth.filter((c) => c.status === 'healthy').length;
+   482→  const connectedConnectors = connectors.filter((c) => c.status === 'connected').length;
+   483→  const maxPatternUsage = stats ? Math.max(...Object.values(stats.patternUsage)) : 1;
+   484→
+   485→  if (loading) {
+   486→    return (
+   487→      <div className="space-y-6">
+   488→        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   489→          {[1, 2, 3, 4].map((i) => (
+   490→            <div key={i} className="h-32 animate-shimmer rounded-xl" />
+   491→          ))}
+   492→        </div>
+   493→        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+   494→          {[1, 2, 3].map((i) => (
+   495→            <div key={i} className="h-64 animate-shimmer rounded-xl" />
+   496→          ))}
+   497→        </div>
+   498→      </div>
+   499→    );
+   500→  }
+   501→
+   502→  return (
+   503→    <div className="space-y-6 animate-slide-in">
+   504→      {/* Header */}
+   505→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   506→        <div>
+   507→          <h1 className="text-2xl font-bold text-foreground">Intelligent Orchestration</h1>
+   508→          <p className="text-sm text-muted-foreground">
+   509→            Phase 8 — Cluster health, connector management & multi-agent collaboration
+   510→          </p>
+   511→        </div>
+   512→        <button
+   513→          onClick={fetchAllData}
+   514→          className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+   515→        >
+   516→          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+   517→          Refresh
+   518→        </button>
+   519→      </div>
+   520→
+   521→      {/* Section Tabs */}
+   522→      <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
+   523→        {([
+   524→          { key: 'overview', label: 'Overview', icon: Network },
+   525→          { key: 'decompose', label: 'Decompose', icon: GitBranch },
+   526→          { key: 'collaborate', label: 'Collaborate', icon: Layers },
+   527→        ] as const).map((tab) => (
+   528→          <button
+   529→            key={tab.key}
+   530→            onClick={() => setActiveSection(tab.key)}
+   531→            className={cn(
+   532→              'flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-all',
+   533→              activeSection === tab.key
+   534→                ? 'bg-primary/15 text-primary'
+   535→                : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'
+   536→            )}
+   537→          >
+   538→            <tab.icon className="h-4 w-4" />
+   539→            {tab.label}
+   540→          </button>
+   541→        ))}
+   542→      </div>
+   543→
+   544→      {/* ====== OVERVIEW SECTION ====== */}
+   545→      {activeSection === 'overview' && (
+   546→        <>
+   547→          {/* Stats Row */}
+   548→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   549→            <StatCard
+   550→              title="Healthy Clusters"
+   551→              value={`${healthyClusters}/${clusterHealth.length}`}
+   552→              subtitle="System-wide health"
+   553→              icon={CheckCircle2}
+   554→              color="text-emerald-400"
+   555→            />
+   556→            <StatCard
+   557→              title="Connected"
+   558→              value={`${connectedConnectors}/${connectors.length}`}
+   559→              subtitle="Unified connectors"
+   560→              icon={Unplug}
+   561→              color="text-cyan-400"
+   562→            />
+   563→            <StatCard
+   564→              title="Active Collabs"
+   565→              value={stats?.activeCollaborations ?? 0}
+   566→              subtitle="Currently running"
+   567→              icon={Layers}
+   568→              color="text-violet-400"
+   569→            />
+   570→            <StatCard
+   571→              title="Total Coordinations"
+   572→              value={stats?.totalCoordinations?.toLocaleString() ?? '0'}
+   573→              subtitle="All time"
+   574→              icon={Network}
+   575→              color="text-orange-400"
+   576→            />
+   577→          </div>
+   578→
+   579→          {/* Main Grid */}
+   580→          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+   581→            {/* Cluster Health */}
+   582→            <div className="xl:col-span-2 space-y-4">
+   583→              <div className="flex items-center justify-between">
+   584→                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+   585→                  Cluster Health
+   586→                </h3>
+   587→                <span className="text-xs text-muted-foreground">
+   588→                  {clusterHealth.length} clusters
+   589→                </span>
+   590→              </div>
+   591→              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+   592→                {clusterHealth.map((info) => (
+   593→                  <ClusterHealthCard key={info.cluster} info={info} />
+   594→                ))}
+   595→              </div>
+   596→            </div>
+   597→
+   598→            {/* Right Column */}
+   599→            <div className="space-y-6">
+   600→              {/* Connector Status */}
+   601→              <div>
+   602→                <div className="flex items-center justify-between mb-3">
+   603→                  <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+   604→                    Connector Status
+   605→                  </h3>
+   606→                  <span className="text-xs text-muted-foreground">
+   607→                    {connectors.length} connectors
+   608→                  </span>
+   609→                </div>
+   610→                <div className="max-h-96 overflow-y-auto space-y-2 rounded-xl border border-border bg-card p-3">
+   611→                  {connectors.map((connector) => (
+   612→                    <ConnectorCard key={connector.id} connector={connector} />
+   613→                  ))}
+   614→                </div>
+   615→              </div>
+   616→            </div>
+   617→          </div>
+   618→
+   619→          {/* Statistics & History Row */}
+   620→          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+   621→            {/* Pattern Usage */}
+   622→            <div>
+   623→              <div className="flex items-center gap-2 mb-3">
+   624→                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+   625→                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+   626→                  Pattern Usage
+   627→                </h3>
+   628→              </div>
+   629→              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+   630→                {stats && (Object.entries(stats.patternUsage) as [CollaborationPattern, number][]).map(
+   631→                  ([pattern, count]) => (
+   632→                    <PatternUsageBar key={pattern} pattern={pattern} count={count} max={maxPatternUsage} />
+   633→                  )
+   634→                )}
+   635→              </div>
+   636→              {/* Connector Hit Rates */}
+   637→              <div className="mt-4">
+   638→                <div className="flex items-center gap-2 mb-3">
+   639→                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+   640→                  <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+   641→                    Connector Hit Rates
+   642→                  </h3>
+   643→                </div>
+   644→                <div className="rounded-xl border border-border bg-card p-4">
+   645→                  <div className="space-y-2">
+   646→                    {stats?.connectorStats
+   647→                      ?.sort((a, b) => b.hitRate - a.hitRate)
+   648→                      .slice(0, 6)
+   649→                      .map((cs) => (
+   650→                        <div key={cs.connectorId} className="flex items-center gap-3">
+   651→                          <span className="text-xs text-foreground w-32 truncate">{cs.connectorName}</span>
+   652→                          <div className="flex-1 h-1.5 rounded-full bg-white/5">
+   653→                            <div
+   654→                              className="h-full rounded-full bg-primary/70 transition-all duration-500"
+   655→                              style={{ width: `${cs.hitRate}%` }}
+   656→                            />
+   657→                          </div>
+   658→                          <span className="text-xs font-semibold text-foreground w-10 text-right">{cs.hitRate}%</span>
+   659→                        </div>
+   660→                      ))}
+   661→                  </div>
+   662→                </div>
+   663→              </div>
+   664→            </div>
+   665→
+   666→            {/* Recent History */}
+   667→            <div>
+   668→              <div className="flex items-center gap-2 mb-3">
+   669→                <Clock className="h-4 w-4 text-muted-foreground" />
+   670→                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+   671→                  Recent Activity
+   672→                </h3>
+   673→              </div>
+   674→              <div className="max-h-[460px] overflow-y-auto space-y-2 rounded-xl border border-border bg-card p-3">
+   675→                {history.map((item) => (
+   676→                  <HistoryItem key={item.id} item={item} />
+   677→                ))}
+   678→                {history.length === 0 && (
+   679→                  <div className="py-8 text-center">
+   680→                    <Activity className="mx-auto h-6 w-6 text-muted-foreground/30" />
+   681→                    <p className="mt-2 text-xs text-muted-foreground">No orchestration history</p>
+   682→                  </div>
+   683→                )}
+   684→              </div>
+   685→            </div>
+   686→          </div>
+   687→        </>
+   688→      )}
+   689→
+   690→      {/* ====== DECOMPOSE SECTION ====== */}
+   691→      {activeSection === 'decompose' && (
+   692→        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+   693→          {/* Input Form */}
+   694→          <div className="rounded-xl border border-border bg-card p-6">
+   695→            <div className="flex items-center gap-2 mb-4">
+   696→              <GitBranch className="h-5 w-5 text-primary" />
+   697→              <h3 className="text-lg font-semibold text-foreground">Mission Decomposition</h3>
+   698→            </div>
+   699→            <p className="text-sm text-muted-foreground mb-6">
+   700→              Describe a mission and the orchestrator will decompose it into sub-tasks across clusters.
+   701→            </p>
+   702→            <div className="space-y-4">
+   703→              <div>
+   704→                <label className="block text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+   705→                  Mission Description
+   706→                </label>
+   707→                <textarea
+   708→                  value={decomposeDesc}
+   709→                  onChange={(e) => setDecomposeDesc(e.target.value)}
+   710→                  placeholder="e.g., Build and deploy a new authentication microservice with OAuth2 support..."
+   711→                  className="w-full rounded-lg border border-border bg-background/50 py-2.5 px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none resize-none"
+   712→                  rows={4}
+   713→                />
+   714→              </div>
+   715→              <div>
+   716→                <label className="block text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+   717→                  Objectives (one per line)
+   718→                </label>
+   719→                <textarea
+   720→                  value={decomposeObjectives}
+   721→                  onChange={(e) => setDecomposeObjectives(e.target.value)}
+   722→                  placeholder={"Design API schema\nImplement OAuth2 flow\nWrite unit tests\nSecurity audit"}
+   723→                  className="w-full rounded-lg border border-border bg-background/50 py-2.5 px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none resize-none"
+   724→                  rows={4}
+   725→                />
+   726→              </div>
+   727→              <button
+   728→                onClick={handleDecompose}
+   729→                disabled={decomposing || !decomposeDesc.trim()}
+   730→                className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+   731→              >
+   732→                {decomposing ? (
+   733→                  <Loader2 className="h-4 w-4 animate-spin" />
+   734→                ) : (
+   735→                  <GitBranch className="h-4 w-4" />
+   736→                )}
+   737→                Decompose Mission
+   738→              </button>
+   739→            </div>
+   740→          </div>
+   741→
+   742→          {/* Result */}
+   743→          <div className="rounded-xl border border-border bg-card p-6">
+   744→            <div className="flex items-center gap-2 mb-4">
+   745→              <Target className="h-5 w-5 text-cyan-400" />
+   746→              <h3 className="text-lg font-semibold text-foreground">Decomposition Result</h3>
+   747→            </div>
+   748→            {!decomposeResult ? (
+   749→              <div className="flex flex-col items-center justify-center py-16 text-center">
+   750→                <GitBranch className="h-12 w-12 text-muted-foreground/20" />
+   751→                <p className="mt-4 text-sm text-muted-foreground">No decomposition yet</p>
+   752→                <p className="text-xs text-muted-foreground/70">Describe a mission and click Decompose</p>
+   753→              </div>
+   754→            ) : (
+   755→              <div className="space-y-4">
+   756→                <div className="rounded-lg border border-border bg-background/50 p-3">
+   757→                  <p className="text-sm font-medium text-foreground">{decomposeResult.description}</p>
+   758→                  <div className="flex items-center gap-3 mt-2">
+   759→                    <span className="rounded-full border bg-cyan-500/20 text-cyan-400 border-cyan-500/30 px-2.5 py-0.5 text-[10px] font-semibold uppercase">
+   760→                      {decomposeResult.strategy}
+   761→                    </span>
+   762→                    {decomposeResult.estimatedDuration && (
+   763→                      <span className="text-xs text-muted-foreground">
+   764→                        Est. {decomposeResult.estimatedDuration}
+   765→                      </span>
+   766→                    )}
+   767→                  </div>
+   768→                </div>
+   769→
+   770→                {/* Objectives */}
+   771→                {decomposeResult.objectives.length > 0 && (
+   772→                  <div>
+   773→                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+   774→                      Objectives
+   775→                    </p>
+   776→                    <div className="flex flex-wrap gap-1.5">
+   777→                      {decomposeResult.objectives.map((obj, i) => (
+   778→                        <span key={i} className="rounded-full border border-border bg-background/50 px-2.5 py-1 text-[11px] text-foreground">
+   779→                          {obj}
+   780→                        </span>
+   781→                      ))}
+   782→                    </div>
+   783→                  </div>
+   784→                )}
+   785→
+   786→                {/* Sub-Tasks */}
+   787→                <div>
+   788→                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+   789→                    Sub-Tasks ({decomposeResult.subTasks.length})
+   790→                  </p>
+   791→                  <div className="space-y-2 max-h-80 overflow-y-auto">
+   792→                    {decomposeResult.subTasks.map((task) => (
+   793→                      <div key={task.id} className="rounded-lg border border-border bg-background/50 p-3">
+   794→                        <div className="flex items-center justify-between">
+   795→                          <div className="flex items-center gap-2 min-w-0">
+   796→                            <span className="text-sm">{clusterIcons[task.cluster]}</span>
+   797→                            <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+   798→                          </div>
+   799→                          <span className={cn(
+   800→                            'rounded-full border px-2 py-0.5 text-[9px] font-semibold capitalize shrink-0',
+   801→                            task.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+   802→                            task.status === 'running' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+   803→                            task.status === 'assigned' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' :
+   804→                            'bg-slate-500/20 text-slate-400 border-slate-500/30'
+   805→                          )}>
+   806→                            {task.status}
+   807→                          </span>
+   808→                        </div>
+   809→                        <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+   810→                        <div className="flex items-center gap-3 mt-2">
+   811→                          <span className={cn('rounded-full border px-2 py-0.5 text-[9px] font-semibold', clusterColors[task.cluster])}>
+   812→                            {clusterLabels[task.cluster]}
+   813→                          </span>
+   814→                          <span className="text-[10px] text-muted-foreground">
+   815→                            Effort: {task.estimatedEffort}
+   816→                          </span>
+   817→                          {task.dependencies.length > 0 && (
+   818→                            <span className="text-[10px] text-muted-foreground">
+   819→                              Depends: {task.dependencies.join(', ')}
+   820→                            </span>
+   821→                          )}
+   822→                        </div>
+   823→                      </div>
+   824→                    ))}
+   825→                  </div>
+   826→                </div>
+   827→              </div>
+   828→            )}
+   829→          </div>
+   830→        </div>
+   831→      )}
+   832→
+   833→      {/* ====== COLLABORATE SECTION ====== */}
+   834→      {activeSection === 'collaborate' && (
+   835→        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+   836→          {/* Input Form */}
+   837→          <div className="rounded-xl border border-border bg-card p-6">
+   838→            <div className="flex items-center gap-2 mb-4">
+   839→              <Layers className="h-5 w-5 text-primary" />
+   840→              <h3 className="text-lg font-semibold text-foreground">Launch Collaboration</h3>
+   841→            </div>
+   842→            <p className="text-sm text-muted-foreground mb-6">
+   843→              Select a collaboration pattern and describe the task to coordinate multiple agents.
+   844→            </p>
+   845→            <div className="space-y-4">
+   846→              {/* Pattern Selection */}
+   847→              <div>
+   848→                <label className="block text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+   849→                  Collaboration Pattern
+   850→                </label>
+   851→                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+   852→                  {(Object.entries(patternLabels) as [CollaborationPattern, string][]).map(([key, label]) => (
+   853→                    <button
+   854→                      key={key}
+   855→                      onClick={() => setCollabPattern(key)}
+   856→                      className={cn(
+   857→                        'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all',
+   858→                        collabPattern === key
+   859→                          ? cn(collaborationPatternColors[key], 'border-current')
+   860→                          : 'border-border bg-background/50 text-muted-foreground hover:border-primary/30 hover:text-foreground'
+   861→                      )}
+   862→                    >
+   863→                      <span>{collaborationPatternIcons[key]}</span>
+   864→                      <span className="text-xs">{label}</span>
+   865→                    </button>
+   866→                  ))}
+   867→                </div>
+   868→              </div>
+   869→
+   870→              <div>
+   871→                <label className="block text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+   872→                  Description
+   873→                </label>
+   874→                <textarea
+   875→                  value={collabDesc}
+   876→                  onChange={(e) => setCollabDesc(e.target.value)}
+   877→                  placeholder="e.g., Deploy microservice with full CI/CD pipeline..."
+   878→                  className="w-full rounded-lg border border-border bg-background/50 py-2.5 px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none resize-none"
+   879→                  rows={3}
+   880→                />
+   881→              </div>
+   882→
+   883→              <div>
+   884→                <label className="block text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1.5">
+   885→                  Objectives (one per line)
+   886→                </label>
+   887→                <textarea
+   888→                  value={collabObjectives}
+   889→                  onChange={(e) => setCollabObjectives(e.target.value)}
+   890→                  placeholder={"Build\nTest\nDeploy"}
+   891→                  className="w-full rounded-lg border border-border bg-background/50 py-2.5 px-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/50 focus:outline-none resize-none"
+   892→                  rows={3}
+   893→                />
+   894→              </div>
+   895→
+   896→              <button
+   897→                onClick={handleCollaborate}
+   898→                disabled={launchingCollab || !collabDesc.trim()}
+   899→                className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+   900→              >
+   901→                {launchingCollab ? (
+   902→                  <Loader2 className="h-4 w-4 animate-spin" />
+   903→                ) : (
+   904→                  <Send className="h-4 w-4" />
+   905→                )}
+   906→                Launch Collaboration
+   907→              </button>
+   908→            </div>
+   909→
+   910→            {/* Pattern Info Cards */}
+   911→            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3">
+   912→              {(Object.entries(patternLabels) as [CollaborationPattern, string][]).map(([key, label]) => (
+   913→                <div
+   914→                  key={key}
+   915→                  className={cn(
+   916→                    'rounded-lg border border-border bg-background/30 p-2.5 text-center',
+   917→                    collabPattern === key && 'border-primary/40 bg-primary/5'
+   918→                  )}
+   919→                >
+   920→                  <span className="text-xl block">{collaborationPatternIcons[key]}</span>
+   921→                  <p className="text-[10px] font-medium text-foreground mt-1">{label}</p>
+   922→                  <p className="text-[9px] text-muted-foreground mt-0.5">
+   923→                    {key === 'delegation' && 'Assign to best agent'}
+   924→                    {key === 'handoff' && 'Sequential transfer'}
+   925→                    {key === 'parallel' && 'Concurrent execution'}
+   926→                    {key === 'pipeline' && 'Stage-based flow'}
+   927→                    {key === 'consensus' && 'Agreement-based'}
+   928→                    {key === 'swarm' && 'Distributed effort'}
+   929→                  </p>
+   930→                </div>
+   931→              ))}
+   932→            </div>
+   933→          </div>
+   934→
+   935→          {/* Collaboration Result */}
+   936→          <div className="rounded-xl border border-border bg-card p-6">
+   937→            <div className="flex items-center gap-2 mb-4">
+   938→              <Activity className="h-5 w-5 text-violet-400" />
+   939→              <h3 className="text-lg font-semibold text-foreground">Collaboration Result</h3>
+   940→            </div>
+   941→            {!collabResult ? (
+   942→              <div className="flex flex-col items-center justify-center py-16 text-center">
+   943→                <Layers className="h-12 w-12 text-muted-foreground/20" />
+   944→                <p className="mt-4 text-sm text-muted-foreground">No collaboration launched</p>
+   945→                <p className="text-xs text-muted-foreground/70">Select a pattern and describe the task</p>
+   946→              </div>
+   947→            ) : (
+   948→              <div className="space-y-4">
+   949→                <div className="rounded-lg border border-border bg-background/50 p-3">
+   950→                  <div className="flex items-center justify-between">
+   951→                    <p className="text-sm font-medium text-foreground">{collabResult.description}</p>
+   952→                    <span className={cn(
+   953→                      'rounded-full border px-2.5 py-0.5 text-[10px] font-semibold capitalize',
+   954→                      collabResult.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+   955→                      collabResult.status === 'running' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+   956→                      collabResult.status === 'failed' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+   957→                      'bg-slate-500/20 text-slate-400 border-slate-500/30'
+   958→                    )}>
+   959→                      {collabResult.status}
+   960→                    </span>
+   961→                  </div>
+   962→                  <div className="flex items-center gap-2 mt-2">
+   963→                    <span className={cn('rounded-full border px-2.5 py-0.5 text-[10px] font-semibold', collaborationPatternColors[collabResult.pattern])}>
+   964→                      {collaborationPatternIcons[collabResult.pattern]} {patternLabels[collabResult.pattern]}
+   965→                    </span>
+   966→                  </div>
+   967→                </div>
+   968→
+   969→                {/* Objectives */}
+   970→                {collabResult.objectives.length > 0 && (
+   971→                  <div>
+   972→                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+   973→                      Objectives
+   974→                    </p>
+   975→                    <div className="flex flex-wrap gap-1.5">
+   976→                      {collabResult.objectives.map((obj, i) => (
+   977→                        <span key={i} className="rounded-full border border-border bg-background/50 px-2.5 py-1 text-[11px] text-foreground">
+   978→                          {obj}
+   979→                        </span>
+   980→                      ))}
+   981→                    </div>
+   982→                  </div>
+   983→                )}
+   984→
+   985→                {/* Participants */}
+   986→                {collabResult.participants.length > 0 && (
+   987→                  <div>
+   988→                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+   989→                      Participants
+   990→                    </p>
+   991→                    <div className="flex flex-wrap gap-1.5">
+   992→                      {collabResult.participants.map((p) => (
+   993→                        <span key={p} className="rounded-lg border border-border bg-background/50 px-2.5 py-1 text-[11px] font-mono text-foreground">
+   994→                          {p}
+   995→                        </span>
+   996→                      ))}
+   997→                    </div>
+   998→                  </div>
+   999→                )}
+  1000→
+  1001→                {/* Timing */}
+  1002→                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+  1003→                  <span>Started: {collabResult.startedAt ? formatRelativeTime(collabResult.startedAt) : 'Pending'}</span>
+  1004→                  <ArrowRight className="h-3 w-3" />
+  1005→                  <span>Ended: {collabResult.completedAt ? formatRelativeTime(collabResult.completedAt) : 'In progress'}</span>
+  1006→                </div>
+  1007→
+  1008→                {/* Error */}
+  1009→                {collabResult.error && (
+  1010→                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+  1011→                    <p className="text-xs font-medium text-red-400">Error: {collabResult.error}</p>
+  1012→                  </div>
+  1013→                )}
+  1014→              </div>
+  1015→            )}
+  1016→          </div>
+  1017→        </div>
+  1018→      )}
+  1019→    </div>
+  1020→  );
+  1021→}
+  1022→

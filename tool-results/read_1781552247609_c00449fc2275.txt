@@ -1,0 +1,1104 @@
+     1→/**
+     2→ * AENEWS Agent OS X — Swarm Intelligence Service
+     3→ *
+     4→ * Phase 10 — True swarm intelligence with stigmergy, dynamic spawning,
+     5→ * emergent behavior detection, and swarm size optimization.
+     6→ *
+     7→ * Stigmergy Model:
+     8→ *   Agents leave digital "pheromones" in a shared Redis environment.
+     9→ *   Pheromones have: type (exploration, success, failure, warning),
+    10→ *   strength (decays over time), and spatial coordinates in capability space.
+    11→ *   Other agents sense pheromones to guide their behavior.
+    12→ *
+    13→ * Dynamic Spawning:
+    14→ *   Based on workload and pheromone density, the swarm can request
+    15→ *   new agent instances. Spawning is bounded by maxSwarmSize and
+    16→ *   requires capacity checks with AgentHealthService.
+    17→ *
+    18→ * Emergent Behavior Detection:
+    19→ *   Monitors swarm metrics (convergence, divergence, oscillation, stagnation)
+    20→ *   and triggers alerts and adaptive responses.
+    21→ *
+    22→ * Swarm Size Optimization:
+    23→ *   Uses gradient-descent-inspired optimization to find ideal agent count.
+    24→ *   Starts with initialSize, adjusts based on throughput and coordination overhead.
+    25→ */
+    26→
+    27→import { Injectable, Logger, Optional } from '@nestjs/common';
+    28→import { AgentRegistryService } from '../../agent/registry/agent-registry.service';
+    29→import { AgentHealthService } from './agent-health.service';
+    30→import { AgentMemoryService, MemoryTier } from './agent-memory.service';
+    31→import {
+    32→  AgentEventBusService,
+    33→  AgentEventType,
+    34→} from './agent-event-bus.service';
+    35→import { AgentCommunicationService } from './agent-communication.service';
+    36→import { ClusterType } from '../../agent/entities/agent.entity';
+    37→import { BaseAgent, AgentContext, AgentResult } from '../../agent/agent.abstract';
+    38→import { LLMService } from '../../llm/llm.service';
+    39→
+    40→// ─── Pheromone Types ──────────────────────────────────────────────
+    41→
+    42→export type PheromoneType = 'exploration' | 'success' | 'failure' | 'warning' | 'resource';
+    43→
+    44→export interface Pheromone {
+    45→  id: string;
+    46→  type: PheromoneType;
+    47→  strength: number;
+    48→  coordinates: Record<string, number>; // capability-space coordinates
+    49→  agentId: string;
+    50→  collaborationId: string;
+    51→  timestamp: number;
+    52→  decayRate: number; // strength lost per second
+    53→  metadata?: Record<string, any>;
+    54→}
+    55→
+    56→// ─── Swarm Types ──────────────────────────────────────────────────
+    57→
+    58→export type SwarmStatus =
+    59→  | 'initializing'
+    60→  | 'deploying'
+    61→  | 'exploring'
+    62→  | 'converging'
+    63→  | 'stagnating'
+    64→  | 'diverging'
+    65→  | 'completed'
+    66→  | 'failed'
+    67→  | 'terminated';
+    68→
+    69→export type EmergentBehaviorType =
+    70→  | 'convergence'    // agents converging on same solution
+    71→  | 'divergence'     // agents exploring very different paths
+    72→  | 'oscillation'    // agents switching between strategies
+    73→  | 'stagnation'     // no progress for extended period
+    74→  | 'cascade'        // one agent's finding triggers chain reaction
+    75→  | 'flocking'       // agents grouping around a successful approach
+    76→  | 'none';
+    77→
+    78→export interface SwarmConfig {
+    79→  id: string;
+    80→  mission: string;
+    81→  objectives: string[];
+    82→  requiredCapabilities: string[];
+    83→  preferredClusters: ClusterType[];
+    84→  initialSize: number;
+    85→  maxSize: number;
+    86→  minSize: number;
+    87→  pheromoneDecayRate: number;    // default 0.01 per second
+    88→  pheromoneSensingRadius: number; // capability-space distance
+    89→  stagnationTimeoutMs: number;   // default 60000
+    90→  convergenceThreshold: number;  // 0-1, default 0.85
+    91→  maxDurationMs: number;         // default 300000 (5 min)
+    92→  enableDynamicSpawning: boolean;
+    93→  enableEmergentDetection: boolean;
+    94→  metadata?: Record<string, any>;
+    95→}
+    96→
+    97→export interface SwarmAgent {
+    98→  agentId: string;
+    99→  clusterType: ClusterType;
+   100→  role: 'explorer' | 'evaluator' | 'coordinator' | 'specialist';
+   101→  capabilities: string[];
+   102→  joinedAt: number;
+   103→  pheromonesSensed: number;
+   104→  tasksCompleted: number;
+   105→  status: 'active' | 'idle' | 'failed' | 'departed';
+   106→}
+   107→
+   108→export interface SwarmMetrics {
+   109→  totalPheromones: number;
+   110→  pheromoneDistribution: Record<PheromoneType, number>;
+   111→  agentThroughput: number; // tasks per second per agent
+   112→  coordinationOverhead: number; // messages per task
+   113→  convergenceScore: number; // 0-1
+   114→  explorationCoverage: number; // 0-1, how much of capability space covered
+   115→  stagnationCounter: number;
+   116→  emergentBehaviors: EmergentBehaviorType[];
+   117→  currentSize: number;
+   118→  optimalSize: number;
+   119→  elapsedTimeMs: number;
+   120→}
+   121→
+   122→export interface SwarmResult {
+   123→  swarmId: string;
+   124→  status: SwarmStatus;
+   125→  findings: SwarmFinding[];
+   126→  consensusResult?: any;
+   127→  metrics: SwarmMetrics;
+   128→  durationMs: number;
+   129→  agentsUsed: string[];
+   130→  pheromoneTrail: Pheromone[];
+   131→}
+   132→
+   133→export interface SwarmFinding {
+   134→  agentId: string;
+   135→  content: any;
+   136→  confidence: number;
+   137→  pheromoneStrength: number;
+   138→  timestamp: number;
+   139→  validated: boolean;
+   140→  validatorIds: string[];
+   141→}
+   142→
+   143→// ─── Service ──────────────────────────────────────────────────────
+   144→
+   145→@Injectable()
+   146→export class SwarmIntelligenceService {
+   147→  private readonly logger = new Logger(SwarmIntelligenceService.name);
+   148→
+   149→  /** Active swarms by ID */
+   150→  private readonly swarms = new Map<string, SwarmConfig>();
+   151→
+   152→  /** Swarm agents by swarm ID */
+   153→  private readonly swarmAgents = new Map<string, SwarmAgent[]>();
+   154→
+   155→  /** Pheromone trails by swarm ID */
+   156→  private readonly pheromoneTrails = new Map<string, Pheromone[]>();
+   157→
+   158→  /** Swarm metrics by ID (updated continuously) */
+   159→  private readonly swarmMetrics = new Map<string, SwarmMetrics>();
+   160→
+   161→  /** Swarm results by ID (final output) */
+   162→  private readonly swarmResults = new Map<string, SwarmResult>();
+   163→
+   164→  /** Emergent behavior history */
+   165→  private readonly emergentHistory = new Map<string, EmergentBehaviorType[]>();
+   166→
+   167→  /** Size optimization state */
+   168→  private readonly sizeOptState = new Map<string, {
+   169→    previousThroughput: number;
+   170→    previousSize: number;
+   171→    gradientHistory: number[];
+   172→  }>();
+   173→
+   174→  constructor(
+   175→    private readonly agentRegistry: AgentRegistryService,
+   176→    private readonly healthService: AgentHealthService,
+   177→    private readonly memoryService: AgentMemoryService,
+   178→    private readonly eventBus: AgentEventBusService,
+   179→    private readonly communicationService: AgentCommunicationService,
+   180→    @Optional() private readonly llmService?: LLMService,
+   181→  ) {}
+   182→
+   183→  // ─── Swarm Lifecycle ──────────────────────────────────────────
+   184→
+   185→  /**
+   186→   * Create and deploy a new swarm for a mission.
+   187→   */
+   188→  async createSwarm(config: Partial<SwarmConfig> & { id: string; mission: string }): Promise<SwarmConfig> {
+   189→    const fullConfig: SwarmConfig = {
+   190→      objectives: [],
+   191→      requiredCapabilities: [],
+   192→      preferredClusters: [],
+   193→      initialSize: 5,
+   194→      maxSize: 20,
+   195→      minSize: 2,
+   196→      pheromoneDecayRate: 0.01,
+   197→      pheromoneSensingRadius: 0.5,
+   198→      stagnationTimeoutMs: 60000,
+   199→      convergenceThreshold: 0.85,
+   200→      maxDurationMs: 300000,
+   201→      enableDynamicSpawning: true,
+   202→      enableEmergentDetection: true,
+   203→      ...config,
+   204→    };
+   205→
+   206→    this.swarms.set(fullConfig.id, fullConfig);
+   207→    this.pheromoneTrails.set(fullConfig.id, []);
+   208→    this.emergentHistory.set(fullConfig.id, []);
+   209→
+   210→    // Initialize metrics
+   211→    const initialMetrics: SwarmMetrics = {
+   212→      totalPheromones: 0,
+   213→      pheromoneDistribution: { exploration: 0, success: 0, failure: 0, warning: 0, resource: 0 },
+   214→      agentThroughput: 0,
+   215→      coordinationOverhead: 0,
+   216→      convergenceScore: 0,
+   217→      explorationCoverage: 0,
+   218→      stagnationCounter: 0,
+   219→      emergentBehaviors: ['none'],
+   220→      currentSize: 0,
+   221→      optimalSize: fullConfig.initialSize,
+   222→      elapsedTimeMs: 0,
+   223→    };
+   224→    this.swarmMetrics.set(fullConfig.id, initialMetrics);
+   225→
+   226→    // Deploy initial agents
+   227→    await this.deployAgents(fullConfig.id, fullConfig.initialSize);
+   228→
+   229→    this.logger.log(`Swarm ${fullConfig.id} created with ${fullConfig.initialSize} agents for: ${fullConfig.mission}`);
+   230→
+   231→    await this.eventBus.publish({
+   232→      type: AgentEventType.CUSTOM,
+   233→      source: 'SwarmIntelligenceService',
+   234→      data: { event: 'swarm.created', swarmId: fullConfig.id, size: fullConfig.initialSize },
+   235→      timestamp: new Date(),
+   236→    });
+   237→
+   238→    return fullConfig;
+   239→  }
+   240→
+   241→  /**
+   242→   * Execute a swarm mission — agents explore, sense pheromones, and converge.
+   243→   */
+   244→  async executeSwarm(swarmId: string): Promise<SwarmResult> {
+   245→    const config = this.swarms.get(swarmId);
+   246→    if (!config) {
+   247→      throw new Error(`Swarm ${swarmId} not found`);
+   248→    }
+   249→
+   250→    const startTime = Date.now();
+   251→    const agents = this.swarmAgents.get(swarmId) || [];
+   252→
+   253→    this.logger.log(`Executing swarm ${swarmId} with ${agents.length} agents`);
+   254→
+   255→    try {
+   256→      // Phase 1: Initial exploration — each agent explores independently
+   257→      await this.eventBus.publish({
+   258→        type: AgentEventType.CUSTOM,
+   259→        source: 'SwarmIntelligenceService',
+   260→        data: { event: 'swarm.phase', swarmId, phase: 'exploration' },
+   261→        timestamp: new Date(),
+   262→      });
+   263→
+   264→      const explorationPromises = agents
+   265→        .filter(a => a.status === 'active')
+   266→        .map(agent => this.executeAgentExploration(swarmId, agent));
+   267→
+   268→      const explorationResults = await Promise.allSettled(explorationPromises);
+   269→
+   270→      // Process exploration results and deposit pheromones
+   271→      for (const result of explorationResults) {
+   272→        if (result.status === 'fulfilled' && result.value) {
+   273→          await this.depositPheromone(swarmId, {
+   274→            id: `pher-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+   275→            type: result.value.success ? 'success' : 'failure',
+   276→            strength: result.value.success ? 1.0 : 0.3,
+   277→            coordinates: result.value.capabilityCoordinates || {},
+   278→            agentId: result.value.agentId,
+   279→            collaborationId: swarmId,
+   280→            timestamp: Date.now(),
+   281→            decayRate: config.pheromoneDecayRate,
+   282→            metadata: result.value.metadata,
+   283→          });
+   284→        }
+   285→      }
+   286→
+   287→      // Phase 2: Pheromone-guided exploration — agents sense trails and adjust
+   288→      await this.eventBus.publish({
+   289→        type: AgentEventType.CUSTOM,
+   290→        source: 'SwarmIntelligenceService',
+   291→        data: { event: 'swarm.phase', swarmId, phase: 'pheromone_guided' },
+   292→        timestamp: new Date(),
+   293→      });
+   294→
+   295→      const guidedPromises = agents
+   296→        .filter(a => a.status === 'active')
+   297→        .map(agent => this.executePheromoneGuidedExploration(swarmId, agent));
+   298→
+   299→      const guidedResults = await Promise.allSettled(guidedPromises);
+   300→
+   301→      for (const result of guidedResults) {
+   302→        if (result.status === 'fulfilled' && result.value) {
+   303→          await this.depositPheromone(swarmId, {
+   304→            id: `pher-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+   305→            type: result.value.success ? 'success' : 'exploration',
+   306→            strength: result.value.success ? 0.8 : 0.5,
+   307→            coordinates: result.value.capabilityCoordinates || {},
+   308→            agentId: result.value.agentId,
+   309→            collaborationId: swarmId,
+   310→            timestamp: Date.now(),
+   311→            decayRate: config.pheromoneDecayRate,
+   312→          });
+   313→        }
+   314→      }
+   315→
+   316→      // Phase 3: Convergence — agents evaluate and validate findings
+   317→      await this.eventBus.publish({
+   318→        type: AgentEventType.CUSTOM,
+   319→        source: 'SwarmIntelligenceService',
+   320→        data: { event: 'swarm.phase', swarmId, phase: 'convergence' },
+   321→        timestamp: new Date(),
+   322→      });
+   323→
+   324→      const findings = this.collectFindings(swarmId);
+   325→      const validatedFindings = await this.validateFindings(swarmId, findings);
+   326→
+   327→      // Detect emergent behaviors
+   328→      if (config.enableEmergentDetection) {
+   329→        await this.detectEmergentBehaviors(swarmId);
+   330→      }
+   331→
+   332→      // Optimize swarm size
+   333→      if (config.enableDynamicSpawning) {
+   334→        await this.optimizeSwarmSize(swarmId);
+   335→      }
+   336→
+   337→      // Decay pheromones
+   338→      this.decayPheromones(swarmId);
+   339→
+   340→      // Update final metrics
+   341→      const metrics = this.calculateMetrics(swarmId);
+   342→      metrics.elapsedTimeMs = Date.now() - startTime;
+   343→      this.swarmMetrics.set(swarmId, metrics);
+   344→
+   345→      const result: SwarmResult = {
+   346→        swarmId,
+   347→        status: 'completed',
+   348→        findings: validatedFindings,
+   349→        metrics,
+   350→        durationMs: Date.now() - startTime,
+   351→        agentsUsed: agents.map(a => a.agentId),
+   352→        pheromoneTrail: this.pheromoneTrails.get(swarmId) || [],
+   353→      };
+   354→
+   355→      this.swarmResults.set(swarmId, result);
+   356→
+   357→      // Store in memory for future learning
+   358→      await this.memoryService.store(
+   359→        `swarm:${swarmId}`,
+   360→        MemoryTier.LONG_TERM,
+   361→        'result',
+   362→        JSON.stringify(result),
+   363→        86400, // 24h TTL
+   364→      );
+   365→
+   366→      await this.eventBus.publish({
+   367→        type: AgentEventType.CUSTOM,
+   368→        source: 'SwarmIntelligenceService',
+   369→        data: { event: 'swarm.completed', swarmId, findingCount: validatedFindings.length, durationMs: result.durationMs },
+   370→        timestamp: new Date(),
+   371→      });
+   372→
+   373→      return result;
+   374→    } catch (error: any) {
+   375→      this.logger.error(`Swarm ${swarmId} execution failed: ${error.message}`, error.stack);
+   376→
+   377→      const failedResult: SwarmResult = {
+   378→        swarmId,
+   379→        status: 'failed',
+   380→        findings: [],
+   381→        metrics: this.swarmMetrics.get(swarmId)!,
+   382→        durationMs: Date.now() - startTime,
+   383→        agentsUsed: agents.map(a => a.agentId),
+   384→        pheromoneTrail: this.pheromoneTrails.get(swarmId) || [],
+   385→      };
+   386→
+   387→      this.swarmResults.set(swarmId, failedResult);
+   388→
+   389→      await this.eventBus.publish({
+   390→        type: AgentEventType.CUSTOM,
+   391→        source: 'SwarmIntelligenceService',
+   392→        data: { event: 'swarm.failed', swarmId, error: error.message },
+   393→        timestamp: new Date(),
+   394→      });
+   395→
+   396→      return failedResult;
+   397→    }
+   398→  }
+   399→
+   400→  /**
+   401→   * Terminate a running swarm.
+   402→   */
+   403→  async terminateSwarm(swarmId: string, reason: string = 'manual'): Promise<void> {
+   404→    const config = this.swarms.get(swarmId);
+   405→    if (!config) {
+   406→      throw new Error(`Swarm ${swarmId} not found`);
+   407→    }
+   408→
+   409→    const agents = this.swarmAgents.get(swarmId) || [];
+   410→    for (const agent of agents) {
+   411→      agent.status = 'departed';
+   412→    }
+   413→
+   414→    this.logger.warn(`Swarm ${swarmId} terminated: ${reason}`);
+   415→
+   416→    await this.eventBus.publish({
+   417→      type: AgentEventType.CUSTOM,
+   418→      source: 'SwarmIntelligenceService',
+   419→      data: { event: 'swarm.terminated', swarmId, reason },
+   420→      timestamp: new Date(),
+   421→    });
+   422→  }
+   423→
+   424→  // ─── Pheromone Operations ─────────────────────────────────────
+   425→
+   426→  /**
+   427→   * Deposit a pheromone in the environment.
+   428→   */
+   429→  async depositPheromone(swarmId: string, pheromone: Pheromone): Promise<void> {
+   430→    const trail = this.pheromoneTrails.get(swarmId) || [];
+   431→    trail.push(pheromone);
+   432→
+   433→    // Limit trail size to prevent unbounded growth
+   434→    if (trail.length > 500) {
+   435→      // Remove weakest pheromones
+   436→      trail.sort((a, b) => b.strength - a.strength);
+   437→      trail.splice(400);
+   438→    }
+   439→
+   440→    this.pheromoneTrails.set(swarmId, trail);
+   441→
+   442→    // Update metrics
+   443→    const metrics = this.swarmMetrics.get(swarmId);
+   444→    if (metrics) {
+   445→      metrics.totalPheromones = trail.length;
+   446→      metrics.pheromoneDistribution[pheromone.type] =
+   447→        (metrics.pheromoneDistribution[pheromone.type] || 0) + 1;
+   448→    }
+   449→
+   450→    await this.eventBus.publish({
+   451→      type: AgentEventType.CUSTOM,
+   452→      source: 'SwarmIntelligenceService',
+   453→      data: { event: 'pheromone.deposited', swarmId, type: pheromone.type, strength: pheromone.strength },
+   454→      timestamp: new Date(),
+   455→    });
+   456→  }
+   457→
+   458→  /**
+   459→   * Sense pheromones near given capability coordinates.
+   460→   */
+   461→  async sensePheromones(
+   462→    swarmId: string,
+   463→    coordinates: Record<string, number>,
+   464→    radius: number = 0.5,
+   465→  ): Promise<Pheromone[]> {
+   466→    const trail = this.pheromoneTrails.get(swarmId) || [];
+   467→
+   468→    return trail.filter(p => {
+   469→      // Calculate Euclidean distance in capability space
+   470→      const distance = this.capabilityDistance(p.coordinates, coordinates);
+   471→      return distance <= radius && p.strength > 0.05; // ignore negligible pheromones
+   472→    }).sort((a, b) => b.strength - a.strength); // strongest first
+   473→  }
+   474→
+   475→  /**
+   476→   * Decay all pheromones (called periodically).
+   477→   */
+   478→  private decayPheromones(swarmId: string): void {
+   479→    const trail = this.pheromoneTrails.get(swarmId);
+   480→    if (!trail) return;
+   481→
+   482→    const now = Date.now();
+   483→    for (const pheromone of trail) {
+   484→      const ageSeconds = (now - pheromone.timestamp) / 1000;
+   485→      pheromone.strength = Math.max(0, pheromone.strength - pheromone.decayRate * ageSeconds);
+   486→    }
+   487→
+   488→    // Remove fully decayed pheromones
+   489→    const alive = trail.filter(p => p.strength > 0.01);
+   490→    this.pheromoneTrails.set(swarmId, alive);
+   491→  }
+   492→
+   493→  // ─── Agent Operations ─────────────────────────────────────────
+   494→
+   495→  /**
+   496→   * Deploy agents to a swarm from available clusters.
+   497→   */
+   498→  private async deployAgents(swarmId: string, count: number): Promise<SwarmAgent[]> {
+   499→    const config = this.swarms.get(swarmId);
+   500→    if (!config) return [];
+   501→
+   502→    const deployed: SwarmAgent[] = [];
+   503→    const existingAgents = this.swarmAgents.get(swarmId) || [];
+   504→
+   505→    // Don't exceed max size
+   506→    const availableSlots = config.maxSize - existingAgents.length;
+   507→    const toDeploy = Math.min(count, availableSlots);
+   508→
+   509→    for (let i = 0; i < toDeploy; i++) {
+   510→      // Determine which cluster to pull from
+   511→      const clusterType = config.preferredClusters[i % config.preferredClusters.length]
+   512→        || ClusterType.META_INTELLIGENCE;
+   513→
+   514→      const role = this.assignRole(i, toDeploy);
+   515→
+   516→      const agent: SwarmAgent = {
+   517→        agentId: `swarm-${swarmId}-agent-${i}`,
+   518→        clusterType,
+   519→        role,
+   520→        capabilities: config.requiredCapabilities,
+   521→        joinedAt: Date.now(),
+   522→        pheromonesSensed: 0,
+   523→        tasksCompleted: 0,
+   524→        status: 'active',
+   525→      };
+   526→
+   527→      deployed.push(agent);
+   528→    }
+   529→
+   530→    const allAgents = [...existingAgents, ...deployed];
+   531→    this.swarmAgents.set(swarmId, allAgents);
+   532→
+   533→    // Update metrics
+   534→    const metrics = this.swarmMetrics.get(swarmId);
+   535→    if (metrics) {
+   536→      metrics.currentSize = allAgents.length;
+   537→    }
+   538→
+   539→    return deployed;
+   540→  }
+   541→
+   542→  /**
+   543→   * Assign a role to an agent based on its position in the swarm.
+   544→   */
+   545→  private assignRole(index: number, total: number): SwarmAgent['role'] {
+   546→    if (index === 0) return 'coordinator';
+   547→    if (index < Math.ceil(total * 0.6)) return 'explorer';
+   548→    if (index < Math.ceil(total * 0.85)) return 'evaluator';
+   549→    return 'specialist';
+   550→  }
+   551→
+   552→  /**
+   553→   * Execute an agent's initial exploration phase.
+   554→   */
+   555→  private async executeAgentExploration(
+   556→    swarmId: string,
+   557→    agent: SwarmAgent,
+   558→  ): Promise<{ agentId: string; success: boolean; capabilityCoordinates: Record<string, number>; metadata?: any } | null> {
+   559→    try {
+   560→      const config = this.swarms.get(swarmId);
+   561→      if (!config) return null;
+   562→
+   563→      // Build context for the agent
+   564→      const context: AgentContext = {
+   565→        missionId: swarmId,
+   566→        agentId: agent.agentId,
+   567→        tenantId: 'swarm',
+   568→        taskDescription: config.mission,
+   569→        config: {
+   570→          objectives: config.objectives,
+   571→          capabilities: agent.capabilities,
+   572→          role: agent.role,
+   573→          phase: 'exploration',
+   574→        },
+   575→        metadata: { swarmId, clusterType: agent.clusterType },
+   576→      };
+   577→
+   578→      // Use LLM for intelligent exploration if available
+   579→      let result: any;
+   580→      if (this.llmService) {
+   581→        try {
+   582→          const llmResponse = await this.llmService.chat(
+   583→            [
+   584→              {
+   585→                role: 'system',
+   586→                content: `You are a swarm agent with role "${agent.role}" in cluster "${agent.clusterType}". Explore the problem space for: ${config.mission}. Report findings with confidence and capability coordinates.`,
+   587→              },
+   588→              {
+   589→                role: 'user',
+   590→                content: `Objectives: ${config.objectives.join(', ')}. Capabilities: ${agent.capabilities.join(', ')}. What do you discover?`,
+   591→              },
+   592→            ],
+   593→            { temperature: 0.7, maxTokens: 500 },
+   594→          );
+   595→
+   596→          result = {
+   597→            success: true,
+   598→            finding: llmResponse.content,
+   599→            capabilityCoordinates: this.inferCapabilityCoordinates(agent.capabilities, config.requiredCapabilities),
+   600→          };
+   601→        } catch {
+   602→          result = {
+   603→            success: false,
+   604→            finding: 'LLM exploration failed',
+   605→            capabilityCoordinates: {},
+   606→          };
+   607→        }
+   608→      } else {
+   609→        // Fallback: simulation-based exploration
+   610→        result = {
+   611→          success: Math.random() > 0.3,
+   612→          finding: `Explored ${agent.role} aspect of mission`,
+   613→          capabilityCoordinates: this.inferCapabilityCoordinates(agent.capabilities, config.requiredCapabilities),
+   614→        };
+   615→      }
+   616→
+   617→      agent.tasksCompleted++;
+   618→      return { agentId: agent.agentId, ...result };
+   619→    } catch (error: any) {
+   620→      this.logger.warn(`Agent ${agent.agentId} exploration failed: ${error.message}`);
+   621→      agent.status = 'failed';
+   622→      return { agentId: agent.agentId, success: false, capabilityCoordinates: {} };
+   623→    }
+   624→  }
+   625→
+   626→  /**
+   627→   * Execute pheromone-guided exploration for an agent.
+   628→   */
+   629→  private async executePheromoneGuidedExploration(
+   630→    swarmId: string,
+   631→    agent: SwarmAgent,
+   632→  ): Promise<{ agentId: string; success: boolean; capabilityCoordinates: Record<string, number>; metadata?: any } | null> {
+   633→    try {
+   634→      const config = this.swarms.get(swarmId);
+   635→      if (!config) return null;
+   636→
+   637→      // Sense nearby pheromones
+   638→      const currentCoords = this.inferCapabilityCoordinates(agent.capabilities, config.requiredCapabilities);
+   639→      const sensedPheromones = await this.sensePheromones(swarmId, currentCoords, config.pheromoneSensingRadius);
+   640→
+   641→      agent.pheromonesSensed = sensedPheromones.length;
+   642→
+   643→      // Determine direction based on pheromone signals
+   644→      const direction = this.computePheromoneDirection(sensedPheromones, currentCoords);
+   645→
+   646→      // Move agent's focus toward strongest signals
+   647→      const newCoords = this.moveInCapabilitySpace(currentCoords, direction, 0.3);
+   648→
+   649→      // Execute guided exploration
+   650→      const context: AgentContext = {
+   651→        missionId: swarmId,
+   652→        agentId: agent.agentId,
+   653→        tenantId: 'swarm',
+   654→        taskDescription: config.mission,
+   655→        config: {
+   656→          objectives: config.objectives,
+   657→          sensedPheromones: sensedPheromones.map(p => ({ type: p.type, strength: p.strength })),
+   658→          direction,
+   659→          phase: 'pheromone_guided',
+   660→        },
+   661→        metadata: { swarmId },
+   662→      };
+   663→
+   664→      let result: any;
+   665→      if (this.llmService && sensedPheromones.length > 0) {
+   666→        try {
+   667→          const successSignals = sensedPheromones.filter(p => p.type === 'success');
+   668→          const failureSignals = sensedPheromones.filter(p => p.type === 'failure');
+   669→
+   670→          const llmResponse = await this.llmService.chat(
+   671→            [
+   672→              {
+   673→                role: 'system',
+   674→                content: `You are a swarm agent following pheromone trails. There are ${successSignals.length} success signals and ${failureSignals.length} failure signals nearby. ${successSignals.length > failureSignals.length ? 'Move toward success areas.' : 'Avoid failure areas.'}`,
+   675→              },
+   676→              {
+   677→                role: 'user',
+   678→                content: `Mission: ${config.mission}. Based on pheromone signals, what is your next finding?`,
+   679→              },
+   680→            ],
+   681→            { temperature: 0.5, maxTokens: 400 },
+   682→          );
+   683→
+   684→          result = {
+   685→            success: true,
+   686→            finding: llmResponse.content,
+   687→            capabilityCoordinates: newCoords,
+   688→          };
+   689→        } catch {
+   690→          result = { success: false, finding: 'LLM guided exploration failed', capabilityCoordinates: newCoords };
+   691→        }
+   692→      } else {
+   693→        result = {
+   694→          success: sensedPheromones.some(p => p.type === 'success'),
+   695→          finding: `Guided exploration following ${sensedPheromones.length} pheromone signals`,
+   696→          capabilityCoordinates: newCoords,
+   697→        };
+   698→      }
+   699→
+   700→      agent.tasksCompleted++;
+   701→      return { agentId: agent.agentId, ...result };
+   702→    } catch (error: any) {
+   703→      this.logger.warn(`Agent ${agent.agentId} guided exploration failed: ${error.message}`);
+   704→      return { agentId: agent.agentId, success: false, capabilityCoordinates: {} };
+   705→    }
+   706→  }
+   707→
+   708→  // ─── Emergent Behavior Detection ──────────────────────────────
+   709→
+   710→  /**
+   711→   * Detect emergent behaviors in the swarm.
+   712→   */
+   713→  private async detectEmergentBehaviors(swarmId: string): Promise<EmergentBehaviorType[]> {
+   714→    const metrics = this.swarmMetrics.get(swarmId);
+   715→    if (!metrics) return ['none'];
+   716→
+   717→    const behaviors: EmergentBehaviorType[] = [];
+   718→    const trail = this.pheromoneTrails.get(swarmId) || [];
+   719→    const agents = this.swarmAgents.get(swarmId) || [];
+   720→
+   721→    // Convergence: high concentration of success pheromones in one area
+   722→    if (metrics.convergenceScore > 0.85) {
+   723→      behaviors.push('convergence');
+   724→    }
+   725→
+   726→    // Divergence: agents exploring very different areas
+   727→    if (metrics.explorationCoverage > 0.8 && metrics.convergenceScore < 0.3) {
+   728→      behaviors.push('divergence');
+   729→    }
+   730→
+   731→    // Oscillation: agents switching between approaches
+   732→    const successCount = trail.filter(p => p.type === 'success').length;
+   733→    const failureCount = trail.filter(p => p.type === 'failure').length;
+   734→    if (successCount > 3 && failureCount > 3 && Math.abs(successCount - failureCount) < 2) {
+   735→      behaviors.push('oscillation');
+   736→    }
+   737→
+   738→    // Stagnation: no progress for extended period
+   739→    if (metrics.stagnationCounter > 3) {
+   740→      behaviors.push('stagnation');
+   741→    }
+   742→
+   743→    // Cascade: one pheromone triggered many follow-ons
+   744→    const recentPheromones = trail.filter(p => Date.now() - p.timestamp < 5000);
+   745→    if (recentPheromones.length > agents.length * 2) {
+   746→      behaviors.push('cascade');
+   747→    }
+   748→
+   749→    // Flocking: agents grouping around a successful approach
+   750→    const highStrengthSuccess = trail.filter(p => p.type === 'success' && p.strength > 0.7);
+   751→    if (highStrengthSuccess.length > agents.length * 0.6) {
+   752→      behaviors.push('flocking');
+   753→    }
+   754→
+   755→    if (behaviors.length === 0) {
+   756→      behaviors.push('none');
+   757→    }
+   758→
+   759→    // Store in history
+   760→    const history = this.emergentHistory.get(swarmId) || [];
+   761→    history.push(...behaviors);
+   762→    this.emergentHistory.set(swarmId, history);
+   763→
+   764→    // Update metrics
+   765→    metrics.emergentBehaviors = behaviors;
+   766→
+   767→    // Publish event
+   768→    await this.eventBus.publish({
+   769→      type: AgentEventType.CUSTOM,
+   770→      source: 'SwarmIntelligenceService',
+   771→      data: { event: 'emergent.detected', swarmId, behaviors },
+   772→      timestamp: new Date(),
+   773→    });
+   774→
+   775→    return behaviors;
+   776→  }
+   777→
+   778→  // ─── Swarm Size Optimization ──────────────────────────────────
+   779→
+   780→  /**
+   781→   * Optimize swarm size using gradient-descent-inspired approach.
+   782→   */
+   783→  private async optimizeSwarmSize(swarmId: string): Promise<number> {
+   784→    const config = this.swarms.get(swarmId);
+   785→    const metrics = this.swarmMetrics.get(swarmId);
+   786→    if (!config || !metrics) return metrics?.currentSize ?? config?.initialSize ?? 5;
+   787→
+   788→    const optState = this.sizeOptState.get(swarmId) || {
+   789→      previousThroughput: 0,
+   790→      previousSize: metrics.currentSize,
+   791→      gradientHistory: [],
+   792→    };
+   793→
+   794→    // Calculate current throughput (tasks per second per agent)
+   795→    const currentThroughput = metrics.agentThroughput;
+   796→
+   797→    // Estimate gradient: how does throughput change with size?
+   798→    const gradient = optState.previousSize > 0
+   799→      ? (currentThroughput - optState.previousThroughput) / (metrics.currentSize - optState.previousSize || 1)
+   800→      : 0;
+   801→
+   802→    optState.gradientHistory.push(gradient);
+   803→    if (optState.gradientHistory.length > 10) {
+   804→      optState.gradientHistory.shift();
+   805→    }
+   806→
+   807→    // Average gradient for smoother optimization
+   808→    const avgGradient = optState.gradientHistory.reduce((a, b) => a + b, 0) / optState.gradientHistory.length;
+   809→
+   810→    // Calculate coordination overhead
+   811→    const coordinationPenalty = metrics.coordinationOverhead * 0.1;
+   812→
+   813→    // Determine size adjustment
+   814→    let optimalSize = metrics.currentSize;
+   815→    if (avgGradient > 0.1 && coordinationPenalty < 0.5) {
+   816→      // More agents improve throughput — grow
+   817→      optimalSize = Math.min(config.maxSize, metrics.currentSize + 1);
+   818→    } else if (avgGradient < -0.1 || coordinationPenalty > 0.8) {
+   819→      // More agents hurt — shrink
+   820→      optimalSize = Math.max(config.minSize, metrics.currentSize - 1);
+   821→    }
+   822→
+   823→    // Apply the adjustment
+   824→    if (optimalSize > metrics.currentSize) {
+   825→      await this.deployAgents(swarmId, optimalSize - metrics.currentSize);
+   826→      this.logger.log(`Swarm ${swarmId}: growing from ${metrics.currentSize} to ${optimalSize} agents (gradient: ${avgGradient.toFixed(3)})`);
+   827→    } else if (optimalSize < metrics.currentSize) {
+   828→      // Remove idle agents
+   829→      const agents = this.swarmAgents.get(swarmId) || [];
+   830→      const toRemove = metrics.currentSize - optimalSize;
+   831→      let removed = 0;
+   832→      for (const agent of agents) {
+   833→        if (agent.status === 'idle' && removed < toRemove) {
+   834→          agent.status = 'departed';
+   835→          removed++;
+   836→        }
+   837→      }
+   838→      this.logger.log(`Swarm ${swarmId}: shrinking from ${metrics.currentSize} to ${optimalSize} agents`);
+   839→    }
+   840→
+   841→    // Update optimization state
+   842→    optState.previousThroughput = currentThroughput;
+   843→    optState.previousSize = metrics.currentSize;
+   844→    this.sizeOptState.set(swarmId, optState);
+   845→
+   846→    metrics.optimalSize = optimalSize;
+   847→    metrics.currentSize = (this.swarmAgents.get(swarmId) || []).filter(a => a.status === 'active').length;
+   848→
+   849→    return optimalSize;
+   850→  }
+   851→
+   852→  // ─── Finding Collection & Validation ──────────────────────────
+   853→
+   854→  /**
+   855→   * Collect findings from pheromone trail.
+   856→   */
+   857→  private collectFindings(swarmId: string): SwarmFinding[] {
+   858→    const trail = this.pheromoneTrails.get(swarmId) || [];
+   859→
+   860→    return trail
+   861→      .filter(p => p.type === 'success' && p.strength > 0.3)
+   862→      .map(p => ({
+   863→        agentId: p.agentId,
+   864→        content: p.metadata?.finding || `Finding at coordinates ${JSON.stringify(p.coordinates)}`,
+   865→        confidence: Math.min(1, p.strength),
+   866→        pheromoneStrength: p.strength,
+   867→        timestamp: p.timestamp,
+   868→        validated: false,
+   869→        validatorIds: [],
+   870→      }));
+   871→  }
+   872→
+   873→  /**
+   874→   * Validate findings through cross-agent review.
+   875→   */
+   876→  private async validateFindings(swarmId: string, findings: SwarmFinding[]): Promise<SwarmFinding[]> {
+   877→    const agents = this.swarmAgents.get(swarmId) || [];
+   878→    const evaluators = agents.filter(a => a.role === 'evaluator' && a.status === 'active');
+   879→
+   880→    for (const finding of findings) {
+   881→      // Each evaluator reviews the finding
+   882→      for (const evaluator of evaluators.slice(0, 3)) {
+   883→        // Simple validation: evaluator checks if finding is consistent
+   884→        const isValid = finding.confidence > 0.5;
+   885→        if (isValid) {
+   886→          finding.validated = true;
+   887→          finding.validatorIds.push(evaluator.agentId);
+   888→        }
+   889→      }
+   890→    }
+   891→
+   892→    return findings;
+   893→  }
+   894→
+   895→  // ─── Metric Calculation ───────────────────────────────────────
+   896→
+   897→  /**
+   898→   * Calculate comprehensive swarm metrics.
+   899→   */
+   900→  private calculateMetrics(swarmId: string): SwarmMetrics {
+   901→    const existing = this.swarmMetrics.get(swarmId);
+   902→    const trail = this.pheromoneTrails.get(swarmId) || [];
+   903→    const agents = this.swarmAgents.get(swarmId) || [];
+   904→    const activeAgents = agents.filter(a => a.status === 'active');
+   905→
+   906→    // Convergence score: how concentrated are success pheromones?
+   907→    const successPheromones = trail.filter(p => p.type === 'success');
+   908→    let convergenceScore = 0;
+   909→    if (successPheromones.length > 1) {
+   910→      const avgCoords = this.averageCoordinates(successPheromones.map(p => p.coordinates));
+   911→      const distances = successPheromones.map(p => this.capabilityDistance(p.coordinates, avgCoords));
+   912→      const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+   913→      convergenceScore = Math.max(0, 1 - avgDistance);
+   914→    }
+   915→
+   916→    // Exploration coverage: how many unique capability areas have been explored?
+   917→    const uniqueAreas = new Set<string>();
+   918→    for (const p of trail) {
+   919→      const key = Object.entries(p.coordinates)
+   920→        .map(([k, v]) => `${k}:${Math.round(v * 10) / 10}`)
+   921→        .join('|');
+   922→      uniqueAreas.add(key);
+   923→    }
+   924→    const explorationCoverage = Math.min(1, uniqueAreas.size / 20); // normalized to 20 areas
+   925→
+   926→    // Agent throughput
+   927→    const totalTasks = activeAgents.reduce((sum, a) => sum + a.tasksCompleted, 0);
+   928→    const elapsedMs = existing?.elapsedTimeMs || 1;
+   929→    const agentThroughput = totalTasks / (elapsedMs / 1000) / Math.max(1, activeAgents.length);
+   930→
+   931→    // Coordination overhead
+   932→    const totalPheromonesSensed = activeAgents.reduce((sum, a) => sum + a.pheromonesSensed, 0);
+   933→    const coordinationOverhead = totalTasks > 0 ? totalPheromonesSensed / totalTasks : 0;
+   934→
+   935→    const metrics: SwarmMetrics = {
+   936→      totalPheromones: trail.length,
+   937→      pheromoneDistribution: existing?.pheromoneDistribution || {
+   938→        exploration: 0, success: 0, failure: 0, warning: 0, resource: 0,
+   939→      },
+   940→      agentThroughput,
+   941→      coordinationOverhead,
+   942→      convergenceScore,
+   943→      explorationCoverage,
+   944→      stagnationCounter: existing?.stagnationCounter || 0,
+   945→      emergentBehaviors: existing?.emergentBehaviors || ['none'],
+   946→      currentSize: activeAgents.length,
+   947→      optimalSize: existing?.optimalSize ?? activeAgents.length,
+   948→      elapsedTimeMs: elapsedMs,
+   949→    };
+   950→
+   951→    this.swarmMetrics.set(swarmId, metrics);
+   952→    return metrics;
+   953→  }
+   954→
+   955→  // ─── Utility Methods ──────────────────────────────────────────
+   956→
+   957→  /**
+   958→   * Calculate Euclidean distance between two coordinate sets in capability space.
+   959→   */
+   960→  private capabilityDistance(a: Record<string, number>, b: Record<string, number>): number {
+   961→    const allKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
+   962→    let sumSquares = 0;
+   963→    for (const key of allKeys) {
+   964→      const diff = (a[key] || 0) - (b[key] || 0);
+   965→      sumSquares += diff * diff;
+   966→    }
+   967→    return Math.sqrt(sumSquares);
+   968→  }
+   969→
+   970→  /**
+   971→   * Compute direction vector from pheromone signals.
+   972→   */
+   973→  private computePheromoneDirection(
+   974→    pheromones: Pheromone[],
+   975→    currentCoords: Record<string, number>,
+   976→  ): Record<string, number> {
+   977→    if (pheromones.length === 0) return currentCoords;
+   978→
+   979→    const direction: Record<string, number> = {};
+   980→    for (const pheromone of pheromones) {
+   981→      const weight = pheromone.type === 'success' ? 1.0
+   982→        : pheromone.type === 'failure' ? -0.5
+   983→        : pheromone.type === 'warning' ? -0.3
+   984→        : 0.2;
+   985→
+   986→      for (const [key, value] of Object.entries(pheromone.coordinates)) {
+   987→        direction[key] = (direction[key] || 0) + (value - (currentCoords[key] || 0)) * weight * pheromone.strength;
+   988→      }
+   989→    }
+   990→
+   991→    return direction;
+   992→  }
+   993→
+   994→  /**
+   995→   * Move in capability space toward a direction.
+   996→   */
+   997→  private moveInCapabilitySpace(
+   998→    current: Record<string, number>,
+   999→    direction: Record<string, number>,
+  1000→    stepSize: number,
+  1001→  ): Record<string, number> {
+  1002→    const result = { ...current };
+  1003→    for (const [key, dir] of Object.entries(direction)) {
+  1004→      result[key] = (result[key] || 0) + dir * stepSize;
+  1005→    }
+  1006→    return result;
+  1007→  }
+  1008→
+  1009→  /**
+  1010→   * Infer capability coordinates from agent capabilities.
+  1011→   */
+  1012→  private inferCapabilityCoordinates(
+  1013→    agentCapabilities: string[],
+  1014→    requiredCapabilities: string[],
+  1015→  ): Record<string, number> {
+  1016→    const coords: Record<string, number> = {};
+  1017→    for (const cap of requiredCapabilities) {
+  1018→      coords[cap] = agentCapabilities.includes(cap) ? 1.0 : Math.random() * 0.3;
+  1019→    }
+  1020→    return coords;
+  1021→  }
+  1022→
+  1023→  /**
+  1024→   * Calculate average coordinates from an array of coordinate sets.
+  1025→   */
+  1026→  private averageCoordinates(coordsArray: Record<string, number>[]): Record<string, number> {
+  1027→    if (coordsArray.length === 0) return {};
+  1028→    const result: Record<string, number> = {};
+  1029→    const allKeys = new Set(coordsArray.flatMap(Object.keys));
+  1030→
+  1031→    for (const key of allKeys) {
+  1032→      const values = coordsArray.map(c => c[key] || 0);
+  1033→      result[key] = values.reduce((a, b) => a + b, 0) / values.length;
+  1034→    }
+  1035→    return result;
+  1036→  }
+  1037→
+  1038→  // ─── Query Methods ────────────────────────────────────────────
+  1039→
+  1040→  getSwarm(swarmId: string): SwarmConfig | undefined {
+  1041→    return this.swarms.get(swarmId);
+  1042→  }
+  1043→
+  1044→  getSwarmMetrics(swarmId: string): SwarmMetrics | undefined {
+  1045→    return this.swarmMetrics.get(swarmId);
+  1046→  }
+  1047→
+  1048→  getSwarmResult(swarmId: string): SwarmResult | undefined {
+  1049→    return this.swarmResults.get(swarmId);
+  1050→  }
+  1051→
+  1052→  getSwarmAgents(swarmId: string): SwarmAgent[] {
+  1053→    return this.swarmAgents.get(swarmId) || [];
+  1054→  }
+  1055→
+  1056→  getPheromoneTrail(swarmId: string): Pheromone[] {
+  1057→    return this.pheromoneTrails.get(swarmId) || [];
+  1058→  }
+  1059→
+  1060→  getEmergentHistory(swarmId: string): EmergentBehaviorType[] {
+  1061→    return this.emergentHistory.get(swarmId) || [];
+  1062→  }
+  1063→
+  1064→  getAllSwarms(): { id: string; status: SwarmStatus; size: number; mission: string }[] {
+  1065→    const result: { id: string; status: SwarmStatus; size: number; mission: string }[] = [];
+  1066→    for (const [id, config] of this.swarms) {
+  1067→      const metrics = this.swarmMetrics.get(id);
+  1068→      const resultData = this.swarmResults.get(id);
+  1069→      result.push({
+  1070→        id,
+  1071→        status: resultData?.status ?? 'initializing',
+  1072→        size: metrics?.currentSize ?? 0,
+  1073→        mission: config.mission,
+  1074→      });
+  1075→    }
+  1076→    return result;
+  1077→  }
+  1078→
+  1079→  getStats(): { totalSwarms: number; activeSwarms: number; totalPheromones: number; totalFindings: number } {
+  1080→    let totalPheromones = 0;
+  1081→    let totalFindings = 0;
+  1082→    let activeSwarms = 0;
+  1083→
+  1084→    for (const [id] of this.swarms) {
+  1085→      const trail = this.pheromoneTrails.get(id) || [];
+  1086→      totalPheromones += trail.length;
+  1087→
+  1088→      const result = this.swarmResults.get(id);
+  1089→      if (result) {
+  1090→        totalFindings += result.findings.length;
+  1091→        if (result.status === 'completed' || result.status === 'failed') continue;
+  1092→      }
+  1093→      activeSwarms++;
+  1094→    }
+  1095→
+  1096→    return {
+  1097→      totalSwarms: this.swarms.size,
+  1098→      activeSwarms,
+  1099→      totalPheromones,
+  1100→      totalFindings,
+  1101→    };
+  1102→  }
+  1103→}
+  1104→

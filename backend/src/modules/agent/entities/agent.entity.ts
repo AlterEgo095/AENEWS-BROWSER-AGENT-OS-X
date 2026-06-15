@@ -25,6 +25,22 @@ export enum ClusterType {
   WATCHDOG = 'watchdog',
   SELF_EVOLUTION = 'self-evolution',
   CERTIFICATION = 'certification',
+  STEALTH_OPS = 'stealth-ops',
+}
+
+export enum MissionCategory {
+  RESEARCH_ANALYSIS = 'research-analysis',      // Web search, OSINT, data analysis
+  CONTENT_CREATION = 'content-creation',        // Writing, presentations, media
+  CODE_DEVELOPMENT = 'code-development',        // Coding, deployment, debugging
+  SECURITY_OPS = 'security-ops',                // Security testing, encryption, forensics
+  STEALTH_OPERATIONS = 'stealth-operations',    // Undetectable ops, wrappers, covert
+  BUSINESS_INTELLIGENCE = 'business-intelligence', // BI, analytics, reporting
+  MARKETING_GROWTH = 'marketing-growth',        // Marketing, SEO, social media
+  INFRASTRUCTURE_MGMT = 'infrastructure-mgmt',  // DevOps, cloud, monitoring
+  AUTOMATION_WORKFLOW = 'automation-workflow',   // Browser automation, scraping, workflows
+  DOCUMENT_PROCESSING = 'document-processing',  // Office, documents, spreadsheets
+  AI_ORCHESTRATION = 'ai-orchestration',        // Meta-intelligence, swarm, orchestration
+  SYSTEM_ADMINISTRATION = 'system-administration', // Computer ops, terminal, file system
 }
 
 export enum AgentStatus {
@@ -68,6 +84,18 @@ export class Agent {
 
   @Column({ type: 'text', nullable: true })
   description: string;
+
+  @Column({ type: 'text', array: true, default: '{}' })
+  missionCategories: MissionCategory[];
+
+  @Column({ name: 'credit_cost', type: 'integer', default: 1 })
+  creditCost: number;
+
+  @Column({ name: 'power_level', type: 'integer', default: 1 })
+  powerLevel: number;  // 1=standard, 2=advanced, 3=elite/premium
+
+  @Column({ length: 20, default: 'standard' })
+  tier: string;  // 'standard', 'advanced', 'elite', 'stealth'
 
   @Column({ name: 'is_enabled', default: true })
   isEnabled: boolean;

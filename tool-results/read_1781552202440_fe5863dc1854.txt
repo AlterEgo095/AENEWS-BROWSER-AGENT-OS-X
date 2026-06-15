@@ -1,0 +1,896 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState, useCallback } from 'react';
+     4→import {
+     5→  Rocket,
+     6→  Play,
+     7→  Pause,
+     8→  Square,
+     9→  RefreshCw,
+    10→  Plus,
+    11→  X,
+    12→  ChevronRight,
+    13→  Clock,
+    14→  AlertTriangle,
+    15→  CheckCircle2,
+    16→  Target,
+    17→  ArrowRight,
+    18→  Wifi,
+    19→  WifiOff,
+    20→} from 'lucide-react';
+    21→import { api } from '@/lib/api';
+    22→import {
+    23→  cn,
+    24→  missionStateColors,
+    25→  missionStateDotColors,
+    26→  missionPriorityColors,
+    27→  formatRelativeTime,
+    28→} from '@/lib/utils';
+    29→import type { Mission, MissionState, MissionPriority } from '@/lib/types';
+    30→import { MissionState as MS, MissionPriority as MP } from '@/lib/types';
+    31→import { useWebSocket } from '@/hooks/use-websocket';
+    32→
+    33→// State flow visualization
+    34→const stateFlow: MissionState[] = [
+    35→  MS.DRAFT,
+    36→  MS.PLANNED,
+    37→  MS.RESEARCH,
+    38→  MS.BUILDING,
+    39→  MS.TESTING,
+    40→  MS.AUDITING,
+    41→  MS.CERTIFYING,
+    42→  MS.DELIVERING,
+    43→  MS.COMPLETED,
+    44→];
+    45→
+    46→function getStateIndex(state: MissionState): number {
+    47→  return stateFlow.indexOf(state);
+    48→}
+    49→
+    50→// Mission State Badge
+    51→function StateBadge({ state }: { state: MissionState }) {
+    52→  return (
+    53→    <span
+    54→      className={cn(
+    55→        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase',
+    56→        missionStateColors[state]
+    57→      )}
+    58→    >
+    59→      <span className={cn('h-1.5 w-1.5 rounded-full', missionStateDotColors[state])} />
+    60→      {state}
+    61→    </span>
+    62→  );
+    63→}
+    64→
+    65→// Priority Badge
+    66→function PriorityBadge({ priority }: { priority: MissionPriority }) {
+    67→  return (
+    68→    <span
+    69→      className={cn(
+    70→        'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase',
+    71→        missionPriorityColors[priority]
+    72→      )}
+    73→    >
+    74→      {priority}
+    75→    </span>
+    76→  );
+    77→}
+    78→
+    79→// Progress Bar
+    80→function ProgressBar({ progress, state }: { progress: number; state: MissionState }) {
+    81→  const color =
+    82→    state === MS.COMPLETED
+    83→      ? 'bg-emerald-500'
+    84→      : state === MS.FAILED
+    85→        ? 'bg-red-500'
+    86→        : state === MS.CANCELLED
+    87→          ? 'bg-gray-500'
+    88→          : 'bg-primary';
+    89→
+    90→  return (
+    91→    <div className="w-full">
+    92→      <div className="flex items-center justify-between mb-1">
+    93→        <span className="text-xs text-muted-foreground">Progress</span>
+    94→        <span className="text-xs font-medium text-foreground">{progress}%</span>
+    95→      </div>
+    96→      <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+    97→        <div
+    98→          className={cn('h-full rounded-full transition-all duration-500', color)}
+    99→          style={{ width: `${progress}%` }}
+   100→        />
+   101→      </div>
+   102→    </div>
+   103→  );
+   104→}
+   105→
+   106→// State Timeline
+   107→function StateTimeline({ currentState }: { currentState: MissionState }) {
+   108→  const currentIndex = getStateIndex(currentState);
+   109→  const isTerminal = [MS.COMPLETED, MS.FAILED, MS.CANCELLED, MS.ARCHIVED].includes(currentState);
+   110→
+   111→  return (
+   112→    <div className="space-y-1">
+   113→      {stateFlow.map((state, index) => {
+   114→        const isCompleted = isTerminal
+   115→          ? currentState === MS.COMPLETED && index <= currentIndex
+   116→          : index < currentIndex;
+   117→        const isCurrent = index === currentIndex && !isTerminal;
+   118→        const isFuture = index > currentIndex || (isTerminal && currentState !== MS.COMPLETED);
+   119→
+   120→        return (
+   121→          <div key={state} className="flex items-center gap-2">
+   122→            <div
+   123→              className={cn(
+   124→                'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[9px]',
+   125→                isCompleted
+   126→                  ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400'
+   127→                  : isCurrent
+   128→                    ? 'border-primary/50 bg-primary/20 text-primary'
+   129→                    : 'border-border bg-white/5 text-muted-foreground/50'
+   130→              )}
+   131→            >
+   132→              {isCompleted ? '✓' : isCurrent ? index + 1 : index + 1}
+   133→            </div>
+   134→            <span
+   135→              className={cn(
+   136→                'text-xs',
+   137→                isCompleted
+   138→                  ? 'text-emerald-400'
+   139→                  : isCurrent
+   140→                    ? 'font-medium text-foreground'
+   141→                    : 'text-muted-foreground/50'
+   142→              )}
+   143→            >
+   144→              {state}
+   145→            </span>
+   146→            {isCurrent && (
+   147→              <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse-dot" />
+   148→            )}
+   149→          </div>
+   150→        );
+   151→      })}
+   152→    </div>
+   153→  );
+   154→}
+   155→
+   156→export default function MissionsPage() {
+   157→  const [missions, setMissions] = useState<Mission[]>([]);
+   158→  const [loading, setLoading] = useState(true);
+   159→  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+   160→  const [showCreateModal, setShowCreateModal] = useState(false);
+   161→  const [stateFilter, setStateFilter] = useState<MissionState | ''>('');
+   162→  const [actionLoading, setActionLoading] = useState<string | null>(null);
+   163→  const { connected, subscribe, unsubscribe } = useWebSocket();
+   164→
+   165→  // Form state
+   166→  const [formName, setFormName] = useState('');
+   167→  const [formDescription, setFormDescription] = useState('');
+   168→  const [formPriority, setFormPriority] = useState<MissionPriority>(MP.MEDIUM);
+   169→  const [formCapabilities, setFormCapabilities] = useState('');
+   170→  const [formDeadline, setFormDeadline] = useState('');
+   171→
+   172→  useEffect(() => {
+   173→    fetchMissions();
+   174→  }, []);
+   175→
+   176→  // WebSocket subscription for real-time updates
+   177→  useEffect(() => {
+   178→    const handleMissionUpdate = () => {
+   179→      fetchMissions();
+   180→      if (selectedMission) {
+   181→        // Refresh selected mission details
+   182→        api.getMission(selectedMission.id).catch(() => {});
+   183→      }
+   184→    };
+   185→
+   186→    subscribe('mission:updated', handleMissionUpdate);
+   187→    subscribe('mission:state-changed', handleMissionUpdate);
+   188→    subscribe('mission:progress', handleMissionUpdate);
+   189→
+   190→    return () => {
+   191→      unsubscribe('mission:updated', handleMissionUpdate);
+   192→      unsubscribe('mission:state-changed', handleMissionUpdate);
+   193→      unsubscribe('mission:progress', handleMissionUpdate);
+   194→    };
+   195→  }, [subscribe, unsubscribe, selectedMission]);
+   196→
+   197→  async function fetchMissions() {
+   198→    setLoading(true);
+   199→    try {
+   200→      const params: { state?: string } = {};
+   201→      if (stateFilter) params.state = stateFilter;
+   202→      const result = await api.getMissions(params);
+   203→      setMissions(result.data || []);
+   204→    } catch {
+   205→      setMissions([]);
+   206→    } finally {
+   207→      setLoading(false);
+   208→    }
+   209→  }
+   210→
+   211→  useEffect(() => {
+   212→    fetchMissions();
+   213→    // eslint-disable-next-line react-hooks/exhaustive-deps
+   214→  }, [stateFilter]);
+   215→
+   216→  async function handleCreateMission() {
+   217→    if (!formName.trim()) return;
+   218→    try {
+   219→      const data: {
+   220→        name: string;
+   221→        description: string;
+   222→        priority: MissionPriority;
+   223→        requiredCapabilities?: string[];
+   224→        constraints?: string[];
+   225→        deadline?: string;
+   226→      } = {
+   227→        name: formName,
+   228→        description: formDescription,
+   229→        priority: formPriority,
+   230→      };
+   231→      if (formCapabilities.trim()) {
+   232→        data.requiredCapabilities = formCapabilities.split(',').map((c) => c.trim()).filter(Boolean);
+   233→      }
+   234→      if (formDeadline) {
+   235→        data.deadline = formDeadline;
+   236→      }
+   237→      await api.createMission(data);
+   238→      setShowCreateModal(false);
+   239→      resetForm();
+   240→      fetchMissions();
+   241→    } catch {
+   242→      // Silently handle
+   243→    }
+   244→  }
+   245→
+   246→  async function handleMissionAction(
+   247→    missionId: string,
+   248→    action: 'start' | 'pause' | 'resume' | 'cancel'
+   249→  ) {
+   250→    setActionLoading(missionId);
+   251→    try {
+   252→      switch (action) {
+   253→        case 'start':
+   254→          await api.startMission(missionId);
+   255→          break;
+   256→        case 'pause':
+   257→          await api.pauseMission(missionId);
+   258→          break;
+   259→        case 'resume':
+   260→          await api.resumeMission(missionId);
+   261→          break;
+   262→        case 'cancel':
+   263→          await api.cancelMission(missionId);
+   264→          break;
+   265→      }
+   266→      fetchMissions();
+   267→      if (selectedMission?.id === missionId) {
+   268→        try {
+   269→          const updated = await api.getMission(missionId);
+   270→          setSelectedMission(updated);
+   271→        } catch {
+   272→          // Keep current state
+   273→        }
+   274→      }
+   275→    } catch {
+   276→      // Silently handle
+   277→    } finally {
+   278→      setActionLoading(null);
+   279→    }
+   280→  }
+   281→
+   282→  function resetForm() {
+   283→    setFormName('');
+   284→    setFormDescription('');
+   285→    setFormPriority(MP.MEDIUM);
+   286→    setFormCapabilities('');
+   287→    setFormDeadline('');
+   288→  }
+   289→
+   290→  function getAvailableActions(mission: Mission) {
+   291→    const actions: { action: 'start' | 'pause' | 'resume' | 'cancel'; label: string; icon: React.ElementType; variant: string }[] = [];
+   292→
+   293→    switch (mission.state) {
+   294→      case MS.DRAFT:
+   295→      case MS.PLANNED:
+   296→        actions.push({ action: 'start', label: 'Start', icon: Play, variant: 'primary' });
+   297→        actions.push({ action: 'cancel', label: 'Cancel', icon: Square, variant: 'destructive' });
+   298→        break;
+   299→      case MS.RESEARCH:
+   300→      case MS.BUILDING:
+   301→      case MS.TESTING:
+   302→      case MS.AUDITING:
+   303→      case MS.CERTIFYING:
+   304→      case MS.DELIVERING:
+   305→        actions.push({ action: 'pause', label: 'Pause', icon: Pause, variant: 'warning' });
+   306→        actions.push({ action: 'cancel', label: 'Cancel', icon: Square, variant: 'destructive' });
+   307→        break;
+   308→      case MS.FAILED:
+   309→        actions.push({ action: 'start', label: 'Retry', icon: RefreshCw, variant: 'primary' });
+   310→        actions.push({ action: 'cancel', label: 'Cancel', icon: Square, variant: 'destructive' });
+   311→        break;
+   312→    }
+   313→
+   314→    return actions;
+   315→  }
+   316→
+   317→  const filteredMissions = stateFilter
+   318→    ? missions.filter((m) => m.state === stateFilter)
+   319→    : missions;
+   320→
+   321→  const stateOptions: { value: MissionState | ''; label: string }[] = [
+   322→    { value: '', label: 'All States' },
+   323→    ...Object.values(MS).map((s) => ({ value: s, label: s })),
+   324→  ];
+   325→
+   326→  // Mission Detail Panel
+   327→  if (selectedMission) {
+   328→    const actions = getAvailableActions(selectedMission);
+   329→    const completedObjectives = selectedMission.objectives.filter(
+   330→      (o: any) => o.completed
+   331→    ).length;
+   332→    const totalObjectives = selectedMission.objectives.length;
+   333→
+   334→    return (
+   335→      <div className="space-y-6 animate-slide-in">
+   336→        {/* Breadcrumb */}
+   337→        <div className="flex items-center gap-2 text-sm">
+   338→          <button
+   339→            onClick={() => setSelectedMission(null)}
+   340→            className="text-muted-foreground hover:text-foreground transition-colors"
+   341→          >
+   342→            Missions
+   343→          </button>
+   344→          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+   345→          <span className="text-foreground font-medium">{selectedMission.name}</span>
+   346→        </div>
+   347→
+   348→        {/* Header */}
+   349→        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+   350→          <div>
+   351→            <h1 className="text-2xl font-bold text-foreground">{selectedMission.name}</h1>
+   352→            <p className="mt-1 text-sm text-muted-foreground">{selectedMission.description}</p>
+   353→          </div>
+   354→          <div className="flex items-center gap-2">
+   355→            {actions.map(({ action, label, icon: Icon, variant }) => (
+   356→              <button
+   357→                key={action}
+   358→                onClick={() => handleMissionAction(selectedMission.id, action)}
+   359→                disabled={actionLoading === selectedMission.id}
+   360→                className={cn(
+   361→                  'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50',
+   362→                  variant === 'primary' && 'bg-primary/15 text-primary hover:bg-primary/25',
+   363→                  variant === 'warning' && 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25',
+   364→                  variant === 'destructive' && 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+   365→                )}
+   366→              >
+   367→                {actionLoading === selectedMission.id ? (
+   368→                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+   369→                ) : (
+   370→                  <Icon className="h-3.5 w-3.5" />
+   371→                )}
+   372→                {label}
+   373→              </button>
+   374→            ))}
+   375→          </div>
+   376→        </div>
+   377→
+   378→        {/* Info Row */}
+   379→        <div className="flex flex-wrap items-center gap-3">
+   380→          <StateBadge state={selectedMission.state} />
+   381→          <PriorityBadge priority={selectedMission.priority} />
+   382→          {selectedMission.deadline && (
+   383→            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+   384→              <Clock className="h-3 w-3" />
+   385→              Deadline: {new Date(selectedMission.deadline).toLocaleDateString()}
+   386→            </span>
+   387→          )}
+   388→        </div>
+   389→
+   390→        {/* Progress */}
+   391→        <div className="rounded-xl border border-border bg-card p-5">
+   392→          <ProgressBar progress={selectedMission.progress} state={selectedMission.state} />
+   393→        </div>
+   394→
+   395→        {/* Content Grid */}
+   396→        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+   397→          {/* Timeline */}
+   398→          <div className="rounded-xl border border-border bg-card p-5">
+   399→            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-foreground">
+   400→              State Timeline
+   401→            </h3>
+   402→            <StateTimeline currentState={selectedMission.state} />
+   403→          </div>
+   404→
+   405→          {/* Objectives */}
+   406→          <div className="rounded-xl border border-border bg-card p-5">
+   407→            <div className="flex items-center justify-between mb-4">
+   408→              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+   409→                Objectives
+   410→              </h3>
+   411→              <span className="text-xs text-muted-foreground">
+   412→                {completedObjectives}/{totalObjectives}
+   413→              </span>
+   414→            </div>
+   415→            {totalObjectives > 0 ? (
+   416→              <div className="space-y-2">
+   417→                {selectedMission.objectives.map((objective: any, index: number) => (
+   418→                  <div
+   419→                    key={objective.id || index}
+   420→                    className="flex items-start gap-2 rounded-lg border border-border bg-background/50 p-2.5"
+   421→                  >
+   422→                    <div
+   423→                      className={cn(
+   424→                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+   425→                        objective.completed
+   426→                          ? 'border-emerald-500/50 bg-emerald-500/20'
+   427→                          : 'border-border bg-white/5'
+   428→                      )}
+   429→                    >
+   430→                      {objective.completed && (
+   431→                        <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+   432→                      )}
+   433→                    </div>
+   434→                    <span
+   435→                      className={cn(
+   436→                        'text-sm',
+   437→                        objective.completed
+   438→                          ? 'text-muted-foreground line-through'
+   439→                          : 'text-foreground'
+   440→                      )}
+   441→                    >
+   442→                      {objective.description}
+   443→                    </span>
+   444→                  </div>
+   445→                ))}
+   446→              </div>
+   447→            ) : (
+   448→              <p className="text-sm text-muted-foreground">No objectives defined</p>
+   449→            )}
+   450→          </div>
+   451→
+   452→          {/* Details */}
+   453→          <div className="space-y-4">
+   454→            {/* Required Capabilities */}
+   455→            <div className="rounded-xl border border-border bg-card p-5">
+   456→              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-foreground">
+   457→                Capabilities
+   458→              </h3>
+   459→              <div className="flex flex-wrap gap-1.5">
+   460→                {selectedMission.requiredCapabilities.map((cap) => (
+   461→                  <span
+   462→                    key={cap}
+   463→                    className="rounded bg-white/10 px-2 py-0.5 text-xs text-muted-foreground"
+   464→                  >
+   465→                    {cap}
+   466→                  </span>
+   467→                ))}
+   468→                {selectedMission.requiredCapabilities.length === 0 && (
+   469→                  <span className="text-xs text-muted-foreground">None specified</span>
+   470→                )}
+   471→              </div>
+   472→            </div>
+   473→
+   474→            {/* Constraints */}
+   475→            <div className="rounded-xl border border-border bg-card p-5">
+   476→              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-foreground">
+   477→                Constraints
+   478→              </h3>
+   479→              <div className="space-y-1.5">
+   480→                {selectedMission.constraints.map((constraint, index) => (
+   481→                  <div key={index} className="flex items-start gap-2">
+   482→                    <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
+   483→                    <span className="text-xs text-muted-foreground">{constraint}</span>
+   484→                  </div>
+   485→                ))}
+   486→                {selectedMission.constraints.length === 0 && (
+   487→                  <span className="text-xs text-muted-foreground">No constraints</span>
+   488→                )}
+   489→              </div>
+   490→            </div>
+   491→
+   492→            {/* Error */}
+   493→            {selectedMission.error && (
+   494→              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5">
+   495→                <h3 className="mb-2 text-sm font-semibold text-red-400">Error</h3>
+   496→                <p className="text-xs text-red-300">{selectedMission.error}</p>
+   497→              </div>
+   498→            )}
+   499→
+   500→            {/* Timestamps */}
+   501→            <div className="rounded-xl border border-border bg-card p-5">
+   502→              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-foreground">
+   503→                Timeline
+   504→              </h3>
+   505→              <div className="space-y-2 text-xs text-muted-foreground">
+   506→                <div className="flex justify-between">
+   507→                  <span>Created</span>
+   508→                  <span>{formatRelativeTime(selectedMission.createdAt)}</span>
+   509→                </div>
+   510→                {selectedMission.startedAt && (
+   511→                  <div className="flex justify-between">
+   512→                    <span>Started</span>
+   513→                    <span>{formatRelativeTime(selectedMission.startedAt)}</span>
+   514→                  </div>
+   515→                )}
+   516→                {selectedMission.completedAt && (
+   517→                  <div className="flex justify-between">
+   518→                    <span>Completed</span>
+   519→                    <span>{formatRelativeTime(selectedMission.completedAt)}</span>
+   520→                  </div>
+   521→                )}
+   522→                <div className="flex justify-between">
+   523→                  <span>Updated</span>
+   524→                  <span>{formatRelativeTime(selectedMission.updatedAt)}</span>
+   525→                </div>
+   526→              </div>
+   527→            </div>
+   528→          </div>
+   529→        </div>
+   530→      </div>
+   531→    );
+   532→  }
+   533→
+   534→  // Mission List View
+   535→  return (
+   536→    <div className="space-y-6 animate-slide-in">
+   537→      {/* Header Bar */}
+   538→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   539→        <div>
+   540→          <h1 className="text-2xl font-bold text-foreground">Mission Control</h1>
+   541→          <p className="text-sm text-muted-foreground">
+   542→            Manage and monitor AI agent missions
+   543→          </p>
+   544→        </div>
+   545→        <div className="flex items-center gap-3">
+   546→          {/* WebSocket indicator */}
+   547→          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2">
+   548→            {connected ? (
+   549→              <Wifi className="h-3.5 w-3.5 text-emerald-400" />
+   550→            ) : (
+   551→              <WifiOff className="h-3.5 w-3.5 text-muted-foreground" />
+   552→            )}
+   553→            <span className={cn('text-xs', connected ? 'text-emerald-400' : 'text-muted-foreground')}>
+   554→              {connected ? 'Live' : 'Offline'}
+   555→            </span>
+   556→          </div>
+   557→          <button
+   558→            onClick={fetchMissions}
+   559→            className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+   560→          >
+   561→            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+   562→            Refresh
+   563→          </button>
+   564→          <button
+   565→            onClick={() => setShowCreateModal(true)}
+   566→            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+   567→          >
+   568→            <Plus className="h-4 w-4" />
+   569→            New Mission
+   570→          </button>
+   571→        </div>
+   572→      </div>
+   573→
+   574→      {/* Filters */}
+   575→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+   576→        <div className="relative">
+   577→          <select
+   578→            value={stateFilter}
+   579→            onChange={(e) => setStateFilter(e.target.value as MissionState | '')}
+   580→            className="appearance-none rounded-lg border border-border bg-card py-2 pl-3 pr-8 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   581→          >
+   582→            {stateOptions.map((opt) => (
+   583→              <option key={opt.value} value={opt.value}>
+   584→                {opt.label}
+   585→              </option>
+   586→            ))}
+   587→          </select>
+   588→        </div>
+   589→        {stateFilter && (
+   590→          <button
+   591→            onClick={() => setStateFilter('')}
+   592→            className="text-xs text-primary hover:text-primary/80"
+   593→          >
+   594→            Clear filter
+   595→          </button>
+   596→        )}
+   597→        <div className="ml-auto text-xs text-muted-foreground">
+   598→          {filteredMissions.length} mission{filteredMissions.length !== 1 ? 's' : ''}
+   599→        </div>
+   600→      </div>
+   601→
+   602→      {/* Mission Grid */}
+   603→      {loading ? (
+   604→        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   605→          {[1, 2, 3, 4, 5, 6].map((i) => (
+   606→            <div key={i} className="h-56 animate-shimmer rounded-xl" />
+   607→          ))}
+   608→        </div>
+   609→      ) : (
+   610→        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   611→          {filteredMissions.map((mission) => (
+   612→            <MissionCard
+   613→              key={mission.id}
+   614→              mission={mission}
+   615→              onSelect={() => setSelectedMission(mission)}
+   616→              onAction={(action) => handleMissionAction(mission.id, action)}
+   617→              isActionLoading={actionLoading === mission.id}
+   618→            />
+   619→          ))}
+   620→        </div>
+   621→      )}
+   622→
+   623→      {/* Empty State */}
+   624→      {!loading && filteredMissions.length === 0 && (
+   625→        <div className="flex flex-col items-center justify-center py-16 text-center">
+   626→          <Rocket className="h-12 w-12 text-muted-foreground/30" />
+   627→          <p className="mt-4 text-sm text-muted-foreground">No missions found</p>
+   628→          <p className="text-xs text-muted-foreground/70">
+   629→            {stateFilter ? 'Try adjusting your filter' : 'Create a new mission to get started'}
+   630→          </p>
+   631→        </div>
+   632→      )}
+   633→
+   634→      {/* Create Mission Modal */}
+   635→      {showCreateModal && (
+   636→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+   637→          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl">
+   638→            <div className="flex items-center justify-between">
+   639→              <h3 className="text-lg font-semibold text-foreground">Create New Mission</h3>
+   640→              <button
+   641→                onClick={() => {
+   642→                  setShowCreateModal(false);
+   643→                  resetForm();
+   644→                }}
+   645→                className="text-muted-foreground hover:text-foreground"
+   646→              >
+   647→                <X className="h-5 w-5" />
+   648→              </button>
+   649→            </div>
+   650→
+   651→            <div className="mt-5 space-y-4">
+   652→              {/* Name */}
+   653→              <div>
+   654→                <label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">
+   655→                  Mission Name *
+   656→                </label>
+   657→                <input
+   658→                  type="text"
+   659→                  value={formName}
+   660→                  onChange={(e) => setFormName(e.target.value)}
+   661→                  placeholder="e.g., Deploy Auth Service"
+   662→                  className="w-full rounded-lg border border-border bg-background py-2 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+   663→                />
+   664→              </div>
+   665→
+   666→              {/* Description */}
+   667→              <div>
+   668→                <label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">
+   669→                  Description
+   670→                </label>
+   671→                <textarea
+   672→                  value={formDescription}
+   673→                  onChange={(e) => setFormDescription(e.target.value)}
+   674→                  placeholder="Describe the mission objectives and goals..."
+   675→                  rows={3}
+   676→                  className="w-full rounded-lg border border-border bg-background py-2 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none resize-none"
+   677→                />
+   678→              </div>
+   679→
+   680→              {/* Priority */}
+   681→              <div>
+   682→                <label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">
+   683→                  Priority
+   684→                </label>
+   685→                <div className="flex gap-2">
+   686→                  {Object.values(MP).map((p) => (
+   687→                    <button
+   688→                      key={p}
+   689→                      onClick={() => setFormPriority(p)}
+   690→                      className={cn(
+   691→                        'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+   692→                        formPriority === p
+   693→                          ? missionPriorityColors[p]
+   694→                          : 'border-border text-muted-foreground hover:bg-white/5'
+   695→                      )}
+   696→                    >
+   697→                      {p}
+   698→                    </button>
+   699→                  ))}
+   700→                </div>
+   701→              </div>
+   702→
+   703→              {/* Capabilities */}
+   704→              <div>
+   705→                <label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">
+   706→                  Required Capabilities
+   707→                </label>
+   708→                <input
+   709→                  type="text"
+   710→                  value={formCapabilities}
+   711→                  onChange={(e) => setFormCapabilities(e.target.value)}
+   712→                  placeholder="coding, security, testing (comma-separated)"
+   713→                  className="w-full rounded-lg border border-border bg-background py-2 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+   714→                />
+   715→              </div>
+   716→
+   717→              {/* Deadline */}
+   718→              <div>
+   719→                <label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">
+   720→                  Deadline
+   721→                </label>
+   722→                <input
+   723→                  type="date"
+   724→                  value={formDeadline}
+   725→                  onChange={(e) => setFormDeadline(e.target.value)}
+   726→                  className="w-full rounded-lg border border-border bg-background py-2 px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   727→                />
+   728→              </div>
+   729→            </div>
+   730→
+   731→            <div className="mt-6 flex gap-3 justify-end">
+   732→              <button
+   733→                onClick={() => {
+   734→                  setShowCreateModal(false);
+   735→                  resetForm();
+   736→                }}
+   737→                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+   738→              >
+   739→                Cancel
+   740→              </button>
+   741→              <button
+   742→                onClick={handleCreateMission}
+   743→                disabled={!formName.trim()}
+   744→                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+   745→              >
+   746→                <Rocket className="h-4 w-4" />
+   747→                Create Mission
+   748→              </button>
+   749→            </div>
+   750→          </div>
+   751→        </div>
+   752→      )}
+   753→    </div>
+   754→  );
+   755→}
+   756→
+   757→// Mission Card Component
+   758→function MissionCard({
+   759→  mission,
+   760→  onSelect,
+   761→  onAction,
+   762→  isActionLoading,
+   763→}: {
+   764→  mission: Mission;
+   765→  onSelect: () => void;
+   766→  onAction: (action: 'start' | 'pause' | 'resume' | 'cancel') => void;
+   767→  isActionLoading: boolean;
+   768→}) {
+   769→  const completedObjectives = mission.objectives.filter((o: any) => o.completed).length;
+   770→  const totalObjectives = mission.objectives.length;
+   771→
+   772→  return (
+   773→    <div className="group rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary/30">
+   774→      {/* Header */}
+   775→      <div className="flex items-start justify-between">
+   776→        <div className="flex-1 min-w-0">
+   777→          <h3
+   778→            className="text-sm font-semibold text-foreground truncate cursor-pointer hover:text-primary transition-colors"
+   779→            onClick={onSelect}
+   780→          >
+   781→            {mission.name}
+   782→          </h3>
+   783→          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+   784→            {mission.description}
+   785→          </p>
+   786→        </div>
+   787→      </div>
+   788→
+   789→      {/* Badges */}
+   790→      <div className="mt-3 flex flex-wrap items-center gap-2">
+   791→        <StateBadge state={mission.state} />
+   792→        <PriorityBadge priority={mission.priority} />
+   793→      </div>
+   794→
+   795→      {/* Progress */}
+   796→      <div className="mt-3">
+   797→        <div className="flex items-center justify-between mb-1">
+   798→          <span className="text-[10px] text-muted-foreground">
+   799→            {completedObjectives}/{totalObjectives} objectives
+   800→          </span>
+   801→          <span className="text-[10px] font-medium text-foreground">{mission.progress}%</span>
+   802→        </div>
+   803→        <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+   804→          <div
+   805→            className={cn(
+   806→              'h-full rounded-full transition-all duration-500',
+   807→              mission.state === MS.COMPLETED
+   808→                ? 'bg-emerald-500'
+   809→                : mission.state === MS.FAILED
+   810→                  ? 'bg-red-500'
+   811→                  : 'bg-primary'
+   812→            )}
+   813→            style={{ width: `${mission.progress}%` }}
+   814→          />
+   815→        </div>
+   816→      </div>
+   817→
+   818→      {/* Capabilities */}
+   819→      {mission.requiredCapabilities.length > 0 && (
+   820→        <div className="mt-3 flex flex-wrap gap-1">
+   821→          {mission.requiredCapabilities.slice(0, 3).map((cap) => (
+   822→            <span
+   823→              key={cap}
+   824→              className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+   825→            >
+   826→              {cap}
+   827→            </span>
+   828→          ))}
+   829→          {mission.requiredCapabilities.length > 3 && (
+   830→            <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+   831→              +{mission.requiredCapabilities.length - 3}
+   832→            </span>
+   833→          )}
+   834→        </div>
+   835→      )}
+   836→
+   837→      {/* Footer */}
+   838→      <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+   839→        <span className="text-[10px] text-muted-foreground">
+   840→          {mission.startedAt
+   841→            ? `Started ${formatRelativeTime(mission.startedAt)}`
+   842→            : 'Not started'}
+   843→        </span>
+   844→        <div className="flex items-center gap-1.5">
+   845→          {/* Quick Actions */}
+   846→          {mission.state === MS.DRAFT || mission.state === MS.PLANNED ? (
+   847→            <button
+   848→              onClick={(e) => {
+   849→                e.stopPropagation();
+   850→                onAction('start');
+   851→              }}
+   852→              disabled={isActionLoading}
+   853→              className="flex items-center gap-1 rounded-lg bg-primary/15 px-2.5 py-1 text-[10px] font-medium text-primary transition-colors hover:bg-primary/25 disabled:opacity-50"
+   854→            >
+   855→              {isActionLoading ? (
+   856→                <RefreshCw className="h-3 w-3 animate-spin" />
+   857→              ) : (
+   858→                <Play className="h-3 w-3" />
+   859→              )}
+   860→              Start
+   861→            </button>
+   862→          ) : mission.state === MS.FAILED ? (
+   863→            <button
+   864→              onClick={(e) => {
+   865→                e.stopPropagation();
+   866→                onAction('start');
+   867→              }}
+   868→              disabled={isActionLoading}
+   869→              className="flex items-center gap-1 rounded-lg bg-red-500/15 px-2.5 py-1 text-[10px] font-medium text-red-400 transition-colors hover:bg-red-500/25 disabled:opacity-50"
+   870→            >
+   871→              <RefreshCw className={cn('h-3 w-3', isActionLoading && 'animate-spin')} />
+   872→              Retry
+   873→            </button>
+   874→          ) : null}
+   875→
+   876→          <button
+   877→            onClick={onSelect}
+   878→            className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+   879→          >
+   880→            View
+   881→            <ArrowRight className="h-3 w-3" />
+   882→          </button>
+   883→        </div>
+   884→      </div>
+   885→
+   886→      {/* Error indicator */}
+   887→      {mission.error && (
+   888→        <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 p-2">
+   889→          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-red-400" />
+   890→          <span className="text-[10px] text-red-300 line-clamp-2">{mission.error}</span>
+   891→        </div>
+   892→      )}
+   893→    </div>
+   894→  );
+   895→}
+   896→

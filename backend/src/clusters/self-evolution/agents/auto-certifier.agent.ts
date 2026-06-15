@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 import { RequiresHumanApproval } from '../../../modules/agent-framework/decorators/human-approval.decorator';
 import {
@@ -52,6 +52,11 @@ export class AutoCertifierAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Runs certification on generated patches and only approves merge if EQI increases (requires human approval for rule changes)';
+
+  readonly missionCategories = [MissionCategory.AI_ORCHESTRATION];
+  readonly creditCost = 2;
+  readonly powerLevel = 2;
+  readonly tier = 'advanced';
 
   private sandboxService?: SandboxService;
 

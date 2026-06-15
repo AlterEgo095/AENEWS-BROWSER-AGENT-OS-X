@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
@@ -23,6 +23,11 @@ export class SecurityAuditorAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Performs comprehensive security audits, detects injection vulnerabilities, verifies RBAC configurations, and scans for known security vulnerabilities';
+
+  readonly missionCategories = [MissionCategory.AI_ORCHESTRATION, MissionCategory.SECURITY_OPS];
+  readonly creditCost = 2;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

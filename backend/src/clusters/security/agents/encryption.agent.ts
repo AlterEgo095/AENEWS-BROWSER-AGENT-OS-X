@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
@@ -28,6 +28,11 @@ export class EncryptionAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Manages cryptographic operations including encryption/decryption, hashing, digital signatures, verification, and key lifecycle management';
+
+  readonly missionCategories = [MissionCategory.SECURITY_OPS];
+  readonly creditCost = 2;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

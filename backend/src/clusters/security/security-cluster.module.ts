@@ -9,6 +9,7 @@ import { ComplianceAgent } from './agents/compliance.agent';
 import { EncryptionAgent } from './agents/encryption.agent';
 import { AccessControlAgent } from './agents/access-control.agent';
 import { ForensicsAgent } from './agents/forensics.agent';
+import { RedTeamAgent } from './agents/red-team.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createSecurityAgents(
@@ -23,6 +24,7 @@ function createSecurityAgents(
     new EncryptionAgent(),
     new AccessControlAgent(),
     new ForensicsAgent(),
+    new RedTeamAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

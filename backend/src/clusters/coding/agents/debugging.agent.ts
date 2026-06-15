@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 
 export class DebuggingAgent extends BaseAgent {
   readonly name = 'DebuggingAgent';
@@ -18,6 +18,11 @@ export class DebuggingAgent extends BaseAgent {
   readonly version = '1.0.0';
   readonly description =
     'Debugs code through error analysis, execution tracing, breakpoint management, performance profiling, and memory inspection';
+
+  readonly missionCategories = [MissionCategory.CODE_DEVELOPMENT];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

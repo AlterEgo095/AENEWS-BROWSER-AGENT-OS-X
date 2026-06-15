@@ -12,6 +12,7 @@ import { ScalingAgent } from './agents/scaling.agent';
 import { BackupInfraAgent } from './agents/backup-infra.agent';
 import { NetworkInfraAgent } from './agents/network-infra.agent';
 import { SecurityInfraAgent } from './agents/security-infra.agent';
+import { EdgeComputingAgent } from './agents/edge-computing.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createInfrastructureAgents(
@@ -29,6 +30,7 @@ function createInfrastructureAgents(
     new BackupInfraAgent(),
     new NetworkInfraAgent(),
     new SecurityInfraAgent(),
+    new EdgeComputingAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 export class AnalyticsAgent extends BaseAgent {
@@ -20,6 +20,11 @@ export class AnalyticsAgent extends BaseAgent {
   readonly version = '2.0.0';
   readonly description =
     'Tracks marketing metrics, generates reports, analyzes conversion funnels, performs cohort analysis, runs A/B tests, and visualizes user behavior heatmaps';
+
+  readonly missionCategories = [MissionCategory.MARKETING_GROWTH];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 
 export class DeploymentAgent extends BaseAgent {
   readonly name = 'DeploymentAgent';
@@ -18,6 +18,11 @@ export class DeploymentAgent extends BaseAgent {
   readonly version = '1.0.0';
   readonly description =
     'Manages application deployment, rollback, status monitoring, configuration, and scaling across environments';
+
+  readonly missionCategories = [MissionCategory.CODE_DEVELOPMENT];
+  readonly creditCost = 1;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

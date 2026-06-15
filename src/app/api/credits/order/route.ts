@@ -1,9 +1,16 @@
 import { db } from '@/lib/db'
+import { proxyToBackend } from '@/lib/backend-proxy'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Ensure defaults exist
+    // Try backend proxy first
+    const backendResult = await proxyToBackend('/credits/order')
+    if (backendResult?.ok) {
+      return NextResponse.json(backendResult.data)
+    }
+
+    // Fallback to Prisma/SQLite
     const whatsappSetting = await db.adminSettings.findUnique({
       where: { key: 'whatsapp_number' },
     })
@@ -12,7 +19,7 @@ export async function GET() {
     })
 
     const whatsappNumber = whatsappSetting?.value || '+243816515095'
-    let packages = []
+    let packages: { id: string; name: string; credits: number; price: number }[] = []
     try {
       packages = packagesSetting?.value
         ? JSON.parse(packagesSetting.value)

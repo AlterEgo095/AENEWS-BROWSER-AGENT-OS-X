@@ -20,10 +20,11 @@ import { CaptchaAgent } from './agents/captcha.agent';
 import { SessionAgent } from './agents/session.agent';
 import { HeadlessAgent } from './agents/headless.agent';
 import { AutomationAgent } from './agents/automation.agent';
+import { DeepWebAgent } from './agents/deep-web.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 /**
- * Factory function that creates all 17 Browser Cluster agent instances
+ * Factory function that creates all 18 Browser Cluster agent instances
  * and injects LLM/Bridge/EventBus services.
  */
 function createBrowserAgents(
@@ -49,6 +50,7 @@ function createBrowserAgents(
     new SessionAgent(),
     new HeadlessAgent(),
     new AutomationAgent(),
+    new DeepWebAgent(),
   ];
 
   // Inject services into all agents
@@ -69,7 +71,7 @@ export class BrowserClusterModule implements OnModuleInit {
   ) {}
 
   /**
-   * On module initialization, register all 17 browser cluster agents
+   * On module initialization, register all 18 browser cluster agents
    * into the centralized AgentRegistryService with injected services.
    */
   onModuleInit() {

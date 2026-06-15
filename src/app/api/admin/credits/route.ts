@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { proxyToBackend } from '@/lib/backend-proxy'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
@@ -24,6 +25,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Amount must be a non-zero number' }, { status: 400 })
     }
 
+    // Try backend proxy for deduct operations
+    if (type === 'usage' && numericAmount < 0) {
+      const backendResult = await proxyToBackend('/credits/deduct', {
+        method: 'POST',
+        body: {
+          userId,
+          amount: Math.abs(numericAmount),
+          description,
+        },
+      })
+      if (backendResult?.ok) {
+        return NextResponse.json(backendResult.data)
+      }
+    }
+
+    // Try backend proxy for admin add operations
+    if (type === 'admin_add' && numericAmount > 0) {
+      const backendResult = await proxyToBackend('/credits/admin/add', {
+        method: 'POST',
+        body: {
+          targetUserId: userId,
+          amount: numericAmount,
+          description,
+          adminId,
+        },
+      })
+      if (backendResult?.ok) {
+        return NextResponse.json(backendResult.data)
+      }
+    }
+
+    // Try backend proxy for admin deduct operations
+    if (type === 'admin_deduct' && numericAmount < 0) {
+      const backendResult = await proxyToBackend('/credits/admin/deduct', {
+        method: 'POST',
+        body: {
+          targetUserId: userId,
+          amount: Math.abs(numericAmount),
+          description,
+          adminId,
+        },
+      })
+      if (backendResult?.ok) {
+        return NextResponse.json(backendResult.data)
+      }
+    }
+
+    // Fallback to Prisma/SQLite
     const user = await db.user.findUnique({ where: { id: userId } })
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })

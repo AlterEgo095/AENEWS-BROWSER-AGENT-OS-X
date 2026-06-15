@@ -1,3 +1,43 @@
+// Mission Category Types
+export enum MissionCategory {
+  RESEARCH_ANALYSIS = 'research-analysis',
+  CONTENT_CREATION = 'content-creation',
+  CODE_DEVELOPMENT = 'code-development',
+  SECURITY_OPS = 'security-ops',
+  STEALTH_OPERATIONS = 'stealth-operations',
+  BUSINESS_INTELLIGENCE = 'business-intelligence',
+  MARKETING_GROWTH = 'marketing-growth',
+  INFRASTRUCTURE_MGMT = 'infrastructure-mgmt',
+  AUTOMATION_WORKFLOW = 'automation-workflow',
+  DOCUMENT_PROCESSING = 'document-processing',
+  AI_ORCHESTRATION = 'ai-orchestration',
+  SYSTEM_ADMINISTRATION = 'system-administration',
+}
+
+// Credit Types
+export interface CreditInfo {
+  balance: number;
+  totalUsed: number;
+  totalPurchased: number;
+  transactions: CreditTransaction[];
+}
+
+export interface CreditTransaction {
+  id: string;
+  amount: number;
+  type: 'purchase' | 'usage' | 'admin_add' | 'admin_deduct' | 'bonus';
+  description: string;
+  createdAt: string;
+}
+
+export interface CreditPackage {
+  id: string;
+  name: string;
+  credits: number;
+  price: number;
+  popular?: boolean;
+}
+
 // Agent Types
 export enum ClusterType {
   BROWSER = 'browser',
@@ -15,6 +55,7 @@ export enum ClusterType {
   WATCHDOG = 'watchdog',
   SELF_EVOLUTION = 'self-evolution',
   CERTIFICATION = 'certification',
+  STEALTH_OPS = 'stealth-ops',
 }
 
 export enum AgentStatus {
@@ -40,6 +81,10 @@ export interface Agent {
   lastExecutionAt: string | null;
   createdAt: string;
   updatedAt: string;
+  missionCategories: MissionCategory[];
+  creditCost: number;
+  powerLevel: number; // 1=standard, 2=advanced, 3=elite
+  tier: string; // 'standard', 'advanced', 'elite', 'stealth'
 }
 
 export interface ClusterStats {

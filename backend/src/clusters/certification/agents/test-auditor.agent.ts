@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 export class TestAuditorAgent extends BaseAgent {
@@ -12,6 +12,11 @@ export class TestAuditorAgent extends BaseAgent {
   readonly capabilities = ['audit-tests', 'check-coverage', 'verify-assertions', 'identify-gaps'];
   readonly version = '2.0.0';
   readonly description = 'Audits the test suite for coverage, assertion quality, and gap identification to ensure comprehensive and meaningful testing';
+
+  readonly missionCategories = [MissionCategory.AI_ORCHESTRATION, MissionCategory.SECURITY_OPS];
+  readonly creditCost = 2;
+  readonly powerLevel = 1;
+  readonly tier = 'standard';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {

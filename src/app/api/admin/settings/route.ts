@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { proxyToBackend } from '@/lib/backend-proxy'
 import { NextResponse } from 'next/server'
 
 const DEFAULT_SETTINGS: Record<string, { value: string; description: string }> = {
@@ -44,6 +45,13 @@ async function seedDemoUsers() {
 
 export async function GET() {
   try {
+    // Try backend proxy first
+    const backendResult = await proxyToBackend('/credits/admin/settings')
+    if (backendResult?.ok) {
+      return NextResponse.json(backendResult.data)
+    }
+
+    // Fallback to Prisma/SQLite
     await seedDefaults()
     await seedDemoUsers()
 
@@ -70,6 +78,20 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const body = await request.json()
+
+    // Support both { settings: { key: { value, description } } } and { key, value, description? } formats
+    if (body.key && body.value) {
+      // Single setting update — try backend proxy
+      const backendResult = await proxyToBackend('/credits/admin/settings', {
+        method: 'PUT',
+        body: { key: body.key, value: body.value, description: body.description },
+      })
+      if (backendResult?.ok) {
+        return NextResponse.json(backendResult.data)
+      }
+    }
+
+    // Fallback to Prisma/SQLite
     const { settings } = body as {
       settings: Record<string, { value: string; description?: string }>
     }
@@ -78,7 +100,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Invalid settings data' }, { status: 400 })
     }
 
-    const results = []
+    const results: any[] = []
     for (const [key, data] of Object.entries(settings)) {
       const upserted = await db.adminSettings.upsert({
         where: { key },

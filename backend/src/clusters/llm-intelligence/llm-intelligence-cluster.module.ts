@@ -9,9 +9,10 @@ import { LLMJudgeAgent } from './agents/llm-judge.agent';
 import { LLMDecomposerAgent } from './agents/llm-decomposer.agent';
 import { LLMRepairAgent } from './agents/llm-repair-agent';
 import { LLMValidatorAgent } from './agents/llm-validator.agent';
+import { LLMEnsembleAgent } from './agents/llm-ensemble.agent';
 
 /**
- * Factory function that creates all 6 LLM Intelligence Cluster agent instances
+ * Factory function that creates all 7 LLM Intelligence Cluster agent instances
  * and injects LLM/Bridge/EventBus services.
  */
 function createLlmIntelligenceAgents(
@@ -26,6 +27,7 @@ function createLlmIntelligenceAgents(
     new LLMDecomposerAgent(),
     new LLMRepairAgent(),
     new LLMValidatorAgent(),
+    new LLMEnsembleAgent(),
   ];
 
   // Inject services into all agents
@@ -57,7 +59,7 @@ export class LLMIntelligenceClusterModule implements OnModuleInit {
   ) {}
 
   /**
-   * On module initialization, register all 6 LLM Intelligence cluster agents
+   * On module initialization, register all 7 LLM Intelligence cluster agents
    * into the centralized AgentRegistryService with injected services.
    */
   onModuleInit() {
