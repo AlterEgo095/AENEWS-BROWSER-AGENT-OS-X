@@ -8,6 +8,15 @@
 # startup ordering. The init-db.sql is mounted from this directory.
 # ═══════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════
+# AENEWS Agent OS X — Docker Compose (Development)
+# ═══════════════════════════════════════════════════════════════════
+# Run from project root: docker compose -f docker/docker-compose.yml up -d
+#
+# All services include health checks with start_period for proper
+# startup ordering. The init-db.sql is mounted from this directory.
+# ═══════════════════════════════════════════════════════════════════
+
 services:
   # ─── PostgreSQL ────────────────────────────────────────────────
   postgres:

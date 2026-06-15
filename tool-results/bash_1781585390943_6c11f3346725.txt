@@ -1,0 +1,527 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║   AENEWS Agent OS X — Premium Sandbox Test Runner                  ║
+║   Testing all agents with mock services (no DB/Redis required)     ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+── Testing Cluster: browser (17 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [AuthenticationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [AuthenticationAgent] Logging out from https://example.com
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [AuthenticationAgent] Checking session status for https://example.com
+  🔶 AuthenticationAgent                 Score:  26.7  Status: STUB        Actions: login:✗ logout:✓ sessionStatus:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [AutomationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [AutomationAgent] Recording actions on https://example.com
+  ❌ AutomationAgent                     Score:  13.3  Status: BROKEN      Actions: record:✓ replay:✗ workflow:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [CaptchaAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [CaptchaAgent] Detecting captcha on https://example.com
+  🔶 CaptchaAgent                        Score:  21.7  Status: STUB        Actions: detect:✓ solve:✗ recaptcha:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [CrawlerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [CrawlerAgent] Crawling https://example.com (maxDepth: 3, maxPages: 100)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [CrawlerAgent] Generating sitemap for https://example.com (format: xml)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [CrawlerAgent] Discovering links from https://example.com (depth: 1)
+  ⚠️ CrawlerAgent                        Score:    40  Status: ACCEPTABLE  Actions: crawl:✓ sitemap:✓ discoverLinks:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [DownloadAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [DownloadAgent] Downloading https://example.com to ./downloads
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [DownloadAgent] Resuming download https://example.com
+  🔶 DownloadAgent                       Score:  26.7  Status: STUB        Actions: download:✓ batchDownload:✗ resume:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [FormFillingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [FormFillingAgent] Detecting forms on https://example.com with selector "form"
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [FormFillingAgent] Filling form "form" with 0 field(s)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [FormFillingAgent] Submitting form "form"
+  ⚠️ FormFillingAgent                    Score:    40  Status: ACCEPTABLE  Actions: detect:✓ fill:✓ submit:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [HeadlessAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [HeadlessAgent] Launching chromium browser (headless: true)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [HeadlessAgent] Pool operation: status (max: 5, min: 1)
+  🔶 HeadlessAgent                       Score:    35  Status: STUB        Actions: launch:✓ close:✗ pool:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [InteractionAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ InteractionAgent                    Score:     0  Status: BROKEN      Actions: click:✗ doubleClick:✗ rightClick:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [MonitoringAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [MonitoringAgent] Checking uptime for https://example.com
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [MonitoringAgent] Running performance check on https://example.com (1 iteration(s))
+  🔶 MonitoringAgent                     Score:    35  Status: STUB        Actions: uptime:✓ performance:✓ alert:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [NavigationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [NavigationAgent] Navigating to https://example.com (waitUntil: load, timeout: 5000ms)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [NavigationAgent] Navigating back 1 step(s)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [NavigationAgent] Navigating forward 1 step(s)
+  ✅ NavigationAgent                     Score:  71.7  Status: GOOD        Actions: navigate:✓ back:✓ forward:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [ProxyAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ProxyAgent] Rotating proxy (strategy: round-robin, pool: default)
+  🔶 ProxyAgent                          Score:  21.7  Status: STUB        Actions: rotate:✓ setProxy:✗ geolocate:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [ScrapingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ScrapingAgent] Scraping https://example.com with 0 selector(s)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ScrapingAgent] Extracting text from selector "body"
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ScrapingAgent] Extracting HTML from selector "body"
+  ⚠️ ScrapingAgent                       Score:  48.3  Status: ACCEPTABLE  Actions: scrape:✓ extractText:✓ extractHtml:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [ScreenshotAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ScreenshotAgent] Taking full page screenshot of https://example.com
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ScreenshotAgent] Taking viewport screenshot (1920x1080)
+  🔶 ScreenshotAgent                     Score:  26.7  Status: STUB        Actions: fullPage:✓ element:✗ viewport:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [SearchAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ SearchAgent                         Score:     0  Status: BROKEN      Actions: query:✗ parseResults:✗ serpAnalysis:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [SessionAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [SessionAgent] Creating session: session_1781585389903
+  ❌ SessionAgent                        Score:  13.3  Status: BROKEN      Actions: create:✓ restore:✗ persist:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [TestingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [TestingAgent] Running UI tests on https://example.com (suite: default)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [TestingAgent] Running E2E tests on https://example.com (0 scenario(s))
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [TestingAgent] Running visual regression tests on https://example.com
+  ✅ TestingAgent                        Score:    65  Status: GOOD        Actions: uiTest:✓ e2eTest:✓ visualRegression:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [UploadAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ UploadAgent                         Score:     0  Status: BROKEN      Actions: upload:✗ multiUpload:✗ dragDrop:✗
+
+── Testing Cluster: business (8 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [CRMAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [CRMAgent] Contact operation: list
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [CRMAgent] Deal operation: list
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [CRMAgent] Pipeline operation: overview
+  ⚠️ CRMAgent                            Score:  48.3  Status: ACCEPTABLE  Actions: contact:✓ deal:✓ pipeline:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [DecisionAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ DecisionAgent                       Score:     0  Status: BROKEN      Actions: analyze:✗ recommend:✗ simulate:✗
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [FinanceAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [FinanceAgent] Budget operation: create (period: Q1-2026, FY: 2026)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [FinanceAgent] Generating financial forecast (model: linear_regression, horizon: 4 Q1-2026, confidence: 0.95)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [FinanceAgent] Expense operation: list
+  ✅ FinanceAgent                        Score:    65  Status: GOOD        Actions: budget:✓ forecast:✓ expense:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [HRAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [HRAgent] Recruit operation: list
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [HRAgent] Onboard operation: list
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [HRAgent] Review operation: list
+  ✅ HRAgent                             Score:    65  Status: GOOD        Actions: recruit:✓ onboard:✓ review:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [LegalAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [LegalAgent] Contract operation: list
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [LegalAgent] Compliance operation: check (framework: all, jurisdiction: us)
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [LegalAgent] Legal review operation: list (type: contract)
+  ✅ LegalAgent                          Score:    65  Status: GOOD        Actions: contract:✓ compliance:✓ review:✓
+[Nest] 2200  - 06/16/2026, 4:49:49 AM   DEBUG [ProcurementAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ProcurementAgent] RFQ operation: list
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ProcurementAgent] Vendor operation: list
+[Nest] 2200  - 06/16/2026, 4:49:49 AM     LOG [ProcurementAgent] Order operation: list
+  ✅ ProcurementAgent                    Score:    65  Status: GOOD        Actions: rfq:✓ vendor:✓ order:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ReportingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ReportingAgent] Schedule operation: list (frequency: daily)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ReportingAgent] Dashboard operation: list
+  ⚠️ ReportingAgent                      Score:  43.3  Status: ACCEPTABLE  Actions: generate:✗ schedule:✓ dashboard:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [StrategyAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ StrategyAgent                       Score:     0  Status: BROKEN      Actions: analyze:✗ plan:✗ model:✗
+
+── Testing Cluster: certification (13 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [AIQualityAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AIQualityAuditorAgent] Auditing AI quality for all models (dimensions: accuracy, fairness, robustness, safety)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AIQualityAuditorAgent] Detecting hallucination (model: default, method: consistency, threshold: 0.1)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AIQualityAuditorAgent] Checking bias (model: default, attributes: gender, race, age, religion)
+  ⚠️ AIQualityAuditorAgent               Score:  56.7  Status: ACCEPTABLE  Actions: audit-ai-quality:✓ detect-hallucination:✓ check-bias:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ArchitectureAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ArchitectureAuditorAgent] Auditing architecture (full) for all modules (depth: standard)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ArchitectureAuditorAgent] Checking circular dependencies (transitive: true, maxDepth: 10)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ArchitectureAuditorAgent] Assessing coupling (type: all, threshold: 0.7)
+  ⚠️ ArchitectureAuditorAgent            Score:  48.3  Status: ACCEPTABLE  Actions: audit-architecture:✓ check-circular-deps:✓ assess-coupling:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [BrowserAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [BrowserAuditorAgent] Auditing browser subsystem (chromium)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [BrowserAuditorAgent] Checking navigation for default URLs
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [BrowserAuditorAgent] Verifying browser sessions (type: cookie)
+  ⚠️ BrowserAuditorAgent                 Score:    40  Status: ACCEPTABLE  Actions: audit-browser:✓ check-navigation:✓ verify-sessions:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ComplianceAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ComplianceAuditorAgent] Auditing compliance (frameworks: GDPR, SOC2, ISO27001, scope: full)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ComplianceAuditorAgent] Checking GDPR compliance
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ComplianceAuditorAgent] Verifying SOC 2 compliance (trust services: security, availability, processing-integrity, confidentiality, privacy)
+  ✅ ComplianceAuditorAgent              Score:    65  Status: GOOD        Actions: audit-compliance:✓ check-gdpr:✓ verify-soc2:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [DocumentationAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DocumentationAuditorAgent] Auditing documentation (full)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DocumentationAuditorAgent] Checking JSDoc for all paths
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DocumentationAuditorAgent] Verifying diagrams (all)
+  ⚠️ DocumentationAuditorAgent           Score:    40  Status: ACCEPTABLE  Actions: audit-documentation:✓ check-jsdoc:✓ verify-diagrams:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [MemoryAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MemoryAuditorAgent] Auditing memory system (full) for tiers: working, episodic, semantic, procedural
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MemoryAuditorAgent] Checking memory tiers (isolation: true, capacity: true)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MemoryAuditorAgent] Verifying memory gateway (type: all)
+  ⚠️ MemoryAuditorAgent                  Score:  48.3  Status: ACCEPTABLE  Actions: audit-memory:✓ check-tiers:✓ verify-gateway:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ObservabilityAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ObservabilityAuditorAgent] Auditing observability (pillars: metrics, logs, traces)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ObservabilityAuditorAgent] Checking metrics (types: counter, gauge, histogram, summary)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ObservabilityAuditorAgent] Verifying distributed tracing (sampling: 0.1)
+  ⚠️ ObservabilityAuditorAgent           Score:  56.7  Status: ACCEPTABLE  Actions: audit-observability:✓ check-metrics:✓ verify-tracing:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [OrchestratorAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [OrchestratorAuditorAgent] Auditing orchestrator (full)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [OrchestratorAuditorAgent] Checking pipeline all
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [OrchestratorAuditorAgent] Verifying flow all
+  ⚠️ OrchestratorAuditorAgent            Score:  48.3  Status: ACCEPTABLE  Actions: audit-orchestrator:✓ check-pipeline:✓ verify-flow:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [PerformanceAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PerformanceAuditorAgent] Running performance audit on all targets (5m, 100 users)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PerformanceAuditorAgent] Checking latency for all endpoints (threshold: 200ms at p95)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PerformanceAuditorAgent] Measuring throughput for all (60s, max concurrent: 500)
+  ⚠️ PerformanceAuditorAgent             Score:  48.3  Status: ACCEPTABLE  Actions: audit-performance:✓ check-latency:✓ measure-throughput:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [PluginAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PluginAuditorAgent] Auditing plugins (all plugins)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PluginAuditorAgent] Checking isolation for plugin all
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PluginAuditorAgent] Verifying sandbox (type: vm)
+  ⚠️ PluginAuditorAgent                  Score:  48.3  Status: ACCEPTABLE  Actions: audit-plugin:✓ check-isolation:✓ verify-sandbox:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [RegressionAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [RegressionAuditorAgent] Detecting regression (baseline: latest, sensitivity: medium)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [RegressionAuditorAgent] Comparing baselines A vs B
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [RegressionAuditorAgent] Tracking degradation (30d, metric: all, threshold: 10%)
+  ⚠️ RegressionAuditorAgent              Score:  56.7  Status: ACCEPTABLE  Actions: detect-regression:✓ compare-baselines:✓ track-degradation:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SecurityAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SecurityAuditorAgent] Running security audit (full) against OWASP Top 10, SANS 25
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SecurityAuditorAgent] Checking injection vulnerabilities (types: sql, nosql, xss, command, ldap, xpath)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SecurityAuditorAgent] Verifying RBAC (ownership: true, privilege escalation: true)
+  ⚠️ SecurityAuditorAgent                Score:  56.7  Status: ACCEPTABLE  Actions: audit-security:✓ check-injection:✓ verify-rbac:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [TestAuditorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [TestAuditorAgent] Auditing test suite (full, types: unit, integration, e2e)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [TestAuditorAgent] Checking coverage (target: 80%, type: statement)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [TestAuditorAgent] Verifying assertions in all test paths
+  ⚠️ TestAuditorAgent                    Score:  48.3  Status: ACCEPTABLE  Actions: audit-tests:✓ check-coverage:✓ verify-assertions:✓
+
+── Testing Cluster: coding (8 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CodeGenerationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ CodeGenerationAgent                 Score:     0  Status: BROKEN      Actions: generate:✗ complete:✗ refactor:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CodeReviewAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ CodeReviewAgent                     Score:     0  Status: BROKEN      Actions: review:✗ lint:✗ format:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [DebuggingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DebuggingAgent] Breakpoint operation: set (0 breakpoint(s))
+  ❌ DebuggingAgent                      Score:  13.3  Status: BROKEN      Actions: analyze:✗ trace:✗ breakpoint:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [DependencyAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DependencyAgent] Updating all dependencies to latest
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DependencyAgent] Auditing dependencies (severity: low, fix: false)
+  🔶 DependencyAgent                     Score:    35  Status: STUB        Actions: install:✗ update:✓ audit:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [DeploymentAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DeploymentAgent] Checking deployment status
+  🔶 DeploymentAgent                     Score:  21.7  Status: STUB        Actions: deploy:✗ rollback:✗ status:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [DocumentationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ DocumentationAgent                  Score:     0  Status: BROKEN      Actions: generate:✗ api:✗ readme:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [TestingCodeAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ TestingCodeAgent                    Score:     0  Status: BROKEN      Actions: unit:✗ integration:✗ e2e:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [VersionControlAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ VersionControlAgent                 Score:     0  Status: BROKEN      Actions: commit:✗ branch:✗ merge:✗
+
+── Testing Cluster: computer (7 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [BackupAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ BackupAgent                         Score:     0  Status: BROKEN      Actions: create:✗ restore:✗ schedule:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [FileSystemAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [FileSystemAgent] Reading file: /tmp/test (encoding: utf-8)
+  ❌ FileSystemAgent                     Score:  13.3  Status: BROKEN      Actions: read:✓ write:✗ copy:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [NetworkAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ NetworkAgent                        Score:     0  Status: BROKEN      Actions: ping:✗ trace:✗ dns:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ProcessAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ProcessAgent] Listing processes (filter: all, sortBy: cpu, limit: 50)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ProcessAgent] Starting process: echo test (args: , cwd: /home/z/my-project)
+  🔶 ProcessAgent                        Score:  26.7  Status: STUB        Actions: list:✓ start:✓ stop:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SoftwareAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SoftwareAgent] Updating undefined (securityOnly: false)
+  ❌ SoftwareAgent                       Score:  13.3  Status: BROKEN      Actions: install:✗ uninstall:✗ update:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SystemInfoAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SystemInfoAgent] Gathering OS information
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SystemInfoAgent] Gathering hardware information
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SystemInfoAgent] Gathering memory information
+  ✅ SystemInfoAgent                     Score:    65  Status: GOOD        Actions: os:✓ hardware:✓ memory:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [TerminalAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [TerminalAgent] Executing command: echo test (cwd: /home/z/my-project, timeout: 30000ms)
+  ❌ TerminalAgent                       Score:  13.3  Status: BROKEN      Actions: execute:✓ script:✗ pipe:✗
+
+── Testing Cluster: infrastructure (8 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [BackupInfraAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [BackupInfraAgent] Schedule operation: list
+  🔶 BackupInfraAgent                    Score:  21.7  Status: STUB        Actions: snapshot:✗ replicate:✗ schedule:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CIAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ CIAgent                             Score:     0  Status: BROKEN      Actions: build:✗ test:✗ deploy:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CloudAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ CloudAgent                          Score:     0  Status: BROKEN      Actions: provision:✗ scale:✗ migrate:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ContainerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ ContainerAgent                      Score:     0  Status: BROKEN      Actions: build:✗ deploy:✗ scale:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [MonitoringInfraAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MonitoringInfraAgent] Alert operation: list (severity: warning)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MonitoringInfraAgent] Metric operation: query (all metrics, range: 1h)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MonitoringInfraAgent] Log operation: search (query: *, range: 1h)
+  ⚠️ MonitoringInfraAgent                Score:  56.7  Status: ACCEPTABLE  Actions: alert:✓ metric:✓ log:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [NetworkInfraAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [NetworkInfraAgent] Network configure operation: list
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [NetworkInfraAgent] DNS operation: list
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [NetworkInfraAgent] VPN operation: list (type: site-to-site)
+  ⚠️ NetworkInfraAgent                   Score:  48.3  Status: ACCEPTABLE  Actions: configure:✓ dns:✓ vpn:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ScalingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ScalingAgent] Load balancer operation: configure (algorithm: round_robin)
+  🔶 ScalingAgent                        Score:  21.7  Status: STUB        Actions: scale:✗ autoscale:✗ loadbalance:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SecurityInfraAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SecurityInfraAgent] Starting vulnerability scan on all targets (profile: standard)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SecurityInfraAgent] Patch operation: list (critical, high severity, all resources)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SecurityInfraAgent] Hardening servers with profile cis_level1 (moderate)
+  ⚠️ SecurityInfraAgent                  Score:  56.7  Status: ACCEPTABLE  Actions: scan:✓ patch:✓ harden:✓
+
+── Testing Cluster: intelligent-orchestration (4 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [DynamicSchedulerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DynamicSchedulerAgent] Scheduling 0 tasks (strategy: priority-based, max concurrent: 10)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DynamicSchedulerAgent] Optimizing parallelism (target: throughput, goal: maximize-throughput)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [DynamicSchedulerAgent] Rescheduling current schedule (reason: optimization)
+  ⚠️ DynamicSchedulerAgent               Score:  48.3  Status: ACCEPTABLE  Actions: schedule-tasks:✓ optimize-parallelism:✓ reschedule:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [MissionOrchestratorAIAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MissionOrchestratorAIAgent] Orchestrating mission mission-123 (type: standard, priority: high)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MissionOrchestratorAIAgent] Creating pipeline "unnamed" with 0 steps (mode: sequential)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MissionOrchestratorAIAgent] Handling failure unknown at step unknown (type: unknown)
+  ⚠️ MissionOrchestratorAIAgent          Score:  48.3  Status: ACCEPTABLE  Actions: orchestrate-mission:✓ create-pipeline:✓ handle-failure:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [PriorityArbiterAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PriorityArbiterAgent] Resolving priority for 0 tasks (policy: weighted-scoring)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PriorityArbiterAgent] Rebalancing queue default (strategy: priority-aware, target latency: 5000ms)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PriorityArbiterAgent] Escalating task unknown to priority next (reason: manual-escalation)
+  ⚠️ PriorityArbiterAgent                Score:  56.7  Status: ACCEPTABLE  Actions: resolve-priority:✓ rebalance-queue:✓ escalate:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ResourceNegotiatorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ResourceNegotiatorAgent] Allocating resources for unknown (priority: high, strategy: fair-share)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ResourceNegotiatorAgent] Resolving resource-contention between 0 parties (strategy: priority-based)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ResourceNegotiatorAgent] Rebalancing resources (scope: system, trigger: scheduled, target utilization: 0.7)
+  ⚠️ ResourceNegotiatorAgent             Score:  56.7  Status: ACCEPTABLE  Actions: allocate-resources:✓ resolve-conflicts:✓ rebalance:✓
+
+── Testing Cluster: llm-intelligence (5 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [LLMCriticAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ LLMCriticAgent                      Score:     0  Status: BROKEN      Actions: critique-deliverable:✗ suggest-improvements:✗ evaluate-quali
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [LLMDecomposerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ LLMDecomposerAgent                  Score:     0  Status: BROKEN      Actions: decompose-task:✗ identify-dependencies:✗ estimate-complexity
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [LLMJudgeAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ LLMJudgeAgent                       Score:     0  Status: BROKEN      Actions: arbitrate:✗ final-decision:✗ resolve-conflict:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [LLMPlannerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ LLMPlannerAgent                     Score:     0  Status: BROKEN      Actions: plan-mission:✗ replan-mission:✗ evaluate-strategy:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [LLMValidatorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ LLMValidatorAgent                   Score:     0  Status: BROKEN      Actions: validate-deliverable:✗ check-requirements:✗ assess-completen
+
+── Testing Cluster: marketing (8 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [AdsAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AdsAgent] Optimizing campaign camp-123 (type: performance, bid: target-cpa)
+  🔶 AdsAgent                            Score:  21.7  Status: STUB        Actions: create:✗ optimize:✓ budget:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [AnalyticsAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AnalyticsAgent] Generating overview report (30d, granularity: daily)
+  🔶 AnalyticsAgent                      Score:  21.7  Status: STUB        Actions: track:✗ report:✓ funnel:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [BrandingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ BrandingAgent                       Score:     0  Status: BROKEN      Actions: analyze:✗ design:✗ voice:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ContentCreationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ ContentCreationAgent                Score:     0  Status: BROKEN      Actions: write:✗ rewrite:✗ summarize:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [EmailMarketingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ EmailMarketingAgent                 Score:     0  Status: BROKEN      Actions: campaign:✗ segment:✗ template:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [InfluencerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ InfluencerAgent                     Score:     0  Status: BROKEN      Actions: discover:✗ outreach:✗ campaign:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SEOAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ SEOAgent                            Score:     0  Status: BROKEN      Actions: analyze:✗ keywords:✗ optimize:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SocialMediaAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ SocialMediaAgent                    Score:     0  Status: BROKEN      Actions: post:✗ schedule:✗ engage:✗
+
+── Testing Cluster: meta-intelligence (13 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [AdaptationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ AdaptationAgent                     Score:     0  Status: BROKEN      Actions: adapt:✗ evolve:✗ personalize:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CollaborationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ CollaborationAgent                  Score:     0  Status: BROKEN      Actions: coordinate:✗ negotiate:✗ share:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CreativityAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [CreativityAgent] Ideating in domain "test" (technique: brainstorming, quantity: 10)
+  🔶 CreativityAgent                     Score:  21.7  Status: STUB        Actions: ideate:✓ combine:✗ transform:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [EvaluationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ EvaluationAgent                     Score:     0  Status: BROKEN      Actions: assess:✗ score:✗ compare:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [KnowledgeAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [KnowledgeAgent] Querying knowledge: "test analysis" (language: natural)
+  🔶 KnowledgeAgent                      Score:  21.7  Status: STUB        Actions: acquire:✗ represent:✗ query:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [LearningAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ LearningAgent                       Score:     0  Status: BROKEN      Actions: train:✗ predict:✗ evaluate:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [MemoryAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MemoryAgent] Retrieving memory by query "test analysis"
+  🔶 MemoryAgent                         Score:  21.7  Status: STUB        Actions: store:✗ retrieve:✓ consolidate:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [MetaCognitionAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MetaCognitionAgent] Monitoring 0 targets across 4 metrics
+  🔶 MetaCognitionAgent                  Score:  21.7  Status: STUB        Actions: reflect:✗ monitor:✓ plan:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [OptimizationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ OptimizationAgent                   Score:     0  Status: BROKEN      Actions: optimize:✗ search:✗ schedule:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [OrchestrationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ OrchestrationAgent                  Score:     0  Status: BROKEN      Actions: coordinate:✗ delegate:✗ chain:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [PerceptionAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ PerceptionAgent                     Score:     0  Status: BROKEN      Actions: analyze:✗ classify:✗ detect:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ReasoningAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ ReasoningAgent                      Score:     0  Status: BROKEN      Actions: deduce:✗ induce:✗ analogize:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SelfHealingAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [SelfHealingAgent] Detecting anomalies (method: proactive, scope: system)
+  🔶 SelfHealingAgent                    Score:  21.7  Status: STUB        Actions: detect:✓ diagnose:✗ recover:✗
+
+── Testing Cluster: office (6 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CalendarAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ CalendarAgent                       Score:     0  Status: BROKEN      Actions: create:✗ update:✗ delete:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [DocumentAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ DocumentAgent                       Score:     0  Status: BROKEN      Actions: create:✗ edit:✗ convert:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [EmailAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [EmailAgent] Receiving emails from inbox (limit: 50, offset: 0)
+  ❌ EmailAgent                          Score:  13.3  Status: BROKEN      Actions: send:✗ receive:✓ parse:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [PresentationAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ PresentationAgent                   Score:     0  Status: BROKEN      Actions: create:✗ edit:✗ template:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [SpreadsheetAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ SpreadsheetAgent                    Score:     0  Status: BROKEN      Actions: create:✗ edit:✗ formula:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [TaskManagerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ TaskManagerAgent                    Score:     0  Status: BROKEN      Actions: create:✗ assign:✗ track:✗
+
+── Testing Cluster: security (6 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [AccessControlAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AccessControlAgent] Authenticating user via password (provider: local)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AccessControlAgent] Authorization check on resource (read)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AccessControlAgent] Role operation: list
+  ⚠️ AccessControlAgent                  Score:  56.7  Status: ACCEPTABLE  Actions: authenticate:✓ authorize:✓ role:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ComplianceAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ComplianceAgent] Running compliance audit for frameworks: SOC2, ISO27001, GDPR (full scope)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ComplianceAgent] Running compliance gap assessment for frameworks: SOC2, ISO27001
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ComplianceAgent] Policy operation: list (type: security, enforcement: detect)
+  ⚠️ ComplianceAgent                     Score:  56.7  Status: ACCEPTABLE  Actions: audit:✓ assess:✓ policy:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [EncryptionAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [EncryptionAgent] Encrypting text data using AES-256-GCM
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [EncryptionAgent] Decrypting data using AES-256-GCM
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [EncryptionAgent] Hashing text data using SHA-256
+  ✅ EncryptionAgent                     Score:    65  Status: GOOD        Actions: encrypt:✓ decrypt:✓ hash:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ForensicsAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ForensicsAgent] Collecting forensic data from endpoint (full)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ForensicsAgent] Preserving evidence (operation: chain)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ForensicsAgent] Analyzing forensic evidence (comprehensive)
+  ✅ ForensicsAgent                      Score:    65  Status: GOOD        Actions: collect:✓ preserve:✓ analyze:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ThreatDetectionAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ThreatDetectionAgent] Starting threat detection scan (quick) on 1 targets (depth: standard)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ThreatDetectionAgent] Starting threat monitoring (realtime) on sources: network, endpoint, application (threshold: medium)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [ThreatDetectionAgent] Analyzing threat (type: threat, deep: false)
+  ✅ ThreatDetectionAgent                Score:    65  Status: GOOD        Actions: scan:✓ monitor:✓ analyze:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [VulnerabilityAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [VulnerabilityAgent] Starting vulnerability scan (quick) on 1 targets using scanners: network, webapp, database
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [VulnerabilityAgent] Assessing all vulnerabilities (risk)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [VulnerabilityAgent] Prioritizing all vulnerabilities using risk-based framework
+  ✅ VulnerabilityAgent                  Score:    65  Status: GOOD        Actions: scan:✓ assess:✓ prioritize:✓
+
+── Testing Cluster: self-evolution (5 agents) ──
+
+🔍 OpenTelemetry tracing initialized — OTLP: http://localhost:4318, Prometheus: :9464/metrics
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [AutoCertifierAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AutoCertifierAgent] Running certification for patch patch-1781585390312 across 5 suites (baseline EQI: 72.5)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AutoCertifierAgent] Verifying EQI for patch patch-1781585390312: current=78.3, baseline=72.5
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [AutoCertifierAgent] Approving merge for patch patch-1781585390313 (EQI: 78.3, delta: +5.8)
+  ✅ AutoCertifierAgent                  Score:    65  Status: GOOD        Actions: run-certification:✓ verify-eqi:✓ approve-merge:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [MetricAnalyzerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MetricAnalyzerAgent] Analyzing metrics: [response_time_p99, error_rate, throughput, cpu_usage, memory_usage] over 24h (5m granularity)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MetricAnalyzerAgent] LLM unavailable — falling back to heuristic analysis
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MetricAnalyzerAgent] Collecting baseline 'baseline-2026-06-16' for 5 metrics
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [MetricAnalyzerAgent] Detecting anomalies across 3 metrics (sensitivity: medium)
+  ✅ MetricAnalyzerAgent                 Score:    70  Status: GOOD        Actions: analyze-metrics:✓ collect-baseline:✓ detect-anomaly:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [PatchGeneratorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PatchGeneratorAgent] Generating patch for plan exec-plan-1781585389846 on branch self-evolution/patch/proposal-1-1-1781585390846
+[Nest] 2200  - 06/16/2026, 4:49:50 AM    WARN [PatchGeneratorAgent] SandboxService not available — skipping sandbox validation for generated patch
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PatchGeneratorAgent] Validating patch patch-1781585390346 with checks: [syntax, type-check, lint, style, dependency-consistency]
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [PatchGeneratorAgent] Testing patch patch-1781585390346 in sandbox with suites: [unit, integration, e2e-smoke]
+  🔶 PatchGeneratorAgent                 Score:  38.3  Status: STUB        Actions: generate-patch:✓ validate-patch:✗ test-patch:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [RefactorProposerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [RefactorProposerAgent] Proposing refactoring for 2 weaknesses (strategy: conservative)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM    WARN [RefactorProposerAgent] SandboxService not available — skipping sandbox dry-run for refactoring proposals
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [RefactorProposerAgent] Analyzing impact for proposal proposal-1-1 (depth: full)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [RefactorProposerAgent] Estimating effort for proposal proposal-1-1 (method: story-points)
+  ✅ RefactorProposerAgent               Score:    65  Status: GOOD        Actions: propose-refactor:✓ analyze-impact:✓ estimate-effort:✓
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [WeaknessDetectorAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [WeaknessDetectorAgent] Detecting weaknesses from sources: etrics, certification, logs] (depth: deep)
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [WeaknessDetectorAgent] Assessing impact for 3 weaknesses across dimensions: [availability, performance, security, maintainability]
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [WeaknessDetectorAgent] Prioritizing 4 weaknesses using risk-based strategy
+  ✅ WeaknessDetectorAgent               Score:    65  Status: GOOD        Actions: detect-weaknesses:✓ assess-impact:✓ prioritize-weaknesses:✓
+
+── Testing Cluster: watchdog (3 agents) ──
+
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [AutoFixerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ AutoFixerAgent                      Score:     0  Status: BROKEN      Actions: apply-fix:✗ retry-task:✗ reassign-task:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [CircuitBreakerManagerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+[Nest] 2200  - 06/16/2026, 4:49:50 AM     LOG [CircuitBreakerManagerAgent] Monitoring circuits (scope: all, filter: [none])
+  🔶 CircuitBreakerManagerAgent          Score:  21.7  Status: STUB        Actions: monitor-circuits:✓ open-circuit:✗ close-circuit:✗
+[Nest] 2200  - 06/16/2026, 4:49:50 AM   DEBUG [ErrorAnalyzerAgent] Services injected — LLM: true, Bridge: true, EventBus: true
+  ❌ ErrorAnalyzerAgent                  Score:     0  Status: BROKEN      Actions: analyze-error:✗ classify-error:✗ suggest-remediation:✗
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║   TEST RUN SUMMARY                                                  ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  Total Agents:       111
+  Successfully Run:   111
+  🌟 EXCELLENT:       0 (0.0%)
+  ✅ GOOD:            16 (14.4%)
+  ⚠️  ACCEPTABLE:     26 (23.4%)
+  🔶 STUB:            21 (18.9%)
+  ❌ BROKEN:          48 (43.2%)
+
+  📊 Average Score:   26.8/100
+  🏆 Platform Score:  11.5/100
+
+  ── BROKEN AGENTS (need immediate fix) ──
+  ❌ AutomationAgent: Execution failed
+  ❌ InteractionAgent: Execution failed
+  ❌ SearchAgent: Execution failed
+  ❌ SessionAgent: Execution failed
+  ❌ UploadAgent: Execution failed
+  ❌ DecisionAgent: Execution failed
+  ❌ StrategyAgent: Execution failed
+  ❌ CodeGenerationAgent: Execution failed
+  ❌ CodeReviewAgent: Execution failed
+  ❌ DebuggingAgent: Execution failed
+  ❌ DocumentationAgent: Execution failed
+  ❌ TestingCodeAgent: Execution failed
+  ❌ VersionControlAgent: Execution failed
+  ❌ BackupAgent: Execution failed
+  ❌ FileSystemAgent: Execution failed
+  ❌ NetworkAgent: Execution failed
+  ❌ SoftwareAgent: Execution failed
+  ❌ TerminalAgent: Execution failed
+  ❌ CIAgent: Execution failed
+  ❌ CloudAgent: Execution failed
+  ❌ ContainerAgent: Execution failed
+  ❌ LLMCriticAgent: Execution failed
+  ❌ LLMDecomposerAgent: Execution failed
+  ❌ LLMJudgeAgent: Execution failed
+  ❌ LLMPlannerAgent: Execution failed
+  ❌ LLMValidatorAgent: Execution failed
+  ❌ BrandingAgent: Execution failed
+  ❌ ContentCreationAgent: Execution failed
+  ❌ EmailMarketingAgent: Execution failed
+  ❌ InfluencerAgent: Execution failed
+  ❌ SEOAgent: Execution failed
+  ❌ SocialMediaAgent: Execution failed
+  ❌ AdaptationAgent: Execution failed
+  ❌ CollaborationAgent: Execution failed
+  ❌ EvaluationAgent: Execution failed
+  ❌ LearningAgent: Execution failed
+  ❌ OptimizationAgent: Execution failed
+  ❌ OrchestrationAgent: Execution failed
+  ❌ PerceptionAgent: Execution failed
+  ❌ ReasoningAgent: Execution failed
+  ❌ CalendarAgent: Execution failed
+  ❌ DocumentAgent: Execution failed
+  ❌ EmailAgent: Execution failed
+  ❌ PresentationAgent: Execution failed
+  ❌ SpreadsheetAgent: Execution failed
+  ❌ TaskManagerAgent: Execution failed
+  ❌ AutoFixerAgent: Execution failed
+  ❌ ErrorAnalyzerAgent: Execution failed
+
+  ── STUB AGENTS (need LLM/real implementation) ──
+  🔶 AuthenticationAgent (Score: 26.7)
+  🔶 CaptchaAgent (Score: 21.7)
+  🔶 DownloadAgent (Score: 26.7)
+  🔶 HeadlessAgent (Score: 35)
+  🔶 MonitoringAgent (Score: 35)
+  🔶 ProxyAgent (Score: 21.7)
+  🔶 ScreenshotAgent (Score: 26.7)
+  🔶 DependencyAgent (Score: 35)
+  🔶 DeploymentAgent (Score: 21.7)
+  🔶 ProcessAgent (Score: 26.7)
+  🔶 BackupInfraAgent (Score: 21.7)
+  🔶 ScalingAgent (Score: 21.7)
+  🔶 AdsAgent (Score: 21.7)
+  🔶 AnalyticsAgent (Score: 21.7)
+  🔶 CreativityAgent (Score: 21.7)
+  🔶 KnowledgeAgent (Score: 21.7)
+  🔶 MemoryAgent (Score: 21.7)
+  🔶 MetaCognitionAgent (Score: 21.7)
+  🔶 SelfHealingAgent (Score: 21.7)
+  🔶 PatchGeneratorAgent (Score: 38.3)
+  🔶 CircuitBreakerManagerAgent (Score: 21.7)
+
+  📄 Detailed report saved to: agent-sandbox-report.json
+📊 Prometheus metrics endpoint running on port 9464/metrics
