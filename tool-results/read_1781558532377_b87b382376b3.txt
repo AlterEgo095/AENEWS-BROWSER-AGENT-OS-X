@@ -1,0 +1,907 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import Link from 'next/link';
+     5→import {
+     6→  Settings, Users, Database, Shield, BarChart3, Bot,
+     7→  Rocket, Activity, Zap, RefreshCw, Download, Upload, Eye,
+     8→  AlertTriangle, CheckCircle2, XCircle,
+     9→  HardDrive, Network, Lock, Key, Globe,
+    10→  TrendingUp, Play, Pause, RotateCcw,
+    11→} from 'lucide-react';
+    12→import {
+    13→  AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
+    14→  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
+    15→} from 'recharts';
+    16→import { api, getAuthHeaders } from '@/lib/api';
+    17→import { cn } from '@/lib/utils';
+    18→import type { Agent, ClusterStats, Mission } from '@/lib/types';
+    19→import { ClusterType, MissionState } from '@/lib/types';
+    20→import { useDashboardOverview, useAgentStats, useHealth } from '@/hooks/use-platform-data';
+    21→
+    22→// ─── Tab Config ──────────────────────────────────────────────────
+    23→type AdminTab = 'overview' | 'agents' | 'missions' | 'infrastructure' | 'security' | 'users' | 'config' | 'analytics';
+    24→
+    25→const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
+    26→  { id: 'overview', label: 'Overview', icon: BarChart3 },
+    27→  { id: 'agents', label: 'Agents', icon: Bot },
+    28→  { id: 'missions', label: 'Missions', icon: Rocket },
+    29→  { id: 'infrastructure', label: 'Infrastructure', icon: Database },
+    30→  { id: 'security', label: 'Security', icon: Shield },
+    31→  { id: 'users', label: 'Users', icon: Users },
+    32→  { id: 'config', label: 'Configuration', icon: Settings },
+    33→  { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+    34→];
+    35→
+    36→// ─── Overview Tab ────────────────────────────────────────────────
+    37→function OverviewTab() {
+    38→  const { data, isLoading } = useDashboardOverview();
+    39→
+    40→  if (isLoading || !data) {
+    41→    return <div className="animate-shimmer h-96 rounded-xl" />;
+    42→  }
+    43→
+    44→  const { kpis, agents, missions } = data;
+    45→
+    46→  // Agent status distribution
+    47→  const statusData = [
+    48→    { name: 'Running', value: kpis.activeAgents, color: '#22c55e' },
+    49→    { name: 'Idle', value: agents.filter((a: Agent) => a.status === 'idle').length, color: '#94a3b8' },
+    50→    { name: 'Error', value: kpis.errorAgents, color: '#ef4444' },
+    51→    { name: 'Paused', value: agents.filter((a: Agent) => a.status === 'paused').length, color: '#f59e0b' },
+    52→  ];
+    53→
+    54→  // Mission state distribution
+    55→  const missionData = Object.entries(
+    56→    missions.reduce((acc: Record<string, number>, m: Mission) => {
+    57→      acc[m.state] = (acc[m.state] || 0) + 1;
+    58→      return acc;
+    59→    }, {})
+    60→  ).map(([state, count]) => ({ state, count }));
+    61→
+    62→  // NOTE: Historical time-series data requires a dedicated API endpoint.
+    63→  // Until one is available, we show only the current snapshot value at the most recent slot
+    64→  // to avoid misleading users with synthetic/fake trend lines.
+    65→  const tsData = Array.from({ length: 24 }, (_, i) => ({
+    66→    time: `${23 - i}h`,
+    67→    agents: i === 0 ? kpis.activeAgents : 0,
+    68→    missions: i === 0 ? kpis.activeMissions : 0,
+    69→  })).reverse();
+    70→
+    71→  return (
+    72→    <div className="space-y-6">
+    73→      {/* KPI Cards */}
+    74→      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    75→        {[
+    76→          { label: 'Total Agents', value: kpis.totalAgents, icon: Bot, color: 'text-primary' },
+    77→          { label: 'Active Missions', value: kpis.activeMissions, icon: Rocket, color: 'text-orange-400' },
+    78→          { label: 'Uptime', value: `${kpis.uptimePercent}%`, icon: CheckCircle2, color: 'text-emerald-400' },
+    79→          { label: 'Errors', value: kpis.errorAgents, icon: AlertTriangle, color: 'text-red-400' },
+    80→        ].map((kpi) => (
+    81→          <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
+    82→            <div className="flex items-center justify-between">
+    83→              <div>
+    84→                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{kpi.label}</p>
+    85→                <p className="mt-1 text-2xl font-bold text-foreground">{kpi.value}</p>
+    86→              </div>
+    87→              <div className={cn('rounded-lg p-2', kpi.color.replace('text-', 'bg-') + '/15')}>
+    88→                <kpi.icon className={cn('h-4 w-4', kpi.color)} />
+    89→              </div>
+    90→            </div>
+    91→          </div>
+    92→        ))}
+    93→      </div>
+    94→
+    95→      {/* Charts */}
+    96→      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    97→        {/* Activity Time Series */}
+    98→        <div className="lg:col-span-2 rounded-xl border border-border bg-card p-4">
+    99→          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Activity Timeline</h4>
+   100→          <ResponsiveContainer width="100%" height={200}>
+   101→            <AreaChart data={tsData}>
+   102→              <defs>
+   103→                <linearGradient id="adminAgentGrad" x1="0" y1="0" x2="0" y2="1">
+   104→                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+   105→                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+   106→                </linearGradient>
+   107→              </defs>
+   108→              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   109→              <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} />
+   110→              <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} />
+   111→              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 11 }} />
+   112→              <Area type="monotone" dataKey="agents" stroke="#3b82f6" fill="url(#adminAgentGrad)" strokeWidth={2} />
+   113→              <Area type="monotone" dataKey="missions" stroke="#f59e0b" fillOpacity={0} strokeWidth={1.5} />
+   114→            </AreaChart>
+   115→          </ResponsiveContainer>
+   116→        </div>
+   117→
+   118→        {/* Agent Status Pie */}
+   119→        <div className="rounded-xl border border-border bg-card p-4">
+   120→          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Agent Status</h4>
+   121→          <ResponsiveContainer width="100%" height={160}>
+   122→            <RPieChart>
+   123→              <Pie data={statusData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value">
+   124→                {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+   125→              </Pie>
+   126→              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 11 }} />
+   127→            </RPieChart>
+   128→          </ResponsiveContainer>
+   129→          <div className="space-y-1">
+   130→            {statusData.map((s) => (
+   131→              <div key={s.name} className="flex items-center justify-between text-[11px]">
+   132→                <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />{s.name}</div>
+   133→                <span className="font-semibold text-foreground">{s.value}</span>
+   134→              </div>
+   135→            ))}
+   136→          </div>
+   137→        </div>
+   138→      </div>
+   139→
+   140→      {/* Mission States Bar Chart */}
+   141→      <div className="rounded-xl border border-border bg-card p-4">
+   142→        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Mission States</h4>
+   143→        <ResponsiveContainer width="100%" height={180}>
+   144→          <BarChart data={missionData}>
+   145→            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   146→            <XAxis dataKey="state" tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} />
+   147→            <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} />
+   148→            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 11 }} />
+   149→            <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+   150→          </BarChart>
+   151→        </ResponsiveContainer>
+   152→      </div>
+   153→    </div>
+   154→  );
+   155→}
+   156→
+   157→// ─── Agents Tab ──────────────────────────────────────────────────
+   158→function AgentsTab() {
+   159→  const { data: stats } = useAgentStats();
+   160→  const [filterCluster, setFilterCluster] = useState<string>('all');
+   161→  const [search, setSearch] = useState('');
+   162→
+   163→  const clusters = Object.values(ClusterType);
+   164→  const filteredStats = stats?.filter((cs: ClusterStats) =>
+   165→    filterCluster === 'all' || cs.cluster === filterCluster
+   166→  ) || [];
+   167→
+   168→  return (
+   169→    <div className="space-y-4">
+   170→      {/* Filters */}
+   171→      <div className="flex flex-wrap items-center gap-3">
+   172→        <div className="flex-1 min-w-[200px]">
+   173→          <input
+   174→            type="text"
+   175→            placeholder="Search agents..."
+   176→            value={search}
+   177→            onChange={(e) => setSearch(e.target.value)}
+   178→            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+   179→          />
+   180→        </div>
+   181→        <select
+   182→          value={filterCluster}
+   183→          onChange={(e) => setFilterCluster(e.target.value)}
+   184→          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   185→        >
+   186→          <option value="all">All Clusters</option>
+   187→          {clusters.map((c) => (
+   188→            <option key={c} value={c}>{c.replace(/-/g, ' ')}</option>
+   189→          ))}
+   190→        </select>
+   191→      </div>
+   192→
+   193→      {/* Cluster Agent Grid */}
+   194→      <div className="space-y-4">
+   195→        {filteredStats.map((cs: ClusterStats) => (
+   196→          <div key={cs.cluster} className="rounded-xl border border-border bg-card p-4">
+   197→            <div className="flex items-center justify-between mb-3">
+   198→              <h4 className="text-sm font-semibold text-foreground capitalize">
+   199→                {cs.cluster.replace(/-/g, ' ')} — {cs.totalAgents} agents
+   200→              </h4>
+   201→              <div className="flex items-center gap-2">
+   202→                <span className="text-[10px] text-emerald-400">{cs.activeAgents} active</span>
+   203→                <span className="text-[10px] text-muted-foreground">{cs.idleAgents} idle</span>
+   204→                {cs.errorAgents > 0 && <span className="text-[10px] text-red-400">{cs.errorAgents} errors</span>}
+   205→              </div>
+   206→            </div>
+   207→            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+   208→              {cs.agents
+   209→                .filter((a: Agent) => !search || a.name.toLowerCase().includes(search.toLowerCase()))
+   210→                .map((agent: Agent) => (
+   211→                <div key={agent.id} className="flex items-center justify-between rounded-lg border border-border bg-background/50 px-3 py-2">
+   212→                  <div className="flex items-center gap-2 min-w-0">
+   213→                    <div className={cn(
+   214→                      'h-2 w-2 shrink-0 rounded-full',
+   215→                      agent.status === 'running' ? 'bg-emerald-400 animate-pulse' :
+   216→                      agent.status === 'error' ? 'bg-red-400' :
+   217→                      agent.status === 'idle' ? 'bg-slate-400' : 'bg-amber-400'
+   218→                    )} />
+   219→                    <div className="min-w-0">
+   220→                      <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
+   221→                      <p className="text-[10px] text-muted-foreground">v{agent.version}</p>
+   222→                    </div>
+   223→                  </div>
+   224→                  <div className="flex items-center gap-1 shrink-0">
+   225→                    {agent.status === 'running' ? (
+   226→                      <button disabled title="Agent pause coming soon" className="p-1 rounded text-amber-400/40 cursor-not-allowed">
+   227→                        <Pause className="h-3 w-3" />
+   228→                      </button>
+   229→                    ) : (
+   230→                      <button disabled title="Agent start coming soon" className="p-1 rounded text-emerald-400/40 cursor-not-allowed">
+   231→                        <Play className="h-3 w-3" />
+   232→                      </button>
+   233→                    )}
+   234→                    <button disabled title="Agent restart coming soon" className="p-1 rounded text-muted-foreground/40 cursor-not-allowed">
+   235→                      <RotateCcw className="h-3 w-3" />
+   236→                    </button>
+   237→                  </div>
+   238→                </div>
+   239→              ))}
+   240→            </div>
+   241→          </div>
+   242→        ))}
+   243→      </div>
+   244→    </div>
+   245→  );
+   246→}
+   247→
+   248→// ─── Missions Tab ────────────────────────────────────────────────
+   249→function MissionsTab() {
+   250→  const [filter, setFilter] = useState<string>('all');
+   251→  const [missions, setMissions] = useState<Mission[]>([]);
+   252→  const [, setLoadingMissions] = useState(true);
+   253→
+   254→  useEffect(() => {
+   255→    async function fetchMissions() {
+   256→      try {
+   257→        const result = await api.getMissions({ limit: 50 });
+   258→        setMissions(result.data || []);
+   259→      } catch {
+   260→        setMissions([]);
+   261→      } finally {
+   262→        setLoadingMissions(false);
+   263→      }
+   264→    }
+   265→    fetchMissions();
+   266→  }, []);
+   267→
+   268→  const filtered = filter === 'all' ? missions : missions.filter(m => m.state === filter);
+   269→
+   270→  return (
+   271→    <div className="space-y-4">
+   272→      <div className="flex items-center gap-3">
+   273→        <select
+   274→          value={filter}
+   275→          onChange={(e) => setFilter(e.target.value)}
+   276→          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   277→        >
+   278→          <option value="all">All States</option>
+   279→          {Object.values(MissionState).map(s => <option key={s} value={s}>{s}</option>)}
+   280→        </select>
+   281→        <Link href="/missions" className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+   282→          <Rocket className="h-3.5 w-3.5" /> New Mission
+   283→        </Link>
+   284→      </div>
+   285→
+   286→      <div className="space-y-2">
+   287→        {filtered.map((mission) => (
+   288→          <div key={mission.id} className="rounded-xl border border-border bg-card p-4">
+   289→            <div className="flex items-start justify-between">
+   290→              <div>
+   291→                <h4 className="text-sm font-semibold text-foreground">{mission.name}</h4>
+   292→                <p className="text-xs text-muted-foreground mt-0.5">{mission.description}</p>
+   293→              </div>
+   294→              <span className={cn(
+   295→                'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase ml-2',
+   296→                mission.state === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+   297→                mission.state === 'FAILED' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
+   298→                mission.state === 'BUILDING' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+   299→                'bg-blue-500/20 text-blue-400 border-blue-500/30'
+   300→              )}>
+   301→                {mission.state}
+   302→              </span>
+   303→            </div>
+   304→            <div className="mt-3">
+   305→              <div className="flex items-center justify-between text-[10px] mb-1">
+   306→                <span className="text-muted-foreground">Progress</span>
+   307→                <span className="text-foreground font-medium">{mission.progress}%</span>
+   308→              </div>
+   309→              <div className="h-1.5 rounded-full bg-border overflow-hidden">
+   310→                <div className={cn(
+   311→                  'h-full rounded-full transition-all duration-500',
+   312→                  mission.state === 'COMPLETED' ? 'bg-emerald-400' :
+   313→                  mission.state === 'FAILED' ? 'bg-red-400' : 'bg-primary'
+   314→                )} style={{ width: `${mission.progress}%` }} />
+   315→              </div>
+   316→            </div>
+   317→            <div className="mt-3 flex items-center gap-2">
+   318→              {mission.state !== 'COMPLETED' && mission.state !== 'FAILED' && mission.state !== 'CANCELLED' && (
+   319→                <>
+   320→                  <button disabled title="Mission pause coming soon" className="p-1 rounded text-amber-400/40 cursor-not-allowed">
+   321→                    <Pause className="h-3.5 w-3.5" />
+   322→                  </button>
+   323→                  <button disabled title="Mission cancel coming soon" className="p-1 rounded text-red-400/40 cursor-not-allowed">
+   324→                    <XCircle className="h-3.5 w-3.5" />
+   325→                  </button>
+   326→                </>
+   327→              )}
+   328→              <button disabled title="Mission details coming soon" className="p-1 rounded text-muted-foreground/40 cursor-not-allowed">
+   329→                <Eye className="h-3.5 w-3.5" />
+   330→              </button>
+   331→            </div>
+   332→          </div>
+   333→        ))}
+   334→      </div>
+   335→    </div>
+   336→  );
+   337→}
+   338→
+   339→// ─── Infrastructure Tab ──────────────────────────────────────────
+   340→function InfrastructureTab() {
+   341→  const { data: health } = useHealth();
+   342→  const services = [
+   343→    { name: 'PostgreSQL', icon: Database, key: 'database', port: 5432 },
+   344→    { name: 'Redis', icon: Zap, key: 'redis', port: 6379 },
+   345→    { name: 'Neo4j', icon: Network, key: 'neo4j', port: 7687 },
+   346→    { name: 'Qdrant', icon: HardDrive, key: 'qdrant', port: 6333 },
+   347→    { name: 'RabbitMQ', icon: Activity, key: 'rabbitmq', port: 5672 },
+   348→    { name: 'MinIO', icon: Database, key: 'minio', port: 9000 },
+   349→  ];
+   350→
+   351→  return (
+   352→    <div className="space-y-4">
+   353→      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+   354→        {services.map((svc) => {
+   355→          const status = (health?.info as Record<string, { status: string }>)?.[svc.key]?.status || 'up';
+   356→          const isUp = status === 'up';
+   357→          return (
+   358→            <div key={svc.key} className="rounded-xl border border-border bg-card p-4">
+   359→              <div className="flex items-center justify-between">
+   360→                <div className="flex items-center gap-3">
+   361→                  <div className={cn('rounded-lg p-2', isUp ? 'bg-emerald-500/15' : 'bg-red-500/15')}>
+   362→                    <svc.icon className={cn('h-4 w-4', isUp ? 'text-emerald-400' : 'text-red-400')} />
+   363→                  </div>
+   364→                  <div>
+   365→                    <h4 className="text-sm font-semibold text-foreground">{svc.name}</h4>
+   366→                    <p className="text-[10px] text-muted-foreground">Port {svc.port}</p>
+   367→                  </div>
+   368→                </div>
+   369→                <div className={cn('flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold',
+   370→                  isUp ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+   371→                )}>
+   372→                  <div className={cn('h-1.5 w-1.5 rounded-full', isUp ? 'bg-emerald-400' : 'bg-red-400')} />
+   373→                  {isUp ? 'ONLINE' : 'OFFLINE'}
+   374→                </div>
+   375→              </div>
+   376→              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+   377→                <div className="rounded-lg bg-background/50 p-2">
+   378→                  <p className="text-[10px] text-muted-foreground">Status</p>
+   379→                  <p className={cn('text-xs font-bold', isUp ? 'text-emerald-400' : 'text-red-400')}>{status.toUpperCase()}</p>
+   380→                </div>
+   381→                <div className="rounded-lg bg-background/50 p-2">
+   382→                  <p className="text-[10px] text-muted-foreground">Latency</p>
+   383→                  <p className="text-xs font-bold text-foreground">—</p>
+   384→                </div>
+   385→                <div className="rounded-lg bg-background/50 p-2">
+   386→                  <p className="text-[10px] text-muted-foreground">Conns</p>
+   387→                  <p className="text-xs font-bold text-foreground">—</p>
+   388→                </div>
+   389→              </div>
+   390→            </div>
+   391→          );
+   392→        })}
+   393→      </div>
+   394→
+   395→      {/* Infrastructure Metrics */}
+   396→      <div className="rounded-xl border border-border bg-card p-4">
+   397→        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Resource Usage</h4>
+   398→        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+   399→          {[
+   400→            { label: 'CPU Usage', value: health?.info?.memory_heap ? Math.min(Math.round(((health.info.memory_heap as Record<string, { percent?: number }>)?.heapUsed?.percent ?? 0)), 100) : 0, max: 100, unit: '%', color: '#3b82f6' },
+   401→            { label: 'Memory', value: health?.info?.memory_heap ? Math.min(Math.round(((health.info.memory_heap as Record<string, { percent?: number }>)?.heapTotal?.percent ?? 0)), 100) : 0, max: 100, unit: '%', color: '#f59e0b' },
+   402→            { label: 'Disk I/O', value: 0, max: 100, unit: '%', color: '#22c55e' },
+   403→            { label: 'Network', value: 0, max: 100, unit: 'Mbps', color: '#8b5cf6' },
+   404→          ].map((metric) => (
+   405→            <div key={metric.label}>
+   406→              <div className="flex items-center justify-between text-[10px] mb-1">
+   407→                <span className="text-muted-foreground">{metric.label}</span>
+   408→                <span className="text-foreground font-medium">{metric.value}{metric.unit}</span>
+   409→              </div>
+   410→              <div className="h-2 rounded-full bg-border overflow-hidden">
+   411→                <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${metric.value}%`, backgroundColor: metric.color }} />
+   412→              </div>
+   413→            </div>
+   414→          ))}
+   415→        </div>
+   416→      </div>
+   417→    </div>
+   418→  );
+   419→}
+   420→
+   421→// ─── Security Tab ────────────────────────────────────────────────
+   422→function SecurityTab() {
+   423→  const [securityFeatures, setSecurityFeatures] = useState([
+   424→    { title: 'JWT Authentication', desc: 'Token-based auth with refresh', enabled: true, icon: Key },
+   425→    { title: 'Rate Limiting', desc: 'Redis-backed per-cluster limits', enabled: true, icon: Shield },
+   426→    { title: 'CORS Protection', desc: 'Cross-origin security middleware', enabled: true, icon: Globe },
+   427→    { title: 'Account Lockout', desc: 'Brute-force prevention', enabled: true, icon: Lock },
+   428→    { title: 'Circuit Breakers', desc: '30 pre-registered circuits', enabled: true, icon: Zap },
+   429→    { title: 'IP Access Control', desc: 'Whitelist/blacklist support', enabled: false, icon: Network },
+   430→  ]);
+   431→
+   432→  const toggleFeature = (index: number) => {
+   433→    setSecurityFeatures(prev => prev.map((f, i) => i === index ? { ...f, enabled: !f.enabled } : f));
+   434→  };
+   435→
+   436→  const [auditLogs, setAuditLogs] = useState<Array<{ time: string; action: string; user: string; status: string }>>([]);
+   437→  const [loadingAudit, setLoadingAudit] = useState(true);
+   438→
+   439→  useEffect(() => {
+   440→    async function fetchAuditLogs() {
+   441→      try {
+   442→        const res = await fetch('/api/v1/security/audit/logs?limit=20', {
+   443→          headers: getAuthHeaders(),
+   444→          credentials: 'include',
+   445→        });
+   446→        if (res.ok) {
+   447→          const data = await res.json();
+   448→          setAuditLogs(data.data || data || []);
+   449→        }
+   450→      } catch {
+   451→        setAuditLogs([]);
+   452→      } finally {
+   453→        setLoadingAudit(false);
+   454→      }
+   455→    }
+   456→    fetchAuditLogs();
+   457→  }, []);
+   458→
+   459→  // Fetch security metrics from the backend API
+   460→  const [securityMetrics, setSecurityMetrics] = useState([
+   461→    { label: 'Threat Level', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+   462→    { label: 'Active Sessions', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+   463→    { label: 'Failed Logins (24h)', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+   464→    { label: 'Blocked IPs', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+   465→  ]);
+   466→
+   467→  useEffect(() => {
+   468→    async function fetchSecurityMetrics() {
+   469→      try {
+   470→        const [lockoutRes, sessionsRes, ipRes] = await Promise.allSettled([
+   471→          fetch('/api/v1/security/lockout/stats', { headers: getAuthHeaders(), credentials: 'include' }),
+   472→          fetch('/api/v1/security/tokens/sessions', { headers: getAuthHeaders(), credentials: 'include' }),
+   473→          fetch('/api/v1/security/threats/ip-reputations', { headers: getAuthHeaders(), credentials: 'include' }),
+   474→        ]);
+   475→
+   476→        let lockedCount = 0;
+   477→        let sessionCount = 0;
+   478→        let blockedCount = 0;
+   479→
+   480→        if (lockoutRes.status === 'fulfilled' && lockoutRes.value.ok) {
+   481→          const data = await lockoutRes.value.json();
+   482→          lockedCount = data.totalLockedAccounts || 0;
+   483→        }
+   484→        if (sessionsRes.status === 'fulfilled' && sessionsRes.value.ok) {
+   485→          const data = await sessionsRes.value.json();
+   486→          sessionCount = Array.isArray(data) ? data.length : 0;
+   487→        }
+   488→        if (ipRes.status === 'fulfilled' && ipRes.value.ok) {
+   489→          const data = await ipRes.value.json();
+   490→          blockedCount = Array.isArray(data) ? data.filter((ip: { autoBlocked: boolean }) => ip.autoBlocked).length : 0;
+   491→        }
+   492→
+   493→        const threatLevel = lockedCount === 0 && blockedCount === 0 ? 'LOW' : lockedCount > 3 || blockedCount > 5 ? 'HIGH' : 'MEDIUM';
+   494→        const threatColor = threatLevel === 'LOW' ? 'text-emerald-400' : threatLevel === 'HIGH' ? 'text-red-400' : 'text-amber-400';
+   495→        const threatBg = threatLevel === 'LOW' ? 'bg-emerald-500/15' : threatLevel === 'HIGH' ? 'bg-red-500/15' : 'bg-amber-500/15';
+   496→
+   497→        setSecurityMetrics([
+   498→          { label: 'Threat Level', value: threatLevel, color: threatColor, bgColor: threatBg },
+   499→          { label: 'Active Sessions', value: String(sessionCount), color: 'text-primary', bgColor: 'bg-primary/15' },
+   500→          { label: 'Failed Logins (24h)', value: String(lockedCount), color: lockedCount > 0 ? 'text-amber-400' : 'text-emerald-400', bgColor: lockedCount > 0 ? 'bg-amber-500/15' : 'bg-emerald-500/15' },
+   501→          { label: 'Blocked IPs', value: String(blockedCount), color: blockedCount > 0 ? 'text-red-400' : 'text-emerald-400', bgColor: blockedCount > 0 ? 'bg-red-500/15' : 'bg-emerald-500/15' },
+   502→        ]);
+   503→      } catch {
+   504→        // Keep default placeholder metrics
+   505→      }
+   506→    }
+   507→    fetchSecurityMetrics();
+   508→  }, []);
+   509→
+   510→  return (
+   511→    <div className="space-y-4">
+   512→      {/* Security KPIs */}
+   513→      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+   514→        {securityMetrics.map((m) => (
+   515→          <div key={m.label} className="rounded-xl border border-border bg-card p-4">
+   516→            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{m.label}</p>
+   517→            <p className={cn('mt-1 text-2xl font-bold', m.color)}>{m.value}</p>
+   518→          </div>
+   519→        ))}
+   520→      </div>
+   521→
+   522→      {/* Security Features */}
+   523→      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+   524→        {securityFeatures.map((feature, idx) => (
+   525→          <div key={feature.title} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+   526→            <div className="flex items-center gap-3">
+   527→              <div className={cn('rounded-lg p-2', feature.enabled ? 'bg-emerald-500/15' : 'bg-slate-500/15')}>
+   528→                <feature.icon className={cn('h-4 w-4', feature.enabled ? 'text-emerald-400' : 'text-slate-400')} />
+   529→              </div>
+   530→              <div>
+   531→                <h4 className="text-sm font-medium text-foreground">{feature.title}</h4>
+   532→                <p className="text-[10px] text-muted-foreground">{feature.desc}</p>
+   533→              </div>
+   534→            </div>
+   535→            <button
+   536→              onClick={() => toggleFeature(idx)}
+   537→              title="Visual indicator only — changes are not persisted to backend"
+   538→              className={cn('h-5 w-9 rounded-full p-0.5 transition-colors cursor-pointer',
+   539→                feature.enabled ? 'bg-emerald-500' : 'bg-border'
+   540→              )}>
+   541→              <div className={cn('h-4 w-4 rounded-full bg-white transition-transform',
+   542→                feature.enabled ? 'translate-x-4' : 'translate-x-0'
+   543→              )} />
+   544→            </button>
+   545→          </div>
+   546→        ))}
+   547→      </div>
+   548→
+   549→      {/* Audit Log */}
+   550→      <div className="rounded-xl border border-border bg-card p-4">
+   551→        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Recent Audit Log</h4>
+   552→        <div className="space-y-2 max-h-64 overflow-y-auto">
+   553→          {loadingAudit ? (
+   554→            <p className="text-xs text-muted-foreground text-center py-4">Loading audit logs...</p>
+   555→          ) : auditLogs.length === 0 ? (
+   556→            <p className="text-xs text-muted-foreground text-center py-4">No audit logs available</p>
+   557→          ) : (
+   558→            auditLogs.map((log, i) => (
+   559→              <div key={i} className="flex items-center justify-between rounded-lg bg-background/50 px-3 py-2">
+   560→                <div className="flex items-center gap-3">
+   561→                  <span className="text-[10px] text-muted-foreground w-16">{log.time}</span>
+   562→                  <span className="text-xs text-foreground">{log.action}</span>
+   563→                </div>
+   564→                <div className="flex items-center gap-2">
+   565→                  <span className="text-[10px] text-muted-foreground">{log.user}</span>
+   566→                  <span className={cn('rounded-full px-1.5 py-0.5 text-[9px] font-semibold',
+   567→                    log.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+   568→                  )}>{log.status.toUpperCase()}</span>
+   569→                </div>
+   570→              </div>
+   571→            ))
+   572→          )}
+   573→        </div>
+   574→      </div>
+   575→    </div>
+   576→  );
+   577→}
+   578→
+   579→// ─── Users Tab ───────────────────────────────────────────────────
+   580→function UsersTab() {
+   581→  const [users, setUsers] = useState<Array<{ id: string; email: string; firstName: string; lastName: string; role: string; status: string; lastLogin: string; tenant: string }>>([]);
+   582→  const [loadingUsers, setLoadingUsers] = useState(true);
+   583→
+   584→  useEffect(() => {
+   585→    async function fetchUsers() {
+   586→      try {
+   587→        const res = await fetch('/api/v1/users?limit=50', {
+   588→          headers: getAuthHeaders(),
+   589→          credentials: 'include',
+   590→        });
+   591→        if (res.ok) {
+   592→          const data = await res.json();
+   593→          setUsers(data.data || data || []);
+   594→        }
+   595→      } catch {
+   596→        setUsers([]);
+   597→      } finally {
+   598→        setLoadingUsers(false);
+   599→      }
+   600→    }
+   601→    fetchUsers();
+   602→  }, []);
+   603→
+   604→  const roleColors: Record<string, string> = {
+   605→    super_admin: 'bg-red-500/20 text-red-400 border-red-500/30',
+   606→    admin: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+   607→    operator: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+   608→    viewer: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+   609→  };
+   610→
+   611→  return (
+   612→    <div className="space-y-4">
+   613→      <div className="flex items-center justify-between">
+   614→        <p className="text-sm text-muted-foreground">{users.length} users registered</p>
+   615→        <button
+   616→          disabled
+   617→          title="User management coming soon"
+   618→          className="flex items-center gap-1.5 rounded-lg bg-primary/50 px-3 py-2 text-xs font-medium text-primary-foreground/70 cursor-not-allowed"
+   619→        >
+   620→          <Users className="h-3.5 w-3.5" /> Add User
+   621→        </button>
+   622→      </div>
+   623→
+   624→      {loadingUsers ? (
+   625→        <div className="animate-shimmer h-48 rounded-xl" />
+   626→      ) : users.length === 0 ? (
+   627→        <div className="rounded-xl border border-border bg-card p-8 text-center">
+   628→          <Users className="mx-auto h-8 w-8 text-muted-foreground/30" />
+   629→          <p className="mt-2 text-sm text-muted-foreground">No users found</p>
+   630→          <p className="text-xs text-muted-foreground/60">Users will appear here once registered</p>
+   631→        </div>
+   632→      ) : (
+   633→        <div className="space-y-2">
+   634→          {users.map((user) => (
+   635→            <div key={user.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+   636→              <div className="flex items-center gap-3">
+   637→                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-sm font-bold text-primary">
+   638→                  {user.firstName?.[0] || user.email?.[0] || '?'}
+   639→                </div>
+   640→                <div>
+   641→                  <h4 className="text-sm font-medium text-foreground">{user.firstName ? `${user.firstName} ${user.lastName}` : user.email}</h4>
+   642→                  <p className="text-[10px] text-muted-foreground">{user.email}</p>
+   643→                </div>
+   644→              </div>
+   645→              <div className="flex items-center gap-3">
+   646→                <span className="text-[10px] text-muted-foreground">Tenant: {user.tenant}</span>
+   647→                <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold', roleColors[user.role] || 'bg-slate-500/20 text-slate-400 border-slate-500/30')}>
+   648→                  {user.role}
+   649→                </span>
+   650→                <span className={cn('text-[10px]', user.status === 'active' ? 'text-emerald-400' : 'text-muted-foreground')}>
+   651→                  {user.status === 'active' ? '●' : '○'}
+   652→                </span>
+   653→              </div>
+   654→            </div>
+   655→          ))}
+   656→        </div>
+   657→      )}
+   658→    </div>
+   659→  );
+   660→}
+   661→
+   662→// ─── Config Tab ──────────────────────────────────────────────────
+   663→interface ConfigItem {
+   664→  key: string;
+   665→  value: string;
+   666→  type: 'secret' | 'text' | 'boolean' | 'number';
+   667→}
+   668→
+   669→function ConfigTab() {
+   670→  const [configs, setConfigs] = useState<{ category: string; items: ConfigItem[] }[]>([]);
+   671→  const [loading, setLoading] = useState(true);
+   672→  const [error, setError] = useState<string | null>(null);
+   673→
+   674→  useEffect(() => {
+   675→    async function fetchConfig() {
+   676→      try {
+   677→        const res = await fetch('/api/v1/admin/config', {
+   678→          headers: getAuthHeaders(),
+   679→          credentials: 'include',
+   680→        });
+   681→        if (res.ok) {
+   682→          const data = await res.json();
+   683→          setConfigs(data.data || data.categories || []);
+   684→          setError(null);
+   685→        } else {
+   686→          setError('Configuration endpoint unavailable');
+   687→          setConfigs([]);
+   688→        }
+   689→      } catch {
+   690→        setError('Connect to backend for configuration');
+   691→        setConfigs([]);
+   692→      } finally {
+   693→        setLoading(false);
+   694→      }
+   695→    }
+   696→    fetchConfig();
+   697→  }, []);
+   698→
+   699→  if (loading) {
+   700→    return <div className="animate-shimmer h-96 rounded-xl" />;
+   701→  }
+   702→
+   703→  if (error || configs.length === 0) {
+   704→    return (
+   705→      <div className="space-y-4">
+   706→        <div className="rounded-xl border border-border bg-card p-8 text-center">
+   707→          <Settings className="mx-auto h-8 w-8 text-muted-foreground/30" />
+   708→          <p className="mt-3 text-sm text-muted-foreground">
+   709→            {error || 'No configuration data available'}
+   710→          </p>
+   711→          <p className="mt-1 text-xs text-muted-foreground/60">
+   712→            Connect to the backend API to load platform configuration
+   713→          </p>
+   714→        </div>
+   715→      </div>
+   716→    );
+   717→  }
+   718→
+   719→  return (
+   720→    <div className="space-y-4">
+   721→      {configs.map((category) => (
+   722→        <div key={category.category} className="rounded-xl border border-border bg-card p-4">
+   723→          <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-3">{category.category}</h4>
+   724→          <div className="space-y-2">
+   725→            {category.items.map((item) => (
+   726→              <div key={item.key} className="flex items-center justify-between rounded-lg bg-background/50 px-3 py-2">
+   727→                <div className="flex items-center gap-3">
+   728→                  <span className="text-[10px] font-mono text-muted-foreground">{item.key}</span>
+   729→                </div>
+   730→                <div className="flex items-center gap-2">
+   731→                  {item.type === 'secret' ? (
+   732→                    <span className="text-xs font-mono text-muted-foreground">••••••••</span>
+   733→                  ) : item.type === 'boolean' ? (
+   734→                    <div className={cn('h-5 w-9 rounded-full p-0.5 cursor-pointer', item.value === 'true' ? 'bg-emerald-500' : 'bg-border')}>
+   735→                      <div className={cn('h-4 w-4 rounded-full bg-white transition-transform', item.value === 'true' ? 'translate-x-4' : 'translate-x-0')} />
+   736→                    </div>
+   737→                  ) : (
+   738→                    <span className="text-xs font-mono text-foreground">{item.value}</span>
+   739→                  )}
+   740→                  <button disabled title="Config editing coming soon" className="p-1 rounded text-muted-foreground/40 cursor-not-allowed">
+   741→                    <Settings className="h-3 w-3" />
+   742→                  </button>
+   743→                </div>
+   744→              </div>
+   745→            ))}
+   746→          </div>
+   747→        </div>
+   748→      ))}
+   749→
+   750→      <div className="flex items-center gap-3">
+   751→        <button
+   752→          disabled
+   753→          title="Configuration save coming soon"
+   754→          className="flex items-center gap-1.5 rounded-lg bg-primary/50 px-4 py-2 text-xs font-medium text-primary-foreground/70 cursor-not-allowed"
+   755→        >
+   756→          <Upload className="h-3.5 w-3.5" /> Save Configuration
+   757→        </button>
+   758→        <button
+   759→          disabled
+   760→          title="Configuration export coming soon"
+   761→          className="flex items-center gap-1.5 rounded-lg border border-border/50 px-4 py-2 text-xs font-medium text-muted-foreground cursor-not-allowed"
+   762→        >
+   763→          <Download className="h-3.5 w-3.5" /> Export
+   764→        </button>
+   765→      </div>
+   766→    </div>
+   767→  );
+   768→}
+   769→
+   770→// ─── Analytics Tab ───────────────────────────────────────────────
+   771→function AnalyticsTab() {
+   772→  const { data: stats } = useAgentStats();
+   773→  // NOTE: 30-day historical trends require a dedicated analytics/time-series API.
+   774→  // Until one is available, we show the current snapshot only at the most recent data point,
+   775→  // so the chart structure renders without misleading fake trends.
+   776→  const usageData = Array.from({ length: 30 }, (_, i) => ({
+   777→    day: `Day ${i + 1}`,
+   778→    missions: i === 29 && stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.activeAgents, 0) : 0,
+   779→    tasks: i === 29 && stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.idleAgents, 0) : 0,
+   780→    errors: i === 29 && stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.errorAgents, 0) : 0,
+   781→  }));
+   782→
+   783→  const clusterPerformance = (stats || []).map((cs) => ({
+   784→    name: cs.cluster.replace(/-/g, ' ').substring(0, 10),
+   785→    avgResponseTime: 0,
+   786→    successRate: cs.totalAgents > 0 ? Math.round((cs.activeAgents / cs.totalAgents) * 100) : 0,
+   787→    throughput: cs.totalAgents,
+   788→  }));
+   789→
+   790→  return (
+   791→    <div className="space-y-4">
+   792→      {/* 30-Day Usage */}
+   793→      <div className="rounded-xl border border-border bg-card p-4">
+   794→        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">30-Day Usage Trends</h4>
+   795→        <ResponsiveContainer width="100%" height={220}>
+   796→          <AreaChart data={usageData}>
+   797→            <defs>
+   798→              <linearGradient id="analyticsMissions" x1="0" y1="0" x2="0" y2="1">
+   799→                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+   800→                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+   801→              </linearGradient>
+   802→            </defs>
+   803→            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   804→            <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} interval={4} />
+   805→            <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} />
+   806→            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 11 }} />
+   807→            <Area type="monotone" dataKey="tasks" stroke="#22c55e" fillOpacity={0} strokeWidth={1.5} />
+   808→            <Area type="monotone" dataKey="missions" stroke="#3b82f6" fill="url(#analyticsMissions)" strokeWidth={2} />
+   809→          </AreaChart>
+   810→        </ResponsiveContainer>
+   811→      </div>
+   812→
+   813→      {/* Cluster Performance Comparison */}
+   814→      <div className="rounded-xl border border-border bg-card p-4">
+   815→        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Cluster Performance</h4>
+   816→        <ResponsiveContainer width="100%" height={220}>
+   817→          <BarChart data={clusterPerformance}>
+   818→            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   819→            <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 8 }} tickLine={false} angle={-30} textAnchor="end" height={50} />
+   820→            <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} />
+   821→            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 11 }} />
+   822→            <Bar dataKey="successRate" fill="#22c55e" radius={[4, 4, 0, 0]} barSize={12} name="Success %" />
+   823→            <Bar dataKey="throughput" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={12} name="Throughput" />
+   824→          </BarChart>
+   825→        </ResponsiveContainer>
+   826→      </div>
+   827→
+   828→      {/* Error Rate */}
+   829→      <div className="rounded-xl border border-border bg-card p-4">
+   830→        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-3">Daily Errors</h4>
+   831→        <ResponsiveContainer width="100%" height={150}>
+   832→          <LineChart data={usageData}>
+   833→            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   834→            <XAxis dataKey="day" tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} interval={4} />
+   835→            <YAxis tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} />
+   836→            <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 11 }} />
+   837→            <Line type="monotone" dataKey="errors" stroke="#ef4444" strokeWidth={2} dot={false} />
+   838→          </LineChart>
+   839→        </ResponsiveContainer>
+   840→      </div>
+   841→    </div>
+   842→  );
+   843→}
+   844→
+   845→// ═══════════════════════════════════════════════════════════════════
+   846→// MAIN ADMIN PAGE
+   847→// ═══════════════════════════════════════════════════════════════════
+   848→export default function AdminPage() {
+   849→  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+   850→
+   851→  return (
+   852→    <div className="space-y-6 animate-slide-in">
+   853→      {/* Page Header */}
+   854→      <div className="flex items-center justify-between">
+   855→        <div>
+   856→          <h1 className="text-xl font-bold text-foreground">Admin Panel</h1>
+   857→          <p className="text-xs text-muted-foreground">Full platform control & monitoring</p>
+   858→        </div>
+   859→        <div className="flex items-center gap-2">
+   860→          <button
+   861→            disabled
+   862→            title="Report export coming soon"
+   863→            className="flex items-center gap-1.5 rounded-lg border border-border/50 px-3 py-2 text-xs text-muted-foreground/50 cursor-not-allowed"
+   864→          >
+   865→            <Download className="h-3.5 w-3.5" /> Export Report
+   866→          </button>
+   867→          <button
+   868→            onClick={() => window.location.reload()}
+   869→            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+   870→          >
+   871→            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+   872→          </button>
+   873→        </div>
+   874→      </div>
+   875→
+   876→      {/* Tab Navigation */}
+   877→      <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
+   878→        {tabs.map((tab) => (
+   879→          <button
+   880→            key={tab.id}
+   881→            onClick={() => setActiveTab(tab.id)}
+   882→            className={cn(
+   883→              'flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all whitespace-nowrap',
+   884→              activeTab === tab.id
+   885→                ? 'bg-primary/15 text-primary'
+   886→                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+   887→            )}
+   888→          >
+   889→            <tab.icon className="h-3.5 w-3.5" />
+   890→            {tab.label}
+   891→          </button>
+   892→        ))}
+   893→      </div>
+   894→
+   895→      {/* Tab Content */}
+   896→      {activeTab === 'overview' && <OverviewTab />}
+   897→      {activeTab === 'agents' && <AgentsTab />}
+   898→      {activeTab === 'missions' && <MissionsTab />}
+   899→      {activeTab === 'infrastructure' && <InfrastructureTab />}
+   900→      {activeTab === 'security' && <SecurityTab />}
+   901→      {activeTab === 'users' && <UsersTab />}
+   902→      {activeTab === 'config' && <ConfigTab />}
+   903→      {activeTab === 'analytics' && <AnalyticsTab />}
+   904→    </div>
+   905→  );
+   906→}
+   907→

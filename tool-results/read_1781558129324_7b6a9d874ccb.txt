@@ -1,0 +1,738 @@
+     1→import { Injectable, Logger, Optional } from '@nestjs/common';
+     2→import { ConfigService } from '@nestjs/config';
+     3→import {
+     4→  ILLMProvider,
+     5→  LLMMessage,
+     6→  LLMOptions,
+     7→  LLMResponse,
+     8→} from './interfaces/llm-provider.interface';
+     9→import { OpenAIProvider } from './providers/openai.provider';
+    10→import { AnthropicProvider } from './providers/anthropic.provider';
+    11→import { ZAIProvider } from './providers/zai.provider';
+    12→import { DeadHostCooldownService } from './services/dead-host-cooldown.service';
+    13→import { LLMCacheService } from './services/llm-cache.service';
+    14→import {
+    15→  CircuitBreakerService,
+    16→  CircuitBreakerOpenError,
+    17→  CIRCUIT_KEY_PREFIX,
+    18→} from '../agent-framework/services/circuit-breaker.service';
+    19→
+    20→/**
+    21→ * Usage metrics tracked per provider.
+    22→ */
+    23→interface ProviderMetrics {
+    24→  totalRequests: number;
+    25→  successfulRequests: number;
+    26→  failedRequests: number;
+    27→  totalPromptTokens: number;
+    28→  totalCompletionTokens: number;
+    29→  totalTokens: number;
+    30→  lastRequestAt: Date | null;
+    31→  lastError: string | null;
+    32→}
+    33→
+    34→/**
+    35→ * Available provider info returned by listProviders().
+    36→ */
+    37→export interface ProviderInfo {
+    38→  name: string;
+    39→  available: boolean;
+    40→  metrics: ProviderMetrics;
+    41→  circuitState?: string;
+    42→  inCooldown?: boolean;
+    43→}
+    44→
+    45→/**
+    46→ * Streaming chunk emitted during a streaming chat request.
+    47→ */
+    48→export interface LLMStreamChunk {
+    49→  content: string;
+    50→  model: string;
+    51→  finishReason: string | null;
+    52→  usage?: {
+    53→    promptTokens: number;
+    54→    completionTokens: number;
+    55→    totalTokens: number;
+    56→  };
+    57→}
+    58→
+    59→/**
+    60→ * LLMService — facade that selects and manages LLM providers.
+    61→ *
+    62→ * Features:
+    63→ * - Chat with a specific provider or the configured default
+    64→ * - Automatic fallback to secondary provider when primary fails
+    65→ * - Per-provider usage metrics tracking
+    66→ * - Circuit breaker integration — each provider call is wrapped in a circuit breaker
+    67→ * - Dead host cooldown — failed hosts are temporarily removed from rotation
+    68→ * - Response caching — identical requests are served from cache
+    69→ * - Streaming support — async generator for real-time token delivery
+    70→ * - Graceful degradation — never throws when LLM is unavailable
+    71→ *
+    72→ * Circuit Breaker Integration:
+    73→ * - Circuit key: `llm:{providerName}`
+    74→ * - On OPEN: automatically tries fallback provider
+    75→ * - On HALF_OPEN: allows a probe request through to test recovery
+    76→ *
+    77→ * Dead Host Cooldown Integration:
+    78→ * - Tracks consecutive failures per provider host
+    79→ * - After 2 consecutive failures, the host enters a 20s cooldown
+    80→ * - Cooldown is automatically cleared on expiry or on success
+    81→ *
+    82→ * Cache Integration:
+    83→ * - SHA256-based cache key derived from (model, messages hash, temperature, maxTokens)
+    84→ * - TTL-based expiration (default 5 minutes)
+    85→ * - LRU eviction when max cache size is reached
+    86→ * - Cache is bypassed for streaming requests
+    87→ */
+    88→@Injectable()
+    89→export class LLMService {
+    90→  private readonly logger = new Logger(LLMService.name);
+    91→  private readonly providers: Map<string, ILLMProvider> = new Map();
+    92→  private readonly metrics: Map<string, ProviderMetrics> = new Map();
+    93→  private readonly defaultProviderName: string;
+    94→  private readonly fallbackEnabled: boolean;
+    95→  private readonly secondaryProviderName: string;
+    96→  private readonly cacheEnabled: boolean;
+    97→
+    98→  constructor(
+    99→    private readonly configService: ConfigService,
+   100→    private readonly zaiProvider: ZAIProvider,
+   101→    private readonly openaiProvider: OpenAIProvider,
+   102→    private readonly anthropicProvider: AnthropicProvider,
+   103→    @Optional() private readonly circuitBreakerService: CircuitBreakerService,
+   104→    @Optional() private readonly deadHostCooldownService: DeadHostCooldownService,
+   105→    @Optional() private readonly cacheService: LLMCacheService,
+   106→  ) {
+   107→    // Register providers — ZAI is the primary provider (always available)
+   108→    this.providers.set(zaiProvider.name, zaiProvider);
+   109→    this.providers.set(openaiProvider.name, openaiProvider);
+   110→    this.providers.set(anthropicProvider.name, anthropicProvider);
+   111→
+   112→    // Initialize metrics
+   113→    for (const name of this.providers.keys()) {
+   114→      this.metrics.set(name, {
+   115→        totalRequests: 0,
+   116→        successfulRequests: 0,
+   117→        failedRequests: 0,
+   118→        totalPromptTokens: 0,
+   119→        totalCompletionTokens: 0,
+   120→        totalTokens: 0,
+   121→        lastRequestAt: null,
+   122→        lastError: null,
+   123→      });
+   124→    }
+   125→
+   126→    // Configuration
+   127→    this.defaultProviderName = this.configService.get<string>(
+   128→      'llm.defaultProvider',
+   129→      'zai',
+   130→    );
+   131→    this.fallbackEnabled = this.configService.get<boolean>(
+   132→      'llm.fallback.enabled',
+   133→      false,
+   134→    );
+   135→    this.secondaryProviderName = this.configService.get<string>(
+   136→      'llm.fallback.secondaryProvider',
+   137→      'anthropic',
+   138→    );
+   139→    this.cacheEnabled = this.configService.get<boolean>(
+   140→      'llm.cache.enabled',
+   141→      true,
+   142→    );
+   143→
+   144→    this.logger.log(
+   145→      `LLM Service initialized — default: ${this.defaultProviderName}, ` +
+   146→        `fallback: ${this.fallbackEnabled ? this.secondaryProviderName : 'disabled'}, ` +
+   147→        `circuit breaker: ${this.circuitBreakerService ? 'enabled' : 'disabled'}, ` +
+   148→        `dead host cooldown: ${this.deadHostCooldownService ? 'enabled' : 'disabled'}, ` +
+   149→        `cache: ${this.cacheService && this.cacheEnabled ? 'enabled' : 'disabled'}`,
+   150→    );
+   151→  }
+   152→
+   153→  /**
+   154→   * Send a chat request using a specific provider (or the default).
+   155→   * If the primary provider fails and fallback is enabled, tries the secondary.
+   156→   * Each provider call is wrapped in a circuit breaker (when available).
+   157→   *
+   158→   * Cache: If caching is enabled, identical requests will be served from cache
+   159→   * unless options.skipCache is true.
+   160→   */
+   161→  async chat(
+   162→    messages: LLMMessage[],
+   163→    options?: LLMOptions & { skipCache?: boolean },
+   164→    providerName?: string,
+   165→  ): Promise<LLMResponse> {
+   166→    const targetName = providerName || this.defaultProviderName;
+   167→    const provider = this.getProvider(targetName);
+   168→
+   169→    if (!provider) {
+   170→      throw new Error(`LLM provider not found: ${targetName}`);
+   171→    }
+   172→
+   173→    // Check dead host cooldown
+   174→    if (this.deadHostCooldownService && !this.deadHostCooldownService.isAvailable(targetName)) {
+   175→      this.logger.warn(
+   176→        `Provider "${targetName}" is in cooldown — trying fallback or alternative`,
+   177→      );
+   178→      if (this.fallbackEnabled && targetName !== this.secondaryProviderName) {
+   179→        return this.chatWithFallback(messages, options, targetName);
+   180→      }
+   181→      throw new Error(
+   182→        `LLM provider "${targetName}" is in cooldown — try again later`,
+   183→      );
+   184→    }
+   185→
+   186→    if (!provider.isAvailable()) {
+   187→      // Mark as dead host
+   188→      if (this.deadHostCooldownService) {
+   189→        this.deadHostCooldownService.markFailed(targetName, 'Provider unavailable — API key not configured');
+   190→      }
+   191→
+   192→      // Try fallback if enabled
+   193→      if (this.fallbackEnabled) {
+   194→        this.logger.warn(
+   195→          `Provider "${targetName}" unavailable, trying fallback "${this.secondaryProviderName}"`,
+   196→        );
+   197→        return this.chatWithFallback(messages, options, targetName);
+   198→      }
+   199→      throw new Error(
+   200→        `LLM provider "${targetName}" is not available — API key not configured`,
+   201→      );
+   202→    }
+   203→
+   204→    // Check cache before making the request
+   205→    if (this.cacheService && this.cacheEnabled && !options?.skipCache) {
+   206→      const model = options?.model || this.getDefaultModel(targetName);
+   207→      const cacheKey = this.cacheService.buildKey(
+   208→        model,
+   209→        messages,
+   210→        options?.temperature,
+   211→        options?.maxTokens,
+   212→      );
+   213→      const cached = this.cacheService.get<LLMResponse>(cacheKey);
+   214→      if (cached) {
+   215→        this.logger.debug(`Cache hit for provider "${targetName}" — returning cached response`);
+   216→        return cached;
+   217→      }
+   218→    }
+   219→
+   220→    // Wrap the provider call with circuit breaker if available
+   221→    if (this.circuitBreakerService) {
+   222→      const circuitKey = `${CIRCUIT_KEY_PREFIX.LLM}:${targetName}`;
+   223→
+   224→      const response = await this.circuitBreakerService.execute<LLMResponse>(
+   225→        circuitKey,
+   226→        () => this.executeProviderChat(provider, targetName, messages, options),
+   227→        // Fallback: try secondary provider when circuit is OPEN
+   228→        this.fallbackEnabled && targetName !== this.secondaryProviderName
+   229→          ? () => this.chatWithFallback(messages, options, targetName)
+   230→          : undefined,
+   231→      );
+   232→
+   233→      // Store in cache on success
+   234→      this.storeInCache(targetName, messages, options, response);
+   235→      return response;
+   236→    }
+   237→
+   238→    // No circuit breaker — direct execution
+   239→    const response = await this.executeProviderChat(provider, targetName, messages, options);
+   240→    this.storeInCache(targetName, messages, options, response);
+   241→    return response;
+   242→  }
+   243→
+   244→  /**
+   245→   * Convenience method: chat with a system prompt and user message.
+   246→   */
+   247→  async chatWithSystem(
+   248→    systemPrompt: string,
+   249→    userMessage: string,
+   250→    options?: LLMOptions & { skipCache?: boolean },
+   251→    providerName?: string,
+   252→  ): Promise<LLMResponse> {
+   253→    const messages: LLMMessage[] = [
+   254→      { role: 'system', content: systemPrompt },
+   255→      { role: 'user', content: userMessage },
+   256→    ];
+   257→    return this.chat(messages, options, providerName);
+   258→  }
+   259→
+   260→  /**
+   261→   * Streaming chat — returns an async generator that yields chunks of the response.
+   262→   *
+   263→   * Note: Streaming bypasses the cache since partial responses aren't cacheable.
+   264→   * If a provider doesn't support streaming, the full response is yielded as a
+   265→   * single chunk.
+   266→   */
+   267→  async *chatStream(
+   268→    messages: LLMMessage[],
+   269→    options?: LLMOptions,
+   270→    providerName?: string,
+   271→  ): AsyncGenerator<LLMStreamChunk, void, undefined> {
+   272→    const targetName = providerName || this.defaultProviderName;
+   273→    const provider = this.getProvider(targetName);
+   274→
+   275→    if (!provider || !provider.isAvailable()) {
+   276→      // Try fallback
+   277→      if (this.fallbackEnabled && targetName !== this.secondaryProviderName) {
+   278→        const fallbackProvider = this.getProvider(this.secondaryProviderName);
+   279→        if (fallbackProvider?.isAvailable()) {
+   280→          yield* this.streamFromProvider(fallbackProvider, this.secondaryProviderName, messages, options);
+   281→          return;
+   282→        }
+   283→      }
+   284→      throw new Error(`LLM provider "${targetName}" is not available for streaming`);
+   285→    }
+   286→
+   287→    // Check dead host cooldown
+   288→    if (this.deadHostCooldownService && !this.deadHostCooldownService.isAvailable(targetName)) {
+   289→      throw new Error(`LLM provider "${targetName}" is in cooldown — try again later`);
+   290→    }
+   291→
+   292→    yield* this.streamFromProvider(provider, targetName, messages, options);
+   293→  }
+   294→
+   295→  /**
+   296→   * Returns the configured default provider.
+   297→   */
+   298→  getDefaultProvider(): ILLMProvider | null {
+   299→    return this.providers.get(this.defaultProviderName) || null;
+   300→  }
+   301→
+   302→  /**
+   303→   * Returns a specific provider by name.
+   304→   */
+   305→  getProvider(name: string): ILLMProvider | null {
+   306→    return this.providers.get(name) || null;
+   307→  }
+   308→
+   309→  /**
+   310→   * Lists all registered providers with their availability status and metrics.
+   311→   */
+   312→  listProviders(): ProviderInfo[] {
+   313→    const result: ProviderInfo[] = [];
+   314→    for (const [name, provider] of this.providers) {
+   315→      const info: ProviderInfo = {
+   316→        name,
+   317→        available: provider.isAvailable(),
+   318→        metrics: this.metrics.get(name) || this.emptyMetrics(),
+   319→      };
+   320→
+   321→      // Add circuit breaker state if available
+   322→      if (this.circuitBreakerService) {
+   323→        const circuitState = this.circuitBreakerService.getState(`${CIRCUIT_KEY_PREFIX.LLM}:${name}`);
+   324→        info.circuitState = circuitState.state;
+   325→      }
+   326→
+   327→      // Add cooldown state if available
+   328→      if (this.deadHostCooldownService) {
+   329→        info.inCooldown = !this.deadHostCooldownService.isAvailable(name);
+   330→      }
+   331→
+   332→      result.push(info);
+   333→    }
+   334→    return result;
+   335→  }
+   336→
+   337→  /**
+   338→   * Check if any LLM provider is available.
+   339→   * Considers circuit breaker state and dead host cooldown.
+   340→   */
+   341→  isAnyAvailable(): boolean {
+   342→    for (const [name, provider] of this.providers) {
+   343→      if (!provider.isAvailable()) continue;
+   344→
+   345→      // If circuit breaker is available, check if the circuit is OPEN
+   346→      if (this.circuitBreakerService) {
+   347→        const circuitKey = `${CIRCUIT_KEY_PREFIX.LLM}:${name}`;
+   348→        if (this.circuitBreakerService.isOpen(circuitKey)) {
+   349→          this.logger.debug(`Provider "${name}" is available but circuit is OPEN — skipping`);
+   350→          continue;
+   351→        }
+   352→      }
+   353→
+   354→      // If dead host cooldown is available, check if the host is in cooldown
+   355→      if (this.deadHostCooldownService && !this.deadHostCooldownService.isAvailable(name)) {
+   356→        this.logger.debug(`Provider "${name}" is available but in cooldown — skipping`);
+   357→        continue;
+   358→      }
+   359→
+   360→      return true;
+   361→    }
+   362→    return false;
+   363→  }
+   364→
+   365→  /**
+   366→   * Get the name of the default provider.
+   367→   */
+   368→  getDefaultProviderName(): string {
+   369→    return this.defaultProviderName;
+   370→  }
+   371→
+   372→  /**
+   373→   * Get cache statistics if cache is available.
+   374→   */
+   375→  getCacheStats(): Record<string, any> | null {
+   376→    if (!this.cacheService) return null;
+   377→    return this.cacheService.getStats();
+   378→  }
+   379→
+   380→  /**
+   381→   * Invalidate LLM cache entries matching a pattern.
+   382→   */
+   383→  invalidateCache(pattern: string = 'llm:*'): number {
+   384→    if (!this.cacheService) return 0;
+   385→    return this.cacheService.invalidate(pattern);
+   386→  }
+   387→
+   388→  // ─── Private Methods ─────────────────────────────────────────
+   389→
+   390→  /**
+   391→   * Execute a provider chat call with metrics tracking and dead host management.
+   392→   */
+   393→  private async executeProviderChat(
+   394→    provider: ILLMProvider,
+   395→    providerName: string,
+   396→    messages: LLMMessage[],
+   397→    options: LLMOptions | undefined,
+   398→  ): Promise<LLMResponse> {
+   399→    try {
+   400→      const response = await provider.chat(messages, options);
+   401→      this.recordSuccess(providerName, response);
+   402→
+   403→      // Mark host as healthy
+   404→      if (this.deadHostCooldownService) {
+   405→        this.deadHostCooldownService.markSuccess(providerName);
+   406→      }
+   407→
+   408→      return response;
+   409→    } catch (error: any) {
+   410→      this.recordFailure(providerName, error.message);
+   411→
+   412→      // Mark host as failed for cooldown tracking
+   413→      if (this.deadHostCooldownService) {
+   414→        this.deadHostCooldownService.markFailed(providerName, error.message);
+   415→      }
+   416→
+   417→      // Try fallback on failure (when NOT already in circuit breaker context)
+   418→      if (!this.circuitBreakerService && this.fallbackEnabled && providerName !== this.secondaryProviderName) {
+   419→        this.logger.warn(
+   420→          `Provider "${providerName}" failed, trying fallback "${this.secondaryProviderName}": ${error.message}`,
+   421→        );
+   422→        return this.chatWithFallback(messages, options, providerName);
+   423→      }
+   424→
+   425→      throw error;
+   426→    }
+   427→  }
+   428→
+   429→  /**
+   430→   * Attempt chat with the fallback provider.
+   431→   * Also wrapped in a circuit breaker when available.
+   432→   */
+   433→  private async chatWithFallback(
+   434→    messages: LLMMessage[],
+   435→    options: (LLMOptions & { skipCache?: boolean }) | undefined,
+   436→    failedProvider: string,
+   437→  ): Promise<LLMResponse> {
+   438→    const fallbackProvider = this.providers.get(this.secondaryProviderName);
+   439→
+   440→    if (!fallbackProvider) {
+   441→      throw new Error(
+   442→        `Fallback provider "${this.secondaryProviderName}" not found`,
+   443→      );
+   444→    }
+   445→
+   446→    // Check dead host cooldown for fallback
+   447→    if (this.deadHostCooldownService && !this.deadHostCooldownService.isAvailable(this.secondaryProviderName)) {
+   448→      throw new Error(
+   449→        `Both primary ("${failedProvider}") and fallback ("${this.secondaryProviderName}") are in cooldown`,
+   450→      );
+   451→    }
+   452→
+   453→    if (!fallbackProvider.isAvailable()) {
+   454→      if (this.deadHostCooldownService) {
+   455→        this.deadHostCooldownService.markFailed(this.secondaryProviderName, 'Fallback unavailable');
+   456→      }
+   457→      throw new Error(
+   458→        `Both primary ("${failedProvider}") and fallback ("${this.secondaryProviderName}") providers are unavailable`,
+   459→      );
+   460→    }
+   461→
+   462→    // Wrap fallback in its own circuit breaker
+   463→    if (this.circuitBreakerService) {
+   464→      const fallbackCircuitKey = `${CIRCUIT_KEY_PREFIX.LLM}:${this.secondaryProviderName}`;
+   465→
+   466→      try {
+   467→        const response = await this.circuitBreakerService.execute<LLMResponse>(
+   468→          fallbackCircuitKey,
+   469→          () => {
+   470→            const resp = fallbackProvider.chat(messages, options);
+   471→            return resp.then((r) => {
+   472→              this.recordSuccess(this.secondaryProviderName, r);
+   473→              if (this.deadHostCooldownService) {
+   474→                this.deadHostCooldownService.markSuccess(this.secondaryProviderName);
+   475→              }
+   476→              return r;
+   477→            });
+   478→          },
+   479→        );
+   480→
+   481→        // Store fallback result in cache
+   482→        this.storeInCache(this.secondaryProviderName, messages, options, response);
+   483→        return response;
+   484→      } catch (error: any) {
+   485→        if (error instanceof CircuitBreakerOpenError) {
+   486→          throw new Error(
+   487→            `Both primary ("${failedProvider}") and fallback ("${this.secondaryProviderName}") circuits are OPEN`,
+   488→          );
+   489→        }
+   490→        this.recordFailure(this.secondaryProviderName, error.message);
+   491→        if (this.deadHostCooldownService) {
+   492→          this.deadHostCooldownService.markFailed(this.secondaryProviderName, error.message);
+   493→        }
+   494→        throw error;
+   495→      }
+   496→    }
+   497→
+   498→    // No circuit breaker — direct fallback execution
+   499→    try {
+   500→      const response = await fallbackProvider.chat(messages, options);
+   501→      this.recordSuccess(this.secondaryProviderName, response);
+   502→      if (this.deadHostCooldownService) {
+   503→        this.deadHostCooldownService.markSuccess(this.secondaryProviderName);
+   504→      }
+   505→      this.storeInCache(this.secondaryProviderName, messages, options, response);
+   506→      return response;
+   507→    } catch (error: any) {
+   508→      this.recordFailure(this.secondaryProviderName, error.message);
+   509→      if (this.deadHostCooldownService) {
+   510→        this.deadHostCooldownService.markFailed(this.secondaryProviderName, error.message);
+   511→      }
+   512→      throw error;
+   513→    }
+   514→  }
+   515→
+   516→  /**
+   517→   * Stream from a provider, falling back to non-streaming if streaming isn't supported.
+   518→   */
+   519→  private async *streamFromProvider(
+   520→    provider: ILLMProvider,
+   521→    providerName: string,
+   522→    messages: LLMMessage[],
+   523→    options: LLMOptions | undefined,
+   524→  ): AsyncGenerator<LLMStreamChunk, void, undefined> {
+   525→    try {
+   526→      // Check if the provider supports streaming (OpenAI SDK has streaming)
+   527→      if (provider instanceof OpenAIProvider && (provider as any).client) {
+   528→        const client = (provider as any).client;
+   529→        const model = options?.model || this.configService.get<string>('llm.openai.model', 'gpt-4o');
+   530→        const maxTokens = options?.maxTokens || this.configService.get<number>('llm.openai.maxTokens', 4096);
+   531→        const temperature = options?.temperature ?? 0.7;
+   532→
+   533→        const openaiMessages = messages.map((m) => ({
+   534→          role: m.role,
+   535→          content: m.content,
+   536→        }));
+   537→
+   538→        const stream = await client.chat.completions.create({
+   539→          model,
+   540→          messages: openaiMessages,
+   541→          max_tokens: maxTokens,
+   542→          temperature,
+   543→          stream: true,
+   544→        });
+   545→
+   546→        let fullContent = '';
+   547→        for await (const chunk of stream) {
+   548→          const content = chunk.choices[0]?.delta?.content || '';
+   549→          if (content) {
+   550→            fullContent += content;
+   551→            yield {
+   552→              content,
+   553→              model: chunk.model || model,
+   554→              finishReason: null,
+   555→            };
+   556→          }
+   557→          if (chunk.choices[0]?.finish_reason) {
+   558→            yield {
+   559→              content: '',
+   560→              model: chunk.model || model,
+   561→              finishReason: chunk.choices[0].finish_reason,
+   562→              usage: chunk.usage
+   563→                ? {
+   564→                    promptTokens: chunk.usage.prompt_tokens ?? 0,
+   565→                    completionTokens: chunk.usage.completion_tokens ?? 0,
+   566→                    totalTokens: chunk.usage.total_tokens ?? 0,
+   567→                  }
+   568→                : undefined,
+   569→            };
+   570→          }
+   571→        }
+   572→
+   573→        // Record success for the full streaming response
+   574→        this.recordSuccess(providerName, {
+   575→          content: fullContent,
+   576→          model,
+   577→          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+   578→          finishReason: 'stop',
+   579→        });
+   580→
+   581→        if (this.deadHostCooldownService) {
+   582→          this.deadHostCooldownService.markSuccess(providerName);
+   583→        }
+   584→        return;
+   585→      }
+   586→
+   587→      if (provider instanceof AnthropicProvider && (provider as any).client) {
+   588→        const client = (provider as any).client;
+   589→        const model = options?.model || this.configService.get<string>('llm.anthropic.model', 'claude-sonnet-4-20250514');
+   590→        const maxTokens = options?.maxTokens || this.configService.get<number>('llm.anthropic.maxTokens', 4096);
+   591→        const temperature = options?.temperature ?? 0.7;
+   592→
+   593→        let systemPrompt: string | undefined;
+   594→        const anthropicMessages: any[] = [];
+   595→        for (const msg of messages) {
+   596→          if (msg.role === 'system') {
+   597→            systemPrompt = msg.content;
+   598→          } else {
+   599→            anthropicMessages.push({ role: msg.role, content: msg.content });
+   600→          }
+   601→        }
+   602→
+   603→        const stream = client.messages.stream({
+   604→          model,
+   605→          messages: anthropicMessages,
+   606→          max_tokens: maxTokens,
+   607→          temperature,
+   608→          ...(systemPrompt ? { system: systemPrompt } : {}),
+   609→        });
+   610→
+   611→        let fullContent = '';
+   612→        for await (const event of stream) {
+   613→          if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+   614→            const content = event.delta.text || '';
+   615→            fullContent += content;
+   616→            yield {
+   617→              content,
+   618→              model,
+   619→              finishReason: null,
+   620→            };
+   621→          }
+   622→          if (event.type === 'message_stop') {
+   623→            yield {
+   624→              content: '',
+   625→              model,
+   626→              finishReason: 'end_turn',
+   627→            };
+   628→          }
+   629→        }
+   630→
+   631→        this.recordSuccess(providerName, {
+   632→          content: fullContent,
+   633→          model,
+   634→          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+   635→          finishReason: 'end_turn',
+   636→        });
+   637→
+   638→        if (this.deadHostCooldownService) {
+   639→          this.deadHostCooldownService.markSuccess(providerName);
+   640→        }
+   641→        return;
+   642→      }
+   643→
+   644→      // Fallback: provider doesn't support streaming — make a regular call and yield as single chunk
+   645→      const response = await provider.chat(messages, options);
+   646→      this.recordSuccess(providerName, response);
+   647→      if (this.deadHostCooldownService) {
+   648→        this.deadHostCooldownService.markSuccess(providerName);
+   649→      }
+   650→
+   651→      yield {
+   652→        content: response.content,
+   653→        model: response.model,
+   654→        finishReason: response.finishReason,
+   655→        usage: response.usage,
+   656→      };
+   657→    } catch (error: any) {
+   658→      this.recordFailure(providerName, error.message);
+   659→      if (this.deadHostCooldownService) {
+   660→        this.deadHostCooldownService.markFailed(providerName, error.message);
+   661→      }
+   662→      throw error;
+   663→    }
+   664→  }
+   665→
+   666→  /**
+   667→   * Store a response in cache if caching is enabled.
+   668→   */
+   669→  private storeInCache(
+   670→    providerName: string,
+   671→    messages: LLMMessage[],
+   672→    options: (LLMOptions & { skipCache?: boolean }) | undefined,
+   673→    response: LLMResponse,
+   674→  ): void {
+   675→    if (!this.cacheService || !this.cacheEnabled || options?.skipCache) return;
+   676→
+   677→    try {
+   678→      const model = options?.model || this.getDefaultModel(providerName);
+   679→      const cacheKey = this.cacheService.buildKey(
+   680→        model,
+   681→        messages,
+   682→        options?.temperature,
+   683→        options?.maxTokens,
+   684→      );
+   685→      this.cacheService.set(cacheKey, response);
+   686→    } catch (err: any) {
+   687→      this.logger.debug(`Failed to store response in cache: ${err.message}`);
+   688→    }
+   689→  }
+   690→
+   691→  /**
+   692→   * Get the default model name for a given provider.
+   693→   */
+   694→  private getDefaultModel(providerName: string): string {
+   695→    if (providerName === 'openai') {
+   696→      return this.configService.get<string>('llm.openai.model', 'gpt-4o');
+   697→    }
+   698→    if (providerName === 'anthropic') {
+   699→      return this.configService.get<string>('llm.anthropic.model', 'claude-sonnet-4-20250514');
+   700→    }
+   701→    return 'unknown';
+   702→  }
+   703→
+   704→  private recordSuccess(providerName: string, response: LLMResponse): void {
+   705→    const metrics = this.metrics.get(providerName) || this.emptyMetrics();
+   706→    metrics.totalRequests++;
+   707→    metrics.successfulRequests++;
+   708→    metrics.totalPromptTokens += response.usage.promptTokens;
+   709→    metrics.totalCompletionTokens += response.usage.completionTokens;
+   710→    metrics.totalTokens += response.usage.totalTokens;
+   711→    metrics.lastRequestAt = new Date();
+   712→    metrics.lastError = null;
+   713→    this.metrics.set(providerName, metrics);
+   714→  }
+   715→
+   716→  private recordFailure(providerName: string, errorMessage: string): void {
+   717→    const metrics = this.metrics.get(providerName) || this.emptyMetrics();
+   718→    metrics.totalRequests++;
+   719→    metrics.failedRequests++;
+   720→    metrics.lastRequestAt = new Date();
+   721→    metrics.lastError = errorMessage;
+   722→    this.metrics.set(providerName, metrics);
+   723→  }
+   724→
+   725→  private emptyMetrics(): ProviderMetrics {
+   726→    return {
+   727→      totalRequests: 0,
+   728→      successfulRequests: 0,
+   729→      failedRequests: 0,
+   730→      totalPromptTokens: 0,
+   731→      totalCompletionTokens: 0,
+   732→      totalTokens: 0,
+   733→      lastRequestAt: null,
+   734→      lastError: null,
+   735→    };
+   736→  }
+   737→}
+   738→
