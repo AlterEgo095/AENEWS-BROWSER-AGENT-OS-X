@@ -286,14 +286,17 @@ export class CrossClusterCoordinatorService {
     const healthInfos: ClusterHealthInfo[] = [];
 
     for (const clusterType of Object.values(ClusterType)) {
-      const agents = this.registry.findByCluster(clusterType);
-      const available = agents.filter((a) => a.getStatus() === 'idle' || a.getStatus() === 'running');
+      const agents = this.registry.getByCluster(clusterType);
+      const available = agents.filter((a: BaseAgent) => a.getStatus() === 'idle' || a.getStatus() === 'running');
 
       const cached = this.clusterHealthCache.get(clusterType);
       let avgLoad = 0;
       if (this.healthService) {
-        const loads = agents.map((a) => this.healthService.getMetrics(a.name)?.load ?? 0);
-        avgLoad = loads.length > 0 ? loads.reduce((a, b) => a + b, 0) / loads.length : 0;
+        const loads = agents.map((a: BaseAgent) => {
+          const m = this.healthService.getMetrics(a.name);
+          return m ? (m.totalExecutions > 0 ? m.avgDurationMs / 1000 : 0) : 0;
+        });
+        avgLoad = loads.length > 0 ? loads.reduce((a: number, b: number) => a + b, 0) / loads.length : 0;
       }
 
       const info: ClusterHealthInfo = {
@@ -529,7 +532,7 @@ export class CrossClusterCoordinatorService {
     cluster: ClusterType,
     capabilities: string[],
   ): BaseAgent | null {
-    const agents = this.registry.findByCluster(cluster);
+    const agents = this.registry.getByCluster(cluster);
     let bestAgent: BaseAgent | null = null;
     let bestScore = -1;
 
@@ -538,7 +541,7 @@ export class CrossClusterCoordinatorService {
 
       // Capability matching
       const capMatch = capabilities.filter((cap) =>
-        agent.capabilities.some((ac) =>
+        agent.capabilities.some((ac: string) =>
           ac.toLowerCase().includes(cap.toLowerCase()) ||
           cap.toLowerCase().includes(ac.toLowerCase()),
         ),

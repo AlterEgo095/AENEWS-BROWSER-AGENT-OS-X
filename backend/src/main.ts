@@ -6,6 +6,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as helmet from 'helmet';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -25,7 +26,7 @@ async function bootstrap() {
   });
 
   // ─── Trust Proxy (for proper IP forwarding behind nginx) ───
-  app.enableTrustProxy();
+  (app as any).enableTrustProxy();
 
   // ─── Security Headers (helmet) ───
   app.use(helmet.default({
@@ -61,6 +62,9 @@ async function bootstrap() {
   // ─── CORS (explicit origin validation) ───
   const corsMiddleware = app.get(CorsSecurityMiddleware);
   app.enableCors(corsMiddleware.getCorsOptions());
+
+  // ─── Cookie Parser (required for httpOnly refresh token cookies) ───
+  app.use(cookieParser());
 
   // ─── Request Body Size Limit ───
   const expressApp = app.getHttpAdapter().getInstance();
@@ -110,8 +114,8 @@ async function bootstrap() {
   if (sentryService.isEnabled()) {
     try {
       const Sentry = await import('@sentry/node');
-      app.use(Sentry.Handlers.requestHandler());
-      app.use(Sentry.Handlers.tracingHandler());
+      app.use((Sentry as any).Handlers.requestHandler());
+      app.use((Sentry as any).Handlers.tracingHandler());
     } catch {
       // Sentry not available, continue without it
     }

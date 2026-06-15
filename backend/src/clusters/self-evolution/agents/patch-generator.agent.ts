@@ -239,8 +239,8 @@ export class PatchGeneratorAgent extends BaseAgent {
                       : { consistent: true },
           }));
 
-          const allPassed = results.every((r) => r.status === 'passed');
-          const failedChecks = results.filter((r) => r.status === 'failed');
+          const allPassed = results.every((r: { status: string }) => r.status === 'passed');
+          const failedChecks = results.filter((r: { status: string }) => r.status === 'failed');
 
           // ── Sandbox Integration: Run validation in sandbox ────────
           if (this.sandboxService && failedChecks.length === 0) {
@@ -260,9 +260,9 @@ export class PatchGeneratorAgent extends BaseAgent {
                   failFast,
                   strictMode,
                   results,
-                  failedChecks: failedChecks.map((c) => c.check),
+                  failedChecks: failedChecks.map((c: { check: string }) => c.check),
                   totalChecks: checks.length,
-                  passedChecks: results.filter((r) => r.status === 'passed').length,
+                  passedChecks: results.filter((r: { status: string }) => r.status === 'passed').length,
                   sandboxValidation: sandboxResult,
                   validationId: `validation-${Date.now()}`,
                   status: 'sandbox_validation_failed',
@@ -284,9 +284,9 @@ export class PatchGeneratorAgent extends BaseAgent {
                 failFast,
                 strictMode,
                 results,
-                failedChecks: failedChecks.map((c) => c.check),
+                failedChecks: failedChecks.map((c: { check: string }) => c.check),
                 totalChecks: checks.length,
-                passedChecks: results.filter((r) => r.status === 'passed').length,
+                passedChecks: results.filter((r: { status: string }) => r.status === 'passed').length,
                 validationId: `validation-${Date.now()}`,
                 status: 'validation_failed_fast',
                 timestamp: new Date().toISOString(),
@@ -305,9 +305,9 @@ export class PatchGeneratorAgent extends BaseAgent {
               failFast,
               strictMode,
               results,
-              failedChecks: failedChecks.map((c) => c.check),
+              failedChecks: failedChecks.map((c: { check: string }) => c.check),
               totalChecks: checks.length,
-              passedChecks: results.filter((r) => r.status === 'passed').length,
+              passedChecks: results.filter((r: { status: string }) => r.status === 'passed').length,
               validationId: `validation-${Date.now()}`,
               status: allPassed
                 ? 'validation_passed'
@@ -355,10 +355,10 @@ export class PatchGeneratorAgent extends BaseAgent {
             }
           }
 
-          const allPassed = suiteResults.every((r) => r.status === 'passed');
-          const totalTests = suiteResults.reduce((s, r) => s + r.totalTests, 0);
-          const totalPassed = suiteResults.reduce((s, r) => s + r.passed, 0);
-          const totalFailed = suiteResults.reduce((s, r) => s + r.failed, 0);
+          const allPassed = suiteResults.every((r: { status: string }) => r.status === 'passed');
+          const totalTests = suiteResults.reduce((s: number, r: { totalTests: number }) => s + r.totalTests, 0);
+          const totalPassed = suiteResults.reduce((s: number, r: { passed: number }) => s + r.passed, 0);
+          const totalFailed = suiteResults.reduce((s: number, r: { failed: number }) => s + r.failed, 0);
 
           const coverage = captureCoverage
             ? {
@@ -408,7 +408,7 @@ export class PatchGeneratorAgent extends BaseAgent {
                 totalPassed,
                 totalFailed,
                 totalSkipped: suiteResults.reduce(
-                  (s, r) => s + r.skipped,
+                  (s: number, r: { skipped: number }) => s + r.skipped,
                   0,
                 ),
                 passRate: parseFloat(

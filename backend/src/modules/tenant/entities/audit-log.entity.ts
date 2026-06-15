@@ -24,14 +24,14 @@ export class AuditLog {
   @Column({ name: 'user_id', nullable: true })
   userId: string;
 
-  @ManyToOne('User', null, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne('User', undefined, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'user_id' })
   user: import('../../user/entities/user.entity').User;
 
   @Column({ name: 'tenant_id', nullable: true })
   tenantId: string;
 
-  @ManyToOne('Tenant', null, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne('Tenant', undefined, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'tenant_id' })
   tenant: import('./tenant.entity').Tenant;
 

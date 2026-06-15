@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { getAuthHeaders } from '@/lib/api';
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -63,9 +64,7 @@ export default function SecurityDashboard() {
   const apiBase = '/api/v1';
 
   const fetchSecurityData = useCallback(async () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
+    const headers = getAuthHeaders();
 
     try {
       const [lockoutRes, alertsRes, repsRes, sessionsRes] = await Promise.allSettled([
@@ -243,10 +242,9 @@ export default function SecurityDashboard() {
                     </div>
                     <button onClick={async () => {
                       try {
-                        const t = localStorage.getItem('auth_token');
                         await fetch(`/api/v1/security/lockout/unlock?email=${encodeURIComponent(account.email)}`, {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+                          headers: getAuthHeaders(),
                         });
                         fetchSecurityData();
                       } catch {}
@@ -329,11 +327,10 @@ export default function SecurityDashboard() {
                     <td className="py-2">
                       <button onClick={async () => {
                         try {
-                          const t = localStorage.getItem('auth_token');
                           const action = rep.autoBlocked ? 'unblock' : 'block';
                           await fetch(`/api/v1/security/threats/ip-reputations/${rep.ip}/${action}`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+                            headers: getAuthHeaders(),
                           });
                           fetchSecurityData();
                         } catch {}
@@ -361,9 +358,7 @@ function AuditTab({ apiBase }: { apiBase: string }) {
   useEffect(() => {
     async function fetchAuditLogs() {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
+        const headers = getAuthHeaders();
         const res = await fetch(`${apiBase}/security/audit/logs?limit=50`, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();

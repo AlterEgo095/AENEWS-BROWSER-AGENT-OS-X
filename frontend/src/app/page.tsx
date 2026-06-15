@@ -196,6 +196,7 @@ export default function DashboardPage() {
   const [recentMissions, setRecentMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [perfData, setPerfData] = useState<Array<{ time: string; cpu: number; memory: number; eventLoop: number }>>([]);
   const { connected, subscribe, unsubscribe } = useWebSocket();
 
   // ─── Fetch data ────────────────────────────────────────────────
@@ -255,6 +256,9 @@ export default function DashboardPage() {
     { name: 'Stopped', value: agents.filter(a => a.status === 'stopped').length, color: '#6b7280' },
   ], [agents, activeAgents, idleAgents, errorAgents]);
 
+  // NOTE: Historical time-series data requires a dedicated API endpoint.
+  // Until one is available, we show only the current snapshot as a flat line
+  // so users aren't misled by synthetic/fake trends.
   const timeSeriesData = useMemo(() => {
     const base = new Date();
     base.setMinutes(0, 0, 0);
@@ -262,26 +266,53 @@ export default function DashboardPage() {
       const hour = new Date(base.getTime() - (23 - i) * 3600000);
       return {
         time: hour.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
-        agents: i <= Math.floor(activeAgents * 0.7) ? activeAgents : 0,
+        agents: i === 23 ? activeAgents : 0,
         tasks: 0,
         events: 0,
       };
     });
   }, [activeAgents]);
 
-  const performanceData = useMemo(() => {
-    const base = new Date();
-    base.setMinutes(base.getMinutes() - base.getMinutes() % 5, 0, 0);
-    return Array.from({ length: 12 }, (_, i) => {
-      const slot = new Date(base.getTime() - (11 - i) * 300000);
-      return {
-        time: slot.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
-        cpu: 0,
-        memory: 0,
-        eventLoop: 0,
-      };
-    });
+  // NOTE: Performance time-series requires the /performance/overview API.
+  // Showing current snapshot until real historical data is available from the backend.
+  useEffect(() => {
+    async function fetchPerf() {
+      try {
+        const res = await fetch('/api/v1/performance/overview');
+        if (res.ok) {
+          const json = await res.json();
+          const report = json.data?.profiling || json.profiling;
+          if (report) {
+            const base = new Date();
+            base.setMinutes(base.getMinutes() - base.getMinutes() % 5, 0, 0);
+            const memUtil = parseInt(report.memory?.heapUtilization || '0');
+            const cpuUtil = parseFloat(report.cpu?.utilizationPercent || '0');
+            const evLag = report.eventLoop?.currentLagMs || 0;
+            setPerfData(Array.from({ length: 12 }, (_, i) => {
+              const slot = new Date(base.getTime() - (11 - i) * 300000);
+              return {
+                time: slot.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+                cpu: i === 11 ? cpuUtil : 0,
+                memory: i === 11 ? memUtil : 0,
+                eventLoop: i === 11 ? evLag : 0,
+              };
+            }));
+            return;
+          }
+        }
+      } catch { /* performance endpoint unavailable */ }
+      // Fallback: empty chart slots
+      const base = new Date();
+      base.setMinutes(base.getMinutes() - base.getMinutes() % 5, 0, 0);
+      setPerfData(Array.from({ length: 12 }, (_, i) => {
+        const slot = new Date(base.getTime() - (11 - i) * 300000);
+        return { time: slot.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }), cpu: 0, memory: 0, eventLoop: 0 };
+      }));
+    }
+    fetchPerf();
   }, []);
+
+  const performanceData = useMemo(() => perfData, [perfData]);
 
   // ─── Loading ───────────────────────────────────────────────────
   if (loading) {
@@ -306,7 +337,7 @@ export default function DashboardPage() {
     <div className="space-y-6 animate-slide-in">
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-        <StatCard title="Total Agents" value={totalAgents} subtitle="Across all clusters" icon={Bot} color="text-primary" trend="up" trendValue="+3 this week" />
+        <StatCard title="Total Agents" value={totalAgents} subtitle="Across all clusters" icon={Bot} color="text-primary" />
         <StatCard title="Active" value={activeAgents} subtitle="Currently running" icon={Activity} color="text-emerald-400" trend="up" trendValue={`${Math.round(activeAgents/Math.max(totalAgents,1)*100)}% active`} />
         <StatCard title="Active Missions" value={activeMissions} subtitle="In progress" icon={Rocket} color="text-orange-400" />
         <StatCard title="Services UP" value={`${healthyServices}/${totalServices}`} subtitle="System health" icon={CheckCircle2} color="text-cyan-400" />

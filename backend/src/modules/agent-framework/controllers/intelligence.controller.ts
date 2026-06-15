@@ -28,7 +28,8 @@ import { UserRole } from '../../user/entities/user.entity';
 import { TenantScoped } from '../../tenant/decorators/tenant-scoped.decorator';
 import { RateLimitGuard } from '../guards/rate-limit.guard';
 import { RateLimit, RateLimitDomain } from '../decorators/rate-limit.decorator';
-import { KnowledgeGraphService, ClusterType } from '../services/knowledge-graph.service';
+import { KnowledgeGraphService } from '../services/knowledge-graph.service';
+import { ClusterType } from '../../agent/entities/agent.entity';
 import { AgentLearningEngine, LearningType } from '../services/agent-learning-engine.service';
 import { PatternMiningService, PatternCategory } from '../services/pattern-mining.service';
 import { AdaptiveStrategyService, AdaptationContext } from '../services/adaptive-strategy.service';
@@ -269,6 +270,7 @@ export class IntelligenceController {
   @HttpCode(HttpStatus.OK)
   async minePatterns(@Body() dto: MinePatternsDto) {
     const patterns = await this.patternMining.minePatterns({
+      sourceData: [],  // Uses internal execution history when empty
       categories: dto.categories,
       minFrequency: dto.minFrequency,
       minConfidence: dto.minConfidence,

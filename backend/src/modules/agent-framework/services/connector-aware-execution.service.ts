@@ -33,7 +33,7 @@ import { AgentMemoryService, MemoryTier } from './agent-memory.service';
 
 // ─── Types ──────────────────────────────────────────────────────
 
-export type ExecutionSource = 'connector' | 'llm' | 'fallback';
+export type ExecutionSource = 'connector' | 'llm' | 'fallback' | 'capability';
 
 export interface ConnectorAwareResult {
   success: boolean;

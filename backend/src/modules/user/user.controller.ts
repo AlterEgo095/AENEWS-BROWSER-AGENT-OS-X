@@ -49,7 +49,7 @@ export class UserController {
     @Req() req?: Request & { user?: any; tenantId?: string },
   ) {
     // Tenant isolation: non-SUPER_ADMIN can only see their own tenant's users
-    const tenantId = req.tenantId ?? tenantIdQueryParam;
+    const tenantId = req?.tenantId ?? tenantIdQueryParam;
     return this.userService.findAll(tenantId, pagination.page, pagination.limit);
   }
 

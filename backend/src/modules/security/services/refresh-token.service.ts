@@ -7,13 +7,14 @@
  *   - Automatic rotation on each use
  *   - Revocation on suspicious activity
  *   - Redis-backed storage for distributed access
- *   - In-memory fallback
+ *   - In-memory fallback when Redis is unavailable
  */
 
-import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, Optional, UnauthorizedException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
+import Redis from 'ioredis';
 import { EventService } from '../../event/event.service';
 
 export interface RefreshTokenEntry {
@@ -42,20 +43,29 @@ export interface RefreshTokenConfig {
   reuseDetectionWindowMs: number; // Window for detecting token reuse (default: 5min)
 }
 
+/** Redis key prefixes */
+const TOKEN_PREFIX = 'refresh_token:';
+const USER_FAMILIES_PREFIX = 'refresh_user_families:';
+const FAMILY_TOKENS_PREFIX = 'refresh_family_tokens:';
+
 @Injectable()
 export class RefreshTokenService {
   private readonly logger = new Logger(RefreshTokenService.name);
 
-  /** In-memory token store (fallback) */
-  private readonly tokenStore: Map<string, RefreshTokenEntry> = new Map();
+  /** In-memory token store (fallback when Redis unavailable) */
+  private readonly fallbackTokenStore: Map<string, RefreshTokenEntry> = new Map();
 
-  /** Token families per user for concurrent session management */
-  private readonly userFamilies: Map<string, Set<string>> = new Map();
+  /** In-memory user families (fallback when Redis unavailable) */
+  private readonly fallbackUserFamilies: Map<string, Set<string>> = new Map();
+
+  /** Whether Redis is currently available */
+  private redisAvailable = true;
 
   private readonly config: RefreshTokenConfig;
 
   constructor(
     private readonly jwtService: JwtService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
     @Optional() private readonly configService?: ConfigService,
     @Optional() private readonly eventService?: EventService,
   ) {
@@ -65,7 +75,9 @@ export class RefreshTokenService {
       reuseDetectionWindowMs: (this.configService?.get<number>('security.refreshToken.reuseWindowMin') ?? 5) * 60 * 1000,
     };
 
-    this.logger.log(`RefreshTokenService initialized: expiry=${this.config.refreshTokenExpiry}, maxFamilies=${this.config.maxFamiliesPerUser}`);
+    this.checkRedisConnection();
+
+    this.logger.log(`RefreshTokenService initialized: expiry=${this.config.refreshTokenExpiry}, maxFamilies=${this.config.maxFamiliesPerUser}, redis=${this.redisAvailable}`);
   }
 
   /**
@@ -87,7 +99,7 @@ export class RefreshTokenService {
     // Generate access token
     const accessToken = this.jwtService.sign(
       { sub: userId, tenantId, role, family },
-      { expiresIn: this.configService?.get<string>('jwt.expiration') ?? '24h' },
+      { expiresIn: (this.configService?.get<string>('jwt.expiration') ?? '24h') as any },
     );
 
     // Store refresh token
@@ -105,8 +117,8 @@ export class RefreshTokenService {
       ipAddress: metadata?.ipAddress,
     };
 
-    this.tokenStore.set(refreshToken, entry);
-    this.addToUserFamily(userId, family);
+    await this.storeTokenEntry(entry);
+    await this.addToUserFamily(userId, family);
 
     this.logger.debug(`New token family created for user ${userId}: ${family}`);
 
@@ -124,7 +136,7 @@ export class RefreshTokenService {
     oldRefreshToken: string,
     metadata?: { userAgent?: string; ipAddress?: string },
   ): Promise<TokenPair> {
-    const entry = this.tokenStore.get(oldRefreshToken);
+    const entry = await this.getTokenEntry(oldRefreshToken);
 
     // Token not found
     if (!entry) {
@@ -134,7 +146,7 @@ export class RefreshTokenService {
 
     // Token expired
     if (Date.now() > entry.expiresAt) {
-      this.revokeToken(oldRefreshToken);
+      await this.revokeToken(oldRefreshToken);
       throw new UnauthorizedException('Refresh token expired');
     }
 
@@ -147,7 +159,7 @@ export class RefreshTokenService {
 
     // Revoke the old token
     entry.isRevoked = true;
-    this.tokenStore.set(oldRefreshToken, entry);
+    await this.storeTokenEntry(entry);
 
     // Generate new refresh token in the same family
     const newRefreshToken = this.generateSecureToken();
@@ -167,12 +179,12 @@ export class RefreshTokenService {
       ipAddress: metadata?.ipAddress,
     };
 
-    this.tokenStore.set(newRefreshToken, newEntry);
+    await this.storeTokenEntry(newEntry);
 
     // Generate new access token
     const accessToken = this.jwtService.sign(
       { sub: entry.userId, tenantId: entry.tenantId, role: entry.role, family: entry.family },
-      { expiresIn: this.configService?.get<string>('jwt.expiration') ?? '24h' },
+      { expiresIn: (this.configService?.get<string>('jwt.expiration') ?? '24h') as any },
     );
 
     this.logger.debug(`Refresh token rotated for user ${entry.userId}, family ${entry.family}`);
@@ -187,11 +199,11 @@ export class RefreshTokenService {
   /**
    * Revoke a specific refresh token.
    */
-  revokeToken(token: string): boolean {
-    const entry = this.tokenStore.get(token);
+  async revokeToken(token: string): Promise<boolean> {
+    const entry = await this.getTokenEntry(token);
     if (!entry) return false;
     entry.isRevoked = true;
-    this.tokenStore.set(token, entry);
+    await this.storeTokenEntry(entry);
     return true;
   }
 
@@ -201,16 +213,33 @@ export class RefreshTokenService {
   async revokeAllUserTokens(userId: string): Promise<number> {
     let revokedCount = 0;
 
-    for (const [, entry] of this.tokenStore.entries()) {
-      if (entry.userId === userId && !entry.isRevoked) {
-        entry.isRevoked = true;
-        this.tokenStore.set(entry.token, entry);
-        revokedCount++;
-      }
-    }
+    if (this.redisAvailable) {
+      try {
+        // Get all families for the user
+        const familyIds = await this.getUserFamilies(userId);
 
-    // Clear user families
-    this.userFamilies.delete(userId);
+        for (const familyId of familyIds) {
+          // Get all tokens in this family and revoke them
+          const tokenKeys = await this.getFamilyTokens(familyId);
+          for (const tokenKey of tokenKeys) {
+            const entry = await this.getTokenEntry(tokenKey);
+            if (entry && !entry.isRevoked) {
+              entry.isRevoked = true;
+              await this.storeTokenEntry(entry);
+              revokedCount++;
+            }
+          }
+        }
+
+        // Clear user families from Redis
+        await this.redis.del(`${USER_FAMILIES_PREFIX}${userId}`);
+      } catch (error) {
+        this.handleRedisError('revokeAllUserTokens', error);
+        return this.revokeAllUserTokensFallback(userId);
+      }
+    } else {
+      return this.revokeAllUserTokensFallback(userId);
+    }
 
     this.logger.log(`Revoked ${revokedCount} tokens for user ${userId}`);
 
@@ -223,15 +252,40 @@ export class RefreshTokenService {
   private async revokeEntireFamily(family: string, userId: string, reason: string): Promise<void> {
     let revokedCount = 0;
 
-    for (const [, entry] of this.tokenStore.entries()) {
-      if (entry.family === family) {
-        entry.isRevoked = true;
-        this.tokenStore.set(entry.token, entry);
-        revokedCount++;
+    if (this.redisAvailable) {
+      try {
+        const tokenKeys = await this.getFamilyTokens(family);
+
+        for (const tokenKey of tokenKeys) {
+          const entry = await this.getTokenEntry(tokenKey);
+          if (entry) {
+            entry.isRevoked = true;
+            await this.storeTokenEntry(entry);
+            revokedCount++;
+          }
+        }
+      } catch (error) {
+        this.handleRedisError('revokeEntireFamily', error);
+        // Fallback: revoke from in-memory store
+        for (const [, entry] of this.fallbackTokenStore.entries()) {
+          if (entry.family === family) {
+            entry.isRevoked = true;
+            this.fallbackTokenStore.set(entry.token, entry);
+            revokedCount++;
+          }
+        }
+      }
+    } else {
+      for (const [, entry] of this.fallbackTokenStore.entries()) {
+        if (entry.family === family) {
+          entry.isRevoked = true;
+          this.fallbackTokenStore.set(entry.token, entry);
+          revokedCount++;
+        }
       }
     }
 
-    this.removeFromUserFamily(userId, family);
+    await this.removeFromUserFamily(userId, family);
 
     this.logger.error(`REVOKED ENTIRE FAMILY ${family}: ${revokedCount} tokens, reason=${reason}`);
 
@@ -250,17 +304,44 @@ export class RefreshTokenService {
     let revokedCount = 0;
     let userId = '';
 
-    for (const [, entry] of this.tokenStore.entries()) {
-      if (entry.family === family) {
-        if (!userId) userId = entry.userId;
-        entry.isRevoked = true;
-        this.tokenStore.set(entry.token, entry);
-        revokedCount++;
+    if (this.redisAvailable) {
+      try {
+        const tokenKeys = await this.getFamilyTokens(family);
+
+        for (const tokenKey of tokenKeys) {
+          const entry = await this.getTokenEntry(tokenKey);
+          if (entry) {
+            if (!userId) userId = entry.userId;
+            entry.isRevoked = true;
+            await this.storeTokenEntry(entry);
+            revokedCount++;
+          }
+        }
+      } catch (error) {
+        this.handleRedisError('revokeTokenFamily', error);
+        // Fallback
+        for (const [, entry] of this.fallbackTokenStore.entries()) {
+          if (entry.family === family) {
+            if (!userId) userId = entry.userId;
+            entry.isRevoked = true;
+            this.fallbackTokenStore.set(entry.token, entry);
+            revokedCount++;
+          }
+        }
+      }
+    } else {
+      for (const [, entry] of this.fallbackTokenStore.entries()) {
+        if (entry.family === family) {
+          if (!userId) userId = entry.userId;
+          entry.isRevoked = true;
+          this.fallbackTokenStore.set(entry.token, entry);
+          revokedCount++;
+        }
       }
     }
 
     if (userId) {
-      this.removeFromUserFamily(userId, family);
+      await this.removeFromUserFamily(userId, family);
     }
 
     this.logger.warn(`Token family ${family} revoked by admin ${revokedBy}: ${revokedCount} tokens revoked`);
@@ -278,8 +359,8 @@ export class RefreshTokenService {
   /**
    * Validate a refresh token without rotating it.
    */
-  validateRefreshToken(token: string): RefreshTokenEntry | null {
-    const entry = this.tokenStore.get(token);
+  async validateRefreshToken(token: string): Promise<RefreshTokenEntry | null> {
+    const entry = await this.getTokenEntry(token);
     if (!entry) return null;
     if (entry.isRevoked) return null;
     if (Date.now() > entry.expiresAt) return null;
@@ -289,11 +370,245 @@ export class RefreshTokenService {
   /**
    * Get active sessions for a user.
    */
-  getActiveSessions(userId: string): Array<{ family: string; createdAt: number; ipAddress?: string; userAgent?: string }> {
+  async getActiveSessions(userId: string): Promise<Array<{ family: string; createdAt: number; ipAddress?: string; userAgent?: string }>> {
     const sessions: Array<{ family: string; createdAt: number; ipAddress?: string; userAgent?: string }> = [];
     const seenFamilies = new Set<string>();
 
-    for (const [, entry] of this.tokenStore.entries()) {
+    if (this.redisAvailable) {
+      try {
+        const familyIds = await this.getUserFamilies(userId);
+
+        for (const familyId of familyIds) {
+          const tokenKeys = await this.getFamilyTokens(familyId);
+          for (const tokenKey of tokenKeys) {
+            const entry = await this.getTokenEntry(tokenKey);
+            if (entry && !entry.isRevoked && !seenFamilies.has(entry.family)) {
+              seenFamilies.add(entry.family);
+              sessions.push({
+                family: entry.family,
+                createdAt: entry.createdAt,
+                ipAddress: entry.ipAddress,
+                userAgent: entry.userAgent,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        this.handleRedisError('getActiveSessions', error);
+        return this.getActiveSessionsFallback(userId);
+      }
+    } else {
+      return this.getActiveSessionsFallback(userId);
+    }
+
+    return sessions;
+  }
+
+  /**
+   * Clean up expired tokens (run periodically).
+   */
+  async cleanupExpiredTokens(): Promise<number> {
+    const now = Date.now();
+    let cleaned = 0;
+
+    if (this.redisAvailable) {
+      try {
+        // Scan for all refresh token keys
+        const stream = this.redis.scanStream({
+          match: `${TOKEN_PREFIX}*`,
+          count: 100,
+        });
+
+        const tokensToDelete: string[] = [];
+
+        await new Promise<void>((resolve, reject) => {
+          stream.on('data', (keys: string[]) => {
+            for (const key of keys) {
+              tokensToDelete.push(key);
+            }
+          });
+          stream.on('end', resolve);
+          stream.on('error', reject);
+        });
+
+        // Check each token for expiration
+        for (const key of tokensToDelete) {
+          const raw = await this.redis.get(key);
+          if (!raw) continue;
+          try {
+            const entry: RefreshTokenEntry = JSON.parse(raw);
+            if (entry.expiresAt < now || entry.isRevoked) {
+              // Only clean up revoked tokens older than 24h and expired tokens
+              if (entry.isRevoked && (now - entry.createdAt) < 24 * 60 * 60 * 1000) {
+                continue; // Keep recently revoked tokens for reuse detection
+              }
+              await this.redis.del(key);
+              // Also remove from family tokens set
+              await this.redis.srem(`${FAMILY_TOKENS_PREFIX}${entry.family}`, entry.token);
+              cleaned++;
+            }
+          } catch {
+            // Malformed entry, clean it up
+            await this.redis.del(key);
+            cleaned++;
+          }
+        }
+      } catch (error) {
+        this.handleRedisError('cleanupExpiredTokens', error);
+        return this.cleanupExpiredTokensFallback();
+      }
+    } else {
+      return this.cleanupExpiredTokensFallback();
+    }
+
+    if (cleaned > 0) {
+      this.logger.log(`Cleaned up ${cleaned} expired/revoked tokens`);
+    }
+
+    return cleaned;
+  }
+
+  // ─── Redis Access Methods ────────────────────────────────────────
+
+  private async storeTokenEntry(entry: RefreshTokenEntry): Promise<void> {
+    const key = `${TOKEN_PREFIX}${entry.token}`;
+    const familyKey = `${FAMILY_TOKENS_PREFIX}${entry.family}`;
+    const ttlSeconds = Math.max(1, Math.ceil((entry.expiresAt - Date.now()) / 1000) + 86400); // TTL = expiry + 24h buffer for reuse detection
+
+    if (this.redisAvailable) {
+      try {
+        const pipeline = this.redis.pipeline();
+        pipeline.set(key, JSON.stringify(entry), 'EX', ttlSeconds);
+        pipeline.sadd(familyKey, entry.token);
+        pipeline.expire(familyKey, ttlSeconds);
+        await pipeline.exec();
+      } catch (error) {
+        this.handleRedisError('storeTokenEntry', error);
+        // Fallback to in-memory
+        this.fallbackTokenStore.set(entry.token, entry);
+      }
+    } else {
+      this.fallbackTokenStore.set(entry.token, entry);
+    }
+  }
+
+  private async getTokenEntry(token: string): Promise<RefreshTokenEntry | null> {
+    if (this.redisAvailable) {
+      try {
+        const raw = await this.redis.get(`${TOKEN_PREFIX}${token}`);
+        if (!raw) return null;
+        return JSON.parse(raw) as RefreshTokenEntry;
+      } catch (error) {
+        this.handleRedisError('getTokenEntry', error);
+        return this.fallbackTokenStore.get(token) ?? null;
+      }
+    } else {
+      return this.fallbackTokenStore.get(token) ?? null;
+    }
+  }
+
+  private async getUserFamilies(userId: string): Promise<string[]> {
+    if (this.redisAvailable) {
+      try {
+        return await this.redis.smembers(`${USER_FAMILIES_PREFIX}${userId}`);
+      } catch (error) {
+        this.handleRedisError('getUserFamilies', error);
+        return Array.from(this.fallbackUserFamilies.get(userId) ?? []);
+      }
+    } else {
+      return Array.from(this.fallbackUserFamilies.get(userId) ?? []);
+    }
+  }
+
+  private async getFamilyTokens(familyId: string): Promise<string[]> {
+    if (this.redisAvailable) {
+      try {
+        return await this.redis.smembers(`${FAMILY_TOKENS_PREFIX}${familyId}`);
+      } catch (error) {
+        this.handleRedisError('getFamilyTokens', error);
+        // Fallback: scan in-memory store
+        const tokens: string[] = [];
+        for (const [token, entry] of this.fallbackTokenStore.entries()) {
+          if (entry.family === familyId) {
+            tokens.push(token);
+          }
+        }
+        return tokens;
+      }
+    } else {
+      const tokens: string[] = [];
+      for (const [token, entry] of this.fallbackTokenStore.entries()) {
+        if (entry.family === familyId) {
+          tokens.push(token);
+        }
+      }
+      return tokens;
+    }
+  }
+
+  private async addToUserFamily(userId: string, family: string): Promise<void> {
+    if (this.redisAvailable) {
+      try {
+        await this.redis.sadd(`${USER_FAMILIES_PREFIX}${userId}`, family);
+      } catch (error) {
+        this.handleRedisError('addToUserFamily', error);
+        this.addToUserFamilyFallback(userId, family);
+      }
+    } else {
+      this.addToUserFamilyFallback(userId, family);
+    }
+  }
+
+  private async removeFromUserFamily(userId: string, family: string): Promise<void> {
+    if (this.redisAvailable) {
+      try {
+        await this.redis.srem(`${USER_FAMILIES_PREFIX}${userId}`, family);
+      } catch (error) {
+        this.handleRedisError('removeFromUserFamily', error);
+        this.removeFromUserFamilyFallback(userId, family);
+      }
+    } else {
+      this.removeFromUserFamilyFallback(userId, family);
+    }
+  }
+
+  // ─── Fallback Methods (In-Memory) ────────────────────────────────
+
+  private addToUserFamilyFallback(userId: string, family: string): void {
+    let families = this.fallbackUserFamilies.get(userId);
+    if (!families) {
+      families = new Set();
+      this.fallbackUserFamilies.set(userId, families);
+    }
+    families.add(family);
+  }
+
+  private removeFromUserFamilyFallback(userId: string, family: string): void {
+    const families = this.fallbackUserFamilies.get(userId);
+    if (families) {
+      families.delete(family);
+    }
+  }
+
+  private async revokeAllUserTokensFallback(userId: string): Promise<number> {
+    let revokedCount = 0;
+    for (const [, entry] of this.fallbackTokenStore.entries()) {
+      if (entry.userId === userId && !entry.isRevoked) {
+        entry.isRevoked = true;
+        this.fallbackTokenStore.set(entry.token, entry);
+        revokedCount++;
+      }
+    }
+    this.fallbackUserFamilies.delete(userId);
+    this.logger.log(`Revoked ${revokedCount} tokens for user ${userId} (fallback)`);
+    return revokedCount;
+  }
+
+  private getActiveSessionsFallback(userId: string): Array<{ family: string; createdAt: number; ipAddress?: string; userAgent?: string }> {
+    const sessions: Array<{ family: string; createdAt: number; ipAddress?: string; userAgent?: string }> = [];
+    const seenFamilies = new Set<string>();
+
+    for (const [, entry] of this.fallbackTokenStore.entries()) {
       if (entry.userId === userId && !entry.isRevoked && !seenFamilies.has(entry.family)) {
         seenFamilies.add(entry.family);
         sessions.push({
@@ -308,26 +623,22 @@ export class RefreshTokenService {
     return sessions;
   }
 
-  /**
-   * Clean up expired tokens (run periodically).
-   */
-  cleanupExpiredTokens(): number {
+  private cleanupExpiredTokensFallback(): number {
     const now = Date.now();
     let cleaned = 0;
 
-    for (const [token, entry] of this.tokenStore.entries()) {
+    for (const [token, entry] of this.fallbackTokenStore.entries()) {
       if (entry.expiresAt < now || entry.isRevoked) {
-        // Only clean up revoked tokens older than 24h and expired tokens
         if (entry.isRevoked && (now - entry.createdAt) < 24 * 60 * 60 * 1000) {
-          continue; // Keep recently revoked tokens for reuse detection
+          continue;
         }
-        this.tokenStore.delete(token);
+        this.fallbackTokenStore.delete(token);
         cleaned++;
       }
     }
 
     if (cleaned > 0) {
-      this.logger.log(`Cleaned up ${cleaned} expired/revoked tokens`);
+      this.logger.log(`Cleaned up ${cleaned} expired/revoked tokens (fallback)`);
     }
 
     return cleaned;
@@ -346,37 +657,23 @@ export class RefreshTokenService {
 
     const value = parseInt(match[1], 10);
     const unit = match[2];
-    const multipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+    const multipliers: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
     return now + value * (multipliers[unit] || 86400000);
   }
 
-  private addToUserFamily(userId: string, family: string): void {
-    let families = this.userFamilies.get(userId);
-    if (!families) {
-      families = new Set();
-      this.userFamilies.set(userId, families);
-    }
-    families.add(family);
-  }
-
-  private removeFromUserFamily(userId: string, family: string): void {
-    const families = this.userFamilies.get(userId);
-    if (families) {
-      families.delete(family);
-    }
-  }
-
   private async enforceMaxFamilies(userId: string, newFamily: string): Promise<void> {
-    const families = this.userFamilies.get(userId);
-    if (!families || families.size < this.config.maxFamiliesPerUser) return;
+    const familyIds = await this.getUserFamilies(userId);
+    if (!familyIds || familyIds.length < this.config.maxFamiliesPerUser) return;
 
     // Evict the oldest family
     let oldestFamily: string | null = null;
     let oldestTime = Infinity;
 
-    for (const family of families) {
-      for (const [, entry] of this.tokenStore.entries()) {
-        if (entry.family === family && entry.createdAt < oldestTime) {
+    for (const family of familyIds) {
+      const tokenKeys = await this.getFamilyTokens(family);
+      for (const tokenKey of tokenKeys) {
+        const entry = await this.getTokenEntry(tokenKey);
+        if (entry && entry.createdAt < oldestTime) {
           oldestTime = entry.createdAt;
           oldestFamily = family;
         }
@@ -401,5 +698,43 @@ export class RefreshTokenService {
     } catch {
       // Don't let event emission failures affect the auth flow
     }
+  }
+
+  // ─── Redis Health / Error Handling ────────────────────────────
+
+  private async checkRedisConnection(): Promise<void> {
+    try {
+      await this.redis.ping();
+      this.redisAvailable = true;
+    } catch {
+      this.redisAvailable = false;
+      this.logger.warn('Redis unavailable — RefreshTokenService falling back to in-memory store');
+    }
+  }
+
+  private handleRedisError(operation: string, error: any): void {
+    if (this.redisAvailable) {
+      this.redisAvailable = false;
+      this.logger.error(`Redis error during ${operation}: ${error?.message ?? error}. Falling back to in-memory store.`);
+      // Schedule a reconnection check
+      this.scheduleRedisReconnect();
+    }
+  }
+
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private scheduleRedisReconnect(): void {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      try {
+        await this.redis.ping();
+        this.redisAvailable = true;
+        this.logger.log('Redis connection restored — RefreshTokenService back to Redis mode');
+      } catch {
+        // Still down, schedule another check
+        this.scheduleRedisReconnect();
+      }
+    }, 5000);
   }
 }

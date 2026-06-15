@@ -10,7 +10,7 @@ import { MinioService } from './minio.service';
       provide: 'MINIO_CLIENT',
       useFactory: (configService: ConfigService) => {
         return new Minio.Client({
-          endPoint: configService.get<string>('minio.endpoint'),
+          endPoint: configService.get<string>('minio.endpoint') ?? 'localhost',
           port: configService.get<number>('minio.port'),
           accessKey: configService.get<string>('minio.accessKey'),
           secretKey: configService.get<string>('minio.secretKey'),

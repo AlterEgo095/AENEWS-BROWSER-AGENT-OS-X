@@ -1,9 +1,29 @@
+import { useAuthStore } from '@/store/auth-store';
+
 const API_BASE = '/api/v1';
 const REQUEST_TIMEOUT_MS = 30000;
 const MAX_RETRIES = 2;
 
+/**
+ * Build standard auth headers for raw fetch() calls.
+ * Use this when you can't use the ApiClient but still need authenticated requests.
+ *
+ * Reads the access token from the Zustand in-memory store (NOT localStorage).
+ */
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  const token = useAuthStore.getState().token;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 class ApiClient {
   private baseUrl: string;
+  private refreshing: Promise<string | null> | null = null;
 
   constructor() {
     this.baseUrl = API_BASE;
@@ -13,27 +33,45 @@ class ApiClient {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+    const token = useAuthStore.getState().token;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     return headers;
   }
 
   /**
-   * Handle session expiry — redirect to /login on 401
+   * Attempt to refresh the access token using the httpOnly refresh cookie.
+   * Ensures only one refresh request is in-flight at a time.
+   *
+   * @returns The new access token, or null if refresh failed
    */
-  private handleUnauthorized(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      // Only redirect if not already on login page
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
-      }
+  private async tryRefresh(): Promise<string | null> {
+    // Reuse in-flight refresh promise to prevent concurrent refreshes
+    if (!this.refreshing) {
+      this.refreshing = useAuthStore.getState().refreshAuth().finally(() => {
+        this.refreshing = null;
+      });
     }
+    return this.refreshing;
+  }
+
+  /**
+   * Handle session expiry — try refreshing before redirecting to login.
+   */
+  private async handleUnauthorized(originalEndpoint: string, originalOptions?: RequestInit): Promise<boolean> {
+    const newToken = await this.tryRefresh();
+
+    if (newToken) {
+      // Token refreshed successfully — the caller should retry the request
+      return true;
+    }
+
+    // Refresh also failed — redirect to login
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+    return false;
   }
 
   /**
@@ -44,13 +82,13 @@ class ApiClient {
    */
   private shouldRetry(status: number | null, attempt: number): boolean {
     if (attempt >= MAX_RETRIES) return false;
-    // 4xx = client error, never retry
+    // 4xx = client error, never retry (except 401 which is handled separately)
     if (status !== null && status >= 400 && status < 500) return false;
     // 5xx or network failure: retry
     return true;
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit, _attempt: number = 0): Promise<T> {
+  private async request<T>(endpoint: string, options?: RequestInit, _attempt: number = 0, _isRetryAfterRefresh: boolean = false): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -59,6 +97,7 @@ class ApiClient {
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
+        credentials: 'include', // Required for sending httpOnly cookies
         headers: {
           ...this.getHeaders(),
           ...options?.headers,
@@ -66,7 +105,14 @@ class ApiClient {
       });
 
       if (response.status === 401) {
-        this.handleUnauthorized();
+        // On 401, try refreshing the token before giving up
+        if (!_isRetryAfterRefresh) {
+          const refreshed = await this.handleUnauthorized(endpoint, options);
+          if (refreshed) {
+            // Retry the original request with the new token
+            return this.request<T>(endpoint, options, 0, true);
+          }
+        }
         throw new Error('Session expired. Please log in again.');
       }
 
@@ -75,7 +121,7 @@ class ApiClient {
         if (this.shouldRetry(response.status, _attempt)) {
           const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
           await new Promise((resolve) => setTimeout(resolve, delay));
-          return this.request<T>(endpoint, options, _attempt + 1);
+          return this.request<T>(endpoint, options, _attempt + 1, _isRetryAfterRefresh);
         }
 
         const error = await response.json().catch(() => ({ message: 'Request failed' }));
@@ -87,7 +133,16 @@ class ApiClient {
         return undefined as T;
       }
 
-      return response.json();
+      const json = await response.json();
+
+      // Unwrap the TransformInterceptor response: { success, data, meta }
+      // If the response has a `data` field at the top level and a `success` field,
+      // return just the `data` portion. Otherwise, return the full response.
+      if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
+        return json.data as T;
+      }
+
+      return json as T;
     } catch (err) {
       // Retry on network errors (abort, fetch failure) unless it's an auth redirect
       if (err instanceof Error && err.message === 'Session expired. Please log in again.') {
@@ -98,7 +153,7 @@ class ApiClient {
         if (this.shouldRetry(null, _attempt)) {
           const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
           await new Promise((resolve) => setTimeout(resolve, delay));
-          return this.request<T>(endpoint, options, _attempt + 1);
+          return this.request<T>(endpoint, options, _attempt + 1, _isRetryAfterRefresh);
         }
         throw new Error('Request timed out. Please try again.');
       }
@@ -107,7 +162,7 @@ class ApiClient {
       if (err instanceof TypeError && this.shouldRetry(null, _attempt)) {
         const delay = Math.min(1000 * Math.pow(2, _attempt), 5000);
         await new Promise((resolve) => setTimeout(resolve, delay));
-        return this.request<T>(endpoint, options, _attempt + 1);
+        return this.request<T>(endpoint, options, _attempt + 1, _isRetryAfterRefresh);
       }
 
       throw err;
@@ -224,6 +279,19 @@ class ApiClient {
     return this.request<import('./types').AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async login2fa(data: { tempToken: string; code: string }) {
+    return this.request<import('./types').AuthResponse>('/auth/login/2fa', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async logout() {
+    return this.request<void>('/auth/logout', {
+      method: 'POST',
     });
   }
 

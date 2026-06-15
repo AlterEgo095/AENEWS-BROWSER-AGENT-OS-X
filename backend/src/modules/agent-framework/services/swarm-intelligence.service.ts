@@ -371,7 +371,7 @@ export class SwarmIntelligenceService {
       });
 
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Swarm ${swarmId} execution failed: ${error.message}`, error.stack);
 
       const failedResult: SwarmResult = {
@@ -616,7 +616,7 @@ export class SwarmIntelligenceService {
 
       agent.tasksCompleted++;
       return { agentId: agent.agentId, ...result };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Agent ${agent.agentId} exploration failed: ${error.message}`);
       agent.status = 'failed';
       return { agentId: agent.agentId, success: false, capabilityCoordinates: {} };
@@ -699,7 +699,7 @@ export class SwarmIntelligenceService {
 
       agent.tasksCompleted++;
       return { agentId: agent.agentId, ...result };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Agent ${agent.agentId} guided exploration failed: ${error.message}`);
       return { agentId: agent.agentId, success: false, capabilityCoordinates: {} };
     }

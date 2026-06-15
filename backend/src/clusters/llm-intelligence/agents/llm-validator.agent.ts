@@ -294,7 +294,7 @@ Return a JSON object with this structure:
                 { name: 'Documentation', expected: true, present: true, completeness: 0.7 },
                 { name: 'Test coverage', expected: true, present: false, completeness: 0.45 },
               ];
-          const overallCompleteness = components.reduce((sum, c) => sum + c.completeness, 0) / Math.max(components.length, 1);
+          const overallCompleteness = components.reduce((sum: number, c: { completeness: number }) => sum + c.completeness, 0) / Math.max(components.length, 1);
           this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
           return {
             success: true,
@@ -307,8 +307,8 @@ Return a JSON object with this structure:
               threshold,
               scope,
               components,
-              missingComponents: components.filter((c) => !c.present).map((c) => c.name),
-              incompleteComponents: components.filter((c) => c.present && c.completeness < 1.0).map((c) => ({ name: c.name, completeness: c.completeness })),
+              missingComponents: components.filter((c: { present: boolean }) => !c.present).map((c: { name: string }) => c.name),
+              incompleteComponents: components.filter((c: { present: boolean; completeness: number }) => c.present && c.completeness < 1.0).map((c: { name: string; completeness: number }) => ({ name: c.name, completeness: c.completeness })),
               recommendations: [{ component: 'General', priority: 'medium', action: 'Enable LLM for deeper completeness analysis' }],
               generatedBy: 'fallback',
               timestamp: new Date().toISOString(),

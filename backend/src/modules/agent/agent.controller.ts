@@ -128,7 +128,7 @@ export class AgentController {
   ) {
     // Tenant isolation: non-SUPER_ADMIN can only see their own tenant's data
     // SUPER_ADMIN (tenantId=null) can optionally filter by tenantId query param
-    const tenantId = req.tenantId ?? tenantIdQueryParam;
+    const tenantId = req?.tenantId ?? tenantIdQueryParam;
     return this.agentService.findAll(
       tenantId,
       cluster,

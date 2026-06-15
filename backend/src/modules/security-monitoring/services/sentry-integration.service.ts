@@ -90,7 +90,7 @@ export class SentryIntegrationService implements OnModuleInit {
 
       this.initialized = true;
       this.logger.log(`Sentry integration ENABLED: env=${this.config.environment}, release=${this.config.release}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Sentry initialization failed: ${error.message}. Error tracking will be limited.`);
       this.config.enabled = false;
     }
@@ -121,9 +121,7 @@ export class SentryIntegrationService implements OnModuleInit {
 
     try {
       const Sentry = await import('@sentry/node');
-      const eventId = Sentry.captureMessage(message, level, {
-        extra: context,
-      });
+      const eventId = Sentry.captureMessage(message, level as any);
       return eventId;
     } catch {
       return null;
@@ -177,7 +175,7 @@ export class SentryIntegrationService implements OnModuleInit {
 
     try {
       const Sentry = await import('@sentry/node');
-      return Sentry.startTransaction({ name, op });
+      return (Sentry as any).startTransaction?.({ name, op }) ?? null;
     } catch {
       return null;
     }

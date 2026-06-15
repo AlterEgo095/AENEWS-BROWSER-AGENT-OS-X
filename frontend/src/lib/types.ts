@@ -129,14 +129,40 @@ export interface RegisterRequest {
   tenantSlug?: string;
 }
 
+/**
+ * Response from login/register endpoints.
+ *
+ * Security model:
+ *   - Access token: returned in JSON body (stored in memory only on the frontend)
+ *   - Refresh token: set as httpOnly cookie by the backend (NOT in the response body)
+ */
 export interface AuthResponse {
-  access_token: string;
+  accessToken: string;
   user: {
     id: string;
     email: string;
     firstName: string;
     lastName: string;
   };
+}
+
+/**
+ * Response when login requires 2FA verification.
+ * The client must submit the tempToken along with a TOTP code
+ * to the /auth/login/2fa endpoint to complete authentication.
+ */
+export interface Auth2faRequiredResponse {
+  requires2FA: true;
+  tempToken: string;
+  message: string;
+}
+
+/**
+ * Response from the /auth/refresh endpoint.
+ * A new access token is issued; the refresh cookie is rotated automatically.
+ */
+export interface AuthRefreshResponse {
+  accessToken: string;
 }
 
 // Mission Types

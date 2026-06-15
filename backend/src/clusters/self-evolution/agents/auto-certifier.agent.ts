@@ -106,9 +106,9 @@ export class AutoCertifierAgent extends BaseAgent {
             };
           });
 
-          const allPassed = suiteResults.every((r) => r.passed);
+          const allPassed = suiteResults.every((r: { passed: boolean }) => r.passed);
           const avgScore =
-            suiteResults.reduce((s, r) => s + r.score, 0) /
+            suiteResults.reduce((s: number, r: { score: number }) => s + r.score, 0) /
             suiteResults.length;
 
           const newEqi = parseFloat(avgScore.toFixed(1));
@@ -127,7 +127,7 @@ export class AutoCertifierAgent extends BaseAgent {
                 patchId,
                 newEqi,
                 eqiDelta,
-                suiteResults: suiteResults.map((r) => ({
+                suiteResults: suiteResults.map((r: { suite: string; passed: boolean; score: number }) => ({
                   suite: r.suite,
                   passed: r.passed,
                   score: r.score,

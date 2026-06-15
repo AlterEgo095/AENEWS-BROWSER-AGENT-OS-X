@@ -1,12 +1,19 @@
 -- ============================================================
 -- AENEWS Agent OS X — Database Initialization
 -- ============================================================
+-- CANONICAL SOURCE: backend/data/init-db.sql
+-- This file is a MIRROR — do NOT edit directly.
+-- All changes must be made in backend/data/init-db.sql,
+-- then copied here:  cp backend/data/init-db.sql docker/init-db.sql
+--
 -- This script is executed by the PostgreSQL Docker container on
 -- first startup (when the data volume is empty). It creates the
--- schemas, enum types, and tables required for the platform.
+-- schemas, enum types, tables, indexes, foreign keys, triggers,
+-- and seed data required for the platform.
 --
--- This file is the SINGLE SOURCE OF TRUTH for DB init.
--- Do NOT duplicate in backend/docker/ or backend/db/.
+-- Previous duplicates removed:
+--   - backend/docker/init-db.sql  (DELETED — was contradictory)
+--   - backend/db/init-db.sql      (DELETED — was contradictory)
 -- ============================================================
 
 -- ─── Extensions ────────────────────────────────────────────────
@@ -26,7 +33,7 @@ GRANT ALL PRIVILEGES ON SCHEMA "agent"             TO aenews;
 GRANT ALL PRIVILEGES ON SCHEMA "audit"             TO aenews;
 GRANT ALL PRIVILEGES ON SCHEMA "software_factory"  TO aenews;
 
--- ─── Enum types (matching TypeORM migration) ──────────────────
+-- ─── Enum types (matching TypeORM entities) ───────────────────
 
 -- tenant.user_role_enum
 CREATE TYPE "tenant"."user_role_enum" AS ENUM (
@@ -301,6 +308,58 @@ CREATE TABLE IF NOT EXISTS "software_factory"."mission_contracts" (
 
 CREATE INDEX IF NOT EXISTS "idx_mission_contracts_mission_id" ON "software_factory"."mission_contracts" ("mission_id");
 
+-- ─── collaboration_state ──────────────────────────────────────
+-- Durable persistence for multi-agent collaboration checkpoints.
+-- Used by CollaborationPersistenceService as L2 (durable) store,
+-- with in-memory Maps serving as L1 (hot) cache.
+CREATE TABLE IF NOT EXISTS "agent"."collaboration_state" (
+  "collaboration_id"  VARCHAR(128) NOT NULL PRIMARY KEY,
+  "phase"             VARCHAR(64)  NOT NULL,
+  "agent_ids"         JSONB        NOT NULL DEFAULT '[]',
+  "assigned_agents"   JSONB        NOT NULL DEFAULT '[]',
+  "results"           JSONB        NOT NULL DEFAULT '[]',
+  "errors"            JSONB        NOT NULL DEFAULT '[]',
+  "started_at"        BIGINT       NOT NULL,
+  "last_checkpoint_at" BIGINT      NOT NULL,
+  "parent_mission_id" VARCHAR(128),
+  "pattern"           VARCHAR(64)  NOT NULL,
+  "metadata"          JSONB        NOT NULL DEFAULT '{}',
+  "created_at"        TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  "updated_at"        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS "idx_collaboration_state_pattern"          ON "agent"."collaboration_state" ("pattern");
+CREATE INDEX IF NOT EXISTS "idx_collaboration_state_parent_mission"   ON "agent"."collaboration_state" ("parent_mission_id");
+CREATE INDEX IF NOT EXISTS "idx_collaboration_state_created_at"       ON "agent"."collaboration_state" ("created_at");
+
+-- ─── refresh_tokens ───────────────────────────────────────────
+-- Durable JWT refresh token storage for token rotation & theft detection.
+-- When Redis is unavailable, this table serves as the persistent store.
+CREATE TABLE IF NOT EXISTS "tenant"."refresh_tokens" (
+  "id"              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  "token_hash"      VARCHAR(128) NOT NULL UNIQUE,
+  "family"          UUID         NOT NULL,
+  "user_id"         UUID         NOT NULL,
+  "tenant_id"       UUID         NOT NULL,
+  "role"            VARCHAR(50)  NOT NULL DEFAULT 'viewer',
+  "is_revoked"      BOOLEAN      NOT NULL DEFAULT false,
+  "previous_token_hash" VARCHAR(128),
+  "user_agent"      TEXT,
+  "ip_address"      INET,
+  "expires_at"      TIMESTAMPTZ  NOT NULL,
+  "created_at"      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CONSTRAINT "fk_refresh_tokens_user"   FOREIGN KEY ("user_id")
+    REFERENCES "tenant"."users"("id") ON DELETE CASCADE,
+  CONSTRAINT "fk_refresh_tokens_tenant" FOREIGN KEY ("tenant_id")
+    REFERENCES "tenant"."tenants"("id") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "idx_refresh_tokens_user_id"    ON "tenant"."refresh_tokens" ("user_id");
+CREATE INDEX IF NOT EXISTS "idx_refresh_tokens_family"     ON "tenant"."refresh_tokens" ("family");
+CREATE INDEX IF NOT EXISTS "idx_refresh_tokens_tenant_id"  ON "tenant"."refresh_tokens" ("tenant_id");
+CREATE INDEX IF NOT EXISTS "idx_refresh_tokens_expires_at" ON "tenant"."refresh_tokens" ("expires_at");
+CREATE INDEX IF NOT EXISTS "idx_refresh_tokens_is_revoked" ON "tenant"."refresh_tokens" ("is_revoked");
+
 -- ─── updated_at trigger function ──────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -318,6 +377,7 @@ CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON "agent"."tasks" FOR EACH
 CREATE TRIGGER update_plugins_updated_at BEFORE UPDATE ON "agent"."plugins" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_missions_updated_at BEFORE UPDATE ON "software_factory"."missions" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contracts_updated_at BEFORE UPDATE ON "software_factory"."mission_contracts" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_collaboration_state_updated_at BEFORE UPDATE ON "agent"."collaboration_state" FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ─── Default system tenant (no default admin user — create via app) ──
 INSERT INTO "tenant"."tenants" ("name", "slug", "plan", "is_active", "config") VALUES

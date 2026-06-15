@@ -329,7 +329,7 @@ export class MetricsService {
       result[metric.name] = {
         help: metric.help,
         type: metric.type,
-        values: metric.values.map((v) => ({
+        values: metric.values.map((v: { labels: any; value: any }) => ({
           labels: v.labels,
           value: v.value,
         })),

@@ -216,8 +216,8 @@ export class WeaknessDetectorAgent extends BaseAgent {
               recommendedScheduling:
                 index < 2 ? 'immediate' : index < 4 ? 'this-sprint' : 'next-sprint',
             }))
-            .sort((a, b) => b.compositeScore - a.compositeScore)
-            .map((item, idx) => ({ ...item, rank: idx + 1 }));
+            .sort((a: { compositeScore: number }, b: { compositeScore: number }) => b.compositeScore - a.compositeScore)
+            .map((item: any, idx: number) => ({ ...item, rank: idx + 1 }));
 
           return {
             success: true,
@@ -229,7 +229,7 @@ export class WeaknessDetectorAgent extends BaseAgent {
               prioritized,
               totalWeaknesses: weaknessIds.length,
               immediateAction: prioritized.filter(
-                (p) => p.recommendedScheduling === 'immediate',
+                (p: any) => p.recommendedScheduling === 'immediate',
               ).length,
               prioritizationId: `priority-${Date.now()}`,
               status: 'weaknesses_prioritized',
@@ -279,8 +279,8 @@ export class WeaknessDetectorAgent extends BaseAgent {
                     Date.now() + 7 * 24 * 60 * 60 * 1000,
                   ).toISOString(),
                   items: planItems
-                    .filter((i) => i.phase === 'critical-fix')
-                    .map((i) => i.weaknessId),
+                    .filter((i: { phase: string }) => i.phase === 'critical-fix')
+                    .map((i: { weaknessId: string }) => i.weaknessId),
                 },
                 {
                   name: 'Improvements Delivered',
@@ -288,8 +288,8 @@ export class WeaknessDetectorAgent extends BaseAgent {
                     Date.now() + 21 * 24 * 60 * 60 * 1000,
                   ).toISOString(),
                   items: planItems
-                    .filter((i) => i.phase === 'improvement')
-                    .map((i) => i.weaknessId),
+                    .filter((i: { phase: string }) => i.phase === 'improvement')
+                    .map((i: { weaknessId: string }) => i.weaknessId),
                 },
                 {
                   name: 'Optimization Cycle Complete',
@@ -297,8 +297,8 @@ export class WeaknessDetectorAgent extends BaseAgent {
                     Date.now() + 30 * 24 * 60 * 60 * 1000,
                   ).toISOString(),
                   items: planItems
-                    .filter((i) => i.phase === 'optimization')
-                    .map((i) => i.weaknessId),
+                    .filter((i: { phase: string }) => i.phase === 'optimization')
+                    .map((i: { weaknessId: string }) => i.weaknessId),
                 },
               ]
             : undefined;

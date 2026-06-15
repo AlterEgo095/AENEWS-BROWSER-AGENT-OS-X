@@ -37,7 +37,7 @@ export class Event {
   @Column({ name: 'tenant_id', nullable: true })
   tenantId: string;
 
-  @ManyToOne('Tenant', null, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne('Tenant', undefined, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'tenant_id' })
   tenant: import('../../tenant/entities/tenant.entity').Tenant;
 

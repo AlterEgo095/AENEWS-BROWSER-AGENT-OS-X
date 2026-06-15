@@ -193,7 +193,7 @@ export class AdaptiveFeedbackLoopService {
       try {
         const learningSignals = await this.collectLearningFeedback();
         signals.push(...learningSignals);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`Learning feedback collection failed: ${error.message}`);
       }
     }
@@ -203,7 +203,7 @@ export class AdaptiveFeedbackLoopService {
       try {
         const patternSignals = await this.collectPatternFeedback();
         signals.push(...patternSignals);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`Pattern feedback collection failed: ${error.message}`);
       }
     }
@@ -213,7 +213,7 @@ export class AdaptiveFeedbackLoopService {
       try {
         const userSignals = await this.collectUserFeedback();
         signals.push(...userSignals);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`User feedback collection failed: ${error.message}`);
       }
     }
@@ -223,7 +223,7 @@ export class AdaptiveFeedbackLoopService {
       try {
         const experienceSignals = await this.collectExperienceFeedback();
         signals.push(...experienceSignals);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`Experience feedback collection failed: ${error.message}`);
       }
     }

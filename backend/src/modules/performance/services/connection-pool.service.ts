@@ -13,7 +13,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Optional } from '@ne
 import { ConfigService } from '@nestjs/config';
 import * as promClient from 'prom-client';
 
-interface PoolStats {
+export interface PoolStats {
   name: string;
   active: number;
   idle: number;

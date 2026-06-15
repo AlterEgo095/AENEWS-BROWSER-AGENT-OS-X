@@ -45,8 +45,20 @@ export class User {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  @Column({ name: 'totp_secret', type: 'text', nullable: true })
+  totpSecret: string | null;
+
+  @Column({ name: 'totp_enabled', default: false })
+  totpEnabled: boolean;
+
+  @Column({ name: 'totp_backup_codes', type: 'text', nullable: true })
+  totpBackupCodes: string | null;
+
+  @Column({ name: 'totp_used_backup_codes', type: 'text', nullable: true, default: '[]' })
+  totpUsedBackupCodes: string | null;
+
   @Column({ name: 'last_login_at', type: 'timestamptz', nullable: true })
-  lastLoginAt: Date;
+  lastLoginAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

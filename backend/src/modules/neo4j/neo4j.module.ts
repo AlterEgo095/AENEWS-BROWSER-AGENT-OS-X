@@ -10,10 +10,10 @@ import { Neo4jService } from './neo4j.service';
       provide: 'NEO4J_DRIVER',
       useFactory: (configService: ConfigService) => {
         return neo4j.driver(
-          configService.get<string>('neo4j.uri'),
+          configService.get<string>('neo4j.uri') ?? 'bolt://localhost:7687',
           neo4j.auth.basic(
-            configService.get<string>('neo4j.user'),
-            configService.get<string>('neo4j.password'),
+            configService.get<string>('neo4j.user') ?? 'neo4j',
+            configService.get<string>('neo4j.password') ?? '',
           ),
         );
       },

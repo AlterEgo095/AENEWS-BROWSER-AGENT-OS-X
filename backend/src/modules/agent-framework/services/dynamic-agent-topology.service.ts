@@ -766,7 +766,7 @@ export class DynamicAgentTopologyService {
         MemoryTier.SHORT_TERM,
         3600,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to persist topology ${topologyId}: ${error.message}`);
     }
   }

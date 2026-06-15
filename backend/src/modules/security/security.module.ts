@@ -6,6 +6,8 @@
  *   - AccountLockoutService: Brute-force protection with exponential backoff
  *   - RefreshTokenService: JWT refresh token rotation with theft detection
  *   - SecurityAuditPersistenceService: Database-backed audit logging
+ *   - PromptInjectionGuardService: GUARD_OPEN/GUARD_CLOSE prompt injection detection & sanitization
+ *   - SsrfProtectionService: SSRF URL validation with DNS rebinding detection
  *   - CorsSecurityMiddleware: Explicit CORS origin validation
  *   - CorrelationIdMiddleware: Request correlation tracking
  *   - IpAccessControlMiddleware: IP-based endpoint access control (whitelist)
@@ -15,7 +17,9 @@
  *   - SecurityController: REST API for security management
  *   - SecurityMetricsService: Security-specific Prometheus metrics
  *   - ThreatIntelligenceService: IP reputation and threat detection
+ *   - EncryptionService: AES-256-GCM encryption at rest with HKDF key derivation
  *   - SentryIntegrationService: Error tracking via Sentry
+ *   - TotpService: RFC 6238 compliant TOTP two-factor authentication
  */
 
 import { Module, Global, MiddlewareConsumer } from '@nestjs/common';
@@ -24,8 +28,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuditLog } from '../tenant/entities/audit-log.entity';
 import { User } from '../user/entities/user.entity';
 import { AccountLockoutService } from './services/account-lockout.service';
+import { SecurityGatewayService } from './services/security-gateway.service';
 import { RefreshTokenService } from './services/refresh-token.service';
 import { SecurityAuditPersistenceService } from './services/security-audit-persistence.service';
+import { PromptInjectionGuardService } from './services/prompt-injection-guard.service';
+import { SsrfProtectionService } from './services/ssrf-protection.service';
+import { EncryptionService } from './services/encryption.service';
+import { TotpService } from './services/totp.service';
 import { CorsSecurityMiddleware } from './middleware/cors-security.middleware';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { IpAccessControlMiddleware } from './middleware/ip-access-control.middleware';
@@ -53,8 +62,11 @@ import { AuthRateLimitMiddleware } from './guards/auth-rate-limit.guard';
   controllers: [SecurityController],
   providers: [
     AccountLockoutService,
+    SecurityGatewayService,
     RefreshTokenService,
     SecurityAuditPersistenceService,
+    PromptInjectionGuardService,
+    SsrfProtectionService,
     CorsSecurityMiddleware,
     CorrelationIdMiddleware,
     IpAccessControlMiddleware,
@@ -64,11 +76,16 @@ import { AuthRateLimitMiddleware } from './guards/auth-rate-limit.guard';
     SecurityMetricsService,
     ThreatIntelligenceService,
     SentryIntegrationService,
+    EncryptionService,
+    TotpService,
   ],
   exports: [
     AccountLockoutService,
+    SecurityGatewayService,
     RefreshTokenService,
     SecurityAuditPersistenceService,
+    PromptInjectionGuardService,
+    SsrfProtectionService,
     CorsSecurityMiddleware,
     CorrelationIdMiddleware,
     IpAccessControlMiddleware,
@@ -78,6 +95,8 @@ import { AuthRateLimitMiddleware } from './guards/auth-rate-limit.guard';
     SecurityMetricsService,
     ThreatIntelligenceService,
     SentryIntegrationService,
+    EncryptionService,
+    TotpService,
   ],
 })
 export class SecurityModule {
@@ -106,7 +125,7 @@ export class SecurityModule {
       .apply(RequestSizeLimitMiddleware)
       .forRoutes('*')
       .apply(AuthRateLimitMiddleware)
-      .forRoutes('auth/login', 'auth/register', 'auth/refresh')
+      .forRoutes('auth/login', 'auth/register', 'auth/refresh', 'auth/login/2fa')
       .apply(RateLimitMiddleware)
       .forRoutes('*');
   }

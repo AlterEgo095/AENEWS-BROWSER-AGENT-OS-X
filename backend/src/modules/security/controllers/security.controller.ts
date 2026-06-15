@@ -7,12 +7,13 @@
  *   - IP access control
  *   - CORS configuration
  *   - Security audit queries
+ *   - TOTP two-factor authentication setup, enable, disable, verify
  */
 
 import {
-  Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Req, Ip, Headers, HttpCode, HttpStatus, BadRequestException,
+  Controller, Get, Post, Delete, Body, Param, Query, UseGuards, Req, Ip, Headers, HttpCode, HttpStatus, BadRequestException, UnauthorizedException, Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -22,19 +23,269 @@ import { RefreshTokenService } from '../services/refresh-token.service';
 import { CorsSecurityMiddleware } from '../middleware/cors-security.middleware';
 import { ThreatIntelligenceService } from '../../security-monitoring/services/threat-intelligence.service';
 import { SecurityAuditPersistenceService } from '../services/security-audit-persistence.service';
+import { PromptInjectionGuardService } from '../services/prompt-injection-guard.service';
+import { SsrfProtectionService } from '../services/ssrf-protection.service';
+import { ScanPromptDto, ValidateUrlDto, EncryptDto, DecryptDto } from '../dto/security.dto';
+import { SetupTotpDto, VerifyTotpDto, EnableTotpDto, DisableTotpDto } from '../dto/totp.dto';
+import { EncryptionService } from '../services/encryption.service';
+import { TotpService } from '../services/totp.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../../user/entities/user.entity';
+import * as bcrypt from 'bcrypt';
 
 @ApiTags('Security')
 @ApiBearerAuth()
 @Controller('security')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SecurityController {
+  private readonly logger = new Logger(SecurityController.name);
+
   constructor(
     private readonly accountLockout: AccountLockoutService,
     private readonly refreshTokenService: RefreshTokenService,
     private readonly corsMiddleware: CorsSecurityMiddleware,
     private readonly threatIntel: ThreatIntelligenceService,
     private readonly auditPersistence: SecurityAuditPersistenceService,
+    private readonly promptGuard: PromptInjectionGuardService,
+    private readonly ssrfProtection: SsrfProtectionService,
+    private readonly encryptionService: EncryptionService,
+    private readonly totpService: TotpService,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
+
+  // ═══════════════════════════════════════════════════════════════
+  //  TOTP TWO-FACTOR AUTHENTICATION ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Setup TOTP for the authenticated user.
+   *
+   * Generates a new TOTP secret, QR code, and backup codes.
+   * The secret and backup codes are shown ONLY during this response —
+   * they cannot be retrieved later. The user must then call the
+   * enable endpoint with a valid TOTP code to activate 2FA.
+   *
+   * If TOTP is already enabled, returns an error (must disable first).
+   */
+  @Post('totp/setup')
+  @ApiOperation({ summary: 'Generate TOTP secret and QR code for 2FA setup' })
+  async setupTotp(@Req() req: any, @Body() _dto: SetupTotpDto) {
+    const userId = req.user?.id;
+    const email = req.user?.email;
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.totpEnabled) {
+      throw new BadRequestException('TOTP is already enabled. Disable it first to reconfigure.');
+    }
+
+    // Generate TOTP secret, QR code, and backup codes
+    const setup = await this.totpService.generateSecret(userId, email);
+
+    // Hash backup codes for secure storage
+    const hashedBackupCodes = await this.totpService.hashBackupCodes(setup.backupCodes);
+
+    // Store the encrypted secret and hashed backup codes (but don't enable yet)
+    await this.userRepository.update(userId, {
+      totpSecret: setup.encryptedSecret,
+      totpBackupCodes: JSON.stringify(hashedBackupCodes),
+      totpUsedBackupCodes: '[]',
+    });
+
+    this.logger.log(`TOTP setup initiated for user ${userId}`);
+
+    return {
+      qrCode: setup.qrCode,
+      otpauthUri: setup.otpauthUri,
+      backupCodes: setup.backupCodes,
+      // Security notice: backup codes can only be viewed this once
+      message: 'Store your backup codes securely. They will not be shown again.',
+    };
+  }
+
+  /**
+   * Enable TOTP two-factor authentication after verifying the user
+   * can generate valid codes.
+   *
+   * Requires a valid TOTP code to prove the authenticator app is
+   * correctly configured.
+   */
+  @Post('totp/enable')
+  @ApiOperation({ summary: 'Enable 2FA after verifying TOTP code' })
+  async enableTotp(@Req() req: any, @Body() dto: EnableTotpDto) {
+    const userId = req.user?.id;
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (user.totpEnabled) {
+      throw new BadRequestException('TOTP is already enabled');
+    }
+
+    if (!user.totpSecret) {
+      throw new BadRequestException('TOTP not set up. Call /totp/setup first.');
+    }
+
+    // Decrypt and verify the TOTP code (totpSecret is guaranteed non-null after check above)
+    const decryptedSecret = this.totpService.decryptSecret(user.totpSecret!);
+    const isValid = this.totpService.verifyToken(decryptedSecret, dto.code);
+
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid TOTP code. Please try again.');
+    }
+
+    // Enable TOTP
+    await this.userRepository.update(userId, { totpEnabled: true });
+
+    this.logger.log(`TOTP enabled for user ${userId}`);
+
+    return {
+      enabled: true,
+      message: 'Two-factor authentication has been enabled successfully.',
+    };
+  }
+
+  /**
+   * Disable TOTP two-factor authentication.
+   *
+   * Requires both a valid TOTP code (or backup code) and the user's
+   * current password as an additional security measure.
+   */
+  @Post('totp/disable')
+  @ApiOperation({ summary: 'Disable 2FA with password confirmation' })
+  async disableTotp(@Req() req: any, @Body() dto: DisableTotpDto) {
+    const userId = req.user?.id;
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.totpEnabled) {
+      throw new BadRequestException('TOTP is not enabled');
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid password');
+    }
+
+    // Verify TOTP code or backup code
+    const decryptedSecret = this.totpService.decryptSecret(user.totpSecret!);
+    const isTotpValid = this.totpService.verifyToken(decryptedSecret, dto.code);
+
+    let backupCodeUsed = false;
+    let updatedUsedCodes: string[] | undefined;
+
+    if (!isTotpValid) {
+      // Try backup code
+      const allBackupCodeHashes: string[] = user.totpBackupCodes
+        ? JSON.parse(user.totpBackupCodes)
+        : [];
+      const usedBackupCodeHashes: string[] = user.totpUsedBackupCodes
+        ? JSON.parse(user.totpUsedBackupCodes)
+        : [];
+
+      const backupResult = await this.totpService.validateBackupCode(
+        usedBackupCodeHashes,
+        allBackupCodeHashes,
+        dto.code,
+      );
+
+      if (!backupResult.valid) {
+        throw new UnauthorizedException('Invalid TOTP code or backup code');
+      }
+
+      backupCodeUsed = backupResult.backupCodeUsed ?? false;
+      updatedUsedCodes = backupResult.usedBackupCodes;
+    }
+
+    // Disable TOTP and clear stored data
+    await this.userRepository.update(userId, {
+      totpEnabled: false,
+      totpSecret: null,
+      totpBackupCodes: null,
+      totpUsedBackupCodes: '[]',
+    });
+
+    this.logger.log(`TOTP disabled for user ${userId}`);
+
+    return {
+      disabled: true,
+      message: 'Two-factor authentication has been disabled.',
+    };
+  }
+
+  /**
+   * Verify a TOTP code for the authenticated user.
+   *
+   * Used for testing TOTP codes during an active session (e.g., when
+   * performing sensitive operations that require re-authentication).
+   */
+  @Post('totp/verify')
+  @ApiOperation({ summary: 'Verify a TOTP code for the current user' })
+  async verifyTotp(@Req() req: any, @Body() dto: VerifyTotpDto) {
+    const userId = req.user?.id;
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.totpEnabled || !user.totpSecret) {
+      throw new BadRequestException('TOTP is not enabled for this account');
+    }
+
+    // Decrypt and verify the TOTP code (totpSecret is guaranteed non-null after check above)
+    const decryptedSecret = this.totpService.decryptSecret(user.totpSecret!);
+    const isTotpValid = this.totpService.verifyToken(decryptedSecret, dto.code);
+
+    if (isTotpValid) {
+      return { valid: true, method: 'totp' };
+    }
+
+    // Try backup code
+    const allBackupCodeHashes: string[] = user.totpBackupCodes
+      ? JSON.parse(user.totpBackupCodes)
+      : [];
+    const usedBackupCodeHashes: string[] = user.totpUsedBackupCodes
+      ? JSON.parse(user.totpUsedBackupCodes)
+      : [];
+
+    const backupResult = await this.totpService.validateBackupCode(
+      usedBackupCodeHashes,
+      allBackupCodeHashes,
+      dto.code,
+    );
+
+    if (backupResult.valid) {
+      // Update used backup codes in database
+      if (backupResult.usedBackupCodes) {
+        await this.userRepository.update(userId, {
+          totpUsedBackupCodes: JSON.stringify(backupResult.usedBackupCodes),
+        });
+      }
+
+      const remainingCodes =
+        allBackupCodeHashes.length - (backupResult.usedBackupCodes?.length ?? usedBackupCodeHashes.length);
+
+      return {
+        valid: true,
+        method: 'backup_code',
+        remainingCodes,
+      };
+    }
+
+    return { valid: false };
+  }
 
   // ═══════════════════════════════════════════════════════════════
   //  ACCOUNT LOCKOUT ENDPOINTS
@@ -214,6 +465,60 @@ export class SecurityController {
       new Date(endDate),
       tenantId,
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  PROMPT INJECTION GUARD ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════
+
+  @Post('scan-prompt')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Scan a prompt input for injection attacks' })
+  @ApiBody({ type: ScanPromptDto })
+  scanPrompt(@Body() dto: ScanPromptDto) {
+    return this.promptGuard.guardInput(dto.input, dto.context);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  SSRF PROTECTION ENDPOINTS
+  // ═══════════════════════════════════════════════════════════════
+
+  @Post('validate-url')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.TENANT_ADMIN)
+  @ApiOperation({ summary: 'Validate a URL for SSRF risks' })
+  @ApiBody({ type: ValidateUrlDto })
+  async validateUrl(@Body() dto: ValidateUrlDto) {
+    return this.ssrfProtection.validateUrl(dto.url);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  ENCRYPTION AT REST ENDPOINTS (SUPER_ADMIN only)
+  // ═══════════════════════════════════════════════════════════════
+
+  @Post('encrypt')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Encrypt a plaintext string using AES-256-GCM' })
+  @ApiBody({ type: EncryptDto })
+  encrypt(@Body() dto: EncryptDto) {
+    const encrypted = this.encryptionService.encrypt(dto.plaintext);
+    return { encrypted };
+  }
+
+  @Post('decrypt')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Decrypt an AES-256-GCM encrypted string' })
+  @ApiBody({ type: DecryptDto })
+  decrypt(@Body() dto: DecryptDto) {
+    const decrypted = this.encryptionService.decrypt(dto.encrypted);
+    return { decrypted };
+  }
+
+  @Post('generate-api-key')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Generate a new secure random API key' })
+  generateApiKey() {
+    const apiKey = this.encryptionService.generateApiKey();
+    return { apiKey };
   }
 
   // ═══════════════════════════════════════════════════════════════

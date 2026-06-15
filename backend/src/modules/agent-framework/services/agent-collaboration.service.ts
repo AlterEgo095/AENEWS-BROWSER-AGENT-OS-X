@@ -1007,7 +1007,7 @@ Only return the JSON array, nothing else.`,
     preferredClusters?: ClusterType[],
     excludeAgents?: Set<string>,
   ): BaseAgent | null {
-    const allAgents = this.registry.findAll();
+    const allAgents = this.registry.getAll();
     let bestAgent: BaseAgent | null = null;
     let bestScore = -1;
 
@@ -1018,7 +1018,7 @@ Only return the JSON array, nothing else.`,
 
       // Capability matching
       const capMatch = requiredCapabilities.filter((cap) =>
-        agent.capabilities.some((ac) => ac.toLowerCase().includes(cap.toLowerCase())),
+        agent.capabilities.some((ac: string) => ac.toLowerCase().includes(cap.toLowerCase())),
       ).length;
       score += capMatch * 10;
 
@@ -1032,7 +1032,7 @@ Only return the JSON array, nothing else.`,
         const metrics = this.healthService.getMetrics(agent.name);
         if (metrics) {
           score += metrics.successRate * 15;
-          score -= metrics.errorRate * 10;
+          score -= metrics.failureRate * 10;
         }
       }
 
@@ -1052,7 +1052,7 @@ Only return the JSON array, nothing else.`,
     excludeCluster: ClusterType,
     count: number,
   ): BaseAgent[] {
-    const allAgents = this.registry.findAll();
+    const allAgents = this.registry.getAll();
     const reviewers: BaseAgent[] = [];
     const usedClusters = new Set<ClusterType>([excludeCluster]);
 
@@ -1080,7 +1080,7 @@ Only return the JSON array, nothing else.`,
     context: AgentContext,
     timeoutMs: number,
   ): Promise<AgentResult> {
-    const agent = this.registry.find(agentKey);
+    const agent = this.registry.get(agentKey);
     if (!agent) {
       throw new Error(`Agent not found: ${agentKey}`);
     }
@@ -1090,7 +1090,7 @@ Only return the JSON array, nothing else.`,
     this.delegationDepth.set(agentKey, currentDepth + 1);
 
     try {
-      const result = await this.withTimeout(
+      const result: any = await this.withTimeout(
         agent.wrapExecution(context),
         timeoutMs,
       );
@@ -1100,7 +1100,7 @@ Only return the JSON array, nothing else.`,
         duration: result.duration,
       });
 
-      return result;
+      return result as AgentResult;
     } finally {
       this.delegationDepth.set(agentKey, currentDepth);
     }

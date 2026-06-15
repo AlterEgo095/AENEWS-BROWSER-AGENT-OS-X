@@ -28,7 +28,7 @@ export class TenantIsolationMiddleware implements NestMiddleware {
 
     // SUPER_ADMIN bypasses tenant isolation — they can access all tenants.
     if (user.role === UserRole.SUPER_ADMIN) {
-      req.tenantId = null; // Explicitly null = no tenant filter
+      req.tenantId = undefined; // Explicitly undefined = no tenant filter
     } else {
       // All other roles are scoped to their own tenant.
       req.tenantId = user.tenantId ?? null;

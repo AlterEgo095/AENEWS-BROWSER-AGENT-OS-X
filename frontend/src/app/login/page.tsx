@@ -12,7 +12,6 @@ type AuthMode = 'login' | 'register';
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
-  const hydrate = useAuthStore((s) => s.hydrate);
   const [mode, setMode] = useState<AuthMode>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,7 +29,7 @@ export default function LoginPage() {
     try {
       if (mode === 'login') {
         const result = await api.login({ email, password });
-        login(result.access_token, result.user);
+        login(result.accessToken, result.user);
       } else {
         const result = await api.register({
           email,
@@ -38,9 +37,8 @@ export default function LoginPage() {
           firstName,
           lastName,
         });
-        login(result.access_token, result.user);
+        login(result.accessToken, result.user);
       }
-      hydrate();
       router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');

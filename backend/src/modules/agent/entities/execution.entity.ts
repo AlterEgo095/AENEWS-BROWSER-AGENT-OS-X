@@ -23,14 +23,14 @@ export class Execution {
   @Column({ name: 'task_id', nullable: true })
   taskId: string;
 
-  @ManyToOne('Task', null, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne('Task', undefined, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'task_id' })
   task: import('../../task/entities/task.entity').Task;
 
   @Column({ name: 'tenant_id' })
   tenantId: string;
 
-  @ManyToOne('Tenant', null)
+  @ManyToOne('Tenant', undefined)
   @JoinColumn({ name: 'tenant_id' })
   tenant: import('../../tenant/entities/tenant.entity').Tenant;
 

@@ -39,7 +39,7 @@ import { Logger, Optional } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { SecurityGatewayService } from '../../../src/gateway/security/security-gateway.service';
+import { SecurityGatewayService } from '../security/services/security-gateway.service';
 import { ThreatIntelligenceService } from '../security-monitoring/services/threat-intelligence.service';
 import { SecurityMetricsService } from '../security-monitoring/services/security-metrics.service';
 
@@ -204,7 +204,7 @@ export class EventsGateway
       if (!this.ipConnections.has(ip)) {
         this.ipConnections.set(ip, new Set());
       }
-      this.ipConnections.get(ip).add(client.id);
+      this.ipConnections.get(ip)!.add(client.id);
 
       this.clients.set(client.id, {
         socket: client,
@@ -231,7 +231,7 @@ export class EventsGateway
         userId,
         timestamp: Date.now(),
       });
-    } catch (err) {
+    } catch (err: any) {
       this.logger.warn(`Client ${client.id} provided invalid token — disconnecting`);
       client.emit('error', { message: 'Invalid or expired token' });
       client.disconnect(true);
@@ -266,12 +266,12 @@ export class EventsGateway
   // ─── Subscribe Messages (with rate limiting + sanitization) ──
 
   @SubscribeMessage('subscribe:agent')
-  handleSubscribeAgent(
+  async handleSubscribeAgent(
     @MessageBody() data: { agentId: string },
     @ConnectedSocket() client: Socket,
-  ): void {
+  ): Promise<void> {
     if (!this.checkClientRateLimit(client.id)) return;
-    const sanitized = this.sanitizeInput(data, client.id);
+    const sanitized = await this.sanitizeInput(data, client.id);
     if (!sanitized) return;
 
     const entry = this.clients.get(client.id);
@@ -282,12 +282,12 @@ export class EventsGateway
   }
 
   @SubscribeMessage('subscribe:mission')
-  handleSubscribeMission(
+  async handleSubscribeMission(
     @MessageBody() data: { missionId: string },
     @ConnectedSocket() client: Socket,
-  ): void {
+  ): Promise<void> {
     if (!this.checkClientRateLimit(client.id)) return;
-    const sanitized = this.sanitizeInput(data, client.id);
+    const sanitized = await this.sanitizeInput(data, client.id);
     if (!sanitized) return;
 
     const entry = this.clients.get(client.id);
@@ -298,12 +298,12 @@ export class EventsGateway
   }
 
   @SubscribeMessage('subscribe:cluster')
-  handleSubscribeCluster(
+  async handleSubscribeCluster(
     @MessageBody() data: { clusterId: string },
     @ConnectedSocket() client: Socket,
-  ): void {
+  ): Promise<void> {
     if (!this.checkClientRateLimit(client.id)) return;
-    const sanitized = this.sanitizeInput(data, client.id);
+    const sanitized = await this.sanitizeInput(data, client.id);
     if (!sanitized) return;
 
     const entry = this.clients.get(client.id);
@@ -411,7 +411,7 @@ export class EventsGateway
   /**
    * Sanitize incoming WebSocket event data using SecurityGateway.
    */
-  private sanitizeInput(data: any, clientId: string): any | null {
+  private async sanitizeInput(data: any, clientId: string): Promise<any | null> {
     if (!this.sanitizeEvents || !this.securityGateway) {
       return data;
     }
@@ -426,7 +426,7 @@ export class EventsGateway
 
       // Run through security gateway for injection detection
       // We don't block, just sanitize
-      const result = this.securityGateway.process(
+      const result = await this.securityGateway.process(
         clientId,
         'ws_event',
         'websocket',
@@ -434,13 +434,13 @@ export class EventsGateway
       );
 
       if (!result.allowed) {
-        this.logger.warn(`WS event BLOCKED from client ${clientId}: ${result.threats.map((t) => t.type).join(', ')}`);
+        this.logger.warn(`WS event BLOCKED from client ${clientId}: ${result.threats.map((t: { type: string }) => t.type).join(', ')}`);
         this.securityMetrics?.recordBlockedRequest('ws_injection', 'ws', 'SUBSCRIBE');
         return null;
       }
 
       return data;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`WS input sanitization error for client ${clientId}: ${error.message}`);
       return data; // Fail open — don't block on sanitizer errors
     }

@@ -82,11 +82,11 @@ export class SoftwareFactoryController {
 
     query
       .orderBy('mission.created_at', 'DESC')
-      .skip((pagination.page - 1) * pagination.limit)
-      .take(pagination.limit);
+      .skip(((pagination.page ?? 1) - 1) * (pagination.limit ?? 20))
+      .take(pagination.limit ?? 20);
 
     const [data, total] = await query.getManyAndCount();
-    return { data, total, page: pagination.page, limit: pagination.limit };
+    return { data, total, page: pagination.page ?? 1, limit: pagination.limit ?? 20 };
   }
 
   @Post()

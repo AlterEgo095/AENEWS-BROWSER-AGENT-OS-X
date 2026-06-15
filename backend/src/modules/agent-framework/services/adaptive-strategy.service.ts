@@ -469,7 +469,7 @@ export class AdaptiveStrategyService {
     this.activeConfig = this.createDefaultConfig();
     this.logger.warn('Emergency reset: all adaptations reverted to defaults');
 
-    this.eventBus.emit(AgentEventType.AGENT_ERROR, 'adaptive-strategy', {
+    this.eventBus.emit(AgentEventType.AGENT_FAILED, 'adaptive-strategy', {
       action: 'emergency_reset',
       configVersion: this.activeConfig.version,
     });

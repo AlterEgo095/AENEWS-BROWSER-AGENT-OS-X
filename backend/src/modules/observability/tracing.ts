@@ -10,12 +10,12 @@ import { NodeSDK, resources } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
 import { MeterProvider } from '@opentelemetry/sdk-metrics';
-import {
-  SEMRESATTRS_SERVICE_NAME,
-  SEMRESATTRS_SERVICE_VERSION,
-  SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
-} from '@opentelemetry/semantic-conventions';
 import { trace, metrics } from '@opentelemetry/api';
+
+// Semantic attribute keys for resource identification
+const ATTR_SERVICE_NAME = 'service.name';
+const ATTR_SERVICE_VERSION = 'service.version';
+const ATTR_DEPLOYMENT_ENVIRONMENT = 'deployment.environment';
 
 // ─── Configuration ──────────────────────────────────────────────
 
@@ -37,9 +37,9 @@ if (OTEL_ENABLED) {
   try {
     // Resource identifies this service in all telemetry
     const resource = resources.resourceFromAttributes({
-      [SEMRESATTRS_SERVICE_NAME]: 'aenews-agent-os-x',
-      [SEMRESATTRS_SERVICE_VERSION]: APP_VERSION,
-      [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: APP_ENV,
+      [ATTR_SERVICE_NAME]: 'aenews-agent-os-x',
+      [ATTR_SERVICE_VERSION]: APP_VERSION,
+      [ATTR_DEPLOYMENT_ENVIRONMENT]: APP_ENV,
     });
 
     // OTLP HTTP Trace Exporter
@@ -62,8 +62,8 @@ if (OTEL_ENABLED) {
 
     const meterProvider = new MeterProvider({
       resource,
-      readers: [prometheusExporter],
-    });
+    } as any);
+    (meterProvider as any).addMetricReader?.(prometheusExporter);
 
     // Build the SDK
     sdk = new NodeSDK({

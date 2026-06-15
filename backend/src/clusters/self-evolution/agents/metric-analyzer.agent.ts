@@ -76,7 +76,7 @@ export class MetricAnalyzerAgent extends BaseAgent {
           }));
 
           const degradedMetrics = compareWithBaseline
-            ? metrics.filter((m) => m.trend === 'degrading' || m.trend === 'critical')
+            ? metrics.filter((m: { trend: string }) => m.trend === 'degrading' || m.trend === 'critical')
             : [];
 
           // Try LLM-powered analysis

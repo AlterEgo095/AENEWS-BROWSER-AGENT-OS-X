@@ -101,6 +101,16 @@ export function useWebSocket() {
       if (wildcardHandlers) wildcardHandlers.forEach((handler) => handler(event));
     });
 
+    // System notifications
+    socket.on('system:notification', (data: WebSocketEvent) => {
+      const event = { ...data, type: 'system:notification', timestamp: new Date().toISOString() };
+      setLastEvent(event);
+      const handlers = handlersRef.current.get('system:notification');
+      if (handlers) handlers.forEach((handler) => handler(event));
+      const wildcardHandlers = handlersRef.current.get('*');
+      if (wildcardHandlers) wildcardHandlers.forEach((handler) => handler(event));
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;

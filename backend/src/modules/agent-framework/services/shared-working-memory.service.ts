@@ -262,7 +262,7 @@ export class SharedWorkingMemoryService {
         MemoryTier.SHORT_TERM,
         session.scope === 'session' ? 3600 : 86400,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to persist shared entry ${key}: ${error.message}`);
     }
 
@@ -482,7 +482,7 @@ export class SharedWorkingMemoryService {
       if (regex.test(entry.key)) {
         try {
           sub.callback(entry);
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn(`Subscription callback failed for ${sub.id}: ${error.message}`);
         }
       }

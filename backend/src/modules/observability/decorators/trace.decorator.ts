@@ -99,7 +99,7 @@ export function Meter(
         const result = await originalMethod.apply(this, args);
 
         // Try to record metric via MetricsService if available
-        this?.['metricsService']?.recordPipelineStep?.(
+        (this as any)?.['metricsService']?.recordPipelineStep?.(
           metricName,
           Date.now() - startTime,
           true,
@@ -109,7 +109,7 @@ export function Meter(
         return result;
       } catch (error: any) {
         // Record failed execution
-        this?.['metricsService']?.recordPipelineStep?.(
+        (this as any)?.['metricsService']?.recordPipelineStep?.(
           metricName,
           Date.now() - startTime,
           false,

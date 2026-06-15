@@ -47,7 +47,7 @@ export class TenantService {
     return tenant;
   }
 
-  async findBySlug(slug: string): Promise<Tenant> {
+  async findBySlug(slug: string): Promise<Tenant | null> {
     return this.tenantRepository.findOne({ where: { slug } });
   }
 

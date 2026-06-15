@@ -14,9 +14,9 @@ export class Neo4jService implements OnModuleDestroy {
     const session = this.driver.session();
     try {
       const result = await session.run(query, params);
-      return result.records.map((record) => {
+      return result.records.map((record: any) => {
         const obj: Record<string, any> = {};
-        record.keys.forEach((key) => {
+        record.keys.forEach((key: any) => {
           obj[String(key)] = record.get(key);
         });
         return obj;
@@ -40,9 +40,9 @@ export class Neo4jService implements OnModuleDestroy {
       for (const { query, params } of queries) {
         const result = await tx.run(query, params);
         results.push(
-          result.records.map((record) => {
+          result.records.map((record: any) => {
             const obj: Record<string, any> = {};
-            record.keys.forEach((key) => {
+            record.keys.forEach((key: any) => {
               obj[key as string] = record.get(key);
             });
             return obj;

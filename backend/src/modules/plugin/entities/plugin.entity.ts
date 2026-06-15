@@ -39,7 +39,7 @@ export class Plugin {
   @Column({ name: 'tenant_id', nullable: true })
   tenantId: string;
 
-  @ManyToOne('Tenant', null, { nullable: true, onDelete: 'CASCADE' })
+  @ManyToOne('Tenant', undefined, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenant_id' })
   tenant: import('../../tenant/entities/tenant.entity').Tenant;
 

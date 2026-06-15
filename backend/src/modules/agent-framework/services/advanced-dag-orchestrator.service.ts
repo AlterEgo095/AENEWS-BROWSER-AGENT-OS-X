@@ -220,7 +220,7 @@ export class AdvancedDAGOrchestratorService {
       });
 
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`DAG ${dag.id} execution failed: ${error.message}`, error.stack);
 
       const failedResult: DAGResult = {
@@ -297,7 +297,7 @@ export class AdvancedDAGOrchestratorService {
       node.completedAt = Date.now();
       nodeResults.set(nodeId, result);
       success = true;
-    } catch (error) {
+    } catch (error: any) {
       node.error = error.message;
 
       // Handle retry
@@ -316,7 +316,7 @@ export class AdvancedDAGOrchestratorService {
           node.completedAt = Date.now();
           nodeResults.set(nodeId, result);
           success = true;
-        } catch (retryError) {
+        } catch (retryError: any) {
           node.error = retryError.message;
           node.status = 'failed';
         }
@@ -461,7 +461,7 @@ export class AdvancedDAGOrchestratorService {
         );
 
         return { action: node.action, output: response.content, cluster: node.clusterType };
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`LLM execution failed for node ${node.id}: ${error.message}`);
       }
     }
@@ -520,7 +520,7 @@ export class AdvancedDAGOrchestratorService {
       });
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Re-planning failed: ${error.message}`);
       return false;
     }

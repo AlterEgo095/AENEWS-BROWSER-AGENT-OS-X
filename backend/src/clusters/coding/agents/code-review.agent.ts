@@ -268,9 +268,9 @@ Quality score is 0-100. Be specific about line numbers and provide actionable su
               analysisType: config.analysisType || 'full',
               metrics: includeMetrics
                 ? {
-                    linesOfCode: lines.filter((l) => l.trim().length > 0 && !l.trim().startsWith('//')).length,
-                    linesOfComments: lines.filter((l) => l.trim().startsWith('//') || l.trim().startsWith('/*') || l.trim().startsWith('*')).length,
-                    linesBlank: lines.filter((l) => l.trim().length === 0).length,
+                    linesOfCode: lines.filter((l: string) => l.trim().length > 0 && !l.trim().startsWith('//')).length,
+                    linesOfComments: lines.filter((l: string) => l.trim().startsWith('//') || l.trim().startsWith('/*') || l.trim().startsWith('*')).length,
+                    linesBlank: lines.filter((l: string) => l.trim().length === 0).length,
                     totalLines: lines.length,
                     functions: (sourceCode.match(/function\s+\w+|const\s+\w+\s*=\s*(\(|function)/g) || []).length,
                     classes: (sourceCode.match(/class\s+\w+/g) || []).length,

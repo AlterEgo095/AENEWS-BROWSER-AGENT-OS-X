@@ -84,7 +84,7 @@ export class EventController {
     @Req() req?: Request & { user?: any; tenantId?: string },
   ) {
     // Tenant isolation: non-SUPER_ADMIN can only see their own tenant's data
-    const tenantId = req.tenantId ?? tenantIdQueryParam;
+    const tenantId = req?.tenantId ?? tenantIdQueryParam;
     return this.eventService.getEvents({
       namespace,
       type,

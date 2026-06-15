@@ -23,7 +23,7 @@ interface PerformanceSpan {
   status: 'running' | 'completed' | 'failed';
 }
 
-interface MemorySnapshot {
+export interface MemorySnapshot {
   timestamp: number;
   heapUsed: number;
   heapTotal: number;
@@ -37,7 +37,7 @@ interface EventLoopSnapshot {
   lagMs: number;
 }
 
-interface PerformanceReport {
+export interface PerformanceReport {
   timestamp: string;
   uptime: number;
   memory: {
@@ -270,7 +270,7 @@ export class PerformanceProfilingService implements OnModuleInit, OnModuleDestro
       arrayBuffers: mem.arrayBuffers,
     };
 
-    const heapStats = v8.getHeapStatistics() as Record<string, number>;
+    const heapStats = v8.getHeapStatistics() as unknown as Record<string, number>;
 
     // Determine memory trend over last 10 samples
     let trend: 'increasing' | 'stable' | 'decreasing' = 'stable';

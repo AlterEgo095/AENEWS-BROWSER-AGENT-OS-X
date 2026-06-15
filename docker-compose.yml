@@ -3,13 +3,13 @@ version: '3.8'
 # ═══════════════════════════════════════════════════════════════════
 # AENEWS Agent OS X — Docker Compose (Production-Ready)
 # ═══════════════════════════════════════════════════════════════════
-# Phase 6: DevOps & Performance Remediation
 #   - Resource limits per service
 #   - Restart policies (unless-stopped)
 #   - Logging configuration (max-size, max-file)
 #   - Network isolation (backend internal + frontend external)
 #   - Named volumes with conventions
-#   - Health check tuning (start_period, interval, timeout, retries)
+#   - Health checks with start_period on all services
+#   - depends_on with condition: service_healthy
 # ═══════════════════════════════════════════════════════════════════
 
 services:
@@ -19,15 +19,16 @@ services:
     container_name: aenews-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-aenews}
+      POSTGRES_DB: ${POSTGRES_DB:-aenews_osx}
       POSTGRES_USER: ${POSTGRES_USER:-aenews}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - aenews_postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-aenews} -d ${POSTGRES_DB:-aenews}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-aenews} -d ${POSTGRES_DB:-aenews_osx}']
       start_period: 30s
       interval: 10s
       timeout: 5s
@@ -225,20 +226,20 @@ services:
     networks:
       - aenews-backend
 
-  # ─── Application (Backend API) ──────────────────────────────
-  # Uncomment when deploying with Docker Compose.
+  # ─── Application (Backend API) ─────────────────────────────────
+  # Uncomment when deploying the backend with Docker Compose.
   # The app service waits for all infrastructure to be healthy before starting.
   #
   # app:
   #   build:
   #     context: .
-  #     dockerfile: Dockerfile
+  #     dockerfile: docker/Dockerfile
   #   container_name: aenews-app
   #   restart: unless-stopped
   #   ports:
   #     - '${APP_PORT:-3000}:3000'
   #   env_file:
-  #     - .env
+  #     - backend/.env
   #   depends_on:
   #     postgres:
   #       condition: service_healthy
@@ -252,6 +253,12 @@ services:
   #       condition: service_healthy
   #     minio:
   #       condition: service_healthy
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:3000/api/v1/health || exit 1']
+  #     start_period: 30s
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
   #   logging:
   #     driver: json-file
   #     options:
@@ -269,6 +276,40 @@ services:
   #     - aenews-frontend
   #     - aenews-backend
   #
+  # ─── Frontend (Next.js) ────────────────────────────────────────
+  # frontend:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile.frontend
+  #   container_name: aenews-frontend
+  #   restart: unless-stopped
+  #   environment:
+  #     NODE_ENV: production
+  #     NEXT_TELEMETRY_DISABLED: 1
+  #     PORT: 3001
+  #     NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:3001/ || exit 1']
+  #     start_period: 15s
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: '50m'
+  #       max-file: '5'
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 512M
+  #         cpus: '1.0'
+  #       reservations:
+  #         memory: 128M
+  #         cpus: '0.25'
+  #   networks:
+  #     - aenews-frontend
+  #
   # ─── Nginx Reverse Proxy ──────────────────────────────────────
   # nginx:
   #   image: nginx:1.25-alpine
@@ -283,6 +324,14 @@ services:
   #   depends_on:
   #     app:
   #       condition: service_healthy
+  #     frontend:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1']
+  #     start_period: 10s
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
   #   logging:
   #     driver: json-file
   #     options:
@@ -323,7 +372,7 @@ volumes:
     name: aenews-minio-data
 
 networks:
-  # External-facing network — only app and nginx should be here
+  # External-facing network — only app, frontend, and nginx should be here
   aenews-frontend:
     driver: bridge
     name: aenews-frontend

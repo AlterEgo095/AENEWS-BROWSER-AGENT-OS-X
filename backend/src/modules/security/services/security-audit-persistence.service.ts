@@ -14,7 +14,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Optional } from '@ne
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThan, MoreThan, In } from 'typeorm';
 import { AuditLog } from '../../tenant/entities/audit-log.entity';
-import { SecurityGatewayService, SecurityThreat, SecurityThreatType } from '../../../../src/gateway/security/security-gateway.service';
+import { SecurityGatewayService, SecurityThreat, SecurityThreatType } from './security-gateway.service';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
@@ -27,6 +27,9 @@ export interface SecurityAuditQuery {
   action?: string;
   result?: 'allowed' | 'blocked' | 'sanitized';
   minRiskScore?: number;
+  userId?: string;
+  tenantId?: string;
+  entityId?: string;
   limit?: number;
   offset?: number;
 }
@@ -112,8 +115,8 @@ export class SecurityAuditPersistenceService implements OnModuleInit, OnModuleDe
       entityId: event.entityId || '',
       userId: event.userId || '',
       tenantId: event.tenantId || '',
-      oldValues: null,
-      newValues: event.details || null,
+      oldValues: null as any,
+      newValues: (event.details || null) as any,
       ipAddress: event.ipAddress || '',
       userAgent: event.userAgent || '',
     });
@@ -149,7 +152,7 @@ export class SecurityAuditPersistenceService implements OnModuleInit, OnModuleDe
 
       await this.auditLogRepository.save(entities);
       this.logger.debug(`Flushed ${entities.length} audit entries to database`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to flush audit entries: ${error.message}`);
       // Re-add failed entries to the buffer (at the front)
       this.writeBuffer.unshift(...batch);

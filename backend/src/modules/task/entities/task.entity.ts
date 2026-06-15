@@ -64,7 +64,7 @@ export class Task {
   @Column({ name: 'parent_task_id', nullable: true })
   parentTaskId: string;
 
-  @ManyToOne('Task', null, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne('Task', undefined, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'parent_task_id' })
   parentTask: Task;
 

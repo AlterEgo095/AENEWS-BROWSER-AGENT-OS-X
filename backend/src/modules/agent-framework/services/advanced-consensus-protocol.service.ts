@@ -400,7 +400,7 @@ export class AdvancedConsensusProtocol {
       });
 
       return result;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Consensus ${consensusId} failed: ${error.message}`, error.stack);
 
       const failedResult: ConsensusResult = {
@@ -448,7 +448,7 @@ export class AdvancedConsensusProtocol {
       try {
         const vote = await this.solicitVote(participant, proposal, round, config);
         votes.push(vote);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`Agent ${participant.agentId} failed to vote: ${error.message}`);
         // Abstain on failure
         votes.push({

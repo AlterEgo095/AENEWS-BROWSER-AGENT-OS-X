@@ -124,8 +124,8 @@ export class AnthropicProvider implements ILLMProvider {
 
       // Extract text content from response
       const textContent = response.content
-        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-        .map((block) => block.text)
+        .filter((block: any): block is Anthropic.TextBlock => block.type === 'text')
+        .map((block: Anthropic.TextBlock) => block.text)
         .join('');
 
       if (!textContent) {

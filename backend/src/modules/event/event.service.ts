@@ -117,7 +117,7 @@ export class EventService {
   /**
    * Retrieve a single event by its primary key.
    */
-  async getEventById(id: string): Promise<Event> {
+  async getEventById(id: string): Promise<Event | null> {
     return this.eventRepository.findOne({ where: { id } });
   }
 }

@@ -19,7 +19,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import * as zlib from 'zlib';
 
-interface CompressionStats {
+export interface CompressionStats {
   totalCompressed: number;
   totalBytesSaved: number;
   averageRatio: number;
@@ -90,7 +90,7 @@ export class CompressionInterceptor implements NestInterceptor {
 
             return compressed;
           }
-        } catch (err) {
+        } catch (err: any) {
           this.logger.debug(`Compression failed, sending uncompressed: ${err.message}`);
         }
 

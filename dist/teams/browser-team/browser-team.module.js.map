@@ -1,1 +1,0 @@
-{"version":3,"file":"browser-team.module.js","sourceRoot":"","sources":["../../../src/teams/browser-team/browser-team.module.ts"],"names":[],"mappings":";;;;;;;;;AAMA,2CAAwC;AACxC,iEAA4D;AAMrD,IAAM,iBAAiB,GAAvB,MAAM,iBAAiB;CAAG,CAAA;AAApB,8CAAiB;4BAAjB,iBAAiB;IAJ7B,IAAA,eAAM,EAAC;QACN,SAAS,EAAE,CAAC,yCAAkB,CAAC;QAC/B,OAAO,EAAE,CAAC,yCAAkB,CAAC;KAC9B,CAAC;GACW,iBAAiB,CAAG"}

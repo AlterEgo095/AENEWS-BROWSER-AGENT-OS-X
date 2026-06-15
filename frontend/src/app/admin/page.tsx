@@ -13,7 +13,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
 } from 'recharts';
-import { api } from '@/lib/api';
+import { api, getAuthHeaders } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { Agent, ClusterStats, Mission } from '@/lib/types';
 import { ClusterType, MissionState } from '@/lib/types';
@@ -59,11 +59,13 @@ function OverviewTab() {
     }, {})
   ).map(([state, count]) => ({ state, count }));
 
-  // Time series
+  // NOTE: Historical time-series data requires a dedicated API endpoint.
+  // Until one is available, we show only the current snapshot value at the most recent slot
+  // to avoid misleading users with synthetic/fake trend lines.
   const tsData = Array.from({ length: 24 }, (_, i) => ({
     time: `${23 - i}h`,
-    agents: kpis.activeAgents,
-    missions: kpis.activeMissions,
+    agents: i === 0 ? kpis.activeAgents : 0,
+    missions: i === 0 ? kpis.activeMissions : 0,
   })).reverse();
 
   return (
@@ -438,7 +440,7 @@ function SecurityTab() {
     async function fetchAuditLogs() {
       try {
         const res = await fetch('/api/v1/security/audit/logs?limit=20', {
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
         });
         if (res.ok) {
           const data = await res.json();
@@ -453,12 +455,56 @@ function SecurityTab() {
     fetchAuditLogs();
   }, []);
 
-  const securityMetrics = [
-    { label: 'Threat Level', value: 'LOW', color: 'text-emerald-400', bgColor: 'bg-emerald-500/15' },
-    { label: 'Active Sessions', value: '—', color: 'text-primary', bgColor: 'bg-primary/15' },
-    { label: 'Failed Logins (24h)', value: '—', color: 'text-amber-400', bgColor: 'bg-amber-500/15' },
-    { label: 'Blocked IPs', value: '—', color: 'text-red-400', bgColor: 'bg-red-500/15' },
-  ];
+  // Fetch security metrics from the backend API
+  const [securityMetrics, setSecurityMetrics] = useState([
+    { label: 'Threat Level', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+    { label: 'Active Sessions', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+    { label: 'Failed Logins (24h)', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+    { label: 'Blocked IPs', value: '—', color: 'text-muted-foreground', bgColor: 'bg-slate-500/15' },
+  ]);
+
+  useEffect(() => {
+    async function fetchSecurityMetrics() {
+      try {
+        const [lockoutRes, sessionsRes, ipRes] = await Promise.allSettled([
+          fetch('/api/v1/security/lockout/stats', { headers: getAuthHeaders() }),
+          fetch('/api/v1/security/tokens/sessions', { headers: getAuthHeaders() }),
+          fetch('/api/v1/security/threats/ip-reputations', { headers: getAuthHeaders() }),
+        ]);
+
+        let lockedCount = 0;
+        let sessionCount = 0;
+        let blockedCount = 0;
+
+        if (lockoutRes.status === 'fulfilled' && lockoutRes.value.ok) {
+          const data = await lockoutRes.value.json();
+          lockedCount = data.totalLockedAccounts || 0;
+        }
+        if (sessionsRes.status === 'fulfilled' && sessionsRes.value.ok) {
+          const data = await sessionsRes.value.json();
+          sessionCount = Array.isArray(data) ? data.length : 0;
+        }
+        if (ipRes.status === 'fulfilled' && ipRes.value.ok) {
+          const data = await ipRes.value.json();
+          blockedCount = Array.isArray(data) ? data.filter((ip: { autoBlocked: boolean }) => ip.autoBlocked).length : 0;
+        }
+
+        const threatLevel = lockedCount === 0 && blockedCount === 0 ? 'LOW' : lockedCount > 3 || blockedCount > 5 ? 'HIGH' : 'MEDIUM';
+        const threatColor = threatLevel === 'LOW' ? 'text-emerald-400' : threatLevel === 'HIGH' ? 'text-red-400' : 'text-amber-400';
+        const threatBg = threatLevel === 'LOW' ? 'bg-emerald-500/15' : threatLevel === 'HIGH' ? 'bg-red-500/15' : 'bg-amber-500/15';
+
+        setSecurityMetrics([
+          { label: 'Threat Level', value: threatLevel, color: threatColor, bgColor: threatBg },
+          { label: 'Active Sessions', value: String(sessionCount), color: 'text-primary', bgColor: 'bg-primary/15' },
+          { label: 'Failed Logins (24h)', value: String(lockedCount), color: lockedCount > 0 ? 'text-amber-400' : 'text-emerald-400', bgColor: lockedCount > 0 ? 'bg-amber-500/15' : 'bg-emerald-500/15' },
+          { label: 'Blocked IPs', value: String(blockedCount), color: blockedCount > 0 ? 'text-red-400' : 'text-emerald-400', bgColor: blockedCount > 0 ? 'bg-red-500/15' : 'bg-emerald-500/15' },
+        ]);
+      } catch {
+        // Keep default placeholder metrics
+      }
+    }
+    fetchSecurityMetrics();
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -538,7 +584,7 @@ function UsersTab() {
     async function fetchUsers() {
       try {
         const res = await fetch('/api/v1/users?limit=50', {
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
         });
         if (res.ok) {
           const data = await res.json();
@@ -612,36 +658,60 @@ function UsersTab() {
 }
 
 // ─── Config Tab ──────────────────────────────────────────────────
+interface ConfigItem {
+  key: string;
+  value: string;
+  type: 'secret' | 'text' | 'boolean' | 'number';
+}
+
 function ConfigTab() {
-  const configs = [
-    { category: 'LLM Providers', items: [
-      { key: 'OPENAI_API_KEY', value: 'sk-••••••••', type: 'secret' },
-      { key: 'ANTHROPIC_API_KEY', value: 'sk-ant-••••••••', type: 'secret' },
-      { key: 'DEFAULT_LLM_PROVIDER', value: 'openai', type: 'text' },
-      { key: 'LLM_FALLBACK_ENABLED', value: 'true', type: 'boolean' },
-    ]},
-    { category: 'Infrastructure', items: [
-      { key: 'DATABASE_URL', value: 'postgresql://••••:5432/aenews', type: 'secret' },
-      { key: 'REDIS_HOST', value: 'localhost', type: 'text' },
-      { key: 'NEO4J_URI', value: 'bolt://localhost:7687', type: 'text' },
-      { key: 'QDRANT_URL', value: 'http://localhost:6333', type: 'text' },
-      { key: 'RABBITMQ_URL', value: 'amqp://localhost:5672', type: 'text' },
-      { key: 'MINIO_ENDPOINT', value: 'localhost:9000', type: 'text' },
-    ]},
-    { category: 'Security', items: [
-      { key: 'JWT_SECRET', value: '••••••••••••', type: 'secret' },
-      { key: 'JWT_EXPIRATION', value: '24h', type: 'text' },
-      { key: 'RATE_LIMIT_TTL', value: '60', type: 'number' },
-      { key: 'RATE_LIMIT_MAX', value: '100', type: 'number' },
-      { key: 'ACCOUNT_LOCKOUT_DURATION', value: '30m', type: 'text' },
-      { key: 'MAX_LOGIN_ATTEMPTS', value: '5', type: 'number' },
-    ]},
-    { category: 'Circuit Breakers', items: [
-      { key: 'CB_FAILURE_THRESHOLD', value: '5', type: 'number' },
-      { key: 'CB_RESET_TIMEOUT', value: '30s', type: 'text' },
-      { key: 'CB_HALF_OPEN_REQUESTS', value: '3', type: 'number' },
-    ]},
-  ];
+  const [configs, setConfigs] = useState<{ category: string; items: ConfigItem[] }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/v1/admin/config', {
+          headers: getAuthHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setConfigs(data.data || data.categories || []);
+          setError(null);
+        } else {
+          setError('Configuration endpoint unavailable');
+          setConfigs([]);
+        }
+      } catch {
+        setError('Connect to backend for configuration');
+        setConfigs([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchConfig();
+  }, []);
+
+  if (loading) {
+    return <div className="animate-shimmer h-96 rounded-xl" />;
+  }
+
+  if (error || configs.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-border bg-card p-8 text-center">
+          <Settings className="mx-auto h-8 w-8 text-muted-foreground/30" />
+          <p className="mt-3 text-sm text-muted-foreground">
+            {error || 'No configuration data available'}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground/60">
+            Connect to the backend API to load platform configuration
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -656,7 +726,7 @@ function ConfigTab() {
                 </div>
                 <div className="flex items-center gap-2">
                   {item.type === 'secret' ? (
-                    <span className="text-xs font-mono text-muted-foreground">{item.value}</span>
+                    <span className="text-xs font-mono text-muted-foreground">••••••••</span>
                   ) : item.type === 'boolean' ? (
                     <div className={cn('h-5 w-9 rounded-full p-0.5 cursor-pointer', item.value === 'true' ? 'bg-emerald-500' : 'bg-border')}>
                       <div className={cn('h-4 w-4 rounded-full bg-white transition-transform', item.value === 'true' ? 'translate-x-4' : 'translate-x-0')} />
@@ -697,12 +767,14 @@ function ConfigTab() {
 // ─── Analytics Tab ───────────────────────────────────────────────
 function AnalyticsTab() {
   const { data: stats } = useAgentStats();
-  // Build analytics data from real agent stats
+  // NOTE: 30-day historical trends require a dedicated analytics/time-series API.
+  // Until one is available, we show the current snapshot only at the most recent data point,
+  // so the chart structure renders without misleading fake trends.
   const usageData = Array.from({ length: 30 }, (_, i) => ({
     day: `Day ${i + 1}`,
-    missions: stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.activeAgents, 0) : 0,
-    tasks: stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.idleAgents, 0) : 0,
-    errors: stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.errorAgents, 0) : 0,
+    missions: i === 29 && stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.activeAgents, 0) : 0,
+    tasks: i === 29 && stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.idleAgents, 0) : 0,
+    errors: i === 29 && stats ? stats.reduce((sum: number, cs: ClusterStats) => sum + cs.errorAgents, 0) : 0,
   }));
 
   const clusterPerformance = (stats || []).map((cs) => ({

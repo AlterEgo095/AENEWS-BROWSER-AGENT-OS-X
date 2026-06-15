@@ -10,7 +10,7 @@ import { Injectable, Logger, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as promClient from 'prom-client';
 
-interface SlowQueryEntry {
+export interface SlowQueryEntry {
   query: string;
   parameters?: any[];
   durationMs: number;

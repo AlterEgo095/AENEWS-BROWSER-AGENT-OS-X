@@ -9,7 +9,7 @@ import { RabbitMQService } from './rabbitmq.service';
     {
       provide: 'RABBITMQ_CONNECTION',
       useFactory: (configService: ConfigService) => {
-        const url = configService.get<string>('rabbitmq.url');
+        const url = configService.get<string>('rabbitmq.url') ?? 'amqp://localhost:5672';
         return amqp.connect([url]);
       },
       inject: [ConfigService],

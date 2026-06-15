@@ -175,7 +175,7 @@ export class CollaborationPersistenceService {
       );
 
       this.initialized = true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Persistence initialization failed: ${error.message}`);
       // Continue with in-memory only
       this.initialized = true;
@@ -240,14 +240,14 @@ export class CollaborationPersistenceService {
             report.crashedIds.push(key);
             await this.markAsCrashed(key);
           }
-        } catch (error) {
+        } catch (error: any) {
           this.logger.warn(`Failed to recover collaboration ${key}: ${error.message}`);
           report.crashed++;
           report.crashedIds.push(key);
           await this.markAsCrashed(key);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Crash recovery scan failed: ${error.message}`);
     }
 
@@ -279,7 +279,7 @@ export class CollaborationPersistenceService {
       });
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Failed to recover collaboration ${checkpoint.collaborationId}: ${error.message}`);
       return false;
     }
@@ -340,7 +340,7 @@ export class CollaborationPersistenceService {
           pattern: checkpoint.pattern,
           metadata: checkpoint.metadata,
         });
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`Failed to persist checkpoint to DB for ${checkpoint.collaborationId}: ${error.message}`);
       }
     }
@@ -369,7 +369,7 @@ export class CollaborationPersistenceService {
           3600,
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to persist checkpoint for ${checkpoint.collaborationId}: ${error.message}`);
     }
   }
@@ -516,7 +516,7 @@ export class CollaborationPersistenceService {
           pattern: checkpoint.pattern,
           metadata: { ...checkpoint.metadata, successRate: checkpoint.metadata?.successRate ?? 0, durationMs: record.durationMs, completedAt: record.completedAt },
         });
-      } catch (error) {
+      } catch (error: any) {
         this.logger.warn(`Failed to persist history to DB for ${checkpoint.collaborationId}: ${error.message}`);
       }
     }
@@ -545,7 +545,7 @@ export class CollaborationPersistenceService {
           3600,
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to persist history for ${checkpoint.collaborationId}: ${error.message}`);
     }
 

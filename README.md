@@ -1,8 +1,22 @@
 # AENEWS Agent OS X
 
-**Multi-Phase Intelligent Agent System Built with NestJS**
+**Multi-Phase Intelligent Agent System Built with NestJS 11 & Next.js 16**
 
 > Enterprise autonomous agent platform featuring 14 clusters, 100+ specialized agents, LLM-powered intelligence, self-healing, self-evolution, and a complete Software Factory with real connector infrastructure.
+
+---
+
+## Project Status
+
+| Aspect | Status |
+|--------|--------|
+| **Backend** | ✅ Active — NestJS 11, TypeScript 5 strict, PostgreSQL 16 |
+| **Frontend** | ✅ Active — Next.js 16, React 19, Tailwind CSS 4, Zustand |
+| **Security** | ✅ Hardened — JWT auth, RBAC, tenant isolation, encryption at rest |
+| **Performance** | ✅ Optimized — Response caching, connection pooling, slow query logging |
+| **Testing** | ✅ 11 E2E test suites covering all phases |
+| **API Docs** | ✅ Swagger UI + [API Reference](backend/docs/API.md) |
+| **Security Docs** | ✅ [THREAT_MODEL.md](THREAT_MODEL.md) | [SECURITY.md](SECURITY.md) |
 
 ---
 
@@ -15,6 +29,7 @@
 - [Development Commands](#development-commands)
 - [Project Structure](#project-structure)
 - [API Documentation](#api-documentation)
+- [Security Documentation](#security-documentation)
 - [Security Hardening](#security-hardening)
 - [Current Limitations](#current-limitations)
 - [Phase Roadmap](#phase-roadmap)
@@ -25,7 +40,32 @@
 
 ## Architecture Overview
 
-AENEWS Agent OS X is built as a layered multi-agent system with three primary planes: **Agent Clusters**, the **Agent Framework**, and the **Software Factory** — all backed by a shared infrastructure layer.
+AENEWS Agent OS X is a **monorepo** consisting of:
+
+- **Single NestJS 11 Backend** (`backend/`) — All API routes, business logic, agent clusters, and real-time WebSocket events
+- **Next.js 16 Frontend** (`frontend/`) — Dashboard and management UI with React 19, Tailwind CSS 4, and Zustand state management
+
+The backend is built as a layered multi-agent system with three primary planes: **Agent Clusters**, the **Agent Framework**, and the **Software Factory** — all backed by a shared infrastructure layer.
+
+```
+┌──────────────────────────────────────────────────┐
+│                Next.js 16 Frontend               │
+│   Dashboard │ Agents │ Tasks │ Missions │ Swarm   │
+└────────────────────┬─────────────────────────────┘
+                     │ REST + WebSocket
+┌────────────────────▼─────────────────────────────┐
+│                NestJS 11 Backend                  │
+│  ┌─────────────────────────────────────────────┐ │
+│  │ 14 Agent Clusters (100+ agents)             │ │
+│  │  Agent Framework │ Software Factory          │ │
+│  │  Security │ Performance │ Observability       │ │
+│  └─────────────────────────────────────────────┘ │
+│  ┌─────────────────────────────────────────────┐ │
+│  │ PostgreSQL │ Redis │ Neo4j │ Qdrant │ MinIO │ │
+│  │ RabbitMQ   │ Bull Queues │ OpenTelemetry     │ │
+│  └─────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
 
 ### Cluster Map
 
@@ -109,23 +149,52 @@ AENEWS Agent OS X is built as a layered multi-agent system with three primary pl
 
 ---
 
-## Infrastructure Stack
+## Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Backend** | NestJS 11 + TypeScript (strict) | Core application framework |
-| **Frontend** | Next.js 16 + React 19 + Tailwind CSS 4 + Zustand | Dashboard & management UI |
-| **Primary DB** | PostgreSQL 16 (TypeORM) | Relational data, entities, audit |
-| **Cache / Queues** | Redis 7 (BullMQ / cache-manager) | Caching, job queues, sessions |
-| **Knowledge Graph** | Neo4j 5 | Agent relationships, graph queries |
-| **Vector Search** | Qdrant v1.7 | Similarity search, RAG pipelines |
-| **Object Storage** | MinIO (S3-compatible) | Artifacts, logs, models, uploads |
-| **Message Broker** | RabbitMQ 3.12 (management) | Inter-agent messaging, events |
-| **Job Processing** | Bull (3 queues) | Task, event, mission queues |
-| **AI / LLM** | OpenAI / Anthropic SDKs | LLM integration, reasoning |
-| **Browser Automation** | Playwright | Web scraping, testing |
-| **Infrastructure** | Docker Compose | Local dev & production stacks |
-| **Observability** | OpenTelemetry, Winston, Terminus | Logging, tracing, health checks |
+### Backend
+
+| Technology | Version | Purpose |
+|-----------|---------|--------|
+| NestJS | 11 | Core application framework |
+| TypeScript | 5 (strict) | Type-safe development |
+| TypeORM | 1.0 | PostgreSQL ORM & migrations |
+| PostgreSQL | 16 | Relational data, entities, audit |
+| Redis | 7 | Caching, job queues, sessions |
+| Neo4j | 5 | Knowledge graph, agent relationships |
+| Qdrant | v1.7 | Vector similarity search, RAG |
+| MinIO | S3-compatible | Object storage (artifacts, logs, uploads) |
+| RabbitMQ | 3.12 | Inter-agent messaging, event broker |
+| Bull | 3 queues | Task, event, mission job processing |
+| OpenAI SDK | 6.x | LLM integration (GPT-4, GPT-4o) |
+| Anthropic SDK | 0.104+ | LLM integration (Claude) |
+| Playwright | 1.60 | Browser automation & testing |
+| Passport.js | JWT strategy | Authentication |
+| Swagger | @nestjs/swagger | API documentation |
+| OpenTelemetry | SDK + exporters | Tracing, metrics, Prometheus |
+| Sentry | @sentry/node | Error tracking & alerting |
+| Helmet | 8.x | HTTP security headers |
+
+### Frontend
+
+| Technology | Version | Purpose |
+|-----------|---------|--------|
+| Next.js | 16 | React framework (App Router) |
+| React | 19 | UI library |
+| Tailwind CSS | 4 | Utility-first styling |
+| Zustand | 5 | Client state management |
+| TanStack Query | 5 | Server state management |
+| shadcn/ui | New York | Component library |
+| Socket.IO | 4.x | Real-time WebSocket events |
+
+### Infrastructure
+
+| Technology | Purpose |
+|-----------|--------|
+| Docker Compose | Local dev & production orchestration |
+| Nginx | Reverse proxy, SSL termination |
+| Prometheus + Grafana | Monitoring dashboards |
+| Loki + Promtail | Log aggregation |
+| Alertmanager | Alert routing & notifications |
 
 ---
 
@@ -352,41 +421,6 @@ aenews-agent-os-x/
 │   ├── .env.example                  # Environment variable template
 │   └── package.json
 │
-├── src/                              # Extended agent framework (BaseAgentService)
-│   ├── agents/
-│   │   ├── base/                     # BaseAgentService (lifecycle, events, memory, tools)
-│   │   ├── decorators/               # @Agent, @Tool, @OnAgentEvent, @RequirePermission
-│   │   ├── registry/                 # Agent registry with stats & findBestAgent
-│   │   ├── memory/                   # 5-tier memory + RAG + knowledge graph
-│   │   ├── events/                   # Event bus, store, dead-letter queue, replay
-│   │   ├── communication/            # Inter-agent comms, RabbitMQ broker
-│   │   ├── health/                   # Agent health, metrics, circuit breaker
-│   │   ├── orchestrator/             # 7-step pipeline (decompose → deliver)
-│   │   ├── bridge/                   # Agent → Connector bridge
-│   │   ├── browser/                  # 17 browser agents (extended)
-│   │   ├── computer/                 # 7 computer agents (extended)
-│   │   ├── coding/                   # 8 coding agents (extended)
-│   │   ├── office/                   # 6 office agents (extended)
-│   │   ├── marketing/                # 8 marketing agents (extended)
-│   │   ├── business/                 # 8 business agents (extended)
-│   │   ├── infrastructure/           # 8 infrastructure agents (extended)
-│   │   ├── security/                 # 5 security agents (extended)
-│   │   ├── meta-intelligence/        # 10 meta-intelligence agents (extended)
-│   │   ├── certification/            # 13 certification auditors
-│   │   ├── llm-intelligence/         # 6 LLM-powered agents
-│   │   ├── intelligent-orchestration/ # 4 intelligent orchestration agents
-│   │   ├── watchdog/                 # 3 watchdog/self-healing agents
-│   │   └── self-evolution/           # 5 self-evolution agents
-│   ├── software-factory/
-│   │   ├── connectors/               # 6 connector packs + ConnectorRegistry
-│   │   ├── runtime/                  # Mission runtime engine, batch runner, metrics
-│   │   ├── kernel/                   # 10 permanent kernel services
-│   │   └── teams/                    # Execution, planning, certification teams
-│   ├── certification/                # Full certification suite
-│   ├── queues/                       # Bull queue processors (task, event, mission)
-│   ├── gateway/                      # Memory, security, documentation gateways
-│   └── mission/                      # Mission orchestration services
-│
 ├── frontend/                         # Next.js 16 frontend
 │   └── src/
 │       ├── app/                      # Pages: Dashboard, Agents, Tasks, Events, Login
@@ -413,13 +447,36 @@ aenews-agent-os-x/
 
 ## API Documentation
 
+### Interactive Docs (Swagger UI)
+
 Once the backend is running, access the interactive Swagger documentation:
 
 ```
 http://localhost:3000/docs
 ```
 
-### Core API Endpoints
+### Full API Reference
+
+See [backend/docs/API.md](backend/docs/API.md) for a comprehensive endpoint reference organized by module:
+
+- **Auth** — Register, login, refresh, logout, logout-all
+- **Agents** — CRUD, execute, stats, executions, by cluster
+- **Tasks** — CRUD, cancel, by status
+- **Missions** — CRUD, lifecycle (start/pause/resume), progress, contracts
+- **Events** — Emit, list, by namespace/type/severity
+- **Orchestration** — Collaborate, decompose, coordinate, connectors, statistics
+- **Intelligence** — Knowledge graph, learning engine, pattern mining, adaptive strategy, experience replay, feedback
+- **Swarm** — Create/execute/terminate, consensus, persistence, working memory, feedback loop, topology, DAG
+- **Security** — Scan prompt, validate URL, encrypt/decrypt, generate API key, audit logs, IP control, lockout, CORS
+- **Performance** — Overview, profiling, memory, pools, slow queries, cache, compression
+- **Health** — Health, ready, live probes
+- **Connectors** — List, health check, execute actions
+- **Plugins** — CRUD, enable/disable, loaded plugins
+- **Tenants** — CRUD, activate/deactivate, quotas
+- **Users** — CRUD, password update, activate/deactivate
+- **Metrics** — Prometheus scrape, JSON metrics
+
+### Core API Endpoints (Quick Reference)
 
 All endpoints are prefixed with `/api/v1/`. Authentication is required unless marked `@Public()`.
 
@@ -432,15 +489,23 @@ All endpoints are prefixed with `/api/v1/`. Authentication is required unless ma
 | `/api/v1/swarm/*` | SwarmController | JWT + Roles + RateLimit | Swarm intelligence, consensus, working memory, topology |
 | `/api/v1/performance/*` | PerformanceController | JWT + SUPER_ADMIN only | Profiling, slow queries, cache, pool monitoring |
 | `/api/v1/health` | HealthController | Public | Service health checks |
-| `/api/v1/factory/*` | SoftwareFactoryController | JWT + Roles | Mission runtime, capabilities, metrics |
+| `/api/v1/missions/*` | SoftwareFactoryController | JWT + Roles | Mission lifecycle, contracts |
+| `/api/v1/connectors/*` | ConnectorController | JWT + Roles | Connector list, execute actions |
+| `/api/v1/security/*` | SecurityController | JWT + Roles | Security scanning, encryption, audit |
+| `/api/v1/plugins/*` | PluginController | JWT + Roles | Plugin management |
+| `/api/v1/tenants/*` | TenantController | JWT + SUPER_ADMIN | Multi-tenant management |
+| `/api/v1/users/*` | UserController | JWT + Roles | User management |
+| `/api/v1/metrics` | MetricsController | Public | Prometheus metrics scrape |
 
-### Health Check
+---
 
-```
-GET /api/v1/health
-```
+## Security Documentation
 
-Returns the status of all dependent services (PostgreSQL, Redis, Neo4j, Qdrant, RabbitMQ, MinIO).
+| Document | Description |
+|----------|-------------|
+| [THREAT_MODEL.md](./THREAT_MODEL.md) | Threat model, attack vectors, and mitigations |
+| [SECURITY.md](./SECURITY.md) | Security architecture, policies, and hardening details |
+| [backend/docs/API.md](backend/docs/API.md) | API endpoint security (auth requirements, roles per endpoint) |
 
 ---
 
@@ -585,17 +650,17 @@ npm run test:cov
 
 | Test File | Scope |
 |-----------|-------|
-| `test/app.e2e-spec.ts` | Application bootstrap, module creation, agent registry |
-| `test/agent-framework.e2e-spec.ts` | Memory, event bus, communication, health, bridge services |
-| `test/agent-registry.e2e-spec.ts` | Agent registration and lookup |
-| `test/agent-clusters.e2e-spec.ts` | Cluster module integration |
-| `test/mission-pipeline.e2e-spec.ts` | End-to-end mission execution |
-| `test/phase8-orchestration.e2e-spec.ts` | Orchestration services and controller |
-| `test/phase10-swarm-intelligence.e2e-spec.ts` | Swarm intelligence services |
-| `test/phase12-security-hardening.e2e-spec.ts` | Account lockout, refresh tokens, CORS, IP access, threat intel |
-| `test/phase13-performance-optimization.e2e-spec.ts` | Caching, compression, pool monitoring, profiling |
-| `test/security-remediation.e2e-spec.ts` | Auth enforcement, Cypher injection, path traversal, mass assignment, UUID validation, role restrictions |
-| `test/api-integrity.e2e-spec.ts` | API routing correctness, double-prefix prevention, full workflow tests |
+| `backend/test/app.e2e-spec.ts` | Application bootstrap, module creation, agent registry |
+| `backend/test/agent-framework.e2e-spec.ts` | Memory, event bus, communication, health, bridge services |
+| `backend/test/agent-registry.e2e-spec.ts` | Agent registration and lookup |
+| `backend/test/agent-clusters.e2e-spec.ts` | Cluster module integration |
+| `backend/test/mission-pipeline.e2e-spec.ts` | End-to-end mission execution |
+| `backend/test/phase8-orchestration.e2e-spec.ts` | Orchestration services and controller |
+| `backend/test/phase10-swarm-intelligence.e2e-spec.ts` | Swarm intelligence services |
+| `backend/test/phase12-security-hardening.e2e-spec.ts` | Account lockout, refresh tokens, CORS, IP access, threat intel |
+| `backend/test/phase13-performance-optimization.e2e-spec.ts` | Caching, compression, pool monitoring, profiling |
+| `backend/test/security-remediation.e2e-spec.ts` | Auth enforcement, Cypher injection, path traversal, mass assignment, UUID validation, role restrictions |
+| `backend/test/api-integrity.e2e-spec.ts` | API routing correctness, double-prefix prevention, full workflow tests |
 
 ---
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type {
   PerformanceOverview,
 } from '@/lib/types';
+import { getAuthHeaders } from '@/lib/api';
 
 const API_BASE = '/api/v1';
 
@@ -17,9 +18,7 @@ export default function PerformanceDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers.Authorization = `Bearer ${token}`;
+      const headers = getAuthHeaders();
       const res = await fetch(`${API_BASE}/performance/overview`, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
