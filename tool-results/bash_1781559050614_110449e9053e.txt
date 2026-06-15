@@ -1,0 +1,774 @@
+=== ./browser/agents/authentication.agent.ts ===
+readonly name = 'AuthenticationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+login,logout,sessionStatus,cookieManage,tokenRefresh,oauth,basicAuth,mfa,Login flows session management cookie handling and multi-factor authentication;
+=== ./browser/agents/automation.agent.ts ===
+readonly name = 'AutomationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+record,replay,workflow,schedule,chain,conditional,loop,template,Workflow automation macro recording replay and conditional execution pipelines;
+=== ./browser/agents/captcha.agent.ts ===
+readonly name = 'CaptchaAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+detect,solve,recaptcha,hcaptcha,imageCaptcha,turnstile,funcaptcha,Captcha detection solving integration bypass handling and multi-captcha support;
+=== ./browser/agents/crawler.agent.ts ===
+readonly name = 'CrawlerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+crawl,sitemap,discoverLinks,extractSitemap,brokenLinks,depthCrawl,parallelCrawl,Site crawling sitemap generation link discovery and broken link detection;
+=== ./browser/agents/deep-web.agent.ts ===
+readonly name = 'DeepWebAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+deep-web-search,tor-browsing,onion-crawling,darknet-indexing,hidden-service-discovery,Deep web and darknet browsing with Tor routing .onion crawling darknet indexing and hidden service discovery;
+=== ./browser/agents/download.agent.ts ===
+readonly name = 'DownloadAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+download,batchDownload,resume,progress,validate,organize,queue,File downloads resource management batch downloading and download queue management;
+=== ./browser/agents/form-filling.agent.ts ===
+readonly name = 'FormFillingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+detect,fill,submit,clear,validate,selectOption,upload,multiStep,Form detection field population submission and multi-step form handling;
+=== ./browser/agents/headless.agent.ts ===
+readonly name = 'HeadlessAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+launch,close,pool,configure,healthCheck,metrics,restart,Headless browser management instance pooling and browser lifecycle control;
+=== ./browser/agents/interaction.agent.ts ===
+readonly name = 'InteractionAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+click,doubleClick,rightClick,scroll,hover,type,press,drag,touch,selectText,Browser interaction operations: click scroll hover keyboard touch and drag events;
+=== ./browser/agents/monitoring.agent.ts ===
+readonly name = 'MonitoringAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+uptime,performance,alert,metrics,lighthouse,webVitals,schedule,Uptime monitoring performance metrics collection alerting and Lighthouse audits;
+=== ./browser/agents/navigation.agent.ts ===
+readonly name = 'NavigationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+navigate,back,forward,reload,history,waitForNavigation,goto,Handles URL navigation page transitions and browser history management with Bridge + LLM support;
+=== ./browser/agents/proxy.agent.ts ===
+readonly name = 'ProxyAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+rotate,setProxy,geolocate,testProxy,pool,blocklist,sticky,Proxy rotation IP management geolocation spoofing and proxy pool management;
+=== ./browser/agents/scraping.agent.ts ===
+readonly name = 'ScrapingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+scrape,extractText,extractHtml,extractLinks,extractImages,extractMeta,extractStructured,parseJson,Web scraping data extraction and content parsing from web pages;
+=== ./browser/agents/screenshot.agent.ts ===
+readonly name = 'ScreenshotAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+fullPage,element,viewport,compare,diff,thumbnail,pdf,Page screenshots element snapshots visual comparison and PDF generation;
+=== ./browser/agents/search.agent.ts ===
+readonly name = 'SearchAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+query,parseResults,serpAnalysis,advancedSearch,imageSearch,newsSearch,suggest,Search engine queries result parsing SERP analysis and advanced search operations;
+=== ./browser/agents/session.agent.ts ===
+readonly name = 'SessionAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+create,restore,persist,cookieJar,localStorage,sessionStorage,export,import,Session persistence cookie jars state management and browser session export/import;
+=== ./browser/agents/testing.agent.ts ===
+readonly name = 'TestingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+uiTest,e2eTest,visualRegression,accessibilityTest,performanceTest,crossBrowser,snapshot,UI testing E2E testing visual regression and accessibility testing;
+=== ./browser/agents/upload.agent.ts ===
+readonly name = 'UploadAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BROWSER
+  readonly description =
+upload,multiUpload,dragDrop,chunkUpload,progress,retry,validate,File uploads drag-drop handling multi-file uploads and chunked upload support;
+=== ./business/agents/business-intelligence.agent.ts ===
+readonly name = 'BusinessIntelligenceAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.BUSINESS
+  readonly description =
+predictive-analytics,market-forecasting,competitive-intelligence,trend-analysis,revenue-optimization,risk-assessment,Advanced business intelligence with predictive analytics market forecasting competitive intelligence trend analysis revenue optimization and risk assessment;
+=== ./business/agents/crm.agent.ts ===
+readonly name = 'CRMAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+Customer relationship management including contact management, deal tracking, pipeline analysis, follow-ups, segmentation, and CRM reporting
+
+=== ./business/agents/decision.agent.ts ===
+readonly name = 'DecisionAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+Decision support including multi-criteria analysis, AI-powered recommendations, scenario simulation, optimization, forecasting, and benchmarking
+
+=== ./business/agents/finance.agent.ts ===
+readonly name = 'FinanceAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+  readonly description =
+budget,forecast,expense,revenue,report,invoice,Financial operations including budgeting forecasting expense tracking revenue management financial reporting and invoicing;
+=== ./business/agents/hr.agent.ts ===
+readonly name = 'HRAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+Human resources management including recruitment, onboarding, performance reviews, payroll, scheduling, and training coordination
+
+=== ./business/agents/legal.agent.ts ===
+readonly name = 'LegalAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+Legal operations including contract management, compliance monitoring, legal review, risk assessment, intellectual property management, and privacy governance
+
+=== ./business/agents/procurement.agent.ts ===
+readonly name = 'ProcurementAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+  readonly description =
+rfq,vendor,order,track,negotiate,inventory,Procurement operations including RFQ management vendor management purchase orders shipment tracking negotiation support and inventory management;
+=== ./business/agents/reporting.agent.ts ===
+readonly name = 'ReportingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+Reporting operations including report generation, scheduling, dashboards, data export, KPI tracking, and custom report building
+
+=== ./business/agents/strategy.agent.ts ===
+readonly name = 'StrategyAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.BUSINESS
+Strategic analysis and planning including market analysis, business modeling, competitive intelligence, SWOT analysis, and roadmap creation
+
+=== ./certification/agents/ai-quality-auditor.agent.ts ===
+readonly name = 'AIQualityAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+  readonly description =
+audit-ai-quality,detect-hallucination,check-bias,measure-accuracy,Audits AI system quality including hallucination detection bias checking and accuracy measurement for reliable and fair AI outputs;
+=== ./certification/agents/architecture-auditor.agent.ts ===
+readonly name = 'ArchitectureAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+  readonly description =
+audit-architecture,check-circular-deps,assess-coupling,verify-layers,Audits system architecture for structural integrity detects circular dependencies assesses module coupling and verifies clean layer boundaries;
+=== ./certification/agents/browser-auditor.agent.ts ===
+readonly name = 'BrowserAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits the browser automation subsystem for navigation correctness, session management, and interaction reliability
+
+=== ./certification/agents/compliance-auditor.agent.ts ===
+readonly name = 'ComplianceAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits system compliance against regulatory frameworks including GDPR, SOC 2, and risk assessment
+
+=== ./certification/agents/documentation-auditor.agent.ts ===
+readonly name = 'DocumentationAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits documentation quality including JSDoc coverage, diagram verification, and documentation coverage measurement
+
+=== ./certification/agents/memory-auditor.agent.ts ===
+readonly name = 'MemoryAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+  readonly description =
+audit-memory,check-tiers,verify-gateway,test-retrieval,Audits the memory subsystem including tier management gateway verification and retrieval accuracy to ensure correct and efficient memory operations;
+=== ./certification/agents/observability-auditor.agent.ts ===
+readonly name = 'ObservabilityAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits the observability stack including metrics collection, distributed tracing, and alerting systems for adequate visibility
+
+=== ./certification/agents/orchestrator-auditor.agent.ts ===
+readonly name = 'OrchestratorAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits the orchestration subsystem for pipeline correctness, flow verification, and recovery mechanism testing to ensure reliable workflows
+
+=== ./certification/agents/performance-auditor.agent.ts ===
+readonly name = 'PerformanceAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits system performance by measuring latency, throughput, and identifying bottlenecks across services and endpoints
+
+=== ./certification/agents/plugin-auditor.agent.ts ===
+readonly name = 'PluginAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits the plugin subsystem for isolation integrity, sandbox verification, and compatibility testing to ensure safe plugin operations
+
+=== ./certification/agents/regression-auditor.agent.ts ===
+readonly name = 'RegressionAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Detects performance and behavioral regressions by comparing baselines, tracking degradation, and generating reports
+
+=== ./certification/agents/security-auditor.agent.ts ===
+readonly name = 'SecurityAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+  readonly description =
+audit-security,check-injection,verify-rbac,scan-vulnerabilities,Performs comprehensive security audits detects injection vulnerabilities verifies RBAC configurations and scans for known security vulnerabilities;
+=== ./certification/agents/test-auditor.agent.ts ===
+readonly name = 'TestAuditorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CERTIFICATION
+Audits the test suite for coverage, assertion quality, and gap identification to ensure comprehensive and meaningful testing
+
+=== ./coding/agents/ai-code-architect.agent.ts ===
+readonly name = 'AICodeArchitectAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+architecture-design,pattern-recommendation,tech-stack-selection,microservices-design,api-design,database-schema-design,AI-powered code architecture design with pattern recommendation tech stack selection microservices design API design and database schema design;
+=== ./coding/agents/code-generation.agent.ts ===
+readonly name = 'CodeGenerationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+generate,complete,refactor,translate,scaffold,LLM-powered code generation completion refactoring translation and scaffolding across multiple languages;
+=== ./coding/agents/code-review.agent.ts ===
+readonly name = 'CodeReviewAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+review,lint,format,analyze,suggest,LLM-powered code review analysis and improvement suggestions for source code quality;
+=== ./coding/agents/debugging.agent.ts ===
+readonly name = 'DebuggingAgent'
+readonly version = '1.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+analyze,trace,breakpoint,profile,memory,Debugs code through error analysis execution tracing breakpoint management performance profiling and memory inspection;
+=== ./coding/agents/dependency.agent.ts ===
+readonly name = 'DependencyAgent'
+readonly version = '1.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+install,update,audit,resolve,lock,Manages project dependencies including installation updates security auditing conflict resolution and lockfile management;
+=== ./coding/agents/deployment.agent.ts ===
+readonly name = 'DeploymentAgent'
+readonly version = '1.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+deploy,rollback,status,configure,scale,Manages application deployment rollback status monitoring configuration and scaling across environments;
+=== ./coding/agents/documentation.agent.ts ===
+readonly name = 'DocumentationAgent'
+readonly version = '1.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+generate,api,readme,changelog,comments,Generates and manages code documentation including API docs READMEs changelogs and inline comments;
+=== ./coding/agents/testing-code.agent.ts ===
+readonly name = 'TestingCodeAgent'
+readonly version = '1.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+unit,integration,e2e,coverage,mock,Generates and manages unit integration and end-to-end tests with coverage analysis and mock creation;
+=== ./coding/agents/version-control.agent.ts ===
+readonly name = 'VersionControlAgent'
+readonly version = '1.0.0'
+readonly cluster = ClusterType.CODING
+  readonly description =
+commit,branch,merge,diff,log,tag,Manages Git and version control operations including commits branches merges diffs logs and tags;
+=== ./computer/agents/backup.agent.ts ===
+readonly name = 'BackupAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+create,restore,schedule,incremental,compress,verify,Manages backup and restore operations including full/incremental backups scheduling compression and verification;
+=== ./computer/agents/file-system.agent.ts ===
+readonly name = 'FileSystemAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+read,write,copy,move,delete,list,search,permissions,Manages file system operations including read write copy move delete listing searching and permission management;
+=== ./computer/agents/network.agent.ts ===
+readonly name = 'NetworkAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+ping,trace,dns,ports,scan,bandwidth,Performs network operations including ping traceroute DNS lookup port checking network scanning and bandwidth testing;
+=== ./computer/agents/process.agent.ts ===
+readonly name = 'ProcessAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+list,start,stop,monitor,kill,restart,status,Manages system processes including listing starting stopping monitoring killing restarting and status checks;
+=== ./computer/agents/software.agent.ts ===
+readonly name = 'SoftwareAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+install,uninstall,update,list,configure,verify,Manages software packages including installation uninstallation updates listing configuration and verification;
+=== ./computer/agents/system-hacker.agent.ts ===
+readonly name = 'SystemHackerAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+kernel-manipulation,driver-injection,memory-forensics,process-hollowing,registry-manipulation,bootkit-analysis,Advanced system manipulation with kernel analysis driver injection memory forensics process hollowing registry manipulation and bootkit analysis;
+=== ./computer/agents/system-info.agent.ts ===
+readonly name = 'SystemInfoAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+os,hardware,memory,disk,cpu,network,processes,Gathers system information including OS details hardware specs memory usage disk stats CPU info network configuration and process summaries;
+=== ./computer/agents/terminal.agent.ts ===
+readonly name = 'TerminalAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.COMPUTER
+  readonly description =
+execute,script,pipe,background,schedule,Handles terminal and command execution including running commands scripts piped commands background tasks and scheduled executions;
+=== ./infrastructure/agents/backup-infra.agent.ts ===
+readonly name = 'BackupInfraAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+snapshot,replicate,schedule,verify,restore,archive,Manages infrastructure backup operations including volume snapshots data replication backup scheduling verification checks disaster recovery restores and long-term archival;
+=== ./infrastructure/agents/ci.agent.ts ===
+readonly name = 'CIAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+build,test,deploy,pipeline,rollback,artifact,Manages CI/CD pipelines including building projects running tests deploying artifacts managing pipeline configurations executing rollbacks and managing build artifacts;
+=== ./infrastructure/agents/cloud.agent.ts ===
+readonly name = 'CloudAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+provision,scale,migrate,configure,cost,monitor,Manages cloud infrastructure operations including provisioning resources scaling instances migrating workloads configuring services tracking costs and monitoring cloud health;
+=== ./infrastructure/agents/container.agent.ts ===
+readonly name = 'ContainerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+build,deploy,scale,health,logs,network,Manages container operations including building images deploying containers scaling services monitoring health collecting logs and configuring container networking;
+=== ./infrastructure/agents/edge-computing.agent.ts ===
+readonly name = 'EdgeComputingAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+edge-deployment,cdn-optimization,latency-optimization,edge-ai-inference,geo-distributed-compute,edge-monitoring,Edge computing orchestration with CDN optimization latency optimization edge AI inference geo-distributed compute and edge monitoring;
+=== ./infrastructure/agents/monitoring-infra.agent.ts ===
+readonly name = 'MonitoringInfraAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+alert,metric,log,trace,dashboard,incident,Manages infrastructure monitoring including alerting rules metric collection log aggregation distributed tracing dashboard management and incident response coordination;
+=== ./infrastructure/agents/network-infra.agent.ts ===
+readonly name = 'NetworkInfraAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+configure,dns,vpn,firewall,cdn,loadbalancer,Manages network infrastructure including network configuration DNS management VPN connectivity firewall rules CDN distribution and load balancer administration;
+=== ./infrastructure/agents/scaling.agent.ts ===
+readonly name = 'ScalingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+scale,autoscale,loadbalance,capacity,optimize,predict,Manages auto-scaling operations including manual and automatic scaling load balancing configuration capacity planning resource optimization and predictive scaling based on historical patterns;
+=== ./infrastructure/agents/security-infra.agent.ts ===
+readonly name = 'SecurityInfraAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INFRASTRUCTURE
+  readonly description =
+scan,patch,harden,audit,incident,compliance,Manages infrastructure security operations including vulnerability scanning patch management system hardening security auditing incident response and compliance monitoring;
+=== ./intelligent-orchestration/agents/dynamic-scheduler.agent.ts ===
+readonly name = 'DynamicSchedulerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INTELLIGENT_ORCHESTRATION
+  readonly description =
+schedule-tasks,optimize-parallelism,reschedule,balance-load,Handles intelligent task scheduling with parallelism optimization rescheduling and load balancing for maximum resource utilization;
+=== ./intelligent-orchestration/agents/mission-orchestrator-ai.agent.ts ===
+readonly name = 'MissionOrchestratorAIAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INTELLIGENT_ORCHESTRATION
+  readonly description =
+orchestrate-mission,create-pipeline,handle-failure,adapt-flow,Orchestrates complex missions by creating execution pipelines handling failures and adapting workflows dynamically using AI-driven decision making;
+=== ./intelligent-orchestration/agents/priority-arbiter.agent.ts ===
+readonly name = 'PriorityArbiterAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INTELLIGENT_ORCHESTRATION
+  readonly description =
+resolve-priority,rebalance-queue,escalate,de-escalate,Resolves priority conflicts rebalances task queues and handles escalation/de-escalation to ensure the most important work is processed first;
+=== ./intelligent-orchestration/agents/resource-negotiator.agent.ts ===
+readonly name = 'ResourceNegotiatorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.INTELLIGENT_ORCHESTRATION
+  readonly description =
+allocate-resources,resolve-conflicts,rebalance,optimize-utilization,Manages resource allocation conflict resolution rebalancing and utilization optimization for fair and efficient resource distribution;
+=== ./llm-intelligence/agents/llm-critic.agent.ts ===
+readonly name = 'LLMCriticAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.LLM_INTELLIGENCE
+  readonly description =
+critique-deliverable,suggest-improvements,evaluate-quality,Semantic quality critique using LLM analysis to evaluate deliverables against requirements;
+=== ./llm-intelligence/agents/llm-decomposer.agent.ts ===
+readonly name = 'LLMDecomposerAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.LLM_INTELLIGENCE
+  readonly description =
+decompose-task,identify-dependencies,estimate-complexity,Intelligent task decomposition with dependency ordering using LLM reasoning;
+=== ./llm-intelligence/agents/llm-ensemble.agent.ts ===
+readonly name = 'LLMEnsembleAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.LLM_INTELLIGENCE
+  readonly description =
+ensemble-reasoning,model-debate,consensus-building,confidence-calibration,hallucination-detection,multi-model-synthesis,Ensemble LLM reasoning with multiple models for debate consensus building confidence calibration hallucination detection and multi-model synthesis;
+=== ./llm-intelligence/agents/llm-judge.agent.ts ===
+readonly name = 'LLMJudgeAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.LLM_INTELLIGENCE
+  readonly description =
+Final go/no-go arbitration via LLM reasoning for mission deliverables;
+=== ./llm-intelligence/agents/llm-planner.agent.ts ===
+readonly name = 'LLMPlannerAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.LLM_INTELLIGENCE
+  readonly description =
+plan-mission,replan-mission,evaluate-strategy,Intelligent mission planner using LLM reasoning for optimal execution strategies;
+=== ./llm-intelligence/agents/llm-validator.agent.ts ===
+readonly name = 'LLMValidatorAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.LLM_INTELLIGENCE
+  readonly description =
+validate-deliverable,check-requirements,assess-completeness,Contextual deliverable validation against requirements using LLM reasoning;
+=== ./marketing/agents/ads.agent.ts ===
+readonly name = 'AdsAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+create,optimize,budget,target,abTest,report,Creates advertising campaigns optimizes ad performance manages budgets targets audiences runs A/B tests and generates ad reports across platforms;
+=== ./marketing/agents/analytics.agent.ts ===
+readonly name = 'AnalyticsAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+track,report,funnel,cohort,abTest,heatmap,Tracks marketing metrics generates reports analyzes conversion funnels performs cohort analysis runs A/B tests and visualizes user behavior heatmaps;
+=== ./marketing/agents/branding.agent.ts ===
+readonly name = 'BrandingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+analyze,design,voice,guidelines,consistency,audit,Analyzes brand perception designs brand identity defines brand voice creates brand guidelines monitors brand consistency and conducts brand audits;
+=== ./marketing/agents/content-creation.agent.ts ===
+readonly name = 'ContentCreationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+write,rewrite,summarize,translate,optimize,format,Creates rewrites summarizes translates optimizes and formats marketing content across multiple channels and languages;
+=== ./marketing/agents/email-marketing.agent.ts ===
+readonly name = 'EmailMarketingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+campaign,segment,template,automate,analytics,Manages email marketing campaigns audience segmentation template design workflow automation and performance analytics;
+=== ./marketing/agents/influencer.agent.ts ===
+readonly name = 'InfluencerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+discover,outreach,campaign,track,negotiate,report,Discovers influencers manages outreach orchestrates influencer campaigns tracks performance handles negotiations and generates influencer marketing reports;
+=== ./marketing/agents/seo.agent.ts ===
+readonly name = 'SEOAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+analyze,keywords,optimize,audit,backlinks,rank,Analyzes SEO performance researches keywords optimizes content audits technical SEO monitors backlinks and tracks search rankings;
+=== ./marketing/agents/social-media.agent.ts ===
+readonly name = 'SocialMediaAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+post,schedule,engage,analyze,monitor,campaign,Manages social media posting scheduling engagement analytics monitoring and campaign orchestration across multiple platforms;
+=== ./marketing/agents/viral-growth.agent.ts ===
+readonly name = 'ViralGrowthAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.MARKETING
+  readonly description =
+growth-hacking,viral-loop-design,referral-automation,community-building,influencer-outreach,content-virality-analysis,Viral growth hacking automation with viral loop design referral automation community building influencer outreach and content virality analysis;
+=== ./meta-intelligence/agents/adaptation.agent.ts ===
+readonly name = 'AdaptationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+adapt,evolve,personalize,context,feedback,learn,Adaptive behavior engine for runtime adaptation evolutionary optimization personalization context-awareness feedback processing and continuous learning;
+=== ./meta-intelligence/agents/collaboration.agent.ts ===
+readonly name = 'CollaborationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+coordinate,negotiate,share,vote,consensus,divide,Multi-agent collaboration engine for coordination negotiation knowledge sharing voting consensus building and task division among agents;
+=== ./meta-intelligence/agents/creativity.agent.ts ===
+readonly name = 'CreativityAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+ideate,combine,transform,mutate,evaluate,refine,Creative generation engine for ideation combination transformation mutation evaluation and refinement of novel concepts and solutions;
+=== ./meta-intelligence/agents/evaluation.agent.ts ===
+readonly name = 'EvaluationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+assess,score,compare,benchmark,validate,rank,Evaluation and metrics engine for assessment scoring comparison benchmarking validation and ranking of agents models and outputs;
+=== ./meta-intelligence/agents/hyper-reasoning.agent.ts ===
+readonly name = 'HyperReasoningAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+chain-of-thought,tree-of-thought,analogical-reasoning,counterfactual-reasoning,abductive-reasoning,meta-cognitive-reflection,Advanced multi-modal reasoning with chain-of-thought tree-of-thought analogical counterfactual abductive reasoning and meta-cognitive reflection;
+=== ./meta-intelligence/agents/knowledge.agent.ts ===
+readonly name = 'KnowledgeAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+acquire,represent,query,infer,update,graph,Knowledge management engine for acquiring representing querying inferring updating and graph-structuring knowledge across domains;
+=== ./meta-intelligence/agents/learning.agent.ts ===
+readonly name = 'LearningAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+train,predict,evaluate,optimize,dataset,model,Manages machine learning workflows including model training prediction evaluation hyperparameter optimization dataset management and model lifecycle;
+=== ./meta-intelligence/agents/memory.agent.ts ===
+readonly name = 'MemoryAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+store,retrieve,consolidate,forget,search,associate,Manages memory operations including storing retrieving consolidating forgetting searching and associating information across memory systems;
+=== ./meta-intelligence/agents/meta-cognition.agent.ts ===
+readonly name = 'MetaCognitionAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+reflect,monitor,plan,debug,improve,strategize,Meta-cognitive engine for self-reflection performance monitoring meta-planning self-debugging self-improvement and strategic reasoning about reasoning;
+=== ./meta-intelligence/agents/optimization.agent.ts ===
+readonly name = 'OptimizationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+optimize,search,schedule,allocate,minimize,maximize,Optimization engine for finding optimal solutions searching spaces scheduling tasks allocating resources and minimizing/maximizing objectives;
+=== ./meta-intelligence/agents/orchestration.agent.ts ===
+readonly name = 'OrchestrationAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+coordinate,delegate,chain,parallel,conditional,workflow,Orchestrates agent coordination delegation chaining parallel execution conditional routing and workflow management across the system;
+=== ./meta-intelligence/agents/perception.agent.ts ===
+readonly name = 'PerceptionAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+analyze,classify,detect,segment,recognize,extract,Perception capabilities for analyzing classifying detecting segmenting recognizing and extracting information from multi-modal inputs;
+=== ./meta-intelligence/agents/reasoning.agent.ts ===
+readonly name = 'ReasoningAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+deduce,induce,analogize,plan,evaluate,explain,Performs logical reasoning including deduction induction analogy planning evaluation and explanation of reasoning chains;
+=== ./meta-intelligence/agents/self-healing.agent.ts ===
+readonly name = 'SelfHealingAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.META_INTELLIGENCE
+  readonly description =
+detect,diagnose,recover,prevent,repair,report,Self-healing engine for fault detection diagnosis recovery prevention repair and incident reporting to maintain system resilience;
+=== ./office/agents/calendar.agent.ts ===
+readonly name = 'CalendarAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.OFFICE
+  readonly description =
+create,update,delete,schedule,conflict,remind,Calendar operations including event creation updates deletion smart scheduling conflict detection and reminder management;
+=== ./office/agents/document-intelligence.agent.ts ===
+readonly name = 'DocumentIntelligenceAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.OFFICE
+  readonly description =
+document-parsing,contract-analysis,legal-review,compliance-check,data-extraction,document-generation,Advanced document processing with AI-powered parsing contract analysis legal review compliance checking data extraction and document generation;
+=== ./office/agents/document.agent.ts ===
+readonly name = 'DocumentAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.OFFICE
+  readonly description =
+create,edit,convert,merge,template,extract,Document processing including creation editing format conversion merging templating and content extraction;
+=== ./office/agents/email.agent.ts ===
+readonly name = 'EmailAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.OFFICE
+  readonly description =
+send,receive,parse,template,schedule,filter,Email management including sending receiving parsing templating scheduling and filtering;
+=== ./office/agents/presentation.agent.ts ===
+readonly name = 'PresentationAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.OFFICE
+  readonly description =
+create,generate-with-llm,generate-premium,edit,template,export,animate,Premium LLM-powered presentation generation with 11 layouts 6 themes gradients and professional PPTX output;
+=== ./office/agents/spreadsheet.agent.ts ===
+readonly name = 'SpreadsheetAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.OFFICE
+  readonly description =
+create,edit,formula,chart,pivot,import,Spreadsheet operations including creation editing formula computation chart generation pivot tables and data import;
+=== ./office/agents/task-manager.agent.ts ===
+readonly name = 'TaskManagerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.OFFICE
+  readonly description =
+create,assign,track,report,kanban,gantt,Task and project management including creation assignment tracking reporting kanban boards and gantt charts;
+=== ./security/agents/access-control.agent.ts ===
+readonly name = 'AccessControlAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SECURITY
+  readonly description =
+authenticate,authorize,role,permission,audit,mfa,Manages access control operations including authentication authorization role-based access control permission management access auditing and multi-factor authentication;
+=== ./security/agents/compliance.agent.ts ===
+readonly name = 'ComplianceAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SECURITY
+  readonly description =
+audit,assess,policy,monitor,report,remediate,Manages regulatory and organizational compliance including audits assessments policy enforcement continuous monitoring reporting and remediation tracking;
+=== ./security/agents/encryption.agent.ts ===
+readonly name = 'EncryptionAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SECURITY
+  readonly description =
+encrypt,decrypt,hash,sign,verify,keyManage,Manages cryptographic operations including encryption/decryption hashing digital signatures verification and key lifecycle management;
+=== ./security/agents/forensics.agent.ts ===
+readonly name = 'ForensicsAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SECURITY
+  readonly description =
+collect,preserve,analyze,timeline,evidence,report,Conducts digital forensic investigations including evidence collection chain-of-custody preservation forensic analysis timeline reconstruction evidence management and investigation reporting;
+=== ./security/agents/red-team.agent.ts ===
+readonly name = 'RedTeamAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.SECURITY
+  readonly description =
+red-team-ops,social-engineering,physical-security-test,phishing-simulation,pretexting,attack-simulation,Full red team operations including social engineering physical security testing phishing simulation pretexting and attack simulation;
+=== ./security/agents/threat-detection.agent.ts ===
+readonly name = 'ThreatDetectionAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SECURITY
+  readonly description =
+scan,monitor,analyze,alert,investigate,respond,Detects monitors and responds to security threats across the system including malware detection intrusion detection anomaly analysis and automated threat response;
+=== ./security/agents/vulnerability.agent.ts ===
+readonly name = 'VulnerabilityAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SECURITY
+  readonly description =
+scan,assess,prioritize,remediate,track,report,Manages vulnerability lifecycle including scanning assessment risk prioritization remediation orchestration tracking and compliance reporting;
+=== ./self-evolution/agents/auto-certifier.agent.ts ===
+readonly name = 'AutoCertifierAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SELF_EVOLUTION
+  readonly description =
+run-certification,verify-eqi,approve-merge,reject-merge,Runs certification on generated patches and only approves merge if EQI increases (requires human approval for rule changes);
+=== ./self-evolution/agents/metric-analyzer.agent.ts ===
+readonly name = 'MetricAnalyzerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SELF_EVOLUTION
+  readonly description =
+analyze-metrics,collect-baseline,detect-anomaly,generate-report,LLM-powered metric analysis to detect performance degradation collect baselines and identify anomalies for the self-evolution loop;
+=== ./self-evolution/agents/patch-generator.agent.ts ===
+readonly name = 'PatchGeneratorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SELF_EVOLUTION
+  readonly description =
+generate-patch,validate-patch,test-patch,apply-patch,Generates code patches in isolated branches for proposed refactoring strategies (requires human approval);
+=== ./self-evolution/agents/refactor-proposer.agent.ts ===
+readonly name = 'RefactorProposerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SELF_EVOLUTION
+  readonly description =
+propose-refactor,analyze-impact,estimate-effort,generate-plan,Proposes refactoring strategies with impact analysis and effort estimation (requires human approval);
+=== ./self-evolution/agents/weakness-detector.agent.ts ===
+readonly name = 'WeaknessDetectorAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.SELF_EVOLUTION
+  readonly description =
+detect-weaknesses,assess-impact,prioritize-weaknesses,generate-improvement-plan,Detects weak points from metrics and certification results assesses their impact and prioritizes improvement areas;
+=== ./stealth-ops/stealth-browser.agent.ts ===
+readonly name = 'StealthBrowserAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+stealth-navigation,fingerprint-spoofing,proxy-rotation,anti-detection,canvas-masking,webgl-spoofing,timezone-masking,user-agent-rotation,Undetectable browser automation with fingerprint spoofing proxy rotation and comprehensive anti-detection capabilities;
+=== ./stealth-ops/stealth-comm.agent.ts ===
+readonly name = 'StealthCommAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+encrypted-messaging,steganography,covert-channels,dead-drops,key-exchange,plausible-deniability,Military-grade encrypted and covert communications with steganography and plausible deniability;
+=== ./stealth-ops/stealth-exploit.agent.ts ===
+readonly name = 'StealthExploitAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+vulnerability-scanning,exploit-chaining,privilege-escalation,lateral-movement,persistence-mechanisms,payload-crafting,evasion-techniques,Advanced penetration testing with full stealth — vulnerability scanning exploit chaining and evasion techniques;
+=== ./stealth-ops/stealth-identity.agent.ts ===
+readonly name = 'StealthIdentityAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+identity-generation,profile-fabrication,credential-crafting,persona-management,digital-footprint-creation,social-proof-generation,Complete digital identity creation fabrication and management with realistic persona generation;
+=== ./stealth-ops/stealth-network.agent.ts ===
+readonly name = 'StealthNetworkAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+traffic-obfuscation,dns-tunneling,proxy-chain,tor-routing,packet-masking,ssl-stripping-detection,traffic-analysis-evasion,Covert network operations with traffic obfuscation proxy chaining and anti-analysis capabilities;
+=== ./stealth-ops/stealth-recon.agent.ts ===
+readonly name = 'StealthReconAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+deep-osint,dark-web-monitoring,social-graph-mapping,metadata-extraction,corporate-intelligence,threat-landscape,exposure-analysis,Deep intelligence gathering with OSINT dark web monitoring and comprehensive exposure analysis;
+=== ./stealth-ops/stealth-scraper.agent.ts ===
+readonly name = 'StealthScraperAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+shadow-scrape,rate-evasion,pattern-mimicry,js-rendering-stealth,cookie-manipulation,session-cloning,header-forging,Undetectable web scraping with anti-detection realistic browsing patterns and session management;
+=== ./stealth-ops/stealth-wrapper.agent.ts ===
+readonly name = 'StealthWrapperAgent'
+readonly version = '3.0.0'
+readonly cluster = ClusterType.STEALTH_OPS
+  readonly description =
+operation-wrapping,timing-randomization,signature-evasion,behavior-mimicry,noise-injection,traffic-shaping,fingerprint-randomization,Universal stealth wrapper that makes any operation undetectable through timing behavioral and technical countermeasures;
+=== ./watchdog/agents/auto-fixer.agent.ts ===
+readonly name = 'AutoFixerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.WATCHDOG
+  readonly description =
+apply-fix,retry-task,reassign-task,fallback-execute,escalate-issue,Applies automated fixes based on error analysis including retry reassign simplify fallback and escalation strategies;
+=== ./watchdog/agents/circuit-breaker-manager.agent.ts ===
+readonly name = 'CircuitBreakerManagerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.WATCHDOG
+  readonly description =
+monitor-circuits,open-circuit,close-circuit,half-open-circuit,get-circuit-status,Manages circuit breakers across the platform monitors agent health and coordinates recovery through circuit state management;
+=== ./watchdog/agents/error-analyzer.agent.ts ===
+readonly name = 'ErrorAnalyzerAgent'
+readonly version = '2.0.0'
+readonly cluster = ClusterType.WATCHDOG
+  readonly description =
+analyze-error,classify-error,suggest-remediation,trace-root-cause,LLM-powered error analysis: identifies root causes classifies errors by type and severity and suggests remediation strategies;

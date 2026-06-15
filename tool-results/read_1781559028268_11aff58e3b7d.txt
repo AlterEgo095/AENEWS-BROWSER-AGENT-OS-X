@@ -1,0 +1,492 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→export class SearchAgent extends BaseAgent {
+    10→  readonly name = 'SearchAgent';
+    11→  readonly cluster = ClusterType.BROWSER;
+    12→  readonly capabilities = [
+    13→    'query',
+    14→    'parseResults',
+    15→    'serpAnalysis',
+    16→    'advancedSearch',
+    17→    'imageSearch',
+    18→    'newsSearch',
+    19→    'suggest',
+    20→  ];
+    21→  readonly version = '2.0.0';
+    22→  readonly description =
+    23→    'Search engine queries, result parsing, SERP analysis, and advanced search operations';
+    24→
+    25→  readonly missionCategories = [MissionCategory.RESEARCH_ANALYSIS, MissionCategory.AUTOMATION_WORKFLOW];
+    26→  readonly creditCost = 1;
+    27→  readonly powerLevel = 1;
+    28→  readonly tier = 'standard';
+    29→
+    30→  async execute(context: AgentContext): Promise<AgentResult> {
+    31→    try {
+    32→      const { config } = context;
+    33→      const action = config.action || 'query';
+    34→      const startTime = Date.now();
+    35→
+    36→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    37→
+    38→      switch (action) {
+    39→        case 'query': {
+    40→          const query = config.query;
+    41→          const engine = config.engine || 'google';
+    42→          const maxResults = config.maxResults || 10;
+    43→          const page = config.page || 1;
+    44→          const language = config.language || 'en';
+    45→          const safeSearch = config.safeSearch !== false;
+    46→          if (!query) {
+    47→            return { success: false, error: 'Search query is required' };
+    48→          }
+    49→          this.logger.log(
+    50→            `Searching "${query}" on ${engine} (max: ${maxResults}, page: ${page})`,
+    51→          );
+    52→
+    53→          const llmResult = await this.executeWithLLM(
+    54→            `You are a professional search engine analyst. Generate realistic search results for the given query. Return JSON with "results" array (each item has title, url, snippet, position), "totalResults" number, "searchTimeMs" number, and "insights" string summarizing search intent.`,
+    55→            `Generate search results for query: "${query}" on engine: ${engine}, max ${maxResults} results, page ${page}, language: ${language}`,
+    56→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+    57→          );
+    58→          const parsed = this.safeJsonParse(llmResult);
+    59→
+    60→          const resultData = parsed
+    61→            ? {
+    62→                action,
+    63→                query,
+    64→                engine,
+    65→                maxResults,
+    66→                page,
+    67→                language,
+    68→                safeSearch,
+    69→                results: parsed.results || [],
+    70→                totalResults: parsed.totalResults || 0,
+    71→                searchTime: parsed.searchTimeMs || 0,
+    72→                insights: parsed.insights || '',
+    73→                status: 'search_complete',
+    74→                timestamp: new Date().toISOString(),
+    75→              }
+    76→            : {
+    77→                action,
+    78→                query,
+    79→                engine,
+    80→                maxResults,
+    81→                page,
+    82→                language,
+    83→                safeSearch,
+    84→                results: [
+    85→                  { title: `${query} - Official Site`, url: `https://www.example.com/${query.replace(/\s+/g, '-').toLowerCase()}`, snippet: `Official resource for ${query}. Find comprehensive information, guides, and latest updates.`, position: 1 },
+    86→                  { title: `${query} - Wikipedia`, url: `https://en.wikipedia.org/wiki/${query.replace(/\s+/g, '_')}`, snippet: `${query} is a widely discussed topic with extensive coverage across multiple domains and disciplines.`, position: 2 },
+    87→                  { title: `Best ${query} Resources 2024`, url: `https://www.example.com/best-${query.replace(/\s+/g, '-').toLowerCase()}`, snippet: `Curated list of the best resources for ${query}. Updated regularly with new content and tools.`, position: 3 },
+    88→                  { title: `${query} Guide: Getting Started`, url: `https://guide.example.com/${query.replace(/\s+/g, '-')}`, snippet: `Complete beginner's guide to ${query}. Step-by-step tutorials and expert recommendations.`, position: 4 },
+    89→                  { title: `${query} News & Updates`, url: `https://news.example.com/topic/${query.replace(/\s+/g, '-')}`, snippet: `Latest news and developments about ${query}. Stay informed with real-time updates.`, position: 5 },
+    90→                  { title: `${query} Forum & Community`, url: `https://community.example.com/${query.replace(/\s+/g, '-')}`, snippet: `Join the ${query} community. Ask questions, share knowledge, and connect with experts.`, position: 6 },
+    91→                  { title: `${query} Research Papers`, url: `https://scholar.example.com/search?q=${encodeURIComponent(query)}`, snippet: `Academic research and papers related to ${query}. Peer-reviewed sources and citations.`, position: 7 },
+    92→                  { title: `${query} Tools & Software`, url: `https://tools.example.com/category/${query.replace(/\s+/g, '-')}`, snippet: `Professional tools and software solutions for ${query}. Compare features and pricing.`, position: 8 },
+    93→                  { title: `Learn ${query} Online`, url: `https://learn.example.com/courses/${query.replace(/\s+/g, '-')}`, snippet: `Online courses and tutorials for ${query}. From beginner to advanced levels.`, position: 9 },
+    94→                  { title: `${query} - Technical Documentation`, url: `https://docs.example.com/${query.replace(/\s+/g, '-')}`, snippet: `Technical documentation and API references for ${query}. Comprehensive developer resources.`, position: 10 },
+    95→                ],
+    96→                totalResults: 2450000 + Math.floor(Math.random() * 5000000),
+    97→                searchTime: 0.23 + Math.random() * 0.5,
+    98→                insights: `The query "${query}" shows high search volume with mixed informational and navigational intent. Top results include official sources, reference materials, and community resources.`,
+    99→                status: 'search_complete',
+   100→                timestamp: new Date().toISOString(),
+   101→              };
+   102→
+   103→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   104→          return {
+   105→            success: true,
+   106→            data: resultData,
+   107→            metadata: { duration: Date.now() - startTime },
+   108→          };
+   109→        }
+   110→
+   111→        case 'parseResults': {
+   112→          const html = config.html;
+   113→          const engine = config.engine || 'google';
+   114→          if (!html) {
+   115→            return {
+   116→              success: false,
+   117→              error: 'HTML content is required for parsing',
+   118→            };
+   119→          }
+   120→          this.logger.log(`Parsing ${engine} SERP results`);
+   121→
+   122→          const llmResult = await this.executeWithLLM(
+   123→            `You are a SERP parsing expert. Analyze the given HTML content from a search engine results page and extract structured data. Return JSON with "organicResults" (array of {title, url, snippet, position}), "paidResults" (array of {title, url, snippet, position}), "featuredSnippet" (object or null), and "knowledgePanel" (object or null).`,
+   124→            `Parse SERP HTML from ${engine}. Extract all organic and paid results, featured snippets, and knowledge panels.`,
+   125→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   126→          );
+   127→          const parsed = this.safeJsonParse(llmResult);
+   128→
+   129→          const resultData = parsed
+   130→            ? {
+   131→                action,
+   132→                engine,
+   133→                organicResults: parsed.organicResults || [],
+   134→                paidResults: parsed.paidResults || [],
+   135→                featuredSnippet: parsed.featuredSnippet || null,
+   136→                knowledgePanel: parsed.knowledgePanel || null,
+   137→                status: 'results_parsed',
+   138→                timestamp: new Date().toISOString(),
+   139→              }
+   140→            : {
+   141→                action,
+   142→                engine,
+   143→                organicResults: [
+   144→                  { title: 'Primary Result - Official Website', url: 'https://www.example.com', snippet: 'The official website providing comprehensive information and resources for visitors.', position: 1 },
+   145→                  { title: 'Secondary Result - Reference Guide', url: 'https://reference.example.com/guide', snippet: 'Detailed reference guide with in-depth explanations and examples.', position: 2 },
+   146→                  { title: 'Tertiary Result - Community Forum', url: 'https://forum.example.com', snippet: 'Active community forum with discussions, Q&A, and user-generated content.', position: 3 },
+   147→                  { title: 'Fourth Result - Blog & Articles', url: 'https://blog.example.com', snippet: 'Latest blog posts and articles covering recent developments and trends.', position: 4 },
+   148→                  { title: 'Fifth Result - Documentation', url: 'https://docs.example.com', snippet: 'Comprehensive documentation with API references and integration guides.', position: 5 },
+   149→                ],
+   150→                paidResults: [
+   151→                  { title: 'Sponsored - Premium Solution', url: 'https://sponsored.example.com/premium', snippet: 'Top-rated premium solution with 24/7 support and enterprise features.', position: 1 },
+   152→                  { title: 'Sponsored - Free Trial Available', url: 'https://sponsored.example.com/trial', snippet: 'Start your free trial today. No credit card required. Cancel anytime.', position: 2 },
+   153→                ],
+   154→                featuredSnippet: { title: 'Quick Answer', content: 'Based on available data, this is the most relevant and concise answer to the query.', source: 'https://www.example.com/answer' },
+   155→                knowledgePanel: { title: 'Overview', description: 'A comprehensive topic with significant online presence and multiple authoritative sources.', type: 'entity', attributes: { 'Type': 'Topic', 'Relevance': 'High', 'Sources': '50+' } },
+   156→                status: 'results_parsed',
+   157→                timestamp: new Date().toISOString(),
+   158→              };
+   159→
+   160→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   161→          return {
+   162→            success: true,
+   163→            data: resultData,
+   164→            metadata: { duration: Date.now() - startTime },
+   165→          };
+   166→        }
+   167→
+   168→        case 'serpAnalysis': {
+   169→          const keyword = config.keyword;
+   170→          const url = config.url;
+   171→          const engine = config.engine || 'google';
+   172→          if (!keyword) {
+   173→            return {
+   174→              success: false,
+   175→              error: 'Keyword is required for SERP analysis',
+   176→            };
+   177→          }
+   178→          this.logger.log(`Analyzing SERP for keyword "${keyword}"`);
+   179→
+   180→          const llmResult = await this.executeWithLLM(
+   181→            `You are a professional SEO analyst specializing in SERP analysis. Analyze the given keyword and provide comprehensive competitive analysis. Return JSON with "competition" (number 0-100), "cpc" (float, cost per click in USD), "searchVolume" (integer, monthly searches), "difficulty" (number 0-100), "serpFeatures" (array of strings like "featured_snippet", "knowledge_panel", "people_also_ask"), "topCompetitors" (array of domain strings), "opportunity" (string with analysis), and "recommendations" (array of actionable strings).`,
+   182→            `Perform SERP analysis for keyword: "${keyword}"${url ? ` on URL: ${url}` : ''} on ${engine}`,
+   183→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   184→          );
+   185→          const parsed = this.safeJsonParse(llmResult);
+   186→
+   187→          const competition = 35 + Math.floor(Math.random() * 45);
+   188→          const difficulty = 30 + Math.floor(Math.random() * 50);
+   189→
+   190→          const resultData = parsed
+   191→            ? {
+   192→                action,
+   193→                keyword,
+   194→                url,
+   195→                engine,
+   196→                analysis: {
+   197→                  competition: parsed.competition || competition,
+   198→                  cpc: parsed.cpc || (0.5 + Math.random() * 8).toFixed(2),
+   199→                  searchVolume: parsed.searchVolume || Math.floor(5000 + Math.random() * 500000),
+   200→                  difficulty: parsed.difficulty || difficulty,
+   201→                  serpFeatures: parsed.serpFeatures || ['featured_snippet', 'people_also_ask', 'image_pack'],
+   202→                  topCompetitors: parsed.topCompetitors || ['wikipedia.org', 'example.com', 'reddit.com'],
+   203→                  opportunity: parsed.opportunity || '',
+   204→                  recommendations: parsed.recommendations || [],
+   205→                },
+   206→                status: 'serp_analyzed',
+   207→                timestamp: new Date().toISOString(),
+   208→              }
+   209→            : {
+   210→                action,
+   211→                keyword,
+   212→                url,
+   213→                engine,
+   214→                analysis: {
+   215→                  competition,
+   216→                  cpc: (0.5 + Math.random() * 8).toFixed(2),
+   217→                  searchVolume: Math.floor(5000 + Math.random() * 500000),
+   218→                  difficulty,
+   219→                  serpFeatures: ['featured_snippet', 'people_also_ask', 'image_pack', 'video_carousel', 'knowledge_panel'],
+   220→                  topCompetitors: ['wikipedia.org', 'reddit.com', 'medium.com', 'example.com', 'youtube.com'],
+   221→                  opportunity: `The keyword "${keyword}" shows ${competition > 60 ? 'high' : 'moderate'} competition with ${difficulty > 50 ? 'significant' : 'manageable'} difficulty. There are opportunities in long-tail variations and featured snippet optimization.`,
+   222→                  recommendations: [
+   223→                    'Target long-tail variations of this keyword for easier ranking',
+   224→                    'Create comprehensive content that addresses "People Also Ask" questions',
+   225→                    'Optimize for featured snippet with clear, structured answers',
+   226→                    'Build topical authority with supporting content clusters',
+   227→                    'Monitor competitor content gaps for differentiation opportunities',
+   228→                  ],
+   229→                },
+   230→                status: 'serp_analyzed',
+   231→                timestamp: new Date().toISOString(),
+   232→              };
+   233→
+   234→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   235→          return {
+   236→            success: true,
+   237→            data: resultData,
+   238→            metadata: { duration: Date.now() - startTime },
+   239→          };
+   240→        }
+   241→
+   242→        case 'advancedSearch': {
+   243→          const query = config.query;
+   244→          const operators = config.operators || {};
+   245→          const dateRange = config.dateRange;
+   246→          const fileType = config.fileType;
+   247→          const site = config.site;
+   248→          if (!query) {
+   249→            return { success: false, error: 'Search query is required' };
+   250→          }
+   251→          this.logger.log(`Advanced search: "${query}" with operators`);
+   252→
+   253→          const llmResult = await this.executeWithLLM(
+   254→            `You are a search query construction expert. Build an advanced search query from the given parameters and generate realistic results. Return JSON with "constructedQuery" (string, the full query with operators), "results" (array of {title, url, snippet}), and "queryExplanation" (string explaining the operators used).`,
+   255→            `Build advanced search for query: "${query}", operators: ${JSON.stringify(operators)}, dateRange: ${dateRange}, fileType: ${fileType}, site: ${site}`,
+   256→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   257→          );
+   258→          const parsed = this.safeJsonParse(llmResult);
+   259→
+   260→          const constructedQuery = [
+   261→            query,
+   262→            site ? `site:${site}` : '',
+   263→            fileType ? `filetype:${fileType}` : '',
+   264→            operators.exact ? `"${operators.exact}"` : '',
+   265→            operators.exclude ? `-${operators.exclude}` : '',
+   266→            operators.intitle ? `intitle:${operators.intitle}` : '',
+   267→            operators.inurl ? `inurl:${operators.inurl}` : '',
+   268→          ].filter(Boolean).join(' ');
+   269→
+   270→          const resultData = parsed
+   271→            ? {
+   272→                action,
+   273→                query,
+   274→                operators,
+   275→                dateRange,
+   276→                fileType,
+   277→                site,
+   278→                constructedQuery: parsed.constructedQuery || constructedQuery,
+   279→                results: parsed.results || [],
+   280→                queryExplanation: parsed.queryExplanation || '',
+   281→                status: 'advanced_search_complete',
+   282→                timestamp: new Date().toISOString(),
+   283→              }
+   284→            : {
+   285→                action,
+   286→                query,
+   287→                operators,
+   288→                dateRange,
+   289→                fileType,
+   290→                site,
+   291→                constructedQuery,
+   292→                results: [
+   293→                  { title: `Advanced Result: ${query}`, url: site ? `https://${site}/page-1` : `https://www.example.com/advanced/${query.replace(/\s+/g, '-')}`, snippet: `Highly relevant result matching all specified search operators and filters for "${query}".` },
+   294→                  { title: `Filtered: ${query} Resources`, url: site ? `https://${site}/resources` : `https://resources.example.com/${query.replace(/\s+/g, '-')}`, snippet: `Curated resources matching advanced search criteria with verified authenticity.` },
+   295→                  { title: `Targeted: ${query} Documentation`, url: site ? `https://${site}/docs` : `https://docs.example.com/search?q=${encodeURIComponent(query)}`, snippet: `Documentation pages precisely matching the advanced query parameters.` },
+   296→                ],
+   297→                queryExplanation: `Query constructed with: base term "${query}"${site ? `, site restriction to ${site}` : ''}${fileType ? `, file type filter ${fileType}` : ''}${operators.exact ? `, exact match "${operators.exact}"` : ''}${operators.exclude ? `, excluding "${operators.exclude}"` : ''}`,
+   298→                status: 'advanced_search_complete',
+   299→                timestamp: new Date().toISOString(),
+   300→              };
+   301→
+   302→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   303→          return {
+   304→            success: true,
+   305→            data: resultData,
+   306→            metadata: { duration: Date.now() - startTime },
+   307→          };
+   308→        }
+   309→
+   310→        case 'imageSearch': {
+   311→          const query = config.query;
+   312→          const engine = config.engine || 'google';
+   313→          const size = config.size;
+   314→          const color = config.color;
+   315→          const type = config.type;
+   316→          if (!query) {
+   317→            return {
+   318→              success: false,
+   319→              error: 'Search query is required for image search',
+   320→            };
+   321→          }
+   322→          this.logger.log(`Image search: "${query}" on ${engine}`);
+   323→
+   324→          const llmResult = await this.executeWithLLM(
+   325→            `You are an image search expert. Generate realistic image search results for the given query. Return JSON with "images" array where each item has "src" (URL), "thumbnail" (URL), "alt" (descriptive text), "width" (number), "height" (number).`,
+   326→            `Generate image search results for: "${query}" on ${engine}${size ? `, size: ${size}` : ''}${color ? `, color: ${color}` : ''}${type ? `, type: ${type}` : ''}`,
+   327→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   328→          );
+   329→          const parsed = this.safeJsonParse(llmResult);
+   330→
+   331→          const resultData = parsed
+   332→            ? {
+   333→                action,
+   334→                query,
+   335→                engine,
+   336→                size,
+   337→                color,
+   338→                type,
+   339→                images: parsed.images || [],
+   340→                status: 'image_search_complete',
+   341→                timestamp: new Date().toISOString(),
+   342→              }
+   343→            : {
+   344→                action,
+   345→                query,
+   346→                engine,
+   347→                size,
+   348→                color,
+   349→                type,
+   350→                images: [
+   351→                  { src: 'https://images.example.com/img1.jpg', thumbnail: 'https://images.example.com/thumb/img1.jpg', alt: `${query} - high quality image 1`, width: 1920, height: 1080 },
+   352→                  { src: 'https://images.example.com/img2.jpg', thumbnail: 'https://images.example.com/thumb/img2.jpg', alt: `${query} - detailed visualization`, width: 1280, height: 720 },
+   353→                  { src: 'https://images.example.com/img3.png', thumbnail: 'https://images.example.com/thumb/img3.png', alt: `${query} - infographic`, width: 1200, height: 630 },
+   354→                  { src: 'https://images.example.com/img4.jpg', thumbnail: 'https://images.example.com/thumb/img4.jpg', alt: `${query} - professional photo`, width: 1600, height: 900 },
+   355→                  { src: 'https://images.example.com/img5.jpg', thumbnail: 'https://images.example.com/thumb/img5.jpg', alt: `${query} - illustration`, width: 1024, height: 768 },
+   356→                  { src: 'https://images.example.com/img6.png', thumbnail: 'https://images.example.com/thumb/img6.png', alt: `${query} - diagram`, width: 800, height: 600 },
+   357→                ],
+   358→                status: 'image_search_complete',
+   359→                timestamp: new Date().toISOString(),
+   360→              };
+   361→
+   362→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   363→          return {
+   364→            success: true,
+   365→            data: resultData,
+   366→            metadata: { duration: Date.now() - startTime },
+   367→          };
+   368→        }
+   369→
+   370→        case 'newsSearch': {
+   371→          const query = config.query;
+   372→          const engine = config.engine || 'google';
+   373→          const region = config.region || 'us';
+   374→          const timeRange = config.timeRange || '7d';
+   375→          if (!query) {
+   376→            return {
+   377→              success: false,
+   378→              error: 'Search query is required for news search',
+   379→            };
+   380→          }
+   381→          this.logger.log(`News search: "${query}" on ${engine}`);
+   382→
+   383→          const llmResult = await this.executeWithLLM(
+   384→            `You are a news search analyst. Generate realistic news search results for the given query. Return JSON with "articles" array where each item has "title", "url", "source" (news outlet name), "publishedAt" (ISO date string), "snippet".`,
+   385→            `Generate news search results for: "${query}", region: ${region}, timeRange: ${timeRange}`,
+   386→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   387→          );
+   388→          const parsed = this.safeJsonParse(llmResult);
+   389→
+   390→          const now = new Date();
+   391→          const resultData = parsed
+   392→            ? {
+   393→                action,
+   394→                query,
+   395→                engine,
+   396→                region,
+   397→                timeRange,
+   398→                articles: parsed.articles || [],
+   399→                status: 'news_search_complete',
+   400→                timestamp: new Date().toISOString(),
+   401→              }
+   402→            : {
+   403→                action,
+   404→                query,
+   405→                engine,
+   406→                region,
+   407→                timeRange,
+   408→                articles: [
+   409→                  { title: `Breaking: Major Development in ${query} Sector`, url: 'https://news.example.com/breaking-1', source: 'Reuters', publishedAt: new Date(now.getTime() - 2 * 3600000).toISOString(), snippet: `Significant developments have emerged in the ${query} sector, with industry leaders announcing major initiatives.` },
+   410→                  { title: `${query}: What You Need to Know This Week`, url: 'https://news.example.com/weekly-roundup', source: 'Bloomberg', publishedAt: new Date(now.getTime() - 8 * 3600000).toISOString(), snippet: `A comprehensive roundup of the most important stories about ${query} from the past week.` },
+   411→                  { title: `Expert Analysis: The Future of ${query}`, url: 'https://news.example.com/analysis', source: 'TechCrunch', publishedAt: new Date(now.getTime() - 24 * 3600000).toISOString(), snippet: `Industry experts weigh in on emerging trends and future predictions for ${query}.` },
+   412→                  { title: `${query} Market Report Shows Strong Growth`, url: 'https://news.example.com/market-report', source: 'Forbes', publishedAt: new Date(now.getTime() - 48 * 3600000).toISOString(), snippet: `Latest market data reveals robust growth patterns in the ${query} domain.` },
+   413→                  { title: `Policy Changes Impact ${query} Industry`, url: 'https://news.example.com/policy', source: 'The Guardian', publishedAt: new Date(now.getTime() - 72 * 3600000).toISOString(), snippet: `New regulatory framework expected to reshape the ${query} landscape significantly.` },
+   414→                ],
+   415→                status: 'news_search_complete',
+   416→                timestamp: new Date().toISOString(),
+   417→              };
+   418→
+   419→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   420→          return {
+   421→            success: true,
+   422→            data: resultData,
+   423→            metadata: { duration: Date.now() - startTime },
+   424→          };
+   425→        }
+   426→
+   427→        case 'suggest': {
+   428→          const query = config.query;
+   429→          const engine = config.engine || 'google';
+   430→          if (!query) {
+   431→            return {
+   432→              success: false,
+   433→              error: 'Query is required for suggestions',
+   434→            };
+   435→          }
+   436→          this.logger.log(`Getting search suggestions for "${query}"`);
+   437→
+   438→          const llmResult = await this.executeWithLLM(
+   439→            `You are a search suggestion expert. Generate relevant and popular search suggestions/autocomplete results for the given query. Return JSON with "suggestions" (array of strings, 8-12 suggestions ordered by relevance).`,
+   440→            `Generate search suggestions for query: "${query}" on ${engine}`,
+   441→            { responseFormat: 'json', temperature: 0.4, maxTokens: 1024 },
+   442→          );
+   443→          const parsed = this.safeJsonParse(llmResult);
+   444→
+   445→          const resultData = parsed
+   446→            ? {
+   447→                action,
+   448→                query,
+   449→                engine,
+   450→                suggestions: parsed.suggestions || [],
+   451→                status: 'suggestions_retrieved',
+   452→                timestamp: new Date().toISOString(),
+   453→              }
+   454→            : {
+   455→                action,
+   456→                query,
+   457→                engine,
+   458→                suggestions: [
+   459→                  `${query} tutorial`,
+   460→                  `${query} vs alternatives`,
+   461→                  `${query} best practices`,
+   462→                  `${query} for beginners`,
+   463→                  `${query} advanced techniques`,
+   464→                  `${query} pricing`,
+   465→                  `${query} reviews 2024`,
+   466→                  `${query} examples`,
+   467→                  `how to use ${query}`,
+   468→                  `${query} installation guide`,
+   469→                ],
+   470→                status: 'suggestions_retrieved',
+   471→                timestamp: new Date().toISOString(),
+   472→              };
+   473→
+   474→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   475→          return {
+   476→            success: true,
+   477→            data: resultData,
+   478→            metadata: { duration: Date.now() - startTime },
+   479→          };
+   480→        }
+   481→
+   482→        default:
+   483→          this.emitEvent(AgentEventType.AGENT_FAILED, { action, error: `Unknown action: ${action}` });
+   484→          return { success: false, error: `Unknown action: ${action}` };
+   485→      }
+   486→    } catch (error: any) {
+   487→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   488→      return { success: false, error: error.message };
+   489→    }
+   490→  }
+   491→}
+   492→
