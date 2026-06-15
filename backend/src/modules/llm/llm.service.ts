@@ -18,6 +18,15 @@ import {
 } from '../agent-framework/services/circuit-breaker.service';
 
 /**
+ * Configuration for the LLM service that can be changed at runtime.
+ */
+export interface LLMConfig {
+  defaultProvider: string;
+  fallbackEnabled: boolean;
+  secondaryProvider: string;
+}
+
+/**
  * Usage metrics tracked per provider.
  */
 interface ProviderMetrics {
@@ -90,9 +99,9 @@ export class LLMService {
   private readonly logger = new Logger(LLMService.name);
   private readonly providers: Map<string, ILLMProvider> = new Map();
   private readonly metrics: Map<string, ProviderMetrics> = new Map();
-  private readonly defaultProviderName: string;
-  private readonly fallbackEnabled: boolean;
-  private readonly secondaryProviderName: string;
+  private defaultProviderName: string;
+  private fallbackEnabled: boolean;
+  private secondaryProviderName: string;
   private readonly cacheEnabled: boolean;
 
   constructor(
@@ -383,6 +392,96 @@ export class LLMService {
   invalidateCache(pattern: string = 'llm:*'): number {
     if (!this.cacheService) return 0;
     return this.cacheService.invalidate(pattern);
+  }
+
+  // ─── Runtime Provider Switching ───────────────────────────────
+
+  /**
+   * Switch the default LLM provider at runtime.
+   * Invalidates the cache and resets circuit breakers for a clean switch.
+   *
+   * @param providerName - The name of the provider to switch to ('zai', 'openai', 'anthropic')
+   * @throws Error if the provider name is not registered
+   */
+  switchProvider(providerName: string): void {
+    const validProviders = Array.from(this.providers.keys());
+    if (!validProviders.includes(providerName)) {
+      throw new Error(
+        `Invalid provider "${providerName}". Available providers: ${validProviders.join(', ')}`,
+      );
+    }
+
+    const previousProvider = this.defaultProviderName;
+    this.defaultProviderName = providerName;
+
+    // Invalidate cache to avoid stale responses from the previous provider
+    this.invalidateCache();
+
+    // Reset circuit breaker for the new provider so it gets a fresh start
+    if (this.circuitBreakerService) {
+      const circuitKey = `${CIRCUIT_KEY_PREFIX.LLM}:${providerName}`;
+      this.circuitBreakerService.reset(circuitKey);
+    }
+
+    // Clear dead host cooldown for the new provider
+    if (this.deadHostCooldownService) {
+      this.deadHostCooldownService.resetHost(providerName);
+    }
+
+    this.logger.log(
+      `Provider switched: "${previousProvider}" → "${providerName}"` +
+        ` (available: ${this.providers.get(providerName)?.isAvailable() ?? false})`,
+    );
+  }
+
+  /**
+   * Update the fallback configuration at runtime.
+   *
+   * @param enabled - Whether fallback is enabled
+   * @param secondaryProvider - The fallback provider name
+   */
+  setFallbackConfig(enabled: boolean, secondaryProvider?: string): void {
+    if (secondaryProvider) {
+      const validProviders = Array.from(this.providers.keys());
+      if (!validProviders.includes(secondaryProvider)) {
+        throw new Error(
+          `Invalid secondary provider "${secondaryProvider}". Available providers: ${validProviders.join(', ')}`,
+        );
+      }
+      this.secondaryProviderName = secondaryProvider;
+    }
+    this.fallbackEnabled = enabled;
+
+    this.logger.log(
+      `Fallback config updated: enabled=${enabled}, secondary="${this.secondaryProviderName}"`,
+    );
+  }
+
+  /**
+   * Apply a full LLM configuration at runtime.
+   * Used by the admin API to persist and apply provider changes.
+   *
+   * @param config - The LLM configuration to apply
+   */
+  applyConfig(config: LLMConfig): void {
+    this.switchProvider(config.defaultProvider);
+    this.setFallbackConfig(config.fallbackEnabled, config.secondaryProvider);
+    this.logger.log(
+      `LLM config applied — default: "${config.defaultProvider}", ` +
+        `fallback: ${config.fallbackEnabled ? `"${config.secondaryProvider}"` : 'disabled'}`,
+    );
+  }
+
+  /**
+   * Get the current LLM configuration.
+   * Returns a snapshot of the current runtime configuration.
+   */
+  getConfig(): LLMConfig {
+    return {
+      defaultProvider: this.defaultProviderName,
+      fallbackEnabled: this.fallbackEnabled,
+      secondaryProvider: this.secondaryProviderName,
+    };
   }
 
   // ─── Private Methods ─────────────────────────────────────────

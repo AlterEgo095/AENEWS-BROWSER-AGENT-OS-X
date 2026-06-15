@@ -710,6 +710,39 @@ class ApiClient {
   async getCreditsOrderInfo() {
     return this.request<{ packages: import('./types').CreditPackage[]; whatsappNumber: string }>('/credits/order');
   }
+
+  // LLM Provider Management
+  async getLLMProviders() {
+    return this.request<{ providers: Array<{ name: string; available: boolean; circuitState: string; inCooldown: boolean; metrics: Record<string, any> }> }>('/llm/providers');
+  }
+
+  async getLLMConfig() {
+    return this.request<{ config: { defaultProvider: string; fallbackEnabled: boolean; secondaryProvider: string }; anyProviderAvailable: boolean; defaultProviderAvailable: boolean }>('/llm/config');
+  }
+
+  async updateLLMConfig(data: { defaultProvider: string; fallbackEnabled?: boolean; secondaryProvider?: string }) {
+    return this.request<{ success: boolean; config: Record<string, any>; warning?: string }>('/llm/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async switchLLMProvider(provider: string) {
+    return this.request<{ success: boolean; config: Record<string, any>; warning?: string }>('/llm/switch-provider', {
+      method: 'PUT',
+      body: JSON.stringify({ provider }),
+    });
+  }
+
+  async invalidateLLMCache() {
+    return this.request<{ success: boolean; invalidatedEntries: number }>('/llm/cache/invalidate', {
+      method: 'POST',
+    });
+  }
+
+  async getLLMHealth() {
+    return this.request<{ status: string; defaultProvider: Record<string, any>; fallback: Record<string, any> | null; recommendation: string }>('/llm/health');
+  }
 }
 
 export const api = new ApiClient();
