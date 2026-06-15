@@ -117,6 +117,8 @@ const CLUSTER_CAPABILITIES: Record<ClusterType, string[]> = {
   [ClusterType.SELF_EVOLUTION]: ['self-improvement', 'code-modification', 'pattern-learning', 'evolution'],
   [ClusterType.CERTIFICATION]: ['quality-assurance', 'testing', 'auditing', 'certification', 'compliance-check'],
   [ClusterType.STEALTH_OPS]: ['stealth-navigation', 'fingerprint-spoofing', 'proxy-rotation', 'anti-detection', 'covert-ops'],
+  [ClusterType.DATA_INTELLIGENCE]: ['DataPipelineAgent', 'DataWarehouseAgent', 'RealTimeAnalyticsAgent', 'DataQualityAgent', 'MLPipelineAgent'],
+  [ClusterType.COMMUNICATION]: ['APIGatewayAgent', 'WebhookAgent', 'NotificationAgent', 'WebSocketAgent'],
 };
 
 // ─── Service ─────────────────────────────────────────────────────

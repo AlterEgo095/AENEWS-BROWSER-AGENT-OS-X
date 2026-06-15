@@ -11,6 +11,9 @@ import { StealthCommAgent } from './stealth-comm.agent';
 import { StealthReconAgent } from './stealth-recon.agent';
 import { StealthExploitAgent } from './stealth-exploit.agent';
 import { StealthWrapperAgent } from './stealth-wrapper.agent';
+import { StealthSocialAgent } from './agents/stealth-social.agent';
+import { StealthCryptoAgent } from './agents/stealth-crypto.agent';
+import { StealthPhishingAgent } from './agents/stealth-phishing.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 /**
@@ -31,6 +34,9 @@ function createStealthOpsAgents(
     new StealthReconAgent(),
     new StealthExploitAgent(),
     new StealthWrapperAgent(),
+    new StealthSocialAgent(),
+    new StealthCryptoAgent(),
+    new StealthPhishingAgent(),
   ];
 
   // Inject services into all agents

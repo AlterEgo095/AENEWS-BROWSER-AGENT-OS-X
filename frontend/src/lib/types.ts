@@ -12,6 +12,9 @@ export enum MissionCategory {
   DOCUMENT_PROCESSING = 'document-processing',
   AI_ORCHESTRATION = 'ai-orchestration',
   SYSTEM_ADMINISTRATION = 'system-administration',
+  DATA_ENGINEERING = 'data-engineering',
+  COMMUNICATION_OPS = 'communication-ops',
+  ADVANCED_REASONING = 'advanced-reasoning',
 }
 
 // Credit Types
@@ -56,6 +59,9 @@ export enum ClusterType {
   SELF_EVOLUTION = 'self-evolution',
   CERTIFICATION = 'certification',
   STEALTH_OPS = 'stealth-ops',
+  // Phase 3 — Data & Communication Clusters
+  DATA_INTELLIGENCE = 'data-intelligence',
+  COMMUNICATION = 'communication',
 }
 
 export enum AgentStatus {

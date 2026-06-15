@@ -1,35 +1,38 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Global, Module, OnModuleInit } from '@nestjs/common';
 import { AgentRegistryService } from '../../modules/agent/registry/agent-registry.service';
 import { LLMService } from '../../modules/llm/llm.service';
 import { AgentBridgeService } from '../../modules/agent-framework/services/agent-bridge.service';
 import { AgentEventBusService } from '../../modules/agent-framework/services/agent-event-bus.service';
-import { MissionOrchestratorAIAgent } from './agents/mission-orchestrator-ai.agent';
-import { DynamicSchedulerAgent } from './agents/dynamic-scheduler.agent';
-import { ResourceNegotiatorAgent } from './agents/resource-negotiator.agent';
-import { PriorityArbiterAgent } from './agents/priority-arbiter.agent';
-import { MegaOrchestratorAgent } from './agents/mega-orchestrator.agent';
+import { DataPipelineAgent } from './agents/data-pipeline.agent';
+import { DataWarehouseAgent } from './agents/data-warehouse.agent';
+import { RealTimeAnalyticsAgent } from './agents/real-time-analytics.agent';
+import { DataQualityAgent } from './agents/data-quality.agent';
+import { MLPipelineAgent } from './agents/ml-pipeline.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
-function createIntelligentOrchestrationAgents(
+function createDataIntelligenceAgents(
   llmService?: LLMService,
   bridgeService?: AgentBridgeService,
   eventBus?: AgentEventBusService,
 ) {
   const agents: BaseAgent[] = [
-    new MissionOrchestratorAIAgent(),
-    new DynamicSchedulerAgent(),
-    new ResourceNegotiatorAgent(),
-    new PriorityArbiterAgent(),
-    new MegaOrchestratorAgent(),
+    new DataPipelineAgent(),
+    new DataWarehouseAgent(),
+    new RealTimeAnalyticsAgent(),
+    new DataQualityAgent(),
+    new MLPipelineAgent(),
   ];
+
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });
   }
+
   return agents;
 }
 
+@Global()
 @Module({})
-export class IntelligentOrchestrationClusterModule implements OnModuleInit {
+export class DataIntelligenceModule implements OnModuleInit {
   constructor(
     private readonly registry: AgentRegistryService,
     private readonly llmService: LLMService,
@@ -38,7 +41,11 @@ export class IntelligentOrchestrationClusterModule implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    const agents = createIntelligentOrchestrationAgents(this.llmService, this.bridgeService, this.eventBus);
+    const agents = createDataIntelligenceAgents(
+      this.llmService,
+      this.bridgeService,
+      this.eventBus,
+    );
     for (const agent of agents) {
       this.registry.register(agent);
     }

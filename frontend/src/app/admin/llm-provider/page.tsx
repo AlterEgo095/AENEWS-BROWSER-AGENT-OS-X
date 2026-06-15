@@ -98,7 +98,7 @@ export default function LLMProviderPage() {
         setFallbackEnabled(configRes.config.fallbackEnabled);
         setSecondaryProvider(configRes.config.secondaryProvider);
       }
-      if (healthRes) setHealth(healthRes);
+      if (healthRes) setHealth(healthRes as LLMHealth);
     } catch (err: any) {
       setError(err.message || 'Failed to load LLM provider data');
     } finally {

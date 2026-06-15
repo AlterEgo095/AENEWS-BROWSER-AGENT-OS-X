@@ -64,6 +64,8 @@ const clusterLabels: Record<ClusterType, string> = {
   [CT.SELF_EVOLUTION]: 'Self Evolution',
   [CT.CERTIFICATION]: 'Certification',
   [CT.STEALTH_OPS]: 'Stealth Ops',
+  [CT.DATA_INTELLIGENCE]: 'Data Intelligence',
+  [CT.COMMUNICATION]: 'Communication',
 };
 
 // Pattern labels

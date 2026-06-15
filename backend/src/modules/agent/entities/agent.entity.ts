@@ -26,6 +26,9 @@ export enum ClusterType {
   SELF_EVOLUTION = 'self-evolution',
   CERTIFICATION = 'certification',
   STEALTH_OPS = 'stealth-ops',
+  // Phase 3 — Data & Communication Clusters
+  DATA_INTELLIGENCE = 'data-intelligence',
+  COMMUNICATION = 'communication',
 }
 
 export enum MissionCategory {
@@ -41,6 +44,9 @@ export enum MissionCategory {
   DOCUMENT_PROCESSING = 'document-processing',  // Office, documents, spreadsheets
   AI_ORCHESTRATION = 'ai-orchestration',        // Meta-intelligence, swarm, orchestration
   SYSTEM_ADMINISTRATION = 'system-administration', // Computer ops, terminal, file system
+  DATA_ENGINEERING = 'data-engineering',            // ETL, pipelines, data quality, warehousing
+  COMMUNICATION_OPS = 'communication-ops',          // API, webhooks, notifications, real-time
+  ADVANCED_REASONING = 'advanced-reasoning',        // Causal, multimodal, federated, agent forging
 }
 
 export enum AgentStatus {

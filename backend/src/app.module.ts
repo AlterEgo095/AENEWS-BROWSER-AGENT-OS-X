@@ -40,6 +40,8 @@ import { WatchdogClusterModule } from './clusters/watchdog/watchdog.module';
 import { SelfEvolutionClusterModule } from './clusters/self-evolution/self-evolution-cluster.module';
 import { CertificationClusterModule } from './clusters/certification/certification-cluster.module';
 import { StealthOpsModule } from './clusters/stealth-ops/stealth-ops.module';
+import { DataIntelligenceModule } from './clusters/data-intelligence/data-intelligence.module';
+import { CommunicationModule } from './clusters/communication/communication.module';
 import { AgentFrameworkModule } from './modules/agent-framework/agent-framework.module';
 import { SoftwareFactoryModule } from './modules/software-factory/software-factory.module';
 import { CodingConnectorModule } from './modules/connectors/coding/coding-connector.module';
@@ -205,6 +207,8 @@ import { TenantGuard } from './modules/tenant/guards/tenant.guard';
     SelfEvolutionClusterModule,
     CertificationClusterModule,
     StealthOpsModule,
+    DataIntelligenceModule,
+    CommunicationModule,
 
     // ─── Extended Agent Framework + Software Factory (from src/) ───
     // Provides: memory, events, bridge, orchestrator, 80+ agents (BaseAgentService pattern),

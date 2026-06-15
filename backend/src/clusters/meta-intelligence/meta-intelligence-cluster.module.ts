@@ -18,6 +18,10 @@ import { MetaCognitionAgent } from './agents/meta-cognition.agent';
 import { KnowledgeAgent } from './agents/knowledge.agent';
 import { SelfHealingAgent } from './agents/self-healing.agent';
 import { HyperReasoningAgent } from './agents/hyper-reasoning.agent';
+import { AgentForgeAgent } from './agents/agent-forge.agent';
+import { MultimodalAgent } from './agents/multimodal.agent';
+import { CausalReasoningAgent } from './agents/causal-reasoning.agent';
+import { FederatedLearningAgent } from './agents/federated-learning.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createMetaIntelligenceAgents(
@@ -41,6 +45,10 @@ function createMetaIntelligenceAgents(
     new KnowledgeAgent(),
     new SelfHealingAgent(),
     new HyperReasoningAgent(),
+    new AgentForgeAgent(),
+    new MultimodalAgent(),
+    new CausalReasoningAgent(),
+    new FederatedLearningAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

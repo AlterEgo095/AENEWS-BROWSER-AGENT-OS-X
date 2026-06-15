@@ -191,6 +191,9 @@ export class AgentService {
       [MissionCategory.DOCUMENT_PROCESSING]: 'Document Processing',
       [MissionCategory.AI_ORCHESTRATION]: 'AI Orchestration',
       [MissionCategory.SYSTEM_ADMINISTRATION]: 'System Administration',
+      [MissionCategory.DATA_ENGINEERING]: 'Data Engineering & Pipeline Operations',
+      [MissionCategory.COMMUNICATION_OPS]: 'Communication & API Operations',
+      [MissionCategory.ADVANCED_REASONING]: 'Advanced Reasoning & Intelligence',
     };
 
     return Object.values(MissionCategory).map((value) => ({

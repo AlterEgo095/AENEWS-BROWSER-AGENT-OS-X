@@ -16,6 +16,8 @@ export const CLUSTER_MISSION_MAP: Record<ClusterType, MissionCategory[]> = {
   [ClusterType.SELF_EVOLUTION]: [MissionCategory.AI_ORCHESTRATION],
   [ClusterType.CERTIFICATION]: [MissionCategory.AI_ORCHESTRATION, MissionCategory.SECURITY_OPS],
   [ClusterType.STEALTH_OPS]: [MissionCategory.STEALTH_OPERATIONS, MissionCategory.SECURITY_OPS],
+  [ClusterType.DATA_INTELLIGENCE]: [MissionCategory.DATA_ENGINEERING, MissionCategory.RESEARCH_ANALYSIS, MissionCategory.BUSINESS_INTELLIGENCE],
+  [ClusterType.COMMUNICATION]: [MissionCategory.COMMUNICATION_OPS, MissionCategory.AUTOMATION_WORKFLOW, MissionCategory.AI_ORCHESTRATION],
 };
 
 export function getMissionCategoriesForCluster(cluster: ClusterType): MissionCategory[] {

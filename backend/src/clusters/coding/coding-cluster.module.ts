@@ -12,6 +12,10 @@ import { VersionControlAgent } from './agents/version-control.agent';
 import { DependencyAgent } from './agents/dependency.agent';
 import { DebuggingAgent } from './agents/debugging.agent';
 import { AICodeArchitectAgent } from './agents/ai-code-architect.agent';
+import { CodeMigrationAgent } from './agents/code-migration.agent';
+import { APIDesignAgent } from './agents/api-design.agent';
+import { DatabaseDesignAgent } from './agents/database-design.agent';
+import { PerformanceProfilingAgent } from './agents/performance-profiling.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 /**
@@ -33,6 +37,10 @@ function createCodingAgents(
     new DependencyAgent(),
     new DebuggingAgent(),
     new AICodeArchitectAgent(),
+    new CodeMigrationAgent(),
+    new APIDesignAgent(),
+    new DatabaseDesignAgent(),
+    new PerformanceProfilingAgent(),
   ];
 
   // Inject services into all agents

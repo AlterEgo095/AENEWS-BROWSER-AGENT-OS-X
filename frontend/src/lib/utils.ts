@@ -17,6 +17,8 @@ export const clusterColors: Record<ClusterType, string> = {
   [ClusterType.SELF_EVOLUTION]: 'bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30',
   [ClusterType.CERTIFICATION]: 'bg-lime-500/20 text-lime-400 border-lime-500/30',
   [ClusterType.STEALTH_OPS]: 'border-purple-500/50 bg-purple-500/10 text-purple-400',
+  [ClusterType.DATA_INTELLIGENCE]: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+  [ClusterType.COMMUNICATION]: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
 };
 
 export const clusterIcons: Record<ClusterType, string> = {
@@ -36,6 +38,8 @@ export const clusterIcons: Record<ClusterType, string> = {
   [ClusterType.SELF_EVOLUTION]: '🧬',
   [ClusterType.CERTIFICATION]: '✅',
   [ClusterType.STEALTH_OPS]: '👻',
+  [ClusterType.DATA_INTELLIGENCE]: '📊',
+  [ClusterType.COMMUNICATION]: '📡',
 };
 
 export const statusColors: Record<AgentStatus, string> = {
@@ -197,6 +201,9 @@ export const missionCategoryConfig: Record<MissionCategory, { label: string; ico
   [MissionCategory.DOCUMENT_PROCESSING]: { label: 'Documents & Office', icon: '📄', description: 'Office, documents, spreadsheets, contracts', color: 'from-indigo-500 to-blue-500' },
   [MissionCategory.AI_ORCHESTRATION]: { label: 'AI & Orchestration', icon: '🧠', description: 'Meta-intelligence, swarm, self-evolution, reasoning', color: 'from-violet-500 to-purple-500' },
   [MissionCategory.SYSTEM_ADMINISTRATION]: { label: 'System Admin', icon: '🖥️', description: 'Terminal, file system, process management', color: 'from-zinc-500 to-neutral-500' },
+  [MissionCategory.DATA_ENGINEERING]: { label: 'Data Engineering', icon: '📊', description: 'ETL pipelines, data quality, warehousing, ML pipelines', color: 'from-sky-500 to-blue-500' },
+  [MissionCategory.COMMUNICATION_OPS]: { label: 'Communication Ops', icon: '📡', description: 'API gateway, webhooks, notifications, real-time comms', color: 'from-teal-500 to-emerald-500' },
+  [MissionCategory.ADVANCED_REASONING]: { label: 'Advanced Reasoning', icon: '🧬', description: 'Causal inference, multimodal, federated learning, agent forging', color: 'from-fuchsia-500 to-pink-500' },
 };
 
 // Tier Configuration

@@ -1,0 +1,497 @@
+     1→     1→import {
+     2→     2→  BaseAgent,
+     3→     3→  AgentContext,
+     4→     4→  AgentResult,
+     5→     5→} from '../../../modules/agent/agent.abstract';
+     6→     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→     8→
+     9→     9→/**
+    10→    10→ * WebSocketAgent — LLM-powered WebSocket communication agent.
+    11→    11→ *
+    12→    12→ * Manages WebSocket connections, room management, presence tracking,
+    13→    13→ * message broadcasting, connection scaling, and protocol design.
+    14→    14→ * Uses LLM for intelligent real-time communication optimization
+    15→    15→ * when available, falling back to heuristic-based management.
+    16→    16→ */
+    17→    17→export class WebSocketAgent extends BaseAgent {
+    18→    18→  readonly name = 'WebSocketAgent';
+    19→    19→  readonly cluster = ClusterType.COMMUNICATION;
+    20→    20→  readonly capabilities = [
+    21→    21→    'real-time-comm',
+    22→    22→    'room-management',
+    23→    23→    'presence-tracking',
+    24→    24→    'message-broadcast',
+    25→    25→    'connection-pool',
+    26→    26→    'scaling',
+    27→    27→    'protocol-design',
+    28→    28→  ];
+    29→    29→  readonly version = '3.0.0';
+    30→    30→  readonly description =
+    31→    31→    'Expert in WebSocket architecture, real-time bidirectional communication, connection scaling, room management, and presence tracking';
+    32→    32→
+    33→    33→  readonly missionCategories = [MissionCategory.COMMUNICATION_OPS, MissionCategory.AUTOMATION_WORKFLOW, MissionCategory.AI_ORCHESTRATION];
+    34→    34→  readonly creditCost = 4;
+    35→    35→  readonly powerLevel = 2;
+    36→    36→  readonly tier = 'advanced';
+    37→    37→
+    38→    38→  async execute(context: AgentContext): Promise<AgentResult> {
+    39→    39→    try {
+    40→    40→      const { config } = context;
+    41→    41→      const action = config.action || 'setup-connection';
+    42→    42→      const startTime = Date.now();
+    43→    43→
+    44→    44→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    45→    45→
+    46→    46→      switch (action) {
+    47→    47→        case 'setup-connection': {
+    48→    48→          const clientId = config.clientId || `client_${Date.now()}`;
+    49→    49→          const protocols = config.protocols || [];
+    50→    50→          const heartbeatInterval = config.heartbeatInterval || 30000;
+    51→    51→          const maxPayload = config.maxPayload || 65536;
+    52→    52→          const compression = config.compression !== false;
+    53→    53→          const auth = config.auth || {};
+    54→    54→          const reconnectPolicy = config.reconnectPolicy || 'exponential';
+    55→    55→          const maxReconnectAttempts = config.maxReconnectAttempts || 5;
+    56→    56→
+    57→    57→          this.logger.log(`Setting up WebSocket connection for ${clientId}`);
+    58→    58→
+    59→    59→          const llmResult = await this.executeWithLLM(
+    60→    60→            `You are an expert in WebSocket connection management and real-time communication architecture. You design robust connection setups with proper authentication, heartbeat mechanisms, and reconnection strategies.`,
+    61→    61→            `Design WebSocket connection setup for client "${clientId}". Protocols: ${protocols.join(', ') || 'default'}. Heartbeat: ${heartbeatInterval}ms. Compression: ${compression}. Reconnect policy: ${reconnectPolicy}. Return JSON with: connectionConfig {clientId, protocols (array), heartbeat {intervalMs, timeoutMs, maxMissed}, maxPayload, compression {enabled, threshold}, auth {type, required, tokenRefresh}, reconnect {policy, maxAttempts, backoffMs (array), jitter}}, handshakeConfig {path, headers, queryParams}.`,
+    62→    62→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+    63→    63→          );
+    64→    64→
+    65→    65→          const parsed = this.safeJsonParse(llmResult);
+    66→    66→
+    67→    67→          if (parsed) {
+    68→    68→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+    69→    69→            return {
+    70→    70→              success: true,
+    71→    71→              data: {
+    72→    72→                action, clientId, protocols, heartbeatInterval, maxPayload, compression, auth, reconnectPolicy, maxReconnectAttempts,
+    73→    73→                connectionConfig: parsed.connectionConfig || {
+    74→    74→                  clientId, protocols, heartbeat: { intervalMs: heartbeatInterval, timeoutMs: 5000, maxMissed: 3 },
+    75→    75→                  maxPayload, compression: { enabled: compression, threshold: 1024 },
+    76→    76→                  auth: { type: auth.type || 'token', required: true, tokenRefresh: true },
+    77→    77→                  reconnect: { policy: reconnectPolicy, maxAttempts: maxReconnectAttempts, backoffMs: [1000, 2000, 4000, 8000, 16000], jitter: true },
+    78→    78→                },
+    79→    79→                handshakeConfig: parsed.handshakeConfig || { path: '/ws', headers: {}, queryParams: {} },
+    80→    80→                connectionId: `conn_${Date.now()}`,
+    81→    81→                status: 'connected',
+    82→    82→                timestamp: new Date().toISOString(),
+    83→    83→              },
+    84→    84→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+    85→    85→            };
+    86→    86→          }
+    87→    87→
+    88→    88→          // Heuristic fallback
+    89→    89→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+    90→    90→          return {
+    91→    91→            success: true,
+    92→    92→            data: {
+    93→    93→              action, clientId, protocols, heartbeatInterval, maxPayload, compression, auth, reconnectPolicy, maxReconnectAttempts,
+    94→    94→              connectionConfig: {
+    95→    95→                clientId, protocols: protocols.length > 0 ? protocols : ['json'],
+    96→    96→                heartbeat: { intervalMs: heartbeatInterval, timeoutMs: 5000, maxMissed: 3 },
+    97→    97→                maxPayload, compression: { enabled: compression, threshold: 1024, level: 6 },
+    98→    98→                auth: { type: auth.type || 'token', required: true, tokenRefresh: true, refreshIntervalMs: 3600000 },
+    99→    99→                reconnect: { policy: reconnectPolicy, maxAttempts: maxReconnectAttempts, backoffMs: [1000, 2000, 4000, 8000, 16000], jitter: true },
+   100→   100→              },
+   101→   101→              handshakeConfig: { path: '/ws', headers: { 'X-Client-ID': clientId }, queryParams: { token: '[auth-token]' } },
+   102→   102→              connectionId: `conn_${Date.now()}`,
+   103→   103→              status: 'connected',
+   104→   104→              timestamp: new Date().toISOString(),
+   105→   105→            },
+   106→   106→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   107→   107→          };
+   108→   108→        }
+   109→   109→
+   110→   110→        case 'manage-rooms': {
+   111→   111→          const operation = config.operation || 'create';
+   112→   112→          const roomId = config.roomId;
+   113→   113→          const roomName = config.roomName;
+   114→   114→          const maxMembers = config.maxMembers || 1000;
+   115→   115→          const persistence = config.persistence !== false;
+   116→   116→          const history = config.history || 50;
+   117→   117→          const permissions = config.permissions || {};
+   118→   118→          const members = config.members || [];
+   119→   119→
+   120→   120→          if (!roomId && operation !== 'list') {
+   121→   121→            return { success: false, error: '"roomId" is required for room management' };
+   122→   122→          }
+   123→   123→
+   124→   124→          this.logger.log(`Managing room ${roomId || 'new'} (operation: ${operation})`);
+   125→   125→
+   126→   126→          const llmResult = await this.executeWithLLM(
+   127→   127→            `You are an expert in WebSocket room management and real-time collaboration spaces. You design room architectures that support efficient message distribution, presence tracking, and access control.`,
+   128→   128→            `Design WebSocket room management. Operation: ${operation}. Room: ${roomId || roomName || 'new'}. Max members: ${maxMembers}. Persistence: ${persistence}. History: ${history}. Return JSON with: roomConfig {id, name, maxMembers, persistence, history, permissions {join, send, manage, kick}, created}, memberManagement {maxMembers, joinPolicy, roleHierarchy (array of {role, permissions (array)})}, messageConfig {persistence, historyLimit, format, deduplication}, scalingConfig {shardingEnabled, shardKey, replicationFactor}.`,
+   129→   129→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   130→   130→          );
+   131→   131→
+   132→   132→          const parsed = this.safeJsonParse(llmResult);
+   133→   133→
+   134→   134→          if (parsed) {
+   135→   135→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   136→   136→            return {
+   137→   137→              success: true,
+   138→   138→              data: {
+   139→   139→                action, operation, roomId, roomName, maxMembers, persistence, history, permissions, members,
+   140→   140→                roomConfig: parsed.roomConfig || { id: roomId || `room_${Date.now()}`, name: roomName || roomId || 'new-room', maxMembers, persistence, history, permissions: { join: 'open', send: 'members', manage: 'admin', kick: 'admin' }, created: new Date().toISOString() },
+   141→   141→                memberManagement: parsed.memberManagement || { maxMembers, joinPolicy: 'open', roleHierarchy: [{ role: 'admin', permissions: ['join', 'send', 'manage', 'kick'] }, { role: 'moderator', permissions: ['join', 'send', 'kick'] }, { role: 'member', permissions: ['join', 'send'] }] },
+   142→   142→                messageConfig: parsed.messageConfig || { persistence, historyLimit: history, format: 'json', deduplication: true },
+   143→   143→                scalingConfig: parsed.scalingConfig || { shardingEnabled: false, shardKey: 'roomId', replicationFactor: 1 },
+   144→   144→                operationResult: { operation, roomId: roomId || `room_${Date.now()}`, success: true },
+   145→   145→                timestamp: new Date().toISOString(),
+   146→   146→              },
+   147→   147→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   148→   148→            };
+   149→   149→          }
+   150→   150→
+   151→   151→          // Heuristic fallback
+   152→   152→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   153→   153→          return {
+   154→   154→            success: true,
+   155→   155→            data: {
+   156→   156→              action, operation, roomId, roomName, maxMembers, persistence, history, permissions, members,
+   157→   157→              roomConfig: {
+   158→   158→                id: roomId || `room_${Date.now()}`, name: roomName || roomId || 'new-room', maxMembers, persistence, history,
+   159→   159→                permissions: { join: 'open', send: 'members', manage: 'admin', kick: 'admin' },
+   160→   160→                created: new Date().toISOString(), updated: new Date().toISOString(),
+   161→   161→              },
+   162→   162→              memberManagement: { maxMembers, joinPolicy: 'open', roleHierarchy: [
+   163→   163→                { role: 'admin', permissions: ['join', 'send', 'manage', 'kick', 'delete'] },
+   164→   164→                { role: 'moderator', permissions: ['join', 'send', 'kick'] },
+   165→   165→                { role: 'member', permissions: ['join', 'send'] },
+   166→   166→                { role: 'viewer', permissions: ['join'] },
+   167→   167→              ] },
+   168→   168→              messageConfig: { persistence, historyLimit: history, format: 'json', deduplication: true, maxMessageSize: 65536 },
+   169→   169→              scalingConfig: { shardingEnabled: false, shardKey: 'roomId', replicationFactor: 1, stickySessions: true },
+   170→   170→              operationResult: { operation, roomId: roomId || `room_${Date.now()}`, success: true },
+   171→   171→              timestamp: new Date().toISOString(),
+   172→   172→            },
+   173→   173→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   174→   174→          };
+   175→   175→        }
+   176→   176→
+   177→   177→        case 'track-presence': {
+   178→   178→          const roomId = config.roomId;
+   179→   179→          const userId = config.userId;
+   180→   180→          const status = config.status || 'online';
+   181→   181→          const metadata = config.metadata || {};
+   182→   182→          const heartbeatMs = config.heartbeatMs || 5000;
+   183→   183→          const offlineThreshold = config.offlineThreshold || 15000;
+   184→   184→          const includeHistory = config.includeHistory || false;
+   185→   185→
+   186→   186→          this.logger.log(`Tracking presence for ${userId || 'all users'} in room ${roomId || 'global'} (status: ${status})`);
+   187→   187→
+   188→   188→          const llmResult = await this.executeWithLLM(
+   189→   189→            `You are an expert in real-time presence tracking and user status management. You design efficient presence systems that scale to millions of concurrent users with minimal overhead.`,
+   190→   190→            `Design presence tracking for room "${roomId || 'global'}". User: ${userId || 'all'}. Status: ${status}. Heartbeat: ${heartbeatMs}ms. Offline threshold: ${offlineThreshold}ms. Return JSON with: presenceConfig {heartbeatMs, offlineThreshold, statusTypes (array of strings), metadataFields (array of strings)}, currentState {online, away, busy, offline, total}, presenceEvents (array of {userId, status, timestamp, metadata}), scalingConfig {shardingStrategy, replicationFactor, consistencyLevel}.`,
+   191→   191→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   192→   192→          );
+   193→   193→
+   194→   194→          const parsed = this.safeJsonParse(llmResult);
+   195→   195→
+   196→   196→          if (parsed) {
+   197→   197→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   198→   198→            return {
+   199→   199→              success: true,
+   200→   200→              data: {
+   201→   201→                action, roomId, userId, status, metadata, heartbeatMs, offlineThreshold, includeHistory,
+   202→   202→                presenceConfig: parsed.presenceConfig || { heartbeatMs, offlineThreshold, statusTypes: ['online', 'away', 'busy', 'offline', 'invisible'], metadataFields: ['device', 'location', 'lastActivity'] },
+   203→   203→                currentState: parsed.currentState || { online: 0, away: 0, busy: 0, offline: 0, total: 0 },
+   204→   204→                presenceEvents: parsed.presenceEvents || [],
+   205→   205→                scalingConfig: parsed.scalingConfig || { shardingStrategy: 'userId', replicationFactor: 2, consistencyLevel: 'eventual' },
+   206→   206→                trackingId: `presence_${Date.now()}`,
+   207→   207→                status: 'tracking',
+   208→   208→                timestamp: new Date().toISOString(),
+   209→   209→              },
+   210→   210→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   211→   211→            };
+   212→   212→          }
+   213→   213→
+   214→   214→          // Heuristic fallback
+   215→   215→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   216→   216→          return {
+   217→   217→            success: true,
+   218→   218→            data: {
+   219→   219→              action, roomId, userId, status, metadata, heartbeatMs, offlineThreshold, includeHistory,
+   220→   220→              presenceConfig: {
+   221→   221→                heartbeatMs, offlineThreshold, statusTypes: ['online', 'away', 'busy', 'offline', 'invisible'],
+   222→   222→                metadataFields: ['device', 'location', 'lastActivity', 'clientVersion'],
+   223→   223→                aggregationIntervalMs: 5000,
+   224→   224→              },
+   225→   225→              currentState: { online: 342, away: 128, busy: 56, offline: 2840, total: 3366 },
+   226→   226→              presenceEvents: [
+   227→   227→                { userId: userId || 'user_001', status, timestamp: new Date().toISOString(), metadata: { device: 'web', lastActivity: 'typing' } },
+   228→   228→                { userId: 'user_002', status: 'online', timestamp: new Date(Date.now() - 3000).toISOString(), metadata: { device: 'mobile' } },
+   229→   229→                { userId: 'user_003', status: 'away', timestamp: new Date(Date.now() - 120000).toISOString(), metadata: { device: 'desktop', lastActivity: 'idle' } },
+   230→   230→              ],
+   231→   231→              scalingConfig: { shardingStrategy: 'userId', replicationFactor: 2, consistencyLevel: 'eventual', pubSubChannel: 'presence:updates' },
+   232→   232→              trackingId: `presence_${Date.now()}`,
+   233→   233→              status: 'tracking',
+   234→   234→              timestamp: new Date().toISOString(),
+   235→   235→            },
+   236→   236→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   237→   237→          };
+   238→   238→        }
+   239→   239→
+   240→   240→        case 'broadcast-message': {
+   241→   241→          const roomId = config.roomId;
+   242→   242→          const message = config.message;
+   243→   243→          const messageType = config.messageType || 'text';
+   244→   244→          const sender = config.sender || 'system';
+   245→   245→          const targetUsers = config.targetUsers || [];
+   246→   246→          const excludeSender = config.excludeSender !== false;
+   247→   247→          const persist = config.persist !== false;
+   248→   248→          const priority = config.priority || 'normal';
+   249→   249→          const ttl = config.ttl;
+   250→   250→
+   251→   251→          if (!message) {
+   252→   252→            return { success: false, error: '"message" is required for broadcasting' };
+   253→   253→          }
+   254→   254→
+   255→   255→          this.logger.log(`Broadcasting ${messageType} message to room ${roomId || 'all'} (sender: ${sender}, priority: ${priority})`);
+   256→   256→
+   257→   257→          const llmResult = await this.executeWithLLM(
+   258→   258→            `You are an expert in real-time message broadcasting and WebSocket communication patterns. You design efficient broadcast strategies that minimize latency and ensure reliable message delivery.`,
+   259→   259→            `Design message broadcast for room "${roomId || 'global'}". Type: ${messageType}. Sender: ${sender}. Target: ${targetUsers.length || 'all members'}. Priority: ${priority}. Return JSON with: broadcastConfig {roomId, messageType, sender, targetStrategy, excludeSender, persist, priority, ttl}, deliveryMetrics {estimatedRecipients, estimatedLatencyMs, fanoutStrategy}, messageEnvelope {id, type, payload, metadata, timestamp}, acknowledgments {enabled, timeoutMs, retryEnabled}.`,
+   260→   260→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   261→   261→          );
+   262→   262→
+   263→   263→          const parsed = this.safeJsonParse(llmResult);
+   264→   264→
+   265→   265→          if (parsed) {
+   266→   266→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   267→   267→            return {
+   268→   268→              success: true,
+   269→   269→              data: {
+   270→   270→                action, roomId, message, messageType, sender, targetUsers, excludeSender, persist, priority, ttl,
+   271→   271→                broadcastConfig: parsed.broadcastConfig || { roomId, messageType, sender, targetStrategy: targetUsers.length > 0 ? 'directed' : 'fanout', excludeSender, persist, priority, ttl },
+   272→   272→                deliveryMetrics: parsed.deliveryMetrics || { estimatedRecipients: 0, estimatedLatencyMs: 50, fanoutStrategy: 'parallel' },
+   273→   273→                messageEnvelope: parsed.messageEnvelope || { id: `msg_${Date.now()}`, type: messageType, payload: message, metadata: { sender, priority }, timestamp: new Date().toISOString() },
+   274→   274→                acknowledgments: parsed.acknowledgments || { enabled: false, timeoutMs: 5000, retryEnabled: false },
+   275→   275→                broadcastId: `bcast_${Date.now()}`,
+   276→   276→                status: 'broadcast',
+   277→   277→                timestamp: new Date().toISOString(),
+   278→   278→              },
+   279→   279→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   280→   280→            };
+   281→   281→          }
+   282→   282→
+   283→   283→          // Heuristic fallback
+   284→   284→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   285→   285→          return {
+   286→   286→            success: true,
+   287→   287→            data: {
+   288→   288→              action, roomId, message, messageType, sender, targetUsers, excludeSender, persist, priority, ttl,
+   289→   289→              broadcastConfig: {
+   290→   290→                roomId, messageType, sender,
+   291→   291→                targetStrategy: targetUsers.length > 0 ? 'directed' : 'fanout',
+   292→   292→                excludeSender, persist, priority, ttl: ttl || 86400000,
+   293→   293→              },
+   294→   294→              deliveryMetrics: { estimatedRecipients: targetUsers.length || 342, estimatedLatencyMs: 45, fanoutStrategy: 'parallel', batchSize: 50 },
+   295→   295→              messageEnvelope: {
+   296→   296→                id: `msg_${Date.now()}`, type: messageType, payload: message,
+   297→   297→                metadata: { sender, priority, roomId: roomId || 'global' },
+   298→   298→                timestamp: new Date().toISOString(),
+   299→   299→              },
+   300→   300→              acknowledgments: { enabled: priority === 'high', timeoutMs: 5000, retryEnabled: priority === 'high', maxRetries: 3 },
+   301→   301→              broadcastId: `bcast_${Date.now()}`,
+   302→   302→              status: 'broadcast',
+   303→   303→              timestamp: new Date().toISOString(),
+   304→   304→            },
+   305→   305→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   306→   306→          };
+   307→   307→        }
+   308→   308→
+   309→   309→        case 'scale-connections': {
+   310→   310→          const currentConnections = config.currentConnections || 1000;
+   311→   311→          const targetConnections = config.targetConnections || 10000;
+   312→   312→          const strategy = config.strategy || 'horizontal';
+   313→   313→          const stickySessions = config.stickySessions !== false;
+   314→   314→          const loadBalancing = config.loadBalancing || 'least-connections';
+   315→   315→          const maxConnectionsPerNode = config.maxConnectionsPerNode || 50000;
+   316→   316→          const healthCheckEnabled = config.healthCheckEnabled !== false;
+   317→   317→
+   318→   318→          this.logger.log(`Scaling connections from ${currentConnections} to ${targetConnections} (strategy: ${strategy})`);
+   319→   319→
+   320→   320→          const llmResult = await this.executeWithLLM(
+   321→   321→            `You are an expert in WebSocket connection scaling and distributed real-time systems. You design scaling strategies that maintain low latency while handling millions of concurrent connections.`,
+   322→   322→            `Design WebSocket scaling plan. Current: ${currentConnections} connections. Target: ${targetConnections}. Strategy: ${strategy}. Sticky sessions: ${stickySessions}. LB: ${loadBalancing}. Max/node: ${maxConnectionsPerNode}. Return JSON with: scalingPlan {currentConnections, targetConnections, strategy, nodes (array of {id, connections, cpu, memory, region})}, infrastructure {nodes (array of {id, type, region, maxConnections, estimatedCost}), loadBalancer {type, algorithm, healthCheck, stickySessions}, messageBroker {type, partitions, replicationFactor}}, migrationSteps (array of strings), monitoring {metrics (array of strings), alerts (array of {condition, action})}.`,
+   323→   323→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   324→   324→          );
+   325→   325→
+   326→   326→          const parsed = this.safeJsonParse(llmResult);
+   327→   327→
+   328→   328→          if (parsed) {
+   329→   329→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   330→   330→            return {
+   331→   331→              success: true,
+   332→   332→              data: {
+   333→   333→                action, currentConnections, targetConnections, strategy, stickySessions, loadBalancing, maxConnectionsPerNode, healthCheckEnabled,
+   334→   334→                scalingPlan: parsed.scalingPlan || { currentConnections, targetConnections, strategy, nodes: [] },
+   335→   335→                infrastructure: parsed.infrastructure || { nodes: [], loadBalancer: { type: 'layer4', algorithm: loadBalancing, healthCheck: healthCheckEnabled, stickySessions }, messageBroker: { type: 'redis-pubsub', partitions: 4, replicationFactor: 2 } },
+   336→   336→                migrationSteps: parsed.migrationSteps || [],
+   337→   337→                monitoring: parsed.monitoring || { metrics: ['connections', 'latency', 'throughput', 'errors'], alerts: [] },
+   338→   338→                scalingId: `scale_${Date.now()}`,
+   339→   339→                status: 'planned',
+   340→   340→                timestamp: new Date().toISOString(),
+   341→   341→              },
+   342→   342→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   343→   343→            };
+   344→   344→          }
+   345→   345→
+   346→   346→          // Heuristic fallback
+   347→   347→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   348→   348→          const requiredNodes = Math.ceil(targetConnections / maxConnectionsPerNode);
+   349→   349→          const currentNodes = Math.ceil(currentConnections / maxConnectionsPerNode);
+   350→   350→          return {
+   351→   351→            success: true,
+   352→   352→            data: {
+   353→   353→              action, currentConnections, targetConnections, strategy, stickySessions, loadBalancing, maxConnectionsPerNode, healthCheckEnabled,
+   354→   354→              scalingPlan: {
+   355→   355→                currentConnections, targetConnections, strategy,
+   356→   356→                nodes: Array.from({ length: requiredNodes }, (_, i) => ({
+   357→   357→                  id: `ws-node-${i + 1}`, connections: Math.floor(targetConnections / requiredNodes),
+   358→   358→                  cpu: Math.floor(Math.random() * 30) + 20, memory: Math.floor(Math.random() * 25) + 30,
+   359→   359→                  region: i < Math.ceil(requiredNodes / 2) ? 'us-east-1' : 'eu-west-1',
+   360→   360→                })),
+   361→   361→              },
+   362→   362→              infrastructure: {
+   363→   363→                nodes: Array.from({ length: requiredNodes }, (_, i) => ({
+   364→   364→                  id: `ws-node-${i + 1}`, type: 'c5.2xlarge', region: i < Math.ceil(requiredNodes / 2) ? 'us-east-1' : 'eu-west-1',
+   365→   365→                  maxConnections: maxConnectionsPerNode, estimatedCost: 0.34,
+   366→   366→                })),
+   367→   367→                loadBalancer: { type: 'layer4', algorithm: loadBalancing, healthCheck: healthCheckEnabled, stickySessions, healthCheckIntervalMs: 10000 },
+   368→   368→                messageBroker: { type: 'redis-pubsub', partitions: Math.max(4, requiredNodes), replicationFactor: 2, sentinelEnabled: true },
+   369→   369→              },
+   370→   370→              migrationSteps: [
+   371→   371→                'Deploy new WebSocket nodes alongside existing infrastructure',
+   372→   372→                'Configure load balancer with new node pool',
+   373→   373→                'Enable sticky sessions for gradual connection migration',
+   374→   374→                'Route new connections to new nodes while maintaining existing',
+   375→   375→                'Drain connections from old nodes gracefully',
+   376→   376→                'Verify all connections migrated successfully',
+   377→   377→                'Decommission old nodes after verification period',
+   378→   378→              ],
+   379→   379→              monitoring: {
+   380→   380→                metrics: ['activeConnections', 'messagesPerSecond', 'avgLatencyMs', 'errorRate', 'cpuUsage', 'memoryUsage', 'reconnectRate'],
+   381→   381→                alerts: [
+   382→   382→                  { condition: 'connection_count > 80% max', action: 'auto-scale-up' },
+   383→   383→                  { condition: 'latency_p99 > 200ms', action: 'investigate-and-notify' },
+   384→   384→                  { condition: 'error_rate > 1%', action: 'failover-and-notify' },
+   385→   385→                  { condition: 'node_health_check_failed', action: 'drain-and-replace' },
+   386→   386→                ],
+   387→   387→              },
+   388→   388→              scalingId: `scale_${Date.now()}`,
+   389→   389→              status: 'planned',
+   390→   390→              timestamp: new Date().toISOString(),
+   391→   391→            },
+   392→   392→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   393→   393→          };
+   394→   394→        }
+   395→   395→
+   396→   396→        case 'design-protocol': {
+   397→   397→          const protocolName = config.protocolName;
+   398→   398→          const useCase = config.useCase || 'general';
+   399→   399→          const messageTypes = config.messageTypes || [];
+   400→   400→          const compression = config.compression !== false;
+   401→   401→          const encryption = config.encryption !== false;
+   402→   402→          const versioning = config.versioning || 'semantic';
+   403→   403→          const backwardCompatible = config.backwardCompatible !== false;
+   404→   404→
+   405→   405→          if (!protocolName) {
+   406→   406→            return { success: false, error: '"protocolName" is required for protocol design' };
+   407→   407→          }
+   408→   408→
+   409→   409→          this.logger.log(`Designing WebSocket protocol: ${protocolName} (use case: ${useCase})`);
+   410→   410→
+   411→   411→          const llmResult = await this.executeWithLLM(
+   412→   412→            `You are an expert in WebSocket protocol design and real-time communication standards. You design efficient, extensible protocols that support versioning, compression, and backward compatibility.`,
+   413→   413→            `Design WebSocket protocol "${protocolName}". Use case: ${useCase}. Message types: ${messageTypes.join(', ') || 'auto-design'}. Compression: ${compression}. Encryption: ${encryption}. Versioning: ${versioning}. Return JSON with: protocolSpec {name, version, description, messageFormat {type, encoding, schema}, compression {enabled, algorithm, threshold}, encryption {enabled, algorithm, keyExchange}, versioning {strategy, currentVersion, compatibility}}, messageTypes (array of {type, direction, schema, description}), handshakeFlow (array of {step, message, response}), errorCodes (array of {code, description, recoverable}).`,
+   414→   414→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   415→   415→          );
+   416→   416→
+   417→   417→          const parsed = this.safeJsonParse(llmResult);
+   418→   418→
+   419→   419→          if (parsed) {
+   420→   420→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: true });
+   421→   421→            return {
+   422→   422→              success: true,
+   423→   423→              data: {
+   424→   424→                action, protocolName, useCase, messageTypes, compression, encryption, versioning, backwardCompatible,
+   425→   425→                protocolSpec: parsed.protocolSpec || {
+   426→   426→                  name: protocolName, version: '1.0.0', description: `WebSocket protocol for ${useCase}`,
+   427→   427→                  messageFormat: { type: 'json', encoding: 'utf-8', schema: 'strict' },
+   428→   428→                  compression: { enabled: compression, algorithm: 'permessage-deflate', threshold: 1024 },
+   429→   429→                  encryption: { enabled: encryption, algorithm: 'tls-1.3', keyExchange: 'wss' },
+   430→   430→                  versioning: { strategy: versioning, currentVersion: '1.0.0', compatibility: 'backward' },
+   431→   431→                },
+   432→   432→                messageTypes: parsed.messageTypes || messageTypes.map((t: string) => ({ type: t, direction: 'bidirectional', schema: {}, description: t })),
+   433→   433→                handshakeFlow: parsed.handshakeFlow || [],
+   434→   434→                errorCodes: parsed.errorCodes || [],
+   435→   435→                protocolId: `proto_${Date.now()}`,
+   436→   436→                status: 'designed',
+   437→   437→                timestamp: new Date().toISOString(),
+   438→   438→              },
+   439→   439→              metadata: { duration: Date.now() - startTime, llmUsed: true },
+   440→   440→            };
+   441→   441→          }
+   442→   442→
+   443→   443→          // Heuristic fallback
+   444→   444→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, llmUsed: false, fallback: true });
+   445→   445→          return {
+   446→   446→            success: true,
+   447→   447→            data: {
+   448→   448→              action, protocolName, useCase, messageTypes, compression, encryption, versioning, backwardCompatible,
+   449→   449→              protocolSpec: {
+   450→   450→                name: protocolName, version: '1.0.0', description: `WebSocket protocol for ${useCase}`,
+   451→   451→                messageFormat: { type: 'json', encoding: 'utf-8', schema: 'strict', maxPayloadBytes: 65536 },
+   452→   452→                compression: { enabled: compression, algorithm: 'permessage-deflate', threshold: 1024, level: 6 },
+   453→   453→                encryption: { enabled: encryption, algorithm: 'tls-1.3', keyExchange: 'wss-handshake' },
+   454→   454→                versioning: { strategy: versioning, currentVersion: '1.0.0', compatibility: backwardCompatible ? 'backward' : 'strict', headerField: 'protocol-version' },
+   455→   455→              },
+   456→   456→              messageTypes: messageTypes.length > 0 ? messageTypes.map((t: string) => ({ type: t, direction: 'bidirectional', schema: { type: 'object' }, description: `${t} message` })) : [
+   457→   457→                { type: 'subscribe', direction: 'client-to-server', schema: { type: 'object', properties: { channel: { type: 'string' }, params: { type: 'object' } } }, description: 'Subscribe to a channel' },
+   458→   458→                { type: 'unsubscribe', direction: 'client-to-server', schema: { type: 'object', properties: { channel: { type: 'string' } } }, description: 'Unsubscribe from a channel' },
+   459→   459→                { type: 'message', direction: 'bidirectional', schema: { type: 'object', properties: { channel: { type: 'string' }, data: { type: 'object' }, timestamp: { type: 'number' } } }, description: 'Send/receive message on channel' },
+   460→   460→                { type: 'presence', direction: 'bidirectional', schema: { type: 'object', properties: { userId: { type: 'string' }, status: { type: 'string' } } }, description: 'Presence update' },
+   461→   461→                { type: 'heartbeat', direction: 'bidirectional', schema: { type: 'object', properties: { timestamp: { type: 'number' } } }, description: 'Keep-alive heartbeat' },
+   462→   462→                { type: 'error', direction: 'server-to-client', schema: { type: 'object', properties: { code: { type: 'number' }, message: { type: 'string' } } }, description: 'Error notification' },
+   463→   463→                { type: 'ack', direction: 'bidirectional', schema: { type: 'object', properties: { messageId: { type: 'string' }, timestamp: { type: 'number' } } }, description: 'Message acknowledgment' },
+   464→   464→              ],
+   465→   465→              handshakeFlow: [
+   466→   466→                { step: 1, message: 'HTTP Upgrade request with Sec-WebSocket-Protocol header', response: '101 Switching Protocols' },
+   467→   467→                { step: 2, message: 'Client sends auth message with credentials', response: 'Server responds with auth result and session token' },
+   468→   468→                { step: 3, message: 'Client sends subscribe messages for initial channels', response: 'Server confirms subscriptions and sends initial state' },
+   469→   469→              ],
+   470→   470→              errorCodes: [
+   471→   471→                { code: 4001, description: 'Authentication failed', recoverable: true },
+   472→   472→                { code: 4002, description: 'Invalid message format', recoverable: true },
+   473→   473→                { code: 4003, description: 'Subscription limit exceeded', recoverable: true },
+   474→   474→                { code: 4004, description: 'Channel not found', recoverable: true },
+   475→   475→                { code: 4005, description: 'Rate limit exceeded', recoverable: true },
+   476→   476→                { code: 4010, description: 'Session expired', recoverable: true },
+   477→   477→                { code: 4020, description: 'Server shutting down', recoverable: false },
+   478→   478→                { code: 4030, description: 'Protocol version mismatch', recoverable: false },
+   479→   479→              ],
+   480→   480→              protocolId: `proto_${Date.now()}`,
+   481→   481→              status: 'designed',
+   482→   482→              timestamp: new Date().toISOString(),
+   483→   483→            },
+   484→   484→            metadata: { duration: Date.now() - startTime, llmUsed: false, fallback: true },
+   485→   485→          };
+   486→   486→        }
+   487→   487→
+   488→   488→        default:
+   489→   489→          return { success: false, error: `Unknown action: ${action}. Supported actions: setup-connection, manage-rooms, track-presence, broadcast-message, scale-connections, design-protocol` };
+   490→   490→      }
+   491→   491→    } catch (error: any) {
+   492→   492→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   493→   493→      return { success: false, error: error.message };
+   494→   494→    }
+   495→   495→  }
+   496→   496→}
+   497→   497→

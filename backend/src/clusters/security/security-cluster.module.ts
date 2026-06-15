@@ -10,6 +10,10 @@ import { EncryptionAgent } from './agents/encryption.agent';
 import { AccessControlAgent } from './agents/access-control.agent';
 import { ForensicsAgent } from './agents/forensics.agent';
 import { RedTeamAgent } from './agents/red-team.agent';
+import { ZeroDayAgent } from './agents/zero-day.agent';
+import { SOCAnalystAgent } from './agents/soc-analyst.agent';
+import { OSINTAgent } from './agents/osint.agent';
+import { ReverseEngineeringAgent } from './agents/reverse-engineering.agent';
 import { BaseAgent } from '../../modules/agent/agent.abstract';
 
 function createSecurityAgents(
@@ -25,6 +29,10 @@ function createSecurityAgents(
     new AccessControlAgent(),
     new ForensicsAgent(),
     new RedTeamAgent(),
+    new ZeroDayAgent(),
+    new SOCAnalystAgent(),
+    new OSINTAgent(),
+    new ReverseEngineeringAgent(),
   ];
   for (const agent of agents) {
     agent.setServices({ llmService, bridgeService, eventBus });

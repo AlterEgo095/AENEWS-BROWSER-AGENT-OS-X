@@ -1,0 +1,609 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→export class ContainerAgent extends BaseAgent {
+    10→  readonly name = 'ContainerAgent';
+    11→  readonly cluster = ClusterType.INFRASTRUCTURE;
+    12→  readonly capabilities = [
+    13→    'build',
+    14→    'deploy',
+    15→    'scale',
+    16→    'health',
+    17→    'logs',
+    18→    'network',
+    19→  ];
+    20→  readonly version = '2.0.0';
+    21→  readonly description =
+    22→    'Manages container operations including building images, deploying containers, scaling services, monitoring health, collecting logs, and configuring container networking';
+    23→
+    24→  readonly missionCategories = [MissionCategory.INFRASTRUCTURE_MGMT];
+    25→  readonly creditCost = 1;
+    26→  readonly powerLevel = 1;
+    27→  readonly tier = 'standard';
+    28→
+    29→  async execute(context: AgentContext): Promise<AgentResult> {
+    30→    try {
+    31→      const { config } = context;
+    32→      const action = config.action || 'build';
+    33→      const startTime = Date.now();
+    34→
+    35→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    36→
+    37→      switch (action) {
+    38→        case 'build': {
+    39→          const imageName = config.imageName;
+    40→          if (!imageName) {
+    41→            return {
+    42→              success: false,
+    43→              error: 'Image name is required for build action',
+    44→            };
+    45→          }
+    46→          const dockerfilePath = config.dockerfilePath || './Dockerfile';
+    47→          const contextPath = config.contextPath || '.';
+    48→          const buildArgs = config.buildArgs || {};
+    49→          const tags = config.tags || [`${imageName}:latest`];
+    50→          const platform = config.platform || 'linux/amd64';
+    51→          const noCache = config.noCache || false;
+    52→          const pullLatest = config.pullLatest || false;
+    53→          const targetStage = config.targetStage;
+    54→          const registry = config.registry;
+    55→          const pushAfterBuild = config.pushAfterBuild || false;
+    56→          const buildTimeout = config.buildTimeout || 600;
+    57→          this.logger.log(
+    58→            `Building container image ${imageName} from ${dockerfilePath}`,
+    59→          );
+    60→
+    61→          const llmResult = await this.executeWithLLM(
+    62→            `You are a container build expert. Generate realistic Docker/Kubernetes build details. Return JSON with "imageId" string, "imageDigest" string (sha256), "imageSize" number (bytes), "buildDuration" number (seconds), "layers" number, "vulnerabilityScan" object with critical number, high number, medium number, low number, and "buildOptimizations" array of strings.`,
+    63→            `Build container image ${imageName} from ${dockerfilePath} for platform ${platform}. Tags: ${tags.join(', ')}. Build args: ${JSON.stringify(buildArgs)}. No cache: ${noCache}. Pull latest: ${pullLatest}. Registry: ${registry || 'default'}. Push after build: ${pushAfterBuild}.`,
+    64→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+    65→          );
+    66→          const parsed = this.safeJsonParse(llmResult);
+    67→
+    68→          const resultData = parsed
+    69→            ? {
+    70→                action,
+    71→                imageName,
+    72→                dockerfilePath,
+    73→                contextPath,
+    74→                buildArgs,
+    75→                tags,
+    76→                platform,
+    77→                noCache,
+    78→                pullLatest,
+    79→                targetStage,
+    80→                registry,
+    81→                pushAfterBuild,
+    82→                buildTimeout,
+    83→                imageId: parsed.imageId || `sha256:${Math.random().toString(16).substring(2, 18)}`,
+    84→                imageDigest: parsed.imageDigest || `sha256:${Math.random().toString(16).substring(2, 66)}`,
+    85→                imageSize: parsed.imageSize || 284000000,
+    86→                buildDuration: parsed.buildDuration || 127,
+    87→                layers: parsed.layers || 12,
+    88→                vulnerabilityScan: parsed.vulnerabilityScan || { critical: 0, high: 1, medium: 3, low: 5 },
+    89→                buildOptimizations: parsed.buildOptimizations || [],
+    90→                status: 'build_initiated',
+    91→                timestamp: new Date().toISOString(),
+    92→              }
+    93→            : {
+    94→                action,
+    95→                imageName,
+    96→                dockerfilePath,
+    97→                contextPath,
+    98→                buildArgs,
+    99→                tags,
+   100→                platform,
+   101→                noCache,
+   102→                pullLatest,
+   103→                targetStage,
+   104→                registry,
+   105→                pushAfterBuild,
+   106→                buildTimeout,
+   107→                imageId: `sha256:a1b2c3d4e5f6${Math.random().toString(16).substring(2, 10)}`,
+   108→                imageDigest: `sha256:${Math.random().toString(16).substring(2, 34)}${Math.random().toString(16).substring(2, 34)}`,
+   109→                imageSize: 284000000,
+   110→                buildDuration: 127,
+   111→                layers: 12,
+   112→                vulnerabilityScan: { critical: 0, high: 1, medium: 3, low: 5 },
+   113→                buildOptimizations: [
+   114→                  'Use multi-stage build to reduce final image size by ~40%',
+   115→                  'Combine RUN commands to reduce layers from 12 to 8',
+   116→                  'Add .dockerignore to exclude node_modules and test files',
+   117→                  'Pin base image version for reproducible builds',
+   118→                ],
+   119→                status: 'build_initiated',
+   120→                timestamp: new Date().toISOString(),
+   121→              };
+   122→
+   123→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   124→          return {
+   125→            success: true,
+   126→            data: resultData,
+   127→            metadata: { duration: Date.now() - startTime },
+   128→          };
+   129→        }
+   130→
+   131→        case 'deploy': {
+   132→          const serviceName = config.serviceName;
+   133→          if (!serviceName) {
+   134→            return {
+   135→              success: false,
+   136→              error: 'Service name is required for deploy action',
+   137→            };
+   138→          }
+   139→          const image = config.image;
+   140→          if (!image) {
+   141→            return {
+   142→              success: false,
+   143→              error: 'Image is required for deploy action',
+   144→            };
+   145→          }
+   146→          const replicas = config.replicas || 1;
+   147→          const namespace = config.namespace || 'default';
+   148→          const orchestrator = config.orchestrator || 'kubernetes';
+   149→          const ports = config.ports || [];
+   150→          const envVars = config.envVars || {};
+   151→          const secrets = config.secrets || [];
+   152→          const volumes = config.volumes || [];
+   153→          const resources = config.resources || {
+   154→            cpu: '500m',
+   155→            memory: '512Mi',
+   156→          };
+   157→          const restartPolicy = config.restartPolicy || 'Always';
+   158→          const healthCheck = config.healthCheck || {
+   159→            type: 'http',
+   160→            path: '/health',
+   161→            port: 8080,
+   162→            intervalSeconds: 30,
+   163→          };
+   164→          const rolloutStrategy = config.rolloutStrategy || 'rolling';
+   165→          const maxUnavailable = config.maxUnavailable || '25%';
+   166→          const maxSurge = config.maxSurge || '25%';
+   167→          this.logger.log(
+   168→            `Deploying service ${serviceName} (${image}) with ${replicas} replicas in ${namespace}`,
+   169→          );
+   170→
+   171→          const llmResult = await this.executeWithLLM(
+   172→            `You are a container deployment expert. Generate realistic Kubernetes/Docker deployment details. Return JSON with "deploymentId" string, "availableReplicas" number, "readyReplicas" number, "rolloutStatus" string, "deploymentStrategy" object with type string and rollingUpdate object, and "deploymentWarnings" array of strings.`,
+   173→            `Deploy service ${serviceName} with image ${image}, ${replicas} replicas in ${namespace} on ${orchestrator}. Resources: ${JSON.stringify(resources)}. Strategy: ${rolloutStrategy}. Health check: ${JSON.stringify(healthCheck)}. Ports: ${JSON.stringify(ports)}. Secrets: ${secrets.length}. Volumes: ${volumes.length}.`,
+   174→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   175→          );
+   176→          const parsed = this.safeJsonParse(llmResult);
+   177→
+   178→          const resultData = parsed
+   179→            ? {
+   180→                action,
+   181→                serviceName,
+   182→                image,
+   183→                replicas,
+   184→                namespace,
+   185→                orchestrator,
+   186→                ports,
+   187→                envVars,
+   188→                secrets,
+   189→                volumes,
+   190→                resources,
+   191→                restartPolicy,
+   192→                healthCheck,
+   193→                rolloutStrategy,
+   194→                maxUnavailable,
+   195→                maxSurge,
+   196→                deploymentId: parsed.deploymentId || `deploy-${Math.random().toString(36).substring(2, 10)}`,
+   197→                availableReplicas: parsed.availableReplicas ?? Math.ceil(replicas * 0.75),
+   198→                readyReplicas: parsed.readyReplicas ?? Math.ceil(replicas * 0.5),
+   199→                rolloutStatus: parsed.rolloutStatus || 'deploying',
+   200→                deploymentStrategy: parsed.deploymentStrategy || { type: rolloutStrategy, rollingUpdate: { maxUnavailable, maxSurge } },
+   201→                deploymentWarnings: parsed.deploymentWarnings || [],
+   202→                status: 'deployment_initiated',
+   203→                timestamp: new Date().toISOString(),
+   204→              }
+   205→            : {
+   206→                action,
+   207→                serviceName,
+   208→                image,
+   209→                replicas,
+   210→                namespace,
+   211→                orchestrator,
+   212→                ports,
+   213→                envVars,
+   214→                secrets,
+   215→                volumes,
+   216→                resources,
+   217→                restartPolicy,
+   218→                healthCheck,
+   219→                rolloutStrategy,
+   220→                maxUnavailable,
+   221→                maxSurge,
+   222→                deploymentId: `deploy-${Math.random().toString(36).substring(2, 10)}`,
+   223→                availableReplicas: Math.ceil(replicas * 0.75),
+   224→                readyReplicas: Math.ceil(replicas * 0.5),
+   225→                rolloutStatus: 'deploying',
+   226→                deploymentStrategy: { type: rolloutStrategy, rollingUpdate: { maxUnavailable, maxSurge } },
+   227→                deploymentWarnings: [
+   228→                  'Resource requests are close to limits - consider adding headroom for burst traffic',
+   229→                  'No PodDisruptionBudget configured - deployments may cause brief availability gaps',
+   230→                ],
+   231→                status: 'deployment_initiated',
+   232→                timestamp: new Date().toISOString(),
+   233→              };
+   234→
+   235→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   236→          return {
+   237→            success: true,
+   238→            data: resultData,
+   239→            metadata: { duration: Date.now() - startTime },
+   240→          };
+   241→        }
+   242→
+   243→        case 'scale': {
+   244→          const serviceName = config.serviceName;
+   245→          if (!serviceName) {
+   246→            return {
+   247→              success: false,
+   248→              error: 'Service name is required for scale action',
+   249→            };
+   250→          }
+   251→          const targetReplicas = config.targetReplicas;
+   252→          if (targetReplicas === undefined) {
+   253→            return {
+   254→              success: false,
+   255→              error: 'Target replicas is required for scale action',
+   256→            };
+   257→          }
+   258→          const namespace = config.namespace || 'default';
+   259→          const orchestrator = config.orchestrator || 'kubernetes';
+   260→          const autoscale = config.autoscale || false;
+   261→          const minReplicas = config.minReplicas || 1;
+   262→          const maxReplicas = config.maxReplicas || 10;
+   263→          const cpuTarget = config.cpuTarget || 70;
+   264→          const memoryTarget = config.memoryTarget || 80;
+   265→          const scaleDownCooldown = config.scaleDownCooldown || 300;
+   266→          const scaleUpCooldown = config.scaleUpCooldown || 60;
+   267→          this.logger.log(
+   268→            `Scaling service ${serviceName} to ${targetReplicas} replicas`,
+   269→          );
+   270→
+   271→          const llmResult = await this.executeWithLLM(
+   272→            `You are a container scaling expert. Generate realistic container scaling details. Return JSON with "previousReplicas" number, "currentReplicas" number, "scalingEventId" string, "hpaConfig" object with minReplicas number, maxReplicas number, targetCPUUtilization number, targetMemoryUtilization number, and "scalingRecommendations" array of strings.`,
+   273→            `Scale service ${serviceName} to ${targetReplicas} replicas in ${namespace}. Autoscale: ${autoscale}. Min: ${minReplicas}, Max: ${maxReplicas}. CPU target: ${cpuTarget}%, Memory target: ${memoryTarget}%. Scale down cooldown: ${scaleDownCooldown}s, Scale up cooldown: ${scaleUpCooldown}s.`,
+   274→            { responseFormat: 'json', temperature: 0.3, maxTokens: 1024 },
+   275→          );
+   276→          const parsed = this.safeJsonParse(llmResult);
+   277→
+   278→          const previousReplicas = Math.max(1, targetReplicas - 2);
+   279→          const resultData = parsed
+   280→            ? {
+   281→                action,
+   282→                serviceName,
+   283→                targetReplicas,
+   284→                namespace,
+   285→                orchestrator,
+   286→                autoscale,
+   287→                minReplicas,
+   288→                maxReplicas,
+   289→                cpuTarget,
+   290→                memoryTarget,
+   291→                scaleDownCooldown,
+   292→                scaleUpCooldown,
+   293→                previousReplicas: parsed.previousReplicas ?? previousReplicas,
+   294→                currentReplicas: parsed.currentReplicas ?? targetReplicas,
+   295→                scalingEventId: parsed.scalingEventId || `scale-${Math.random().toString(36).substring(2, 10)}`,
+   296→                hpaConfig: parsed.hpaConfig || { minReplicas, maxReplicas, targetCPUUtilization: cpuTarget, targetMemoryUtilization: memoryTarget },
+   297→                scalingRecommendations: parsed.scalingRecommendations || [],
+   298→                status: 'scaling_initiated',
+   299→                timestamp: new Date().toISOString(),
+   300→              }
+   301→            : {
+   302→                action,
+   303→                serviceName,
+   304→                targetReplicas,
+   305→                namespace,
+   306→                orchestrator,
+   307→                autoscale,
+   308→                minReplicas,
+   309→                maxReplicas,
+   310→                cpuTarget,
+   311→                memoryTarget,
+   312→                scaleDownCooldown,
+   313→                scaleUpCooldown,
+   314→                previousReplicas,
+   315→                currentReplicas: targetReplicas,
+   316→                scalingEventId: `scale-${Math.random().toString(36).substring(2, 10)}`,
+   317→                hpaConfig: { minReplicas, maxReplicas, targetCPUUtilization: cpuTarget, targetMemoryUtilization: memoryTarget },
+   318→                scalingRecommendations: [
+   319→                  'Enable HPA stabilization window of 60s to prevent flapping',
+   320→                  'Consider adding custom metrics for queue depth-based scaling',
+   321→                  'Set resource requests equal to limits for predictable QoS class',
+   322→                ],
+   323→                status: 'scaling_initiated',
+   324→                timestamp: new Date().toISOString(),
+   325→              };
+   326→
+   327→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   328→          return {
+   329→            success: true,
+   330→            data: resultData,
+   331→            metadata: { duration: Date.now() - startTime },
+   332→          };
+   333→        }
+   334→
+   335→        case 'health': {
+   336→          const serviceName = config.serviceName;
+   337→          const namespace = config.namespace || 'default';
+   338→          const orchestrator = config.orchestrator || 'kubernetes';
+   339→          const checkDepth = config.checkDepth || 'standard';
+   340→          const includeEvents = config.includeEvents ?? true;
+   341→          const includePods = config.includePods ?? true;
+   342→          const includeResources = config.includeResources ?? true;
+   343→          const timeRange = config.timeRange || '1h';
+   344→          this.logger.log(
+   345→            `Checking health for service ${serviceName || 'all services'} in ${namespace}`,
+   346→          );
+   347→
+   348→          const llmResult = await this.executeWithLLM(
+   349→            `You are a container health monitoring expert. Generate realistic Kubernetes health check results. Return JSON with "overallHealth" string, "services" array of objects with name string, status string, replicas number, available number, ready number, restarts number, age string, "pods" array of objects with name string, status string, restarts number, cpu string, memory string, age string, node string, and "events" array of objects with type string, reason string, message string, count number, lastSeen string.`,
+   350→            `Health check for ${serviceName || 'all services'} in ${namespace} on ${orchestrator}. Depth: ${checkDepth}. Include events: ${includeEvents}. Include pods: ${includePods}. Include resources: ${includeResources}. Time range: ${timeRange}.`,
+   351→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   352→          );
+   353→          const parsed = this.safeJsonParse(llmResult);
+   354→
+   355→          const resultData = parsed
+   356→            ? {
+   357→                action,
+   358→                serviceName,
+   359→                namespace,
+   360→                orchestrator,
+   361→                checkDepth,
+   362→                includeEvents,
+   363→                includePods,
+   364→                includeResources,
+   365→                timeRange,
+   366→                overallHealth: parsed.overallHealth || 'healthy',
+   367→                services: parsed.services || [],
+   368→                pods: parsed.pods || [],
+   369→                events: parsed.events || [],
+   370→                resourceUsage: {
+   371→                  cpuTotal: '4.2 cores',
+   372→                  memoryTotal: '12.8 Gi',
+   373→                  cpuCapacity: '16 cores',
+   374→                  memoryCapacity: '32 Gi',
+   375→                },
+   376→                status: 'health_check_completed',
+   377→                timestamp: new Date().toISOString(),
+   378→              }
+   379→            : {
+   380→                action,
+   381→                serviceName,
+   382→                namespace,
+   383→                orchestrator,
+   384→                checkDepth,
+   385→                includeEvents,
+   386→                includePods,
+   387→                includeResources,
+   388→                timeRange,
+   389→                overallHealth: 'healthy',
+   390→                services: [
+   391→                  { name: 'api-gateway', status: 'Running', replicas: 3, available: 3, ready: 3, restarts: 0, age: '14d' },
+   392→                  { name: 'auth-service', status: 'Running', replicas: 2, available: 2, ready: 2, restarts: 1, age: '14d' },
+   393→                  { name: 'user-service', status: 'Running', replicas: 3, available: 3, ready: 3, restarts: 0, age: '7d' },
+   394→                  { name: 'payment-service', status: 'Running', replicas: 2, available: 2, ready: 1, restarts: 3, age: '3d' },
+   395→                  { name: 'notification-service', status: 'Running', replicas: 1, available: 1, ready: 1, restarts: 0, age: '14d' },
+   396→                ],
+   397→                pods: [
+   398→                  { name: 'api-gateway-7d9f8c6b5-x2k4m', status: 'Running', restarts: 0, cpu: '125m', memory: '256Mi', age: '3d', node: 'node-1' },
+   399→                  { name: 'api-gateway-7d9f8c6b5-p8n2q', status: 'Running', restarts: 0, cpu: '98m', memory: '224Mi', age: '3d', node: 'node-2' },
+   400→                  { name: 'api-gateway-7d9f8c6b5-w5t7r', status: 'Running', restarts: 0, cpu: '110m', memory: '240Mi', age: '3d', node: 'node-3' },
+   401→                  { name: 'payment-service-5b3a2c1d-e4f6g', status: 'Running', restarts: 3, cpu: '340m', memory: '512Mi', age: '2h', node: 'node-1' },
+   402→                  { name: 'payment-service-5b3a2c1d-h7j8k', status: 'CrashLoopBackOff', restarts: 5, cpu: '50m', memory: '128Mi', age: '15m', node: 'node-2' },
+   403→                ],
+   404→                events: [
+   405→                  { type: 'Warning', reason: 'BackOff', message: 'Back-off restarting failed container', count: 12, lastSeen: '2m ago' },
+   406→                  { type: 'Normal', reason: 'Pulled', message: 'Container image "payment-service:v2.1.0" already present on machine', count: 5, lastSeen: '15m ago' },
+   407→                  { type: 'Warning', reason: 'Unhealthy', message: 'Readiness probe failed: HTTP probe failed with statuscode: 503', count: 3, lastSeen: '8m ago' },
+   408→                ],
+   409→                resourceUsage: {
+   410→                  cpuTotal: '4.2 cores',
+   411→                  memoryTotal: '12.8 Gi',
+   412→                  cpuCapacity: '16 cores',
+   413→                  memoryCapacity: '32 Gi',
+   414→                },
+   415→                status: 'health_check_completed',
+   416→                timestamp: new Date().toISOString(),
+   417→              };
+   418→
+   419→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   420→          return {
+   421→            success: true,
+   422→            data: resultData,
+   423→            metadata: { duration: Date.now() - startTime },
+   424→          };
+   425→        }
+   426→
+   427→        case 'logs': {
+   428→          const serviceName = config.serviceName;
+   429→          const namespace = config.namespace || 'default';
+   430→          const orchestrator = config.orchestrator || 'kubernetes';
+   431→          const tail = config.tail || 100;
+   432→          const since = config.since || '1h';
+   433→          const follow = config.follow || false;
+   434→          const filterLevel = config.filterLevel || 'all';
+   435→          const searchPattern = config.searchPattern;
+   436→          const podName = config.podName;
+   437→          const containerName = config.containerName;
+   438→          const previous = config.previous || false;
+   439→          const timestamps = config.timestamps ?? true;
+   440→          this.logger.log(
+   441→            `Fetching logs for ${serviceName || podName || 'all'} in ${namespace} (tail: ${tail})`,
+   442→          );
+   443→
+   444→          const llmResult = await this.executeWithLLM(
+   445→            `You are a container log analysis expert. Generate realistic container log entries and analysis. Return JSON with "logEntries" array of objects with timestamp string, level string, message string, source string, "totalEntries" number, "filteredEntries" number, "logSources" array of strings, and "logSummary" string.`,
+   446→            `Fetch logs for ${serviceName || podName || 'all services'} in ${namespace}. Tail: ${tail}. Since: ${since}. Filter level: ${filterLevel}. Search: ${searchPattern || 'none'}. Container: ${containerName || 'all'}. Previous: ${previous}.`,
+   447→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   448→          );
+   449→          const parsed = this.safeJsonParse(llmResult);
+   450→
+   451→          const now = new Date();
+   452→          const resultData = parsed
+   453→            ? {
+   454→                action,
+   455→                serviceName,
+   456→                namespace,
+   457→                orchestrator,
+   458→                tail,
+   459→                since,
+   460→                follow,
+   461→                filterLevel,
+   462→                searchPattern,
+   463→                podName,
+   464→                containerName,
+   465→                previous,
+   466→                timestamps,
+   467→                logEntries: parsed.logEntries || [],
+   468→                totalEntries: parsed.totalEntries || 0,
+   469→                filteredEntries: parsed.filteredEntries || 0,
+   470→                logSources: parsed.logSources || [],
+   471→                logSummary: parsed.logSummary || '',
+   472→                status: 'logs_retrieved',
+   473→                timestamp: new Date().toISOString(),
+   474→              }
+   475→            : {
+   476→                action,
+   477→                serviceName,
+   478→                namespace,
+   479→                orchestrator,
+   480→                tail,
+   481→                since,
+   482→                follow,
+   483→                filterLevel,
+   484→                searchPattern,
+   485→                podName,
+   486→                containerName,
+   487→                previous,
+   488→                timestamps,
+   489→                logEntries: [
+   490→                  { timestamp: new Date(now.getTime() - 300000).toISOString(), level: 'INFO', message: 'Server started on port 8080', source: 'api-gateway' },
+   491→                  { timestamp: new Date(now.getTime() - 240000).toISOString(), level: 'INFO', message: 'Connected to Redis at redis-master:6379', source: 'api-gateway' },
+   492→                  { timestamp: new Date(now.getTime() - 180000).toISOString(), level: 'INFO', message: 'Health check passed: all dependencies available', source: 'api-gateway' },
+   493→                  { timestamp: new Date(now.getTime() - 120000).toISOString(), level: 'WARN', message: 'Request rate approaching rate limit threshold (4500/5000 rpm)', source: 'api-gateway' },
+   494→                  { timestamp: new Date(now.getTime() - 60000).toISOString(), level: 'ERROR', message: 'Failed to connect to payment-service: connection refused (retry 2/3)', source: 'api-gateway' },
+   495→                  { timestamp: new Date(now.getTime() - 55000).toISOString(), level: 'INFO', message: 'Retry successful: connected to payment-service', source: 'api-gateway' },
+   496→                  { timestamp: new Date(now.getTime() - 30000).toISOString(), level: 'INFO', message: 'Processed 1250 requests in last minute (avg latency: 45ms)', source: 'api-gateway' },
+   497→                  { timestamp: new Date(now.getTime() - 10000).toISOString(), level: 'DEBUG', message: 'Cache hit ratio: 87.3% for GET /api/v1/users', source: 'api-gateway' },
+   498→                ],
+   499→                totalEntries: 15420,
+   500→                filteredEntries: 8,
+   501→                logSources: ['api-gateway', 'auth-service', 'payment-service', 'user-service', 'notification-service'],
+   502→                logSummary: `Retrieved ${tail} log entries from ${serviceName || 'all services'}. Most entries are INFO level. 1 ERROR detected related to transient payment-service connection failure that self-resolved on retry.`,
+   503→                status: 'logs_retrieved',
+   504→                timestamp: new Date().toISOString(),
+   505→              };
+   506→
+   507→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   508→          return {
+   509→            success: true,
+   510→            data: resultData,
+   511→            metadata: { duration: Date.now() - startTime },
+   512→          };
+   513→        }
+   514→
+   515→        case 'network': {
+   516→          const operation = config.operation || 'list';
+   517→          const namespace = config.namespace || 'default';
+   518→          const orchestrator = config.orchestrator || 'kubernetes';
+   519→          const serviceName = config.serviceName;
+   520→          const networkPolicy = config.networkPolicy;
+   521→          const ingressRules = config.ingressRules || [];
+   522→          const egressRules = config.egressRules || [];
+   523→          const serviceType = config.serviceType || 'ClusterIP';
+   524→          const portMappings = config.portMappings || [];
+   525→          const dnsConfig = config.dnsConfig;
+   526→          const meshEnabled = config.meshEnabled || false;
+   527→          const mtlsMode = config.mtlsMode || 'permissive';
+   528→          this.logger.log(
+   529→            `Network operation: ${operation}${serviceName ? ` for ${serviceName}` : ''} in ${namespace}`,
+   530→          );
+   531→
+   532→          const llmResult = await this.executeWithLLM(
+   533→            `You are a container networking expert. Generate realistic Kubernetes/Docker networking details. Return JSON with "networkStatus" object with policyCount number, ingressCount number, serviceCount number, endpointCount number, "connectivity" array of objects with source string, target string, port number, protocol string, allowed boolean, and "networkRecommendations" array of strings.`,
+   534→            `Network operation ${operation} for ${serviceName || 'all services'} in ${namespace}. Service type: ${serviceType}. Mesh enabled: ${meshEnabled}. mTLS mode: ${mtlsMode}. Ingress rules: ${ingressRules.length}. Egress rules: ${egressRules.length}. Port mappings: ${portMappings.length}. DNS config: ${dnsConfig ? 'custom' : 'default'}.`,
+   535→            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+   536→          );
+   537→          const parsed = this.safeJsonParse(llmResult);
+   538→
+   539→          const resultData = parsed
+   540→            ? {
+   541→                action,
+   542→                operation,
+   543→                namespace,
+   544→                orchestrator,
+   545→                serviceName,
+   546→                networkPolicy,
+   547→                ingressRules,
+   548→                egressRules,
+   549→                serviceType,
+   550→                portMappings,
+   551→                dnsConfig,
+   552→                meshEnabled,
+   553→                mtlsMode,
+   554→                networkStatus: parsed.networkStatus || { policyCount: 5, ingressCount: 3, serviceCount: 12, endpointCount: 28 },
+   555→                connectivity: parsed.connectivity || [],
+   556→                networkRecommendations: parsed.networkRecommendations || [],
+   557→                status: 'network_operation_completed',
+   558→                timestamp: new Date().toISOString(),
+   559→              }
+   560→            : {
+   561→                action,
+   562→                operation,
+   563→                namespace,
+   564→                orchestrator,
+   565→                serviceName,
+   566→                networkPolicy,
+   567→                ingressRules,
+   568→                egressRules,
+   569→                serviceType,
+   570→                portMappings,
+   571→                dnsConfig,
+   572→                meshEnabled,
+   573→                mtlsMode,
+   574→                networkStatus: { policyCount: 5, ingressCount: 3, serviceCount: 12, endpointCount: 28 },
+   575→                connectivity: [
+   576→                  { source: 'api-gateway', target: 'auth-service', port: 8080, protocol: 'TCP', allowed: true },
+   577→                  { source: 'api-gateway', target: 'user-service', port: 8080, protocol: 'TCP', allowed: true },
+   578→                  { source: 'api-gateway', target: 'payment-service', port: 8080, protocol: 'TCP', allowed: true },
+   579→                  { source: 'external', target: 'api-gateway', port: 443, protocol: 'TCP', allowed: true },
+   580→                  { source: 'payment-service', target: 'external-gateway', port: 443, protocol: 'TCP', allowed: true },
+   581→                  { source: 'unknown-pod', target: 'database', port: 5432, protocol: 'TCP', allowed: false },
+   582→                ],
+   583→                networkRecommendations: [
+   584→                  'Add default-deny ingress policy to namespace for zero-trust networking',
+   585→                  'Enable strict mTLS mode for production workloads',
+   586→                  'Create NetworkPolicy for payment-service to restrict egress to payment gateway only',
+   587→                ],
+   588→                status: 'network_operation_completed',
+   589→                timestamp: new Date().toISOString(),
+   590→              };
+   591→
+   592→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, duration: Date.now() - startTime });
+   593→          return {
+   594→            success: true,
+   595→            data: resultData,
+   596→            metadata: { duration: Date.now() - startTime },
+   597→          };
+   598→        }
+   599→
+   600→        default:
+   601→          return { success: false, error: `Unknown action: ${action}` };
+   602→      }
+   603→    } catch (error: any) {
+   604→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message, agent: this.name });
+   605→      return { success: false, error: error.message };
+   606→    }
+   607→  }
+   608→}
+   609→
