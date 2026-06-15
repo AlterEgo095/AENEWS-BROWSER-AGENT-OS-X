@@ -68,10 +68,10 @@ export default function SecurityDashboard() {
 
     try {
       const [lockoutRes, alertsRes, repsRes, sessionsRes] = await Promise.allSettled([
-        fetch(`${apiBase}/security/lockout/stats`, { headers }),
-        fetch(`${apiBase}/security/threats/alerts?limit=50`, { headers }),
-        fetch(`${apiBase}/security/threats/ip-reputations`, { headers }),
-        fetch(`${apiBase}/security/tokens/sessions`, { headers }),
+        fetch(`${apiBase}/security/lockout/stats`, { headers, credentials: 'include' }),
+        fetch(`${apiBase}/security/threats/alerts?limit=50`, { headers, credentials: 'include' }),
+        fetch(`${apiBase}/security/threats/ip-reputations`, { headers, credentials: 'include' }),
+        fetch(`${apiBase}/security/tokens/sessions`, { headers, credentials: 'include' }),
       ]);
 
       if (lockoutRes.status === 'fulfilled' && lockoutRes.value.ok) {
@@ -245,6 +245,7 @@ export default function SecurityDashboard() {
                         await fetch(`/api/v1/security/lockout/unlock?email=${encodeURIComponent(account.email)}`, {
                           method: 'POST',
                           headers: getAuthHeaders(),
+                          credentials: 'include',
                         });
                         fetchSecurityData();
                       } catch {}
@@ -331,6 +332,7 @@ export default function SecurityDashboard() {
                           await fetch(`/api/v1/security/threats/ip-reputations/${rep.ip}/${action}`, {
                             method: 'POST',
                             headers: getAuthHeaders(),
+                            credentials: 'include',
                           });
                           fetchSecurityData();
                         } catch {}
@@ -359,7 +361,7 @@ function AuditTab({ apiBase }: { apiBase: string }) {
     async function fetchAuditLogs() {
       try {
         const headers = getAuthHeaders();
-        const res = await fetch(`${apiBase}/security/audit/logs?limit=50`, { headers });
+        const res = await fetch(`${apiBase}/security/audit/logs?limit=50`, { headers, credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setAuditEntries(data.data || data || []);

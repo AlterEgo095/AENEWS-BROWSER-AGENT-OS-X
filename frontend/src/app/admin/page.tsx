@@ -441,6 +441,7 @@ function SecurityTab() {
       try {
         const res = await fetch('/api/v1/security/audit/logs?limit=20', {
           headers: getAuthHeaders(),
+          credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();
@@ -467,9 +468,9 @@ function SecurityTab() {
     async function fetchSecurityMetrics() {
       try {
         const [lockoutRes, sessionsRes, ipRes] = await Promise.allSettled([
-          fetch('/api/v1/security/lockout/stats', { headers: getAuthHeaders() }),
-          fetch('/api/v1/security/tokens/sessions', { headers: getAuthHeaders() }),
-          fetch('/api/v1/security/threats/ip-reputations', { headers: getAuthHeaders() }),
+          fetch('/api/v1/security/lockout/stats', { headers: getAuthHeaders(), credentials: 'include' }),
+          fetch('/api/v1/security/tokens/sessions', { headers: getAuthHeaders(), credentials: 'include' }),
+          fetch('/api/v1/security/threats/ip-reputations', { headers: getAuthHeaders(), credentials: 'include' }),
         ]);
 
         let lockedCount = 0;
@@ -585,6 +586,7 @@ function UsersTab() {
       try {
         const res = await fetch('/api/v1/users?limit=50', {
           headers: getAuthHeaders(),
+          credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();
@@ -674,6 +676,7 @@ function ConfigTab() {
       try {
         const res = await fetch('/api/v1/admin/config', {
           headers: getAuthHeaders(),
+          credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();

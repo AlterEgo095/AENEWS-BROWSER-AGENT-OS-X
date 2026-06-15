@@ -278,7 +278,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchPerf() {
       try {
-        const res = await fetch('/api/v1/performance/overview');
+        const res = await fetch('/api/v1/performance/overview', { credentials: 'include' });
         if (res.ok) {
           const json = await res.json();
           const report = json.data?.profiling || json.profiling;

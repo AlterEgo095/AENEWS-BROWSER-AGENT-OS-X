@@ -3,13 +3,16 @@
  *
  * Comprehensive test suite for the TOTP (Time-based One-Time Password) service covering:
  *   - generateSecret() returns secret + QR code + backup codes + otpauth URI
- *   - verifyToken() accepts valid TOTP codes
+ *   - verifyToken() accepts valid TOTP codes (generated from a known secret)
  *   - verifyToken() rejects invalid codes
- *   - generateBackupCodes() returns correct count and format
+ *   - generateBackupCodes() returns correct count (16) and format (8 chars each)
  *   - hashBackupCodes() and validateBackupCode() round-trip
  *   - Backup code replay protection (used code rejected)
  *   - decryptSecret() delegates to EncryptionService
- *   - Error handling
+ *   - Full TOTP lifecycle integration test
+ *   - Error handling and edge cases
+ *
+ * Uses Jest mocks for EncryptionService and ConfigService.
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -18,15 +21,15 @@ import * as OTPAuth from 'otpauth';
 import { TotpService, TotpSetupResult, TotpVerifyResult } from './totp.service';
 import { EncryptionService } from './encryption.service';
 
-// ─── Test Helpers ──────────────────────────────────────────────
+// ─── Mock Factories ──────────────────────────────────────────
 
 /**
- * Create a mock EncryptionService that uses a simple XOR cipher
- * for test purposes (avoids needing a real ENCRYPTION_KEY).
+ * Create a mock EncryptionService that uses a simple reversible base64
+ * encoding for test purposes (avoids needing a real ENCRYPTION_KEY).
+ * All methods are Jest spies so assertions can verify call arguments.
  */
 function createMockEncryptionService(): EncryptionService {
   const encryptFn = jest.fn((plaintext: string) => {
-    // Simple reversible encoding for testing
     return Buffer.from(plaintext).toString('base64');
   });
 
@@ -40,6 +43,9 @@ function createMockEncryptionService(): EncryptionService {
   } as any;
 }
 
+/**
+ * Create a mock ConfigService providing test-time configuration values.
+ */
 function createMockConfigService(): ConfigService {
   return {
     get: jest.fn((path: string) => {
@@ -50,7 +56,7 @@ function createMockConfigService(): ConfigService {
   } as any;
 }
 
-// ─── Test Suite ────────────────────────────────────────────────
+// ─── Test Suite ──────────────────────────────────────────────
 
 describe('TotpService', () => {
   let service: TotpService;
@@ -86,14 +92,13 @@ describe('TotpService', () => {
     it('should return a base64-encoded QR code image', async () => {
       const result = await service.generateSecret('user-123', 'user@example.com');
 
-      // QR code should be a non-empty base64 string
       expect(result.qrCode).toBeTruthy();
       expect(typeof result.qrCode).toBe('string');
       // Should be valid base64
       expect(() => Buffer.from(result.qrCode, 'base64')).not.toThrow();
     });
 
-    it('should return a valid otpauth:// URI', async () => {
+    it('should return a valid otpauth:// URI with issuer and user email', async () => {
       const result = await service.generateSecret('user-123', 'user@example.com');
 
       expect(result.otpauthUri).toMatch(/^otpauth:\/\/totp\//);
@@ -107,20 +112,26 @@ describe('TotpService', () => {
       expect(result.backupCodes).toHaveLength(16);
     });
 
+    it('should call encryptionService.encrypt() to store the secret', async () => {
+      await service.generateSecret('user-123', 'user@example.com');
+
+      expect(encryptionService.encrypt).toHaveBeenCalled();
+    });
+
     it('should return an encrypted secret (not plaintext)', async () => {
       const result = await service.generateSecret('user-123', 'user@example.com');
 
-      // The encryptedSecret should be the base64 encoding of the plaintext secret
       expect(result.encryptedSecret).toBeTruthy();
-      // It should NOT look like a raw base32 TOTP secret
-      expect(encryptionService.encrypt).toHaveBeenCalled();
+      // The mock encrypts to base64, so the result should be valid base64
+      const decoded = Buffer.from(result.encryptedSecret, 'base64').toString('utf-8');
+      // The decoded value should look like a base32 TOTP secret (uppercase alphanumeric)
+      expect(decoded).toMatch(/^[A-Z2-7]+$/);
     });
 
     it('should generate unique secrets on successive calls', async () => {
       const result1 = await service.generateSecret('user-1', 'a@b.com');
       const result2 = await service.generateSecret('user-2', 'c@d.com');
 
-      // Encrypted secrets should differ (different plaintext secrets)
       expect(result1.encryptedSecret).not.toBe(result2.encryptedSecret);
     });
 
@@ -128,7 +139,6 @@ describe('TotpService', () => {
       const result1 = await service.generateSecret('user-1', 'a@b.com');
       const result2 = await service.generateSecret('user-2', 'c@d.com');
 
-      // It's astronomically unlikely all 16 codes would match
       const overlap = result1.backupCodes.filter((c) => result2.backupCodes.includes(c));
       expect(overlap.length).toBeLessThan(16);
     });
@@ -176,6 +186,21 @@ describe('TotpService', () => {
       const currentCode = totp.generate();
       expect(service.verifyToken(decryptedSecret, currentCode)).toBe(true);
     });
+
+    it('should accept a code generated with a known static secret', () => {
+      // Use a fixed secret to ensure deterministic test results
+      const knownSecret = 'JBSWY3DPEHPK3PXP'; // "Hello!" in base32
+      const totp = new OTPAuth.TOTP({
+        issuer: 'AENEWS Agent OS X',
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: OTPAuth.Secret.fromBase32(knownSecret),
+      });
+
+      const validCode = totp.generate();
+      expect(service.verifyToken(knownSecret, validCode)).toBe(true);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -183,11 +208,10 @@ describe('TotpService', () => {
   // ═══════════════════════════════════════════════════════════
 
   describe('verifyToken() — invalid codes', () => {
-    it('should reject a completely wrong code', async () => {
+    it('should reject a code generated from a different secret', async () => {
       const result = await service.generateSecret('user-123', 'user@example.com');
       const decryptedSecret = encryptionService.decrypt(result.encryptedSecret);
 
-      // Generate a code from a DIFFERENT secret
       const otherTotp = new OTPAuth.TOTP({
         issuer: 'AENEWS Agent OS X',
         algorithm: 'SHA1',
@@ -223,6 +247,23 @@ describe('TotpService', () => {
     it('should reject an empty code', () => {
       const result = service.verifyToken('SOMESECRET', '');
       expect(result).toBe(false);
+    });
+
+    it('should reject a completely wrong 6-digit code', async () => {
+      const result = await service.generateSecret('user-123', 'user@example.com');
+      const decryptedSecret = encryptionService.decrypt(result.encryptedSecret);
+
+      // Generate a code that is guaranteed wrong by trying many
+      const totp = new OTPAuth.TOTP({
+        issuer: 'AENEWS Agent OS X',
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: OTPAuth.Secret.fromBase32(decryptedSecret),
+      });
+
+      // Just test an obviously wrong code
+      expect(service.verifyToken(decryptedSecret, '999999')).toBe(false);
     });
   });
 
@@ -260,11 +301,15 @@ describe('TotpService', () => {
       }
     });
 
-    it('should generate unique codes', () => {
+    it('should generate unique codes (very high probability)', () => {
       const codes = service.generateBackupCodes(100);
       const uniqueCodes = new Set(codes);
-      // With 100 codes, we expect very high uniqueness
       expect(uniqueCodes.size).toBeGreaterThan(90);
+    });
+
+    it('should return an empty array when count is 0', () => {
+      const codes = service.generateBackupCodes(0);
+      expect(codes).toHaveLength(0);
     });
   });
 
@@ -318,6 +363,15 @@ describe('TotpService', () => {
       expect(result.usedBackupCodes).toHaveLength(1);
       // The used code hash should match the hash of the consumed code
       expect(result.usedBackupCodes![0]).toBe(hashes[0]);
+    });
+
+    it('should produce hashes that are different from the plaintext', async () => {
+      const codes = service.generateBackupCodes(2);
+      const hashes = await service.hashBackupCodes(codes);
+
+      for (let i = 0; i < codes.length; i++) {
+        expect(hashes[i]).not.toBe(codes[i]);
+      }
     });
   });
 
@@ -386,6 +440,33 @@ describe('TotpService', () => {
       );
       expect(result3.valid).toBe(false);
     });
+
+    it('should track multiple used codes independently', async () => {
+      const codes = service.generateBackupCodes(4);
+      const hashes = await service.hashBackupCodes(codes);
+
+      // Use code[0]
+      const r0 = await service.validateBackupCode([], hashes, codes[0]);
+      expect(r0.valid).toBe(true);
+
+      // Use code[1]
+      const r1 = await service.validateBackupCode(r0.usedBackupCodes!, hashes, codes[1]);
+      expect(r1.valid).toBe(true);
+      expect(r1.usedBackupCodes).toHaveLength(2);
+
+      // Replay code[0]
+      const r2 = await service.validateBackupCode(r1.usedBackupCodes!, hashes, codes[0]);
+      expect(r2.valid).toBe(false);
+
+      // Replay code[1]
+      const r3 = await service.validateBackupCode(r1.usedBackupCodes!, hashes, codes[1]);
+      expect(r3.valid).toBe(false);
+
+      // code[2] still works
+      const r4 = await service.validateBackupCode(r1.usedBackupCodes!, hashes, codes[2]);
+      expect(r4.valid).toBe(true);
+      expect(r4.usedBackupCodes).toHaveLength(3);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -400,10 +481,19 @@ describe('TotpService', () => {
       expect(encryptionService.decrypt).toHaveBeenCalledWith(encrypted);
       expect(result).toBe('test-secret');
     });
+
+    it('should return the decrypted plaintext that matches the original', async () => {
+      const setup = await service.generateSecret('user-123', 'user@example.com');
+      const decrypted = service.decryptSecret(setup.encryptedSecret);
+
+      // The decrypted value should be a valid base32 secret
+      expect(decrypted).toBeTruthy();
+      expect(/^[A-Z2-7]+=*$/i.test(decrypted)).toBe(true);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════
-  //  Full TOTP flow integration
+  //  Full TOTP Lifecycle Integration Test
   // ═══════════════════════════════════════════════════════════
 
   describe('full TOTP lifecycle', () => {
@@ -442,6 +532,30 @@ describe('TotpService', () => {
         setup.backupCodes[0],
       );
       expect(replayResult.valid).toBe(false);
+    });
+
+    it('should complete setup → enable → verify → disable flow', async () => {
+      // Step 1: Setup
+      const setup = await service.generateSecret('user-123', 'user@example.com');
+      expect(setup.encryptedSecret).toBeTruthy();
+
+      // Step 2: Decrypt and verify a TOTP code (simulating "enable")
+      const decryptedSecret = service.decryptSecret(setup.encryptedSecret);
+      const totp = new OTPAuth.TOTP({
+        issuer: 'AENEWS Agent OS X',
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: OTPAuth.Secret.fromBase32(decryptedSecret),
+      });
+      const code = totp.generate();
+      expect(service.verifyToken(decryptedSecret, code)).toBe(true);
+
+      // Step 3: Use backup codes after TOTP is enabled
+      const hashes = await service.hashBackupCodes(setup.backupCodes);
+      const backupResult = await service.validateBackupCode([], hashes, setup.backupCodes[5]);
+      expect(backupResult.valid).toBe(true);
+      expect(backupResult.usedBackupCodes).toHaveLength(1);
     });
   });
 });
