@@ -38,6 +38,8 @@ export class EdgeComputingAgent extends BaseAgent {
       const action = config.action || 'deploy-edge';
       const startTime = Date.now();
 
+      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+
       const dryRun = config.dryRun === true;
       if (dryRun) {
         this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, dryRun: true });
@@ -47,8 +49,6 @@ export class EdgeComputingAgent extends BaseAgent {
           metadata: { duration: 0 },
         };
       }
-
-      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
 
       switch (action) {
         case 'deploy-edge': {

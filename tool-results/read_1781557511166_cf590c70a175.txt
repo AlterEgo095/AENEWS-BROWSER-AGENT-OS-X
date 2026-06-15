@@ -1,0 +1,505 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→/**
+    10→ * RedTeamAgent — Full red team operations (v3.0.0).
+    11→ *
+    12→ * Provides red team ops, social engineering, physical security testing,
+    13→ * phishing simulation, pretexting, and attack simulation capabilities.
+    14→ */
+    15→export class RedTeamAgent extends BaseAgent {
+    16→  readonly name = 'RedTeamAgent';
+    17→  readonly cluster = ClusterType.SECURITY;
+    18→  readonly capabilities = [
+    19→    'red-team-ops',
+    20→    'social-engineering',
+    21→    'physical-security-test',
+    22→    'phishing-simulation',
+    23→    'pretexting',
+    24→    'attack-simulation',
+    25→  ];
+    26→  readonly version = '3.0.0';
+    27→  readonly description =
+    28→    'Full red team operations including social engineering, physical security testing, phishing simulation, pretexting, and attack simulation';
+    29→
+    30→  readonly missionCategories = [MissionCategory.SECURITY_OPS];
+    31→  readonly creditCost = 5;
+    32→  readonly powerLevel = 3;
+    33→  readonly tier = 'elite';
+    34→
+    35→  async execute(context: AgentContext): Promise<AgentResult> {
+    36→    try {
+    37→      const { config } = context;
+    38→      const action = config.action || 'red-team-op';
+    39→      const startTime = Date.now();
+    40→
+    41→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    42→
+    43→      // Authorization check — red team operations require verified authorization
+    44→      const authToken = config.authorizationToken || config.authToken;
+    45→      if (!authToken) {
+    46→        this.emitEvent(AgentEventType.AGENT_FAILED, { action, error: 'Authorization required', reason: 'missing_token' });
+    47→        return { success: false, error: 'Red team operations require an authorizationToken. Provide config.authorizationToken to proceed.' };
+    48→      }
+    49→
+    50→      const dryRun = config.dryRun === true;
+    51→      if (dryRun) {
+    52→        this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, dryRun: true });
+    53→        return {
+    54→          success: true,
+    55→          data: { action, dryRun: true, message: `Dry run: ${action} would execute with the provided parameters. No changes made.`, parameters: config },
+    56→          metadata: { duration: 0 },
+    57→        };
+    58→      }
+    59→
+    60→      switch (action) {
+    61→        case 'red-team-op': {
+    62→          const operationName = config.operationName;
+    63→          const scope = config.scope || 'full-scope';
+    64→          const objectives = config.objectives || ['credential-access', 'lateral-movement', 'data-exfiltration'];
+    65→          const rulesOfEngagement = config.rulesOfEngagement || [];
+    66→          const duration = config.duration || '2 weeks';
+    67→
+    68→          if (!operationName) {
+    69→            return { success: false, error: '"operationName" is required for red team operation' };
+    70→          }
+    71→
+    72→          this.logger.log(`Planning red team operation "${operationName}" (scope: ${scope})`);
+    73→
+    74→          const llmResult = await this.executeWithLLM(
+    75→            `You are a red team operations expert. Design comprehensive red team engagement plans with attack chains, timelines, and success criteria following MITRE ATT&CK framework.`,
+    76→            `Design red team operation "${operationName}". Scope: ${scope}. Objectives: ${objectives.join(', ')}. Duration: ${duration}. Rules: ${rulesOfEngagement.join(', ')}. Return JSON with: attackPlan {phases (array of {name, tactics, techniques, objectives, duration})}, mitreMapping (array of {tactic, techniqueId, techniqueName, usage}), successCriteria (array of strings), riskMitigation (array of strings), deliverables (array of strings).`,
+    77→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+    78→          );
+    79→
+    80→          const parsed = this.safeJsonParse(llmResult);
+    81→
+    82→          if (parsed) {
+    83→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, operationName });
+    84→            return {
+    85→              success: true,
+    86→              data: {
+    87→                action, operationName, scope, objectives, rulesOfEngagement, duration,
+    88→                attackPlan: parsed.attackPlan || {},
+    89→                mitreMapping: parsed.mitreMapping || [],
+    90→                successCriteria: parsed.successCriteria || [],
+    91→                riskMitigation: parsed.riskMitigation || [],
+    92→                deliverables: parsed.deliverables || [],
+    93→                status: 'planned',
+    94→                timestamp: new Date().toISOString(),
+    95→              },
+    96→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+    97→            };
+    98→          }
+    99→
+   100→          // Heuristic fallback
+   101→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   102→          return {
+   103→            success: true,
+   104→            data: {
+   105→              action, operationName, scope, objectives, rulesOfEngagement, duration,
+   106→              attackPlan: {
+   107→                phases: [
+   108→                  { name: 'Reconnaissance', tactics: ['Passive information gathering', 'OSINT collection'], techniques: ['T1595', 'T1592'], objectives: ['Map attack surface', 'Identify high-value targets'], duration: '3 days' },
+   109→                  { name: 'Initial Access', tactics: ['Phishing', 'Valid accounts'], techniques: ['T1566', 'T1078'], objectives: ['Gain initial foothold', 'Establish C2 channel'], duration: '4 days' },
+   110→                  { name: 'Persistence & Escalation', tactics: ['Privilege escalation', 'Persistence'], techniques: ['T1055', 'T1053'], objectives: ['Escalate to domain admin', 'Establish persistent backdoor'], duration: '3 days' },
+   111→                  { name: 'Lateral Movement & Collection', tactics: ['Lateral movement', 'Collection'], techniques: ['T1021', 'T1005'], objectives: ['Access critical systems', 'Collect target data'], duration: '2 days' },
+   112→                  { name: 'Exfiltration & Impact', tactics: ['Exfiltration', 'Impact'], techniques: ['T1048', 'T1486'], objectives: ['Simulate data exfiltration', 'Demonstrate impact potential'], duration: '2 days' },
+   113→                ],
+   114→              },
+   115→              mitreMapping: [
+   116→                { tactic: 'Reconnaissance', techniqueId: 'T1595', techniqueName: 'Active Scanning', usage: 'Identify live hosts and services' },
+   117→                { tactic: 'Initial Access', techniqueId: 'T1566', techniqueName: 'Phishing', usage: 'Spear-phishing for credential harvesting' },
+   118→                { tactic: 'Persistence', techniqueId: 'T1053', techniqueName: 'Scheduled Task/Job', usage: 'Maintain access via scheduled tasks' },
+   119→                { tactic: 'Privilege Escalation', techniqueId: 'T1055', techniqueName: 'Process Injection', usage: 'Escalate privileges in compromised system' },
+   120→                { tactic: 'Lateral Movement', techniqueId: 'T1021', techniqueName: 'Remote Services', usage: 'Move laterally via RDP/WinRM' },
+   121→                { tactic: 'Exfiltration', techniqueId: 'T1048', techniqueName: 'Exfiltration Over Alternative Protocol', usage: 'Simulate data exfiltration via DNS/HTTPS' },
+   122→              ],
+   123→              successCriteria: ['Obtain domain admin credentials', 'Access target database containing PII', 'Demonstrate exfiltration capability', 'Maintain persistence for 48+ hours undetected'],
+   124→              riskMitigation: ['Strict engagement windows', 'Immediate stop on production impact', 'Daily check-ins with blue team lead', 'Encrypted evidence storage'],
+   125→              deliverables: ['Executive summary', 'Technical findings report', 'MITRE ATT&CK heat map', 'Remediation roadmap', 'Raw evidence package'],
+   126→              status: 'planned',
+   127→              timestamp: new Date().toISOString(),
+   128→            },
+   129→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   130→          };
+   131→        }
+   132→
+   133→        case 'simulate-phishing': {
+   134→          const targetGroup = config.targetGroup;
+   135→          const phishingType = config.phishingType || 'spear';
+   136→          const vector = config.vector || 'email';
+   137→          const templateType = config.templateType || 'credential-harvest';
+   138→
+   139→          if (!targetGroup) {
+   140→            return { success: false, error: '"targetGroup" is required for phishing simulation' };
+   141→          }
+   142→
+   143→          this.logger.log(`Simulating ${phishingType} phishing on "${targetGroup}" (${vector}, ${templateType})`);
+   144→
+   145→          const llmResult = await this.executeWithLLM(
+   146→            `You are a phishing simulation expert. Design realistic phishing campaigns for security awareness testing with proper templates, tracking, and safety controls.`,
+   147→            `Design ${phishingType} phishing simulation. Target: ${targetGroup}. Vector: ${vector}. Template: ${templateType}. Return JSON with: campaign {name, template {subject, sender, body, landingPage}, tracking {openRate, clickRate, submissionRate, reportRate}, timeline (array of {day, action})}, effectivenessMetrics {expectedOpenRate, expectedClickRate, expectedSubmissionRate}, recommendations (array of strings).`,
+   148→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   149→          );
+   150→
+   151→          const parsed = this.safeJsonParse(llmResult);
+   152→
+   153→          if (parsed) {
+   154→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, targetGroup });
+   155→            return {
+   156→              success: true,
+   157→              data: {
+   158→                action, targetGroup, phishingType, vector, templateType,
+   159→                campaign: parsed.campaign || {},
+   160→                effectivenessMetrics: parsed.effectivenessMetrics || {},
+   161→                recommendations: parsed.recommendations || [],
+   162→                status: 'simulated',
+   163→                timestamp: new Date().toISOString(),
+   164→              },
+   165→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   166→            };
+   167→          }
+   168→
+   169→          // Heuristic fallback
+   170→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   171→          return {
+   172→            success: true,
+   173→            data: {
+   174→              action, targetGroup, phishingType, vector, templateType,
+   175→              campaign: {
+   176→                name: `PhishSim-${Date.now()}`,
+   177→                template: {
+   178→                  subject: 'Action Required: Password Expiration Notice',
+   179→                  sender: 'IT Security <security@company-portal.net>',
+   180→                  body: 'Your corporate password expires in 24 hours. Click below to update your credentials and avoid account lockout.',
+   181→                  landingPage: 'Simulated corporate SSO login page',
+   182→                },
+   183→                tracking: { openRate: 0.34, clickRate: 0.12, submissionRate: 0.08, reportRate: 0.22 },
+   184→                timeline: [
+   185→                  { day: 1, action: 'Launch phishing email campaign' },
+   186→                  { day: 2, action: 'Send reminder follow-up to non-openers' },
+   187→                  { day: 3, action: 'Send urgent final notice variant' },
+   188→                  { day: 5, action: 'Close campaign and compile results' },
+   189→                ],
+   190→              },
+   191→              effectivenessMetrics: { expectedOpenRate: 0.35, expectedClickRate: 0.15, expectedSubmissionRate: 0.08 },
+   192→              recommendations: [
+   193→                'Implement email authentication (DMARC/DKIM/SPF)',
+   194→                'Deploy phishing-aware email gateway',
+   195→                'Conduct quarterly phishing awareness training',
+   196→                'Create easy phishing reporting button in email client',
+   197→              ],
+   198→              status: 'simulated',
+   199→              timestamp: new Date().toISOString(),
+   200→            },
+   201→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   202→          };
+   203→        }
+   204→
+   205→        case 'social-engineer': {
+   206→          const targetOrganization = config.targetOrganization;
+   207→          const technique = config.technique || 'vishing';
+   208→          const pretext = config.pretext || 'IT support call';
+   209→          const objective = config.objective || 'credential-collection';
+   210→
+   211→          if (!targetOrganization) {
+   212→            return { success: false, error: '"targetOrganization" is required for social engineering' };
+   213→          }
+   214→
+   215→          this.logger.log(`Social engineering: ${technique} against "${targetOrganization}" (${objective})`);
+   216→
+   217→          const llmResult = await this.executeWithLLM(
+   218→            `You are a social engineering assessment expert. Design social engineering tests with realistic pretexts, scripts, and safety controls for authorized security assessments.`,
+   219→            `Design social engineering test. Organization: ${targetOrganization}. Technique: ${technique}. Pretext: ${pretext}. Objective: ${objective}. Return JSON with: scenario {pretext, script, escalationPaths (array), exitStrategy}, indicators (array of {indicator, riskLevel, description}), mitigationStrategies (array of strings), trainingRecommendations (array of strings).`,
+   220→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   221→          );
+   222→
+   223→          const parsed = this.safeJsonParse(llmResult);
+   224→
+   225→          if (parsed) {
+   226→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   227→            return {
+   228→              success: true,
+   229→              data: {
+   230→                action, targetOrganization, technique, pretext, objective,
+   231→                scenario: parsed.scenario || {},
+   232→                indicators: parsed.indicators || [],
+   233→                mitigationStrategies: parsed.mitigationStrategies || [],
+   234→                trainingRecommendations: parsed.trainingRecommendations || [],
+   235→                status: 'assessed',
+   236→                timestamp: new Date().toISOString(),
+   237→              },
+   238→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   239→            };
+   240→          }
+   241→
+   242→          // Heuristic fallback
+   243→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   244→          return {
+   245→            success: true,
+   246→            data: {
+   247→              action, targetOrganization, technique, pretext, objective,
+   248→              scenario: {
+   249→                pretext: 'IT support technician calling about urgent password reset',
+   250→                script: 'Hello, this is [name] from IT Support. We have detected unusual activity on your account and need to verify your identity. Could you please confirm your username and password for verification?',
+   251→                escalationPaths: ['Request manager override credentials', 'Ask for VPN access details', 'Request remote desktop access for "troubleshooting"'],
+   252→                exitStrategy: 'Thank the target, reveal the assessment, and provide security awareness resources',
+   253→              },
+   254→              indicators: [
+   255→                { indicator: 'Target provides credentials without verification', riskLevel: 'critical', description: 'Employee willing to share password over phone without callback verification' },
+   256→                { indicator: 'Target accepts remote access request', riskLevel: 'high', description: 'Employee allows external remote access without validation' },
+   257→                { indicator: 'Target questions identity but complies', riskLevel: 'medium', description: 'Employee shows awareness but insufficient resistance' },
+   258→              ],
+   259→              mitigationStrategies: [
+   260→                'Implement callback verification policy for all IT support requests',
+   261→                'Never share credentials verbally or via messaging',
+   262→                'Use multi-factor authentication to mitigate credential exposure',
+   263→                'Regular social engineering awareness training',
+   264→              ],
+   265→              trainingRecommendations: [
+   266→                'Conduct vishing awareness workshops quarterly',
+   267→                'Create clear IT support verification procedures',
+   268→                'Establish "verify then trust" culture for credential requests',
+   269→              ],
+   270→              status: 'assessed',
+   271→              timestamp: new Date().toISOString(),
+   272→            },
+   273→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   274→          };
+   275→        }
+   276→
+   277→        case 'test-physical': {
+   278→          const facility = config.facility;
+   279→          const testType = config.testType || 'tailgating';
+   280→          const zones = config.zones || ['lobby', 'server-room', 'executive-floor'];
+   281→
+   282→          if (!facility) {
+   283→            return { success: false, error: '"facility" is required for physical security testing' };
+   284→          }
+   285→
+   286→          this.logger.log(`Physical security test: ${testType} at "${facility}"`);
+   287→
+   288→          const llmResult = await this.executeWithLLM(
+   289→            `You are a physical security assessment expert. Design physical penetration tests for authorized facility security evaluations.`,
+   290→            `Design physical security test. Facility: ${facility}. Type: ${testType}. Zones: ${zones.join(', ')}. Return JSON with: testPlan {scenarios (array of {scenario, technique, targetZone, successCriteria, riskLevel})}, findings (array of {finding, severity, recommendation}), physicalControls (array of {control, effectiveness, bypassMethod}), report {executiveSummary, detailedFindings (array), prioritizedRemediations (array)}.`,
+   291→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   292→          );
+   293→
+   294→          const parsed = this.safeJsonParse(llmResult);
+   295→
+   296→          if (parsed) {
+   297→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   298→            return {
+   299→              success: true,
+   300→              data: {
+   301→                action, facility, testType, zones,
+   302→                testPlan: parsed.testPlan || {},
+   303→                findings: parsed.findings || [],
+   304→                physicalControls: parsed.physicalControls || [],
+   305→                report: parsed.report || {},
+   306→                status: 'tested',
+   307→                timestamp: new Date().toISOString(),
+   308→              },
+   309→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   310→            };
+   311→          }
+   312→
+   313→          // Heuristic fallback
+   314→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   315→          return {
+   316→            success: true,
+   317→            data: {
+   318→              action, facility, testType, zones,
+   319→              testPlan: {
+   320→                scenarios: [
+   321→                  { scenario: 'Tailgating through main entrance', technique: 'Follow authorized person through badge door', targetZone: 'lobby', successCriteria: 'Gain unauthorized entry without badge', riskLevel: 'low' },
+   322→                  { scenario: 'Social engineering reception desk', technique: 'Pretend to be vendor with expired badge', targetZone: 'lobby', successCriteria: 'Obtain visitor badge without proper verification', riskLevel: 'low' },
+   323→                  { scenario: 'After-hours access via emergency exit', technique: 'Prop open emergency door and re-enter', targetZone: 'server-room', successCriteria: 'Enter restricted area without alarm', riskLevel: 'medium' },
+   324→                ],
+   325→              },
+   326→              findings: [
+   327→                { finding: 'Badge readers do not enforce anti-tailgating', severity: 'high', recommendation: 'Install mantrap or badge+PIN at critical entrances' },
+   328→                { finding: 'Reception desk lacks visitor verification procedure', severity: 'medium', recommendation: 'Implement ID verification and host confirmation' },
+   329→                { finding: 'Emergency exit doors lack delay alarms', severity: 'high', recommendation: 'Install 15-second delay with alarm on emergency exits' },
+   330→              ],
+   331→              physicalControls: [
+   332→                { control: 'Badge access system', effectiveness: 'moderate', bypassMethod: 'Tailgating through doors held open by authorized users' },
+   333→                { control: 'Security cameras', effectiveness: 'high', bypassMethod: 'Blind spots identified near loading dock' },
+   334→                { control: 'Reception desk', effectiveness: 'low', bypassMethod: 'Social engineering to obtain visitor credentials' },
+   335→              ],
+   336→              report: {
+   337→                executiveSummary: 'Physical security assessment identified 3 high and 2 medium severity findings. Key risks include anti-tailgating controls and emergency exit monitoring.',
+   338→                detailedFindings: ['Anti-tailgating controls missing at 3 critical access points', 'Visitor verification procedure gaps', 'Emergency exit alarm gaps'],
+   339→                prioritizedRemediations: ['Install mantrap at server room entrance (immediate)', 'Add delay alarms to emergency exits (1 month)', 'Update visitor management procedure (2 weeks)'],
+   340→              },
+   341→              status: 'tested',
+   342→              timestamp: new Date().toISOString(),
+   343→            },
+   344→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   345→          };
+   346→        }
+   347→
+   348→        case 'pretext': {
+   349→          const targetRole = config.targetRole;
+   350→          const industry = config.industry || 'technology';
+   351→          const scenario = config.scenario || 'vendor-impersonation';
+   352→
+   353→          if (!targetRole) {
+   354→            return { success: false, error: '"targetRole" is required for pretexting assessment' };
+   355→          }
+   356→
+   357→          this.logger.log(`Pretexting assessment: ${scenario} targeting ${targetRole} (${industry})`);
+   358→
+   359→          const llmResult = await this.executeWithLLM(
+   360→            `You are a pretexting assessment expert. Design realistic pretext scenarios for authorized social engineering assessments with proper documentation and safety controls.`,
+   361→            `Design pretexting scenario. Target role: ${targetRole}. Industry: ${industry}. Scenario type: ${scenario}. Return JSON with: pretext {character, backstory, approach, informationTargets (array)}, script {opening, buildingTrust, extraction, closing}, riskAssessment {likelihood, potentialDamage, detectability}, countermeasures (array of strings).`,
+   362→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   363→          );
+   364→
+   365→          const parsed = this.safeJsonParse(llmResult);
+   366→
+   367→          if (parsed) {
+   368→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   369→            return {
+   370→              success: true,
+   371→              data: {
+   372→                action, targetRole, industry, scenario,
+   373→                pretext: parsed.pretext || {},
+   374→                script: parsed.script || {},
+   375→                riskAssessment: parsed.riskAssessment || {},
+   376→                countermeasures: parsed.countermeasures || [],
+   377→                status: 'assessed',
+   378→                timestamp: new Date().toISOString(),
+   379→              },
+   380→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   381→            };
+   382→          }
+   383→
+   384→          // Heuristic fallback
+   385→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   386→          return {
+   387→            success: true,
+   388→            data: {
+   389→              action, targetRole, industry, scenario,
+   390→              pretext: {
+   391→                character: 'External IT vendor performing scheduled maintenance',
+   392→                backstory: 'Representing authorized vendor with existing contract for network equipment upgrades',
+   393→                approach: 'Arrive during business hours with fake work order and vendor badge',
+   394→                informationTargets: ['Network topology', 'Admin credentials', 'Server room access', 'WiFi network details'],
+   395→              },
+   396→              script: {
+   397→                opening: 'Hi, I am [name] from [vendor]. We have a scheduled maintenance window for the network switches today.',
+   398→                buildingTrust: 'I spoke with [CIO name] last week about this. The work order number is WO-2024-3847. Can you confirm the server room location?',
+   399→                extraction: 'I need to verify the network configuration before I start. Could you help me log into the admin console? The usual credentials should work.',
+   400→                closing: 'Thanks for your help. The maintenance is complete. You should receive a confirmation email from your IT team.',
+   401→              },
+   402→              riskAssessment: { likelihood: 0.65, potentialDamage: 'critical', detectability: 'low' },
+   403→              countermeasures: [
+   404→                'Verify all vendor visits with designated IT contact',
+   405→                'Require government-issued ID for all visitors',
+   406→                'Never provide credentials to unverified personnel',
+   407→                'Escort vendors at all times during facility access',
+   408→              ],
+   409→              status: 'assessed',
+   410→              timestamp: new Date().toISOString(),
+   411→            },
+   412→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   413→          };
+   414→        }
+   415→
+   416→        case 'simulate-attack': {
+   417→          const attackType = config.attackType || 'apt';
+   418→          const targetEnvironment = config.targetEnvironment;
+   419→          const killChain = config.killChain || 'lockheed-martin';
+   420→          const sophistication = config.sophistication || 'advanced';
+   421→
+   422→          if (!targetEnvironment) {
+   423→            return { success: false, error: '"targetEnvironment" is required for attack simulation' };
+   424→          }
+   425→
+   426→          this.logger.log(`Simulating ${attackType} attack on "${targetEnvironment}" (sophistication: ${sophistication})`);
+   427→
+   428→          const llmResult = await this.executeWithLLM(
+   429→            `You are an attack simulation expert. Design realistic attack scenarios following the cyber kill chain for authorized red team assessments.`,
+   430→            `Simulate ${attackType} attack. Target: ${targetEnvironment}. Kill chain: ${killChain}. Sophistication: ${sophistication}. Return JSON with: killChainSteps (array of {step, techniques, indicators, detectionDifficulty}), attackPaths (array of {path, probability, impact, detectionChance}), defensiveGaps (array of strings), purpleTeamRecommendations (array of strings).`,
+   431→            { responseFormat: 'json', temperature: 0.2, maxTokens: 2048 },
+   432→          );
+   433→
+   434→          const parsed = this.safeJsonParse(llmResult);
+   435→
+   436→          if (parsed) {
+   437→            this.emitEvent(AgentEventType.AGENT_COMPLETED, { action });
+   438→            return {
+   439→              success: true,
+   440→              data: {
+   441→                action, attackType, targetEnvironment, killChain, sophistication,
+   442→                killChainSteps: parsed.killChainSteps || [],
+   443→                attackPaths: parsed.attackPaths || [],
+   444→                defensiveGaps: parsed.defensiveGaps || [],
+   445→                purpleTeamRecommendations: parsed.purpleTeamRecommendations || [],
+   446→                status: 'simulated',
+   447→                timestamp: new Date().toISOString(),
+   448→              },
+   449→              metadata: { duration: Date.now() - startTime, source: 'llm' },
+   450→            };
+   451→          }
+   452→
+   453→          // Heuristic fallback
+   454→          this.emitEvent(AgentEventType.AGENT_COMPLETED, { action, source: 'fallback' });
+   455→          return {
+   456→            success: true,
+   457→            data: {
+   458→              action, attackType, targetEnvironment, killChain, sophistication,
+   459→              killChainSteps: [
+   460→                { step: 'Reconnaissance', techniques: ['OSINT', 'DNS enumeration', 'Port scanning'], indicators: ['Unusual DNS queries', 'Systematic port scan patterns'], detectionDifficulty: 'hard' },
+   461→                { step: 'Weaponization', techniques: ['Custom payload creation', 'Living-off-the-land tools'], indicators: ['Malware sandbox submissions', 'Tool signatures'], detectionDifficulty: 'hard' },
+   462→                { step: 'Delivery', techniques: ['Spear phishing', 'Watering hole', 'Supply chain'], indicators: ['Email header anomalies', 'Suspicious URL patterns'], detectionDifficulty: 'medium' },
+   463→                { step: 'Exploitation', techniques: ['Zero-day exploits', 'Known vulnerability exploitation'], indicators: ['Exploit attempt signatures', 'Anomalous process behavior'], detectionDifficulty: 'medium' },
+   464→                { step: 'Installation', techniques: ['Backdoor deployment', 'Rootkit installation'], indicators: ['Unauthorized scheduled tasks', 'Unknown services'], detectionDifficulty: 'medium' },
+   465→                { step: 'Command & Control', techniques: ['DNS tunneling', 'HTTPS beaconing'], indicators: ['Beaconing traffic patterns', 'DNS anomalies'], detectionDifficulty: 'easy' },
+   466→                { step: 'Actions on Objectives', techniques: ['Data staging', 'Exfiltration'], indicators: ['Large data transfers', 'Unusual access patterns'], detectionDifficulty: 'easy' },
+   467→              ],
+   468→              attackPaths: [
+   469→                { path: 'Phishing → RCE → Lateral Movement → Domain Admin → Data Exfil', probability: 0.35, impact: 'critical', detectionChance: 0.45 },
+   470→                { path: 'Web App Vuln → Shell → Privilege Escalation → Database Access', probability: 0.25, impact: 'high', detectionChance: 0.55 },
+   471→                { path: 'Supply Chain → Backdoor → Persistent Access → Data Collection', probability: 0.15, impact: 'critical', detectionChance: 0.25 },
+   472→              ],
+   473→              defensiveGaps: [
+   474→                'Email gateway lacks advanced threat protection',
+   475→                'No behavioral analytics for insider threat detection',
+   476→                'Insufficient network segmentation between zones',
+   477→                'Missing endpoint detection and response on 30% of endpoints',
+   478→              ],
+   479→              purpleTeamRecommendations: [
+   480→                'Implement behavioral analytics for C2 detection',
+   481→                'Deploy EDR across all endpoints',
+   482→                'Enhance email filtering with sandboxing',
+   483→                'Implement zero-trust network architecture',
+   484→                'Improve logging and SIEM correlation rules',
+   485→              ],
+   486→              status: 'simulated',
+   487→              timestamp: new Date().toISOString(),
+   488→            },
+   489→            metadata: { duration: Date.now() - startTime, source: 'fallback' },
+   490→          };
+   491→        }
+   492→
+   493→        default:
+   494→          return {
+   495→            success: false,
+   496→            error: `Unknown action: ${action}. Supported actions: red-team-op, simulate-phishing, social-engineer, test-physical, pretext, simulate-attack`,
+   497→          };
+   498→      }
+   499→    } catch (error: any) {
+   500→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   501→      return { success: false, error: error.message };
+   502→    }
+   503→  }
+   504→}
+   505→

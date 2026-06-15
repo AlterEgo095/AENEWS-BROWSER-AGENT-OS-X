@@ -23,8 +23,8 @@ export class PerceptionAgent extends BaseAgent {
 
   readonly missionCategories = [MissionCategory.AI_ORCHESTRATION];
   readonly creditCost = 2;
-  readonly powerLevel = 1;
-  readonly tier = 'standard';
+  readonly powerLevel = 2;
+  readonly tier = 'advanced';
 
   private buildHeuristicFallback(action: string, config: Record<string, any>, startTime: number): AgentResult {
     const timestamp = new Date().toISOString();

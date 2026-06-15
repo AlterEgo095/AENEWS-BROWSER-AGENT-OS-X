@@ -44,7 +44,7 @@ export class SystemHackerAgent extends BaseAgent {
       const authToken = config.authorizationToken || config.authToken;
       if (!authToken) {
         this.emitEvent(AgentEventType.AGENT_FAILED, { action, error: 'Authorization required', reason: 'missing_token' });
-        return { success: false, error: 'Red team operations require an authorizationToken. Provide config.authorizationToken to proceed.' };
+        return { success: false, error: 'System hacker operations require an authorizationToken. Provide config.authorizationToken to proceed.' };
       }
 
       const dryRun = config.dryRun === true;

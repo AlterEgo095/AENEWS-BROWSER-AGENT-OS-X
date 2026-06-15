@@ -31,8 +31,8 @@ export class EncryptionAgent extends BaseAgent {
 
   readonly missionCategories = [MissionCategory.SECURITY_OPS];
   readonly creditCost = 2;
-  readonly powerLevel = 1;
-  readonly tier = 'standard';
+  readonly powerLevel = 2;
+  readonly tier = 'advanced';
 
   async execute(context: AgentContext): Promise<AgentResult> {
     try {
