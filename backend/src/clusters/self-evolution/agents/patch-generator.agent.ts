@@ -4,6 +4,7 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 import { RequiresHumanApproval } from '../../../modules/agent-framework/decorators/human-approval.decorator';
 import {
   SandboxService,
@@ -81,6 +82,8 @@ export class PatchGeneratorAgent extends BaseAgent {
           this.logger.log(
             `Generating patch for plan ${planId} on branch ${branchName}`,
           );
+
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, planId, proposalId });
 
           const patchFiles = [
             {
@@ -191,6 +194,8 @@ export class PatchGeneratorAgent extends BaseAgent {
             );
           }
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { patchId: patch.patchId, sandboxValidated: !!this.sandboxService });
+
           return {
             success: true,
             data: {
@@ -222,6 +227,8 @@ export class PatchGeneratorAgent extends BaseAgent {
           this.logger.log(
             `Validating patch ${patchId} with checks: [${checks.join(', ')}]`,
           );
+
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, patchId, checks });
 
           const results = checks.map((check: string) => ({
             check,
@@ -334,6 +341,8 @@ export class PatchGeneratorAgent extends BaseAgent {
             `Testing patch ${patchId} in ${environment} with suites: [${testSuites.join(', ')}]`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, patchId, testSuites });
+
           const suiteResults = testSuites.map((suite: string) => ({
             suite,
             status: Math.random() > 0.1 ? 'passed' : 'failed',
@@ -443,6 +452,8 @@ export class PatchGeneratorAgent extends BaseAgent {
             `Applying patch ${patchId} to ${targetBranch} via ${strategy}`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, patchId, targetBranch, strategy });
+
           // ── Sandbox Integration: Run dry-run of patch application ─
           if (this.sandboxService) {
             const changes = this.sandboxService.getChangesByAgent(this.name);
@@ -516,6 +527,8 @@ export class PatchGeneratorAgent extends BaseAgent {
               : 'complete',
           };
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { patchId, status: application.status, sandboxValidated: !!this.sandboxService });
+
           return {
             success: true,
             data: {
@@ -536,6 +549,7 @@ export class PatchGeneratorAgent extends BaseAgent {
           return { success: false, error: `Unknown action: ${action}` };
       }
     } catch (error: any) {
+      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
       return { success: false, error: error.message };
     }
   }

@@ -4,6 +4,7 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
  * WeaknessDetectorAgent — second stage of the Self-Evolution loop.
@@ -29,7 +30,7 @@ export class WeaknessDetectorAgent extends BaseAgent {
     'prioritize-weaknesses',
     'generate-improvement-plan',
   ];
-  readonly version = '1.0.0';
+  readonly version = '2.0.0';
   readonly description =
     'Detects weak points from metrics and certification results, assesses their impact, and prioritizes improvement areas';
 
@@ -51,6 +52,15 @@ export class WeaknessDetectorAgent extends BaseAgent {
             `Detecting weaknesses from sources: [${sources.join(', ')}] (depth: ${scanDepth})`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, sources, scanDepth });
+
+          const llmResult = await this.executeWithLLM(
+            `You are a professional system weakness detection expert. Analyze metrics, certification results, and logs to identify systemic weaknesses.`,
+            `Detect weaknesses from sources: ${sources.join(', ')}, scanDepth="${scanDepth}", includeHistorical=${includeHistorical}, timeRange="${timeRange}", minConfidence=${minConfidence}. Return JSON with: weaknesses (array of {id, type, source, description, confidence, affectedComponents, detectedAt}), weaknessCount (number).`,
+            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+          );
+          const parsed = this.safeJsonParse(llmResult);
+
           const weaknesses: Array<{
             id: string;
             type: string;
@@ -59,7 +69,7 @@ export class WeaknessDetectorAgent extends BaseAgent {
             confidence: number;
             affectedComponents: string[];
             detectedAt: string;
-          }> = [
+          }> = parsed?.weaknesses || [
             {
               id: 'weakness-001',
               type: 'performance-bottleneck',
@@ -102,6 +112,8 @@ export class WeaknessDetectorAgent extends BaseAgent {
             },
           ].filter((w) => w.confidence >= minConfidence);
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { weaknessCount: weaknesses.length });
+
           return {
             success: true,
             data: {
@@ -136,7 +148,16 @@ export class WeaknessDetectorAgent extends BaseAgent {
             `Assessing impact for ${weaknessIds.length} weaknesses across dimensions: [${impactDimensions.join(', ')}]`,
           );
 
-          const impactAssessments = weaknessIds.map((id: string) => ({
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, weaknessIds, impactDimensions });
+
+          const llmResult = await this.executeWithLLM(
+            `You are a professional impact assessment expert. Evaluate the blast radius and severity of identified weaknesses.`,
+            `Assess impact for weaknessIds=${JSON.stringify(weaknessIds)}, dimensions=${JSON.stringify(impactDimensions)}, includeBlastRadius=${includeBlastRadius}, quantifiedEstimate=${quantifiedEstimate}. Return JSON with: impactAssessments (array of {weaknessId, overallImpact, dimensions: {object mapping dimension to {severity, score, description}}, blastRadius: {directlyAffectedServices, indirectlyAffectedServices, estimatedUserImpact, downstreamDependencies}, quantifiedEstimate: {potentialRevenueLoss, mttrEstimate, riskScore}}).`,
+            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+          );
+          const parsed = this.safeJsonParse(llmResult);
+
+          const impactAssessments = parsed?.impactAssessments || weaknessIds.map((id: string) => ({
             weaknessId: id,
             overallImpact: this.simulateImpactLevel(),
             dimensions: impactDimensions.reduce(
@@ -166,6 +187,8 @@ export class WeaknessDetectorAgent extends BaseAgent {
                 }
               : undefined,
           }));
+
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { assessedCount: impactAssessments.length });
 
           return {
             success: true,
@@ -204,20 +227,28 @@ export class WeaknessDetectorAgent extends BaseAgent {
             `Prioritizing ${weaknessIds.length} weaknesses using ${strategy} strategy`,
           );
 
-          const prioritized = weaknessIds
-            .map((id: string, index: number) => ({
-              weaknessId: id,
-              compositeScore: parseFloat((Math.random() * 10).toFixed(1)),
-              rank: 0,
-              impactScore: parseFloat((Math.random() * 10).toFixed(1)),
-              likelihoodScore: parseFloat((Math.random() * 10).toFixed(1)),
-              effortScore: parseFloat((Math.random() * 10).toFixed(1)),
-              businessValueScore: parseFloat((Math.random() * 10).toFixed(1)),
-              recommendedScheduling:
-                index < 2 ? 'immediate' : index < 4 ? 'this-sprint' : 'next-sprint',
-            }))
-            .sort((a: { compositeScore: number }, b: { compositeScore: number }) => b.compositeScore - a.compositeScore)
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, weaknessIds, strategy });
+
+          const llmResult = await this.executeWithLLM(
+            `You are a professional weakness prioritization expert. Rank weaknesses by composite priority score.`,
+            `Prioritize weaknesses: ids=${JSON.stringify(weaknessIds)}, strategy="${strategy}", weights=${JSON.stringify(weights)}, maxConcurrent=${maxConcurrent}. Return JSON with: prioritized (array of {weaknessId, compositeScore, impactScore, likelihoodScore, effortScore, businessValueScore, recommendedScheduling}).`,
+            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+          );
+          const parsed = this.safeJsonParse(llmResult);
+
+          const prioritized = (parsed?.prioritized || weaknessIds.map((id: string, index: number) => ({
+            weaknessId: id,
+            compositeScore: parseFloat((Math.random() * 10).toFixed(1)),
+            rank: 0,
+            impactScore: parseFloat((Math.random() * 10).toFixed(1)),
+            likelihoodScore: parseFloat((Math.random() * 10).toFixed(1)),
+            effortScore: parseFloat((Math.random() * 10).toFixed(1)),
+            businessValueScore: parseFloat((Math.random() * 10).toFixed(1)),
+            recommendedScheduling: index < 2 ? 'immediate' : index < 4 ? 'this-sprint' : 'next-sprint',
+          }))).sort((a: { compositeScore: number }, b: { compositeScore: number }) => b.compositeScore - a.compositeScore)
             .map((item: any, idx: number) => ({ ...item, rank: idx + 1 }));
+
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { prioritizedCount: prioritized.length, immediateCount: prioritized.filter((p: any) => p.recommendedScheduling === 'immediate').length });
 
           return {
             success: true,
@@ -257,7 +288,16 @@ export class WeaknessDetectorAgent extends BaseAgent {
             `Generating improvement plan for ${prioritizedWeaknessIds.length} weaknesses over ${planHorizon}`,
           );
 
-          const planItems = prioritizedWeaknessIds.map(
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, weaknessCount: prioritizedWeaknessIds.length, planHorizon });
+
+          const llmResult = await this.executeWithLLM(
+            `You are a professional improvement planning expert. Create a structured improvement plan with milestones and resource allocation.`,
+            `Generate improvement plan: weaknessIds=${JSON.stringify(prioritizedWeaknessIds)}, planHorizon="${planHorizon}", includeMilestones=${includeMilestones}, resourceConstraints=${JSON.stringify(resourceConstraints)}. Return JSON with: planItems (array of {weaknessId, phase, estimatedEffort, assigneeSuggestion, dependencies, targetDate}).`,
+            { responseFormat: 'json', temperature: 0.3, maxTokens: 2048 },
+          );
+          const parsed = this.safeJsonParse(llmResult);
+
+          const planItems = parsed?.planItems || prioritizedWeaknessIds.map(
             (id: string, index: number) => ({
               weaknessId: id,
               phase: index < 1 ? 'critical-fix' : index < 3 ? 'improvement' : 'optimization',
@@ -303,6 +343,8 @@ export class WeaknessDetectorAgent extends BaseAgent {
               ]
             : undefined;
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { planItemCount: planItems.length });
+
           return {
             success: true,
             data: {
@@ -326,6 +368,7 @@ export class WeaknessDetectorAgent extends BaseAgent {
           return { success: false, error: `Unknown action: ${action}` };
       }
     } catch (error: any) {
+      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
       return { success: false, error: error.message };
     }
   }

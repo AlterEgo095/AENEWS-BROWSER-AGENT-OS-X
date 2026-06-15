@@ -4,6 +4,7 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 import { RequiresHumanApproval } from '../../../modules/agent-framework/decorators/human-approval.decorator';
 import {
   SandboxService,
@@ -88,6 +89,8 @@ export class AutoCertifierAgent extends BaseAgent {
             `Running certification for patch ${patchId} across ${suites.length} suites (baseline EQI: ${baselineEqi})`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, patchId, baselineEqi });
+
           const suiteResults = suites.map((suite: string) => {
             const score = parseFloat(
               (Math.random() * 25 + 75).toFixed(1),
@@ -147,6 +150,8 @@ export class AutoCertifierAgent extends BaseAgent {
             }
           }
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { patchId, newEqi, eqiDelta, allPassed });
+
           return {
             success: allPassed,
             data: {
@@ -195,6 +200,8 @@ export class AutoCertifierAgent extends BaseAgent {
             `Verifying EQI for patch ${patchId}: current=${currentEqi}, baseline=${baselineEqi}`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, patchId, currentEqi, baselineEqi });
+
           const eqiDelta = parseFloat(
             (currentEqi - baselineEqi).toFixed(1),
           );
@@ -239,6 +246,8 @@ export class AutoCertifierAgent extends BaseAgent {
                 : eqiDelta === 0
                   ? 'eqi-unchanged'
                   : 'eqi-decreased';
+
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { patchId, eqiDelta, eqiImproved: eqiDelta > 0 });
 
           return {
             success: eqiDelta > 0,
@@ -307,6 +316,8 @@ export class AutoCertifierAgent extends BaseAgent {
           this.logger.log(
             `Approving merge for patch ${patchId} (EQI: ${currentEqi}, delta: +${eqiDelta})`,
           );
+
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, patchId, currentEqi, eqiDelta });
 
           // ── Sandbox Integration: Validate merge approval in sandbox ──
           if (this.sandboxService) {
@@ -387,6 +398,8 @@ export class AutoCertifierAgent extends BaseAgent {
             mergeStrategy: 'squash-merge',
             targetBranch: config.targetBranch || 'main',
           };
+
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { patchId, currentEqi, eqiDelta, approved: true });
 
           return {
             success: true,
@@ -475,6 +488,8 @@ export class AutoCertifierAgent extends BaseAgent {
               : undefined,
           };
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { patchId, eqiDelta, approved: false });
+
           return {
             success: false,
             data: {
@@ -494,6 +509,7 @@ export class AutoCertifierAgent extends BaseAgent {
           return { success: false, error: `Unknown action: ${action}` };
       }
     } catch (error: any) {
+      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
       return { success: false, error: error.message };
     }
   }

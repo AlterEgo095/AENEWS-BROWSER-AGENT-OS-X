@@ -4,6 +4,7 @@ import {
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
 import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 import { RequiresHumanApproval } from '../../../modules/agent-framework/decorators/human-approval.decorator';
 import {
   SandboxService,
@@ -79,6 +80,8 @@ export class RefactorProposerAgent extends BaseAgent {
             `Proposing refactoring for ${weaknessIds.length} weaknesses (strategy: ${strategy})`,
           );
 
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, weaknessIds, strategy });
+
           const proposals = weaknessIds.flatMap(
             (weaknessId: string, wIndex: number) => {
               const templates = this.getRefactorTemplates(wIndex);
@@ -149,6 +152,8 @@ export class RefactorProposerAgent extends BaseAgent {
             );
           }
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { proposalCount: proposals.length, sandboxValidated: !!this.sandboxService });
+
           return {
             success: true,
             data: {
@@ -177,6 +182,8 @@ export class RefactorProposerAgent extends BaseAgent {
           this.logger.log(
             `Analyzing impact for proposal ${proposalId} (depth: ${depth})`,
           );
+
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, proposalId, depth });
 
           const impactAnalysis = {
             proposalId,
@@ -248,6 +255,8 @@ export class RefactorProposerAgent extends BaseAgent {
               : { validated: false, error: sandboxResult.error };
           }
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { proposalId, overallRisk: impactAnalysis.riskAssessment.overallRisk });
+
           return {
             success: true,
             data: {
@@ -275,6 +284,8 @@ export class RefactorProposerAgent extends BaseAgent {
           this.logger.log(
             `Estimating effort for proposal ${proposalId} (method: ${estimationMethod})`,
           );
+
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, proposalId, estimationMethod });
 
           const effortEstimate = {
             proposalId,
@@ -332,6 +343,8 @@ export class RefactorProposerAgent extends BaseAgent {
             },
           };
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { proposalId, totalStoryPoints: effortEstimate.totalStoryPoints });
+
           return {
             success: true,
             data: {
@@ -358,6 +371,8 @@ export class RefactorProposerAgent extends BaseAgent {
           this.logger.log(
             `Generating execution plan for proposal ${proposalId} (style: ${planStyle})`,
           );
+
+          this.emitEvent(AgentEventType.AGENT_STARTED, { action, proposalId, planStyle });
 
           const steps = [
             {
@@ -495,6 +510,8 @@ export class RefactorProposerAgent extends BaseAgent {
               : `failed: ${dryRunResult.error}`;
           }
 
+          this.emitEvent(AgentEventType.AGENT_COMPLETED, { proposalId, totalSteps: plan.totalSteps });
+
           return {
             success: true,
             data: {
@@ -517,6 +534,7 @@ export class RefactorProposerAgent extends BaseAgent {
           return { success: false, error: `Unknown action: ${action}` };
       }
     } catch (error: any) {
+      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
       return { success: false, error: error.message };
     }
   }
