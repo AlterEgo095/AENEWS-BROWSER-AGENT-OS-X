@@ -1,32 +1,22 @@
 /**
  * Tests for the centralized API client.
- * Focuses on: method groups, getAuthHeaders, and localStorage interaction.
+ * Focuses on: method groups, getAuthHeaders, and Zustand store interaction.
  */
 
-// ─── localStorage mock ─────────────────────────────────────────────
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: jest.fn((key: string) => store[key] ?? null),
-    setItem: jest.fn((key: string, value: string) => {
-      store[key] = value;
-    }),
-    removeItem: jest.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: jest.fn(() => {
-      store = {};
-    }),
-  };
-})();
+// ─── Zustand store mock ──────────────────────────────────────────
+const mockAuthState = { token: null as string | null };
 
-Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock });
+jest.mock('@/store/auth-store', () => ({
+  useAuthStore: {
+    getState: jest.fn(() => mockAuthState),
+  },
+}));
 
 // ─── Import after mocks are in place ────────────────────────────────
 import { api, getAuthHeaders } from '@/lib/api';
 
 beforeEach(() => {
-  localStorageMock.clear();
+  mockAuthState.token = null;
   jest.clearAllMocks();
 });
 
@@ -37,19 +27,19 @@ describe('getAuthHeaders', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 
-  it('includes Authorization when localStorage has auth_token', () => {
-    localStorageMock.setItem('auth_token', 'test-jwt-token');
+  it('includes Authorization when Zustand store has a token', () => {
+    mockAuthState.token = 'test-jwt-token';
     const headers = getAuthHeaders();
     expect(headers['Authorization']).toBe('Bearer test-jwt-token');
   });
 
-  it('omits Authorization when localStorage has no auth_token', () => {
+  it('omits Authorization when Zustand store has no token', () => {
     const headers = getAuthHeaders();
     expect(headers['Authorization']).toBeUndefined();
   });
 
   it('always includes Content-Type even when token is present', () => {
-    localStorageMock.setItem('auth_token', 'another-token');
+    mockAuthState.token = 'another-token';
     const headers = getAuthHeaders();
     expect(headers['Content-Type']).toBe('application/json');
     expect(headers['Authorization']).toBe('Bearer another-token');

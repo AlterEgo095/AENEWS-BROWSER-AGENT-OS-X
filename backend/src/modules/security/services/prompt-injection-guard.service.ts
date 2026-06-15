@@ -76,8 +76,8 @@ const INJECTION_PATTERNS: InjectionPattern[] = [
   { pattern: /забудь\s+(?:все\s+)?(?:предыдущ(?:ие|ую)\s+)?(?:инструкци[ию]|правил[ао])/i, description: 'Instruction forget attempt (RU)', category: 'override', severity: 'critical' },
 
   // ── System-prompt override (German) ───────────────────────────────
-  { pattern: /\bignoriere\s+(?:alle\s+)?(?:vorherigen\s+)?(?:Anweisungen|Regeln|Hinweise)/i, description: 'Instruction override attempt (DE)', category: 'override', severity: 'critical' },
-  { pattern: /\bvergiss\s+(?:alle\s+)?(?:vorherigen\s+)?(?:Anweisungen|Regeln)/i, description: 'Instruction forget attempt (DE)', category: 'override', severity: 'critical' },
+  { pattern: /\bignoriere\s+(?:alle\s+)?(?:die\s+)?(?:vorherigen\s+)?(?:Anweisungen|Regeln|Hinweise)/i, description: 'Instruction override attempt (DE)', category: 'override', severity: 'critical' },
+  { pattern: /\bvergiss\s+(?:alle\s+)?(?:die\s+)?(?:vorherigen\s+)?(?:Anweisungen|Regeln)/i, description: 'Instruction forget attempt (DE)', category: 'override', severity: 'critical' },
 
   // ── System-prompt override (Spanish) ──────────────────────────────
   { pattern: /\bignora\s+(?:las?\s+)?(?:instrucciones|reglas|indicaciones)\s+(?:anteriores|previas)/i, description: 'Instruction override attempt (ES)', category: 'override', severity: 'critical' },
@@ -307,7 +307,12 @@ export class PromptInjectionGuardService {
    * @returns Content wrapped in guard markers with source label
    */
   wrapUntrusted(label: string, content: string): string {
-    const safeLabel = String(label).replace(/[<>"'&]/g, '').slice(0, 64);
+    // Strip HTML tags (anything between < and >) and their content, then remove remaining dangerous chars
+    const safeLabel = String(label)
+      .replace(/<[^>]*>.*?<\/[^>]*>/g, '') // Remove full HTML tags with content (e.g., <script>alert(1)</script>)
+      .replace(/<[^>]*>/g, '')               // Remove self-closing or unclosed tags
+      .replace(/[<>"'&]/g, '')               // Remove remaining dangerous chars
+      .slice(0, 64);
     return `${GUARD_OPEN.replace('>', ` source="${safeLabel}">`)}\n${content}\n${GUARD_CLOSE}`;
   }
 

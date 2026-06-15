@@ -63,7 +63,7 @@ export default () => ({
         throw new Error('FATAL: JWT_SECRET environment variable must be set in production. Refusing to start with no secret.');
       }
       console.warn('⚠️  WARNING: JWT_SECRET not set. Using insecure development-only secret. NEVER use this in production!');
-      return undefined;
+      return 'dev-only-insecure-jwt-secret-32c!';
     })(),
     expiration: process.env.JWT_EXPIRATION || '24h',
     refreshExpiration: process.env.JWT_REFRESH_EXPIRATION || '7d',
@@ -76,7 +76,7 @@ export default () => ({
         throw new Error('FATAL: ENCRYPTION_KEY environment variable must be set in production. Refusing to start with no key.');
       }
       console.warn('⚠️  WARNING: ENCRYPTION_KEY not set. Using insecure development-only key. NEVER use this in production!');
-      return undefined;
+      return 'dev-only-insecure-encrypt-key!';
     })(),
   },
   logging: {

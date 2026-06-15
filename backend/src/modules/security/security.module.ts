@@ -22,7 +22,7 @@
  *   - TotpService: RFC 6238 compliant TOTP two-factor authentication
  */
 
-import { Module, Global, MiddlewareConsumer } from '@nestjs/common';
+import { Module, Global, MiddlewareConsumer, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { AuditLog } from '../tenant/entities/audit-log.entity';
@@ -55,7 +55,7 @@ import { AuthRateLimitMiddleware } from './guards/auth-rate-limit.guard';
 @Module({
   imports: [
     TypeOrmModule.forFeature([AuditLog, User]),
-    AuthModule,
+    forwardRef(() => AuthModule),
     EventModule,
     TenantModule,
   ],

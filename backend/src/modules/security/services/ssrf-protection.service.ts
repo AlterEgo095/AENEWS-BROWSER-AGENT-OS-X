@@ -435,11 +435,27 @@ export class SsrfProtectionService {
       return { blocked: true, reason: 'IPv6 multicast address (ff00::/8)' };
     }
 
+    // IPv6-mapped IPv4: check both decimal form (::ffff:10.x) and hex form (::ffff:0aXX)
+    // URL parsers normalize ::ffff:192.168.1.1 → ::ffff:c0a8:101
+    const mappedPrefix = '::ffff:';
+    const hexPart = normalized.includes(mappedPrefix) ? normalized.split(mappedPrefix)[1] : '';
+
     if (normalized.includes('::ffff:7f') || normalized.includes('::ffff:127.')) {
       return { blocked: true, reason: 'IPv6-mapped IPv4 loopback address' };
     }
 
-    if (normalized.includes('::ffff:10.') || normalized.includes('::ffff:172.') || normalized.includes('::ffff:192.168')) {
+    // 10.0.0.0/8 in decimal (::ffff:10.) or hex (::ffff:0a or ::ffff:a followed by hex boundary)
+    if (normalized.includes('::ffff:10.') || /^0?a[0-9a-f]{0,2}:/i.test(hexPart)) {
+      return { blocked: true, reason: 'IPv6-mapped IPv4 private address' };
+    }
+
+    // 172.16.0.0/12 in decimal or hex (::ffff:ac1)
+    if (normalized.includes('::ffff:172.') || /^ac[0-9a-f]{0,2}:/i.test(hexPart)) {
+      return { blocked: true, reason: 'IPv6-mapped IPv4 private address' };
+    }
+
+    // 192.168.0.0/16 in decimal or hex (::ffff:c0a8)
+    if (normalized.includes('::ffff:192.168') || /^c0a8:/i.test(hexPart)) {
       return { blocked: true, reason: 'IPv6-mapped IPv4 private address' };
     }
 

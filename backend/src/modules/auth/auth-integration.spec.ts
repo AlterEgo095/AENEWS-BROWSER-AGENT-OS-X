@@ -75,7 +75,7 @@ function createMockAccountLockout() {
   };
 }
 
-function createMockRefreshTokenService(): RefreshTokenService {
+function createMockRefreshTokenService() {
   return {
     generateTokenPair: jest.fn(async (userId: string, tenantId: string, role: string, _meta?: any) => ({
       accessToken: 'access-token-' + userId,
@@ -89,7 +89,7 @@ function createMockRefreshTokenService(): RefreshTokenService {
     })),
     revokeToken: jest.fn(async () => true),
     revokeAllUserTokens: jest.fn(async () => 1),
-  } as any;
+  };
 }
 
 function createMockSecurityMetrics() {
@@ -111,7 +111,7 @@ function createMockThreatIntel() {
   };
 }
 
-function createMockTotpService(): TotpService {
+function createMockTotpService() {
   return {
     generateSecret: jest.fn(async (userId: string, email: string) => ({
       qrCode: 'base64-qr-code',
@@ -124,14 +124,14 @@ function createMockTotpService(): TotpService {
     hashBackupCodes: jest.fn(async (codes: string[]) => codes.map((c) => `$2b$10$hash_${c}`)),
     validateBackupCode: jest.fn(async () => ({ valid: true, usedBackupCodes: ['hashed-code'], backupCodeUsed: true })),
     generateBackupCodes: jest.fn(() => ['ABCD1234', 'EFGH5678']),
-  } as any;
+  };
 }
 
-function createMockEncryptionService(): EncryptionService {
+function createMockEncryptionService() {
   return {
     encrypt: jest.fn((plaintext: string) => Buffer.from(plaintext).toString('base64')),
     decrypt: jest.fn((encrypted: string) => Buffer.from(encrypted, 'base64').toString('utf-8')),
-  } as any;
+  };
 }
 
 function createMockEventService() {
@@ -432,7 +432,7 @@ describe('AuthService (Integration)', () => {
       );
 
       totpService.verifyToken.mockReturnValue(false);
-      totpService.validateBackupCode.mockResolvedValue({ valid: false });
+      totpService.validateBackupCode.mockResolvedValue({ valid: false, usedBackupCodes: [], backupCodeUsed: false });
 
       await expect(
         service.loginStep2(tempToken, '000000'),
@@ -523,7 +523,7 @@ describe('AuthService (Integration)', () => {
     it('should reject login when account is locked', async () => {
       accountLockout.isAccountLocked.mockResolvedValueOnce({
         locked: true,
-        lockedUntil: Date.now() + 15 * 60 * 1000,
+        lockedUntil: new Date(Date.now() + 15 * 60 * 1000) as any,
         remainingAttempts: 0,
       });
 
@@ -549,7 +549,7 @@ describe('AuthService (Integration)', () => {
     it('should trigger lockout when max attempts are exceeded', async () => {
       accountLockout.recordFailedAttempt.mockResolvedValueOnce({
         locked: true,
-        lockedUntil: Date.now() + 15 * 60 * 1000,
+        lockedUntil: new Date(Date.now() + 15 * 60 * 1000) as any,
         remainingAttempts: 0,
       });
 

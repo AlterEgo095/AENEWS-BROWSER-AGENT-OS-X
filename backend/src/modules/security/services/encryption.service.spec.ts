@@ -19,7 +19,7 @@ import { EncryptionService } from './encryption.service';
 /**
  * Create a ConfigService mock with a valid 32-char ENCRYPTION_KEY.
  */
-function createMockConfigService(key: string = 'aenews-test-encryption-key-32ch'): ConfigService {
+function createMockConfigService(key: string = 'aenews-test-encryption-key-32!!x'): ConfigService {
   return {
     get: jest.fn((path: string) => {
       if (path === 'encryption.key') return key;
@@ -49,9 +49,15 @@ describe('EncryptionService', () => {
   // ═══════════════════════════════════════════════════════════
 
   describe('construction', () => {
-    it('should throw if ENCRYPTION_KEY is not configured', () => {
-      const badConfig = createMockConfigService(undefined as any);
-      expect(() => new EncryptionService(badConfig)).toThrow('ENCRYPTION_KEY is not configured');
+    it('should throw if ENCRYPTION_KEY is not configured', async () => {
+      await expect(
+        Test.createTestingModule({
+          providers: [
+            EncryptionService,
+            { provide: ConfigService, useValue: { get: jest.fn(() => undefined) } },
+          ],
+        }).compile(),
+      ).rejects.toThrow('ENCRYPTION_KEY is not configured');
     });
 
     it('should throw if ENCRYPTION_KEY is not exactly 32 characters', () => {
@@ -60,7 +66,7 @@ describe('EncryptionService', () => {
     });
 
     it('should initialise with a valid 32-character key', () => {
-      const validConfig = createMockConfigService('aenews-test-encryption-key-32ch');
+      const validConfig = createMockConfigService('aenews-test-encryption-key-32!!x');
       expect(() => new EncryptionService(validConfig)).not.toThrow();
     });
   });
@@ -148,7 +154,7 @@ describe('EncryptionService', () => {
     it('should throw when decrypting with a different key', () => {
       const encrypted = service.encrypt('secret-data');
       // Create a service with a different key
-      const otherConfig = createMockConfigService('different-encryption-key-32ch!');
+      const otherConfig = createMockConfigService('different-encryption-key-32ch!!x');
       const otherService = new EncryptionService(otherConfig);
       expect(() => otherService.decrypt(encrypted)).toThrow('Decryption operation failed');
     });

@@ -18,10 +18,13 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe, UnauthorizedException } from '@nestjs/common';
+import { INestApplication, ValidationPipe, UnauthorizedException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { PassportModule, PassportStrategy } from '@nestjs/passport';
+import { Strategy } from 'passport-jwt';
 import { Reflector } from '@nestjs/core';
 import * as bcrypt from 'bcrypt';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 
 import { AuthController } from './auth.controller';
@@ -37,6 +40,26 @@ import { User, UserRole } from '../user/entities/user.entity';
 import { Tenant } from '../tenant/entities/tenant.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+
+// ─── Mock JWT Strategy ────────────────────────────────────────────
+
+@Injectable()
+class MockJwtStrategy extends PassportStrategy(Strategy) {
+  constructor() {
+    super({
+      jwtFromRequest: (req: any) => {
+        const auth = req?.headers?.authorization;
+        if (auth?.startsWith('Bearer ')) return auth.slice(7);
+        return null;
+      },
+      secretOrKey: 'test-jwt-secret',
+    });
+  }
+
+  validate(payload: any) {
+    return { id: payload.sub, email: payload.email, role: payload.role, tenantId: payload.tenantId };
+  }
+}
 
 // ─── Mock Factories ────────────────────────────────────────────
 
@@ -92,7 +115,7 @@ function createMockAccountLockout() {
   };
 }
 
-function createMockRefreshTokenService(): RefreshTokenService {
+function createMockRefreshTokenService() {
   return {
     generateTokenPair: jest.fn(async (userId: string, tenantId: string, role: string, _meta?: any) => ({
       accessToken: 'access-token-' + userId,
@@ -107,7 +130,7 @@ function createMockRefreshTokenService(): RefreshTokenService {
     revokeToken: jest.fn(async () => true),
     revokeAllUserTokens: jest.fn(async () => 1),
     getActiveSessions: jest.fn(async () => []),
-  } as any;
+  };
 }
 
 function createMockSecurityMetrics() {
@@ -129,7 +152,7 @@ function createMockThreatIntel() {
   };
 }
 
-function createMockTotpService(): TotpService {
+function createMockTotpService() {
   return {
     generateSecret: jest.fn(async (userId: string, email: string) => ({
       qrCode: 'base64-qr-code',
@@ -142,14 +165,14 @@ function createMockTotpService(): TotpService {
     hashBackupCodes: jest.fn(async (codes: string[]) => codes.map((c) => `$2b$10$hash_${c}`)),
     validateBackupCode: jest.fn(async () => ({ valid: true, usedBackupCodes: ['hashed-code'], backupCodeUsed: true })),
     generateBackupCodes: jest.fn(() => ['ABCD1234', 'EFGH5678']),
-  } as any;
+  };
 }
 
-function createMockEncryptionService(): EncryptionService {
+function createMockEncryptionService() {
   return {
     encrypt: jest.fn((plaintext: string) => Buffer.from(plaintext).toString('base64')),
     decrypt: jest.fn((encrypted: string) => Buffer.from(encrypted, 'base64').toString('utf-8')),
-  } as any;
+  };
 }
 
 function createMockEventService() {
@@ -178,6 +201,7 @@ async function createTestApp(users: User[] = []): Promise<INestApplication> {
 
   const moduleFixture: TestingModule = await Test.createTestingModule({
     controllers: [AuthController],
+    imports: [PassportModule.register({ defaultStrategy: 'jwt' })],
     providers: [
       AuthService,
       { provide: 'UserRepository', useValue: mockUserRepo },
@@ -190,7 +214,8 @@ async function createTestApp(users: User[] = []): Promise<INestApplication> {
       { provide: ThreatIntelligenceService, useValue: threatIntel },
       { provide: TotpService, useValue: totpService },
       { provide: EncryptionService, useValue: encryptionService },
-      // Guard dependencies
+      // Passport + JWT strategy for guard authentication
+      MockJwtStrategy,
       JwtAuthGuard,
       RolesGuard,
       { provide: Reflector, useValue: new Reflector() },
@@ -198,6 +223,7 @@ async function createTestApp(users: User[] = []): Promise<INestApplication> {
   }).compile();
 
   const app = moduleFixture.createNestApplication();
+  app.use(cookieParser());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -253,7 +279,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
       expect(cookies).toBeDefined();
 
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
 
       expect(refreshTokenCookie).toBeDefined();
       expect(refreshTokenCookie).toContain('HttpOnly');
@@ -284,7 +310,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
       const cookies = response.headers['set-cookie'] as string[] | string | undefined;
       if (cookies) {
         const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-        const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+        const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
         expect(refreshTokenCookie).toBeUndefined();
       }
     });
@@ -316,7 +342,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
       expect(cookies).toBeDefined();
 
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
 
       expect(refreshTokenCookie).toBeDefined();
       expect(refreshTokenCookie).toContain('HttpOnly');
@@ -374,7 +400,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
       expect(cookies).toBeDefined();
 
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
 
       if (refreshTokenCookie) {
         // The cleared cookie should either have Max-Age=0 or be empty
@@ -464,7 +490,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
       const cookies = response.headers['set-cookie'] as string[] | string | undefined;
       if (cookies) {
         const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-        const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+        const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
         expect(refreshTokenCookie).toBeUndefined();
       }
     });
@@ -501,7 +527,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
       expect(cookies).toBeDefined();
 
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
       expect(refreshTokenCookie).toBeDefined();
       expect(refreshTokenCookie).toContain('HttpOnly');
     });
@@ -617,7 +643,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
       expect(cookies).toBeDefined();
 
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
       expect(refreshTokenCookie).toBeDefined();
       expect(refreshTokenCookie).toContain('HttpOnly');
       expect(refreshTokenCookie).toContain('SameSite=Strict');
@@ -698,7 +724,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
 
       const cookies = response.headers['set-cookie'] as string[] | string | undefined;
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
       expect(refreshTokenCookie).toContain('HttpOnly');
     });
 
@@ -710,7 +736,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
 
       const cookies = response.headers['set-cookie'] as string[] | string | undefined;
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
       expect(refreshTokenCookie).toContain('SameSite=Strict');
     });
 
@@ -722,7 +748,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
 
       const cookies = response.headers['set-cookie'] as string[] | string | undefined;
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
       expect(refreshTokenCookie).toContain('Path=/api/v1/auth');
     });
 
@@ -734,7 +760,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
 
       const cookies = response.headers['set-cookie'] as string[] | string | undefined;
       const cookieList = Array.isArray(cookies) ? cookies : [cookies];
-      const refreshTokenCookie = cookieList.find((c: string) => c.startsWith('refresh_token='));
+      const refreshTokenCookie = cookieList.filter(Boolean).find((c) => c?.startsWith('refresh_token='));
       // Max-Age should be set (7 days = 604800 seconds, or 604800000 ms in some formats)
       expect(refreshTokenCookie).toMatch(/Max-Age=\d+/);
     });
@@ -781,7 +807,7 @@ describe('AuthController — Cookie-based Auth (Integration)', () => {
     it('should handle account lockout during login', async () => {
       (accountLockout.isAccountLocked as jest.Mock).mockResolvedValueOnce({
         locked: true,
-        lockedUntil: Date.now() + 15 * 60 * 1000,
+        lockedUntil: new Date(Date.now() + 15 * 60 * 1000) as any,
         remainingAttempts: 0,
       });
 
