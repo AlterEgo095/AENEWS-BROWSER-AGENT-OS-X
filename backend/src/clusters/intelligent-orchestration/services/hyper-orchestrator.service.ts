@@ -121,6 +121,7 @@ const CLUSTER_CAPABILITY_MAP: Record<ClusterType, string[]> = {
   [ClusterType.WATCHDOG]: ['circuit-breaker', 'error-analyzer', 'auto-fixer'],
   [ClusterType.SELF_EVOLUTION]: ['auto-certifier', 'patch-generator', 'metric-analyzer', 'weakness-detector', 'refactor-proposer'],
   [ClusterType.CERTIFICATION]: ['memory-auditor', 'observability-auditor', 'security-auditor', 'documentation-auditor', 'performance-auditor', 'architecture-auditor', 'regression-auditor', 'compliance-auditor', 'plugin-auditor', 'orchestrator-auditor', 'test-auditor', 'browser-auditor', 'ai-quality-auditor'],
+  [ClusterType.STEALTH_OPS]: ['stealth-navigation', 'proxy-rotation', 'fingerprint-masking', 'anti-detection', 'covert-ops'],
   [ClusterType.DATA_INTELLIGENCE]: ['data-pipeline', 'data-warehouse', 'realtime-analytics', 'data-quality', 'ml-pipeline'],
   [ClusterType.COMMUNICATION]: ['api-gateway', 'webhook', 'notification', 'websocket'],
 };
