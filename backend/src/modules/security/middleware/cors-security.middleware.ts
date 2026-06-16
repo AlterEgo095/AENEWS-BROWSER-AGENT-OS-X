@@ -80,9 +80,16 @@ export class CorsSecurityMiddleware {
   getCorsOptions(): Record<string, any> {
     return {
       origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        // Allow requests without origin (server-to-server, Postman, etc.)
+        // Block requests without origin in production to prevent CSRF via curl/Postman.
+        // In development, allow for easier testing.
         if (!origin) {
-          callback(null, true);
+          const isDev = this.configService?.get<string>('app.env') === 'development';
+          if (isDev) {
+            callback(null, true);
+          } else {
+            this.logger.warn('CORS blocked request without Origin header (production mode)');
+            callback(null, false);
+          }
           return;
         }
 

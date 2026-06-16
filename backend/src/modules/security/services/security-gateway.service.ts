@@ -86,8 +86,9 @@ export class SecurityGatewayService {
   /** Registered security policies */
   private readonly policies: Map<string, SecurityPolicy> = new Map();
 
-  /** Audit log (in-memory, should be persisted in production) */
+  /** Audit log (in-memory ring buffer with max size — persisted via SecurityAuditPersistenceService) */
   private readonly auditLog: AuditLogEntry[] = [];
+  private readonly maxAuditLogSize = 10000;
 
   /** Rate limiting counters: Map<key, { count, windowStart }> */
   private readonly rateCounters: Map<string, { count: number; windowStart: number }> = new Map();
@@ -295,7 +296,7 @@ export class SecurityGatewayService {
       resultAction = 'block';
     }
 
-    // Audit log
+    // Audit log (bounded ring buffer)
     this.auditLog.push({
       id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
       timestamp: new Date(),
@@ -309,6 +310,10 @@ export class SecurityGatewayService {
       policy,
       metadata: context?.metadata || {},
     });
+    // Evict oldest entries to prevent unbounded memory growth
+    if (this.auditLog.length > this.maxAuditLogSize) {
+      this.auditLog.splice(0, this.auditLog.length - this.maxAuditLogSize);
+    }
 
     const allowed = resultAction === 'allow' || resultAction === 'sanitize';
 

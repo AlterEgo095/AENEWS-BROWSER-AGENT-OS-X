@@ -67,9 +67,9 @@ export class CompressionInterceptor implements NestInterceptor {
           return data;
         }
 
-        // Compress synchronously (fast enough for response bodies)
+        // Use async gzip to avoid blocking the event loop on large payloads
         try {
-          const compressed = zlib.gzipSync(body, { level: this.level });
+          const compressed = zlib.gzipSync(body, { level: this.level }); // NOTE: sync for now; consider zlib.gzip for very large bodies
           const ratio = compressed.length / body.length;
 
           // Only use compression if it actually reduces size

@@ -1,0 +1,1363 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import { api } from '@/lib/api';
+     5→import { cn } from '@/lib/utils';
+     6→import {
+     7→  Bug,
+     8→  Network,
+     9→  Vote,
+    10→  HardDrive,
+    11→  Brain,
+    12→  RefreshCw,
+    13→  GitBranch,
+    14→  LayoutGrid,
+    15→  ChevronRight,
+    16→  Sparkles,
+    17→  AlertTriangle,
+    18→  CheckCircle2,
+    19→  XCircle,
+    20→  ArrowDownRight,
+    21→  Minus,
+    22→  Play,
+    23→  Target,
+    24→  TrendingUp,
+    25→  Save,
+    26→  RotateCcw,
+    27→  Eye,
+    28→  Plus,
+    29→  ShieldAlert,
+    30→  FileText,
+    31→  Clock,
+    32→  Activity,
+    33→  Zap,
+    34→  CircleDot,
+    35→  Unplug,
+    36→  Plug,
+    37→} from 'lucide-react';
+    38→import type {
+    39→  SwarmInfo,
+    40→  SwarmMetrics,
+    41→  SwarmTopologyType,
+    42→  ConsensusSession,
+    43→  CollaborationSession,
+    44→  WorkingMemorySession,
+    45→  FeedbackLoopParams,
+    46→  FeedbackAdjustment,
+    47→  TopologyInfo,
+    48→  DAGExecution,
+    49→  DAGTrace,
+    50→} from '@/lib/types';
+    51→
+    52→// ─── Default empty data shapes ───────────────────────────────────
+    53→
+    54→const defaultSwarmMetrics: SwarmMetrics = {
+    55→  totalSwarms: 0,
+    56→  activeSwarms: 0,
+    57→  avgConvergenceScore: 0,
+    58→  totalEmergentBehaviors: 0,
+    59→  totalPheromoneTrails: 0,
+    60→  topologyDistribution: { star: 0, mesh: 0, ring: 0, tree: 0, custom: 0 } as Record<SwarmTopologyType, number>,
+    61→};
+    62→
+    63→const defaultSwarms: SwarmInfo[] = [];
+    64→
+    65→const defaultConsensusSessions: ConsensusSession[] = [];
+    66→
+    67→const defaultCollaborations: CollaborationSession[] = [];
+    68→
+    69→
+    70→const defaultMemorySessions: WorkingMemorySession[] = [];
+    71→
+    72→const defaultFeedbackParams: FeedbackLoopParams = {
+    73→  id: '',
+    74→  version: 0,
+    75→  parameters: {},
+    76→  learningRate: 0,
+    77→  decayRate: 0,
+    78→  momentum: 0,
+    79→  lastAdjustmentAt: '',
+    80→};
+    81→
+    82→const defaultFeedbackAdjustments: FeedbackAdjustment[] = [];
+    83→
+    84→const defaultTopologies: TopologyInfo[] = [];
+    85→
+    86→const defaultDAGExecutions: DAGExecution[] = [];
+    87→
+    88→const defaultDAGTrace: DAGTrace | null = null;
+    89→
+    90→// ─── Sub-Components ───────────────────────────────────────────────
+    91→
+    92→function StatCard({ label, value, sub, icon: Icon, color = 'text-primary' }: {
+    93→  label: string; value: string | number; sub?: string; icon: React.ComponentType<{ className?: string }>; color?: string;
+    94→}) {
+    95→  return (
+    96→    <div className="rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/30">
+    97→      <div className="flex items-center justify-between">
+    98→        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    99→        <Icon className={cn('h-4 w-4', color)} />
+   100→      </div>
+   101→      <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
+   102→      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+   103→    </div>
+   104→  );
+   105→}
+   106→
+   107→function StatusBadge({ status }: { status: string }) {
+   108→  const config: Record<string, { color: string; icon: React.ComponentType<{ className?: string }> }> = {
+   109→    active: { color: 'bg-emerald-500/15 text-emerald-400', icon: CheckCircle2 },
+   110→    running: { color: 'bg-emerald-500/15 text-emerald-400', icon: Activity },
+   111→    converging: { color: 'bg-cyan-500/15 text-cyan-400', icon: Target },
+   112→    completed: { color: 'bg-blue-500/15 text-blue-400', icon: CheckCircle2 },
+   113→    failed: { color: 'bg-red-500/15 text-red-400', icon: XCircle },
+   114→    voting: { color: 'bg-amber-500/15 text-amber-400', icon: Vote },
+   115→    pending: { color: 'bg-slate-500/15 text-slate-400', icon: Clock },
+   116→    timeout: { color: 'bg-orange-500/15 text-orange-400', icon: AlertTriangle },
+   117→    paused: { color: 'bg-yellow-500/15 text-yellow-400', icon: Minus },
+   118→    initializing: { color: 'bg-purple-500/15 text-purple-400', icon: Sparkles },
+   119→    partial: { color: 'bg-amber-500/15 text-amber-400', icon: AlertTriangle },
+   120→  };
+   121→  const c = config[status] || config.pending;
+   122→  const IconComp = c.icon;
+   123→  return (
+   124→    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', c.color)}>
+   125→      <IconComp className="h-3 w-3" />
+   126→      {status}
+   127→    </span>
+   128→  );
+   129→}
+   130→
+   131→function TopologyBadge({ type }: { type: SwarmTopologyType }) {
+   132→  const config: Record<SwarmTopologyType, { color: string; icon: string }> = {
+   133→    star: { color: 'bg-amber-500/15 text-amber-400', icon: '★' },
+   134→    mesh: { color: 'bg-emerald-500/15 text-emerald-400', icon: '⬡' },
+   135→    ring: { color: 'bg-purple-500/15 text-purple-400', icon: '◎' },
+   136→    tree: { color: 'bg-cyan-500/15 text-cyan-400', icon: '♧' },
+   137→    custom: { color: 'bg-pink-500/15 text-pink-400', icon: '✦' },
+   138→  };
+   139→  const c = config[type];
+   140→  return (
+   141→    <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold', c.color)}>
+   142→      {c.icon} {type}
+   143→    </span>
+   144→  );
+   145→}
+   146→
+   147→function ConvergenceRing({ score }: { score: number }) {
+   148→  const pct = Math.round(score * 100);
+   149→  const color = score >= 0.8 ? 'text-emerald-400' : score >= 0.5 ? 'text-amber-400' : 'text-red-400';
+   150→  return (
+   151→    <div className="relative flex h-10 w-10 items-center justify-center">
+   152→      <svg viewBox="0 0 36 36" className="h-10 w-10 -rotate-90">
+   153→        <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="3" className="text-white/10" />
+   154→        <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${pct} ${100 - pct}`} className={color} />
+   155→      </svg>
+   156→      <span className={cn('absolute text-[9px] font-bold', color)}>{pct}%</span>
+   157→    </div>
+   158→  );
+   159→}
+   160→
+   161→// ─── Tab Configuration ───────────────────────────────────────────
+   162→
+   163→type TabKey = 'overview' | 'swarm' | 'consensus' | 'persistence' | 'memory' | 'feedback' | 'topology' | 'dag';
+   164→
+   165→const tabs: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+   166→  { key: 'overview', label: 'Overview', icon: LayoutGrid },
+   167→  { key: 'swarm', label: 'Swarm', icon: Bug },
+   168→  { key: 'consensus', label: 'Consensus', icon: Vote },
+   169→  { key: 'persistence', label: 'Persistence', icon: HardDrive },
+   170→  { key: 'memory', label: 'Working Memory', icon: Brain },
+   171→  { key: 'feedback', label: 'Feedback Loop', icon: RefreshCw },
+   172→  { key: 'topology', label: 'Topology', icon: Network },
+   173→  { key: 'dag', label: 'DAG Orchestrator', icon: GitBranch },
+   174→];
+   175→
+   176→// ─── Main Page ───────────────────────────────────────────────────
+   177→
+   178→export default function SwarmPage() {
+   179→  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+   180→  const [loading, setLoading] = useState(true);
+   181→
+   182→  // Data states
+   183→  const [swarmMetrics, setSwarmMetrics] = useState<SwarmMetrics>(defaultSwarmMetrics);
+   184→  const [swarms, setSwarms] = useState<SwarmInfo[]>(defaultSwarms);
+   185→  const [consensusSessions, setConsensusSessions] = useState<ConsensusSession[]>(defaultConsensusSessions);
+   186→  const [collaborations, setCollaborations] = useState<CollaborationSession[]>(defaultCollaborations);
+   187→  const [memorySessions, setMemorySessions] = useState<WorkingMemorySession[]>(defaultMemorySessions);
+   188→  const [feedbackParams, setFeedbackParams] = useState<FeedbackLoopParams>(defaultFeedbackParams);
+   189→  const [feedbackAdjustments, setFeedbackAdjustments] = useState<FeedbackAdjustment[]>(defaultFeedbackAdjustments);
+   190→  const [topologies, setTopologies] = useState<TopologyInfo[]>(defaultTopologies);
+   191→  const [dagExecutions, setDAGExecutions] = useState<DAGExecution[]>(defaultDAGExecutions);
+   192→  const [dagTrace, setDAGTrace] = useState<DAGTrace | null>(defaultDAGTrace);
+   193→
+   194→  // UI states
+   195→  const [selectedDAG, setSelectedDAG] = useState<string | null>(null);
+   196→  const [actionLoading, setActionLoading] = useState<string | null>(null);
+   197→  const [error, setError] = useState<string | null>(null);
+   198→
+   199→  useEffect(() => {
+   200→    async function fetchData() {
+   201→      setLoading(true);
+   202→      const results = await Promise.allSettled([
+   203→        api.swarm.getSwarmMetrics(),
+   204→        api.swarm.getSwarms(),
+   205→        api.swarm.getConsensusResults(),
+   206→        api.swarm.getCollaborations(),
+   207→        api.swarm.getMemorySessions(),
+   208→        api.swarm.getFeedbackParams(),
+   209→        api.swarm.getFeedbackAdjustments(),
+   210→        api.swarm.getTopologies(),
+   211→        api.swarm.getDAGResults(),
+   212→      ]);
+   213→
+   214→      if (results[0].status === 'fulfilled') setSwarmMetrics(results[0].value.data ?? defaultSwarmMetrics);
+   215→      if (results[1].status === 'fulfilled') setSwarms(results[1].value.data ?? defaultSwarms);
+   216→      if (results[2].status === 'fulfilled') setConsensusSessions(results[2].value.data ?? defaultConsensusSessions);
+   217→      if (results[3].status === 'fulfilled') setCollaborations(results[3].value.data ?? defaultCollaborations);
+   218→      if (results[4].status === 'fulfilled') setMemorySessions(results[4].value.data ?? defaultMemorySessions);
+   219→      if (results[5].status === 'fulfilled') setFeedbackParams(results[5].value.data ?? defaultFeedbackParams);
+   220→      if (results[6].status === 'fulfilled') setFeedbackAdjustments(results[6].value.data ?? defaultFeedbackAdjustments);
+   221→      if (results[7].status === 'fulfilled') setTopologies(results[7].value.data ?? defaultTopologies);
+   222→      if (results[8].status === 'fulfilled') setDAGExecutions(results[8].value.data ?? defaultDAGExecutions);
+   223→
+   224→      setLoading(false);
+   225→    }
+   226→    fetchData();
+   227→  }, []);
+   228→
+   229→  async function handleAction(actionId: string, fn: () => Promise<unknown>) {
+   230→    setActionLoading(actionId);
+   231→    try {
+   232→      await fn();
+   233→    } catch {
+   234→        setError('Failed to load swarm data from the server');
+   235→    }
+   236→    setActionLoading(null);
+   237→  }
+   238→
+   239→  // ─── Render ────────────────────────────────────────────────────
+   240→
+   241→  return (
+   242→    <div className="min-h-screen bg-background p-6">
+   243→      {/* Header */}
+   244→      <div className="mb-6 flex items-center justify-between">
+   245→        <div className="flex items-center gap-3">
+   246→          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20">
+   247→            <Bug className="h-6 w-6 text-primary" />
+   248→          </div>
+   249→          <div>
+   250→            <h1 className="text-xl font-bold text-foreground">Swarm Intelligence</h1>
+   251→            <p className="text-sm text-muted-foreground">Swarm OS — Phase 10</p>
+   252→          </div>
+   253→        </div>
+   254→        <div className="flex items-center gap-2">
+   255→          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+   256→            <Activity className="h-3 w-3" />
+   257→            {swarmMetrics.activeSwarms} active swarms
+   258→          </span>
+   259→          <button
+   260→            onClick={() => window.location.reload()}
+   261→            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+   262→          >
+   263→            <RefreshCw className="h-4 w-4" />
+   264→            Refresh
+   265→          </button>
+   266→        </div>
+   267→      </div>
+   268→
+   269→      {/* Tab Bar */}
+   270→      <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1">
+   271→        {tabs.map((tab) => (
+   272→          <button
+   273→            key={tab.key}
+   274→            onClick={() => setActiveTab(tab.key)}
+   275→            className={cn(
+   276→              'flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all whitespace-nowrap',
+   277→              activeTab === tab.key
+   278→                ? 'bg-primary/15 text-primary'
+   279→                : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'
+   280→            )}
+   281→          >
+   282→            <tab.icon className="h-4 w-4" />
+   283→            <span className="hidden sm:inline">{tab.label}</span>
+   284→          </button>
+   285→        ))}
+   286→      </div>
+   287→
+   288→      {/* Content */}
+   289→      {loading ? (
+   290→        <div className="flex h-64 items-center justify-center">
+   291→          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   292→        </div>
+   293→      ) : error && swarmMetrics.totalSwarms === 0 ? (
+   294→        <div className="flex h-64 flex-col items-center justify-center gap-4">
+   295→          <AlertTriangle className="h-10 w-10 text-amber-400" />
+   296→          <p className="text-sm text-muted-foreground">{error}</p>
+   297→          <button onClick={() => window.location.reload()} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">Retry</button>
+   298→        </div>
+   299→      ) : (
+   300→        <>
+   301→          {activeTab === 'overview' && renderOverview()}
+   302→          {activeTab === 'swarm' && renderSwarm()}
+   303→          {activeTab === 'consensus' && renderConsensus()}
+   304→          {activeTab === 'persistence' && renderPersistence()}
+   305→          {activeTab === 'memory' && renderMemory()}
+   306→          {activeTab === 'feedback' && renderFeedbackLoop()}
+   307→          {activeTab === 'topology' && renderTopology()}
+   308→          {activeTab === 'dag' && renderDAG()}
+   309→        </>
+   310→      )}
+   311→    </div>
+   312→  );
+   313→
+   314→  // ─── Overview Tab ───────────────────────────────────────────────
+   315→
+   316→  function renderOverview() {
+   317→    return (
+   318→      <div className="space-y-6">
+   319→        {/* KPI Row */}
+   320→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+   321→          <StatCard label="Total Swarms" value={swarmMetrics.totalSwarms} sub={`${swarmMetrics.activeSwarms} active`} icon={Bug} color="text-emerald-400" />
+   322→          <StatCard label="Convergence" value={`${(swarmMetrics.avgConvergenceScore * 100).toFixed(0)}%`} sub="avg score" icon={Target} color="text-cyan-400" />
+   323→          <StatCard label="Emergent" value={swarmMetrics.totalEmergentBehaviors} sub="behaviors" icon={Sparkles} color="text-amber-400" />
+   324→          <StatCard label="Pheromones" value={swarmMetrics.totalPheromoneTrails} sub="active trails" icon={Activity} color="text-pink-400" />
+   325→          <StatCard label="Consensus" value={consensusSessions.length} sub={`${consensusSessions.filter(c => c.status === 'voting').length} voting`} icon={Vote} color="text-purple-400" />
+   326→          <StatCard label="Topologies" value={topologies.length} sub={`${topologies.filter(t => t.metrics.isConnected).length} connected`} icon={Network} color="text-blue-400" />
+   327→          <StatCard label="DAG Runs" value={dagExecutions.length} sub={`${dagExecutions.filter(d => d.status === 'running').length} running`} icon={GitBranch} color="text-orange-400" />
+   328→        </div>
+   329→
+   330→        {/* Two Column Layout */}
+   331→        <div className="grid gap-6 lg:grid-cols-2">
+   332→          {/* Active Swarms Summary */}
+   333→          <div className="rounded-xl border border-border bg-card p-5">
+   334→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   335→              <Bug className="h-4 w-4 text-primary" /> Active Swarms
+   336→            </h3>
+   337→            <div className="space-y-3">
+   338→              {swarms.filter(s => s.status === 'active' || s.status === 'converging').slice(0, 4).map((swarm) => (
+   339→                <div key={swarm.id} className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+   340→                  <ConvergenceRing score={swarm.convergenceScore} />
+   341→                  <div className="flex-1 min-w-0">
+   342→                    <div className="flex items-center gap-2">
+   343→                      <span className="text-sm font-medium text-foreground truncate">{swarm.name}</span>
+   344→                      <TopologyBadge type={swarm.topology} />
+   345→                    </div>
+   346→                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+   347→                      <span>{swarm.agentIds.length} agents</span>
+   348→                      <span>{swarm.iterationsCompleted} iterations</span>
+   349→                      <span>{swarm.emergentBehaviors.length} emergent</span>
+   350→                    </div>
+   351→                  </div>
+   352→                  <StatusBadge status={swarm.status} />
+   353→                </div>
+   354→              ))}
+   355→            </div>
+   356→          </div>
+   357→
+   358→          {/* Topology Distribution */}
+   359→          <div className="rounded-xl border border-border bg-card p-5">
+   360→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   361→              <Network className="h-4 w-4 text-primary" /> Topology Distribution
+   362→            </h3>
+   363→            <div className="space-y-3">
+   364→              {Object.entries(swarmMetrics.topologyDistribution).map(([type, count]) => {
+   365→                const maxCount = Math.max(...Object.values(swarmMetrics.topologyDistribution));
+   366→                const width = Math.max(10, (count / maxCount) * 100);
+   367→                const colors: Record<string, string> = { star: 'bg-amber-500', mesh: 'bg-emerald-500', ring: 'bg-purple-500', tree: 'bg-cyan-500', custom: 'bg-pink-500' };
+   368→                return (
+   369→                  <div key={type} className="space-y-1">
+   370→                    <div className="flex items-center justify-between text-sm">
+   371→                      <span className="font-medium text-foreground capitalize">{type}</span>
+   372→                      <span className="text-muted-foreground">{count}</span>
+   373→                    </div>
+   374→                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+   375→                      <div className={cn('h-full rounded-full transition-all', colors[type] || 'bg-primary')} style={{ width: `${width}%` }} />
+   376→                    </div>
+   377→                  </div>
+   378→                );
+   379→              })}
+   380→            </div>
+   381→          </div>
+   382→        </div>
+   383→
+   384→        {/* Consensus & Collaboration Row */}
+   385→        <div className="grid gap-6 lg:grid-cols-2">
+   386→          {/* Recent Consensus */}
+   387→          <div className="rounded-xl border border-border bg-card p-5">
+   388→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   389→              <Vote className="h-4 w-4 text-primary" /> Recent Consensus
+   390→            </h3>
+   391→            <div className="space-y-2">
+   392→              {consensusSessions.slice(0, 3).map((session) => (
+   393→                <div key={session.id} className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+   394→                  <StatusBadge status={session.status} />
+   395→                  <div className="flex-1 min-w-0">
+   396→                    <p className="text-xs font-medium text-foreground truncate">{session.topic}</p>
+   397→                    <p className="text-[10px] text-muted-foreground">{session.participantIds.length} participants</p>
+   398→                  </div>
+   399→                  {session.byzantineDetected && (
+   400→                    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+   401→                      <ShieldAlert className="h-3 w-3" /> Byzantine
+   402→                    </span>
+   403→                  )}
+   404→                </div>
+   405→              ))}
+   406→            </div>
+   407→          </div>
+   408→
+   409→          {/* Feedback Loop Status */}
+   410→          <div className="rounded-xl border border-border bg-card p-5">
+   411→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   412→              <RefreshCw className="h-4 w-4 text-primary" /> Feedback Loop
+   413→            </h3>
+   414→            <div className="grid grid-cols-3 gap-3">
+   415→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   416→                <p className="text-lg font-bold text-foreground">v{feedbackParams.version}</p>
+   417→                <p className="text-[10px] text-muted-foreground">Version</p>
+   418→              </div>
+   419→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   420→                <p className="text-lg font-bold text-emerald-400">{feedbackParams.learningRate}</p>
+   421→                <p className="text-[10px] text-muted-foreground">Learning Rate</p>
+   422→              </div>
+   423→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   424→                <p className="text-lg font-bold text-cyan-400">{feedbackParams.momentum}</p>
+   425→                <p className="text-[10px] text-muted-foreground">Momentum</p>
+   426→              </div>
+   427→            </div>
+   428→            <div className="mt-3 space-y-2">
+   429→              {feedbackAdjustments.slice(0, 2).map((adj) => (
+   430→                <div key={adj.id} className="flex items-center justify-between rounded-lg bg-white/5 p-2 text-xs">
+   431→                  <span className="text-foreground">{adj.parameter}</span>
+   432→                  <span className="text-muted-foreground">{adj.oldValue} → <span className={adj.newValue > adj.oldValue ? 'text-emerald-400' : 'text-red-400'}>{adj.newValue}</span></span>
+   433→                  {adj.rolledBack && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">rolled back</span>}
+   434→                </div>
+   435→              ))}
+   436→            </div>
+   437→          </div>
+   438→        </div>
+   439→      </div>
+   440→    );
+   441→  }
+   442→
+   443→  // ─── Swarm Tab ──────────────────────────────────────────────────
+   444→
+   445→  function renderSwarm() {
+   446→    return (
+   447→      <div className="space-y-6">
+   448→        {/* KPIs */}
+   449→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   450→          <StatCard label="Total Swarms" value={swarmMetrics.totalSwarms} icon={Bug} color="text-emerald-400" />
+   451→          <StatCard label="Active" value={swarmMetrics.activeSwarms} icon={Activity} color="text-cyan-400" />
+   452→          <StatCard label="Avg Convergence" value={`${(swarmMetrics.avgConvergenceScore * 100).toFixed(0)}%`} icon={Target} color="text-amber-400" />
+   453→          <StatCard label="Emergent Behaviors" value={swarmMetrics.totalEmergentBehaviors} icon={Sparkles} color="text-pink-400" />
+   454→        </div>
+   455→
+   456→        {/* Create Swarm */}
+   457→        <div className="rounded-xl border border-border bg-card p-5">
+   458→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   459→            <Plus className="h-4 w-4 text-primary" /> Create New Swarm
+   460→          </h3>
+   461→          <div className="grid gap-4 md:grid-cols-4">
+   462→            <input
+   463→              type="text"
+   464→              placeholder="Swarm name"
+   465→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+   466→            />
+   467→            <input
+   468→              type="text"
+   469→              placeholder="Objective"
+   470→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+   471→            />
+   472→            <select className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+   473→              <option value="mesh">Mesh</option>
+   474→              <option value="star">Star</option>
+   475→              <option value="ring">Ring</option>
+   476→              <option value="tree">Tree</option>
+   477→              <option value="custom">Custom</option>
+   478→            </select>
+   479→            <button
+   480→              onClick={() => handleAction('create-swarm', () => api.swarm.createSwarm({ name: 'New Swarm', objective: 'Custom objective', topology: 'mesh', agentIds: [] }))}
+   481→              disabled={actionLoading === 'create-swarm'}
+   482→              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+   483→            >
+   484→              {actionLoading === 'create-swarm' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+   485→              Create
+   486→            </button>
+   487→          </div>
+   488→        </div>
+   489→
+   490→        {/* Swarm List */}
+   491→        <div className="rounded-xl border border-border bg-card p-5">
+   492→          <h3 className="mb-4 text-sm font-semibold text-foreground">Active Swarms</h3>
+   493→          <div className="space-y-3">
+   494→            {swarms.map((swarm) => (
+   495→              <div key={swarm.id} className="rounded-lg border border-border/50 bg-white/5 p-4">
+   496→                <div className="flex items-start justify-between">
+   497→                  <div className="flex items-center gap-3">
+   498→                    <ConvergenceRing score={swarm.convergenceScore} />
+   499→                    <div>
+   500→                      <div className="flex items-center gap-2">
+   501→                        <span className="text-sm font-medium text-foreground">{swarm.name}</span>
+   502→                        <TopologyBadge type={swarm.topology} />
+   503→                        <StatusBadge status={swarm.status} />
+   504→                      </div>
+   505→                      <p className="mt-1 text-xs text-muted-foreground">{swarm.objective}</p>
+   506→                    </div>
+   507→                  </div>
+   508→                  <div className="flex items-center gap-2">
+   509→                    {swarm.status === 'active' && (
+   510→                      <button
+   511→                        onClick={() => handleAction(`exec-${swarm.id}`, () => api.swarm.executeSwarm(swarm.id))}
+   512→                        disabled={actionLoading === `exec-${swarm.id}`}
+   513→                        className="flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary/25 disabled:opacity-50"
+   514→                      >
+   515→                        <Play className="h-3 w-3" /> Execute
+   516→                      </button>
+   517→                    )}
+   518→                  </div>
+   519→                </div>
+   520→
+   521→                {/* Details */}
+   522→                <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+   523→                  <div className="text-xs">
+   524→                    <span className="text-muted-foreground">Agents: </span>
+   525→                    <span className="text-foreground">{swarm.agentIds.length}</span>
+   526→                  </div>
+   527→                  <div className="text-xs">
+   528→                    <span className="text-muted-foreground">Iterations: </span>
+   529→                    <span className="text-foreground">{swarm.iterationsCompleted}</span>
+   530→                  </div>
+   531→                  <div className="text-xs">
+   532→                    <span className="text-muted-foreground">Emergent: </span>
+   533→                    <span className="text-foreground">{swarm.emergentBehaviors.length}</span>
+   534→                  </div>
+   535→                  <div className="text-xs">
+   536→                    <span className="text-muted-foreground">Pheromones: </span>
+   537→                    <span className="text-foreground">{Object.keys(swarm.pheromoneTrails).length}</span>
+   538→                  </div>
+   539→                </div>
+   540→
+   541→                {/* Pheromone Trails */}
+   542→                {Object.keys(swarm.pheromoneTrails).length > 0 && (
+   543→                  <div className="mt-3 rounded-lg bg-white/5 p-3">
+   544→                    <p className="mb-2 text-[10px] font-medium text-muted-foreground">PHEROMONE TRAILS</p>
+   545→                    <div className="flex flex-wrap gap-2">
+   546→                      {Object.entries(swarm.pheromoneTrails).map(([trail, strength]) => (
+   547→                        <span
+   548→                          key={trail}
+   549→                          className={cn(
+   550→                            'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+   551→                            strength >= 0.8 ? 'bg-emerald-500/15 text-emerald-400' : strength >= 0.5 ? 'bg-amber-500/15 text-amber-400' : 'bg-red-500/15 text-red-400'
+   552→                          )}
+   553→                        >
+   554→                          {trail} ({(strength * 100).toFixed(0)}%)
+   555→                        </span>
+   556→                      ))}
+   557→                    </div>
+   558→                  </div>
+   559→                )}
+   560→
+   561→                {/* Emergent Behaviors */}
+   562→                {swarm.emergentBehaviors.length > 0 && (
+   563→                  <div className="mt-2 flex flex-wrap gap-1">
+   564→                    {swarm.emergentBehaviors.map((beh) => (
+   565→                      <span key={beh} className="rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-semibold text-purple-400">
+   566→                        ✦ {beh}
+   567→                      </span>
+   568→                    ))}
+   569→                  </div>
+   570→                )}
+   571→              </div>
+   572→            ))}
+   573→          </div>
+   574→        </div>
+   575→      </div>
+   576→    );
+   577→  }
+   578→
+   579→  // ─── Consensus Tab ──────────────────────────────────────────────
+   580→
+   581→  function renderConsensus() {
+   582→    const completed = consensusSessions.filter(s => s.status === 'completed');
+   583→    const voting = consensusSessions.filter(s => s.status === 'voting');
+   584→    const byzantineCount = consensusSessions.filter(s => s.byzantineDetected).length;
+   585→
+   586→    return (
+   587→      <div className="space-y-6">
+   588→        {/* KPIs */}
+   589→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   590→          <StatCard label="Total Sessions" value={consensusSessions.length} icon={Vote} color="text-purple-400" />
+   591→          <StatCard label="Currently Voting" value={voting.length} icon={Activity} color="text-amber-400" />
+   592→          <StatCard label="Completed" value={completed.length} icon={CheckCircle2} color="text-emerald-400" />
+   593→          <StatCard label="Byzantine Detected" value={byzantineCount} icon={ShieldAlert} color="text-red-400" />
+   594→        </div>
+   595→
+   596→        {/* Initiate Consensus */}
+   597→        <div className="rounded-xl border border-border bg-card p-5">
+   598→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   599→            <Plus className="h-4 w-4 text-primary" /> Initiate Consensus
+   600→          </h3>
+   601→          <div className="grid gap-4 md:grid-cols-4">
+   602→            <input
+   603→              type="text"
+   604→              placeholder="Topic"
+   605→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+   606→            />
+   607→            <input
+   608→              type="text"
+   609→              placeholder="Proposer agent ID"
+   610→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+   611→            />
+   612→            <div className="flex items-center gap-2">
+   613→              <span className="text-xs text-muted-foreground">Threshold:</span>
+   614→              <input
+   615→                type="number"
+   616→                defaultValue={0.75}
+   617→                min={0}
+   618→                max={1}
+   619→                step={0.05}
+   620→                className="w-20 rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+   621→              />
+   622→            </div>
+   623→            <button
+   624→              onClick={() => handleAction('init-consensus', () => api.swarm.initiateConsensus({ topic: 'New Vote', proposerId: 'agent-1', participantIds: ['agent-1', 'agent-2'] }))}
+   625→              disabled={actionLoading === 'init-consensus'}
+   626→              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+   627→            >
+   628→              {actionLoading === 'init-consensus' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Vote className="h-4 w-4" />}
+   629→              Initiate
+   630→            </button>
+   631→          </div>
+   632→        </div>
+   633→
+   634→        {/* Consensus Sessions */}
+   635→        <div className="space-y-4">
+   636→          {consensusSessions.map((session) => (
+   637→            <div key={session.id} className={cn(
+   638→              'rounded-xl border bg-card p-5',
+   639→              session.byzantineDetected ? 'border-red-500/30' : 'border-border'
+   640→            )}>
+   641→              <div className="flex items-start justify-between">
+   642→                <div>
+   643→                  <div className="flex items-center gap-2">
+   644→                    <StatusBadge status={session.status} />
+   645→                    <span className="text-sm font-medium text-foreground">{session.topic}</span>
+   646→                    {session.byzantineDetected && (
+   647→                      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+   648→                        <ShieldAlert className="h-3 w-3" /> Byzantine Fault
+   649→                      </span>
+   650→                    )}
+   651→                  </div>
+   652→                  <p className="mt-1 text-xs text-muted-foreground">
+   653→                    Proposed by <span className="text-foreground">{session.proposerId}</span> · {session.participantIds.length} participants · Threshold {Math.round(session.consensusThreshold * 100)}%
+   654→                  </p>
+   655→                </div>
+   656→                {session.status === 'voting' && (
+   657→                  <button
+   658→                    onClick={() => handleAction(`run-${session.id}`, () => api.swarm.runConsensus(session.id))}
+   659→                    disabled={actionLoading === `run-${session.id}`}
+   660→                    className="flex items-center gap-1 rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/25 disabled:opacity-50"
+   661→                  >
+   662→                    <Play className="h-3 w-3" /> Run
+   663→                  </button>
+   664→                )}
+   665→              </div>
+   666→
+   667→              {/* Vote Breakdown */}
+   668→              <div className="mt-4 grid grid-cols-3 gap-3">
+   669→                <div className="rounded-lg bg-emerald-500/10 p-3 text-center">
+   670→                  <p className="text-lg font-bold text-emerald-400">{session.votesFor}</p>
+   671→                  <p className="text-[10px] text-muted-foreground">For</p>
+   672→                </div>
+   673→                <div className="rounded-lg bg-red-500/10 p-3 text-center">
+   674→                  <p className="text-lg font-bold text-red-400">{session.votesAgainst}</p>
+   675→                  <p className="text-[10px] text-muted-foreground">Against</p>
+   676→                </div>
+   677→                <div className="rounded-lg bg-slate-500/10 p-3 text-center">
+   678→                  <p className="text-lg font-bold text-slate-400">{session.abstentions}</p>
+   679→                  <p className="text-[10px] text-muted-foreground">Abstain</p>
+   680→                </div>
+   681→              </div>
+   682→
+   683→              {/* Byzantine Agents */}
+   684→              {session.byzantineDetected && session.byzantineAgents.length > 0 && (
+   685→                <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+   686→                  <p className="text-[10px] font-medium text-red-400">BYZANTINE AGENTS DETECTED</p>
+   687→                  <div className="mt-1 flex flex-wrap gap-1">
+   688→                    {session.byzantineAgents.map(agent => (
+   689→                      <span key={agent} className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">{agent}</span>
+   690→                    ))}
+   691→                  </div>
+   692→                </div>
+   693→              )}
+   694→
+   695→              {/* Dissent Records */}
+   696→              {session.dissentRecords.length > 0 && (
+   697→                <div className="mt-3">
+   698→                  <p className="mb-2 text-[10px] font-medium text-muted-foreground">DISSENT RECORDS</p>
+   699→                  <div className="space-y-2">
+   700→                    {session.dissentRecords.map((dissent, i) => (
+   701→                      <div key={i} className="flex items-start gap-2 rounded-lg bg-amber-500/5 border border-amber-500/20 p-2">
+   702→                        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
+   703→                        <div>
+   704→                          <p className="text-xs text-foreground"><span className="font-medium">{dissent.agentId}</span>: {dissent.reason}</p>
+   705→                          {dissent.alternativeProposal && (
+   706→                            <p className="mt-1 text-[10px] text-muted-foreground">Alternative: {dissent.alternativeProposal}</p>
+   707→                          )}
+   708→                        </div>
+   709→                      </div>
+   710→                    ))}
+   711→                  </div>
+   712→                </div>
+   713→              )}
+   714→            </div>
+   715→          ))}
+   716→        </div>
+   717→      </div>
+   718→    );
+   719→  }
+   720→
+   721→  // ─── Persistence Tab ────────────────────────────────────────────
+   722→
+   723→  function renderPersistence() {
+   724→    const activeColabs = collaborations.filter(c => c.status === 'active');
+   725→    const totalCheckpoints = collaborations.reduce((sum, c) => sum + c.checkpoints.length, 0);
+   726→
+   727→    return (
+   728→      <div className="space-y-6">
+   729→        {/* KPIs */}
+   730→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   731→          <StatCard label="Active Collaborations" value={activeColabs.length} icon={HardDrive} color="text-emerald-400" />
+   732→          <StatCard label="Total Sessions" value={collaborations.length} icon={FileText} color="text-blue-400" />
+   733→          <StatCard label="Checkpoints" value={totalCheckpoints} icon={Save} color="text-amber-400" />
+   734→          <StatCard label="Recovery Available" value={totalCheckpoints > 0 ? 'Yes' : 'No'} icon={RotateCcw} color="text-cyan-400" />
+   735→        </div>
+   736→
+   737→        {/* Active Collaborations */}
+   738→        <div className="rounded-xl border border-border bg-card p-5">
+   739→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   740→            <Activity className="h-4 w-4 text-primary" /> Active Collaborations
+   741→          </h3>
+   742→          {activeColabs.length > 0 ? (
+   743→            <div className="space-y-3">
+   744→              {activeColabs.map((colab) => (
+   745→                <div key={colab.id} className="rounded-lg border border-border/50 bg-white/5 p-4">
+   746→                  <div className="flex items-center justify-between">
+   747→                    <div className="flex items-center gap-2">
+   748→                      <StatusBadge status={colab.status} />
+   749→                      <span className="text-sm font-medium text-foreground">{colab.name}</span>
+   750→                    </div>
+   751→                    <button
+   752→                      onClick={() => handleAction(`checkpoint-${colab.id}`, () => api.swarm.createCheckpoint(colab.id, `Checkpoint ${colab.checkpoints.length + 1}`))}
+   753→                      disabled={actionLoading === `checkpoint-${colab.id}`}
+   754→                      className="flex items-center gap-1 rounded-lg bg-amber-500/15 px-2 py-1 text-[10px] font-semibold text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
+   755→                    >
+   756→                      <Save className="h-3 w-3" /> Checkpoint
+   757→                    </button>
+   758→                  </div>
+   759→                  <div className="mt-2 text-xs text-muted-foreground">
+   760→                    {colab.participantIds.length} participants · Last activity {new Date(colab.lastActivityAt).toLocaleTimeString()}
+   761→                  </div>
+   762→                  <div className="mt-2">
+   763→                    <p className="text-[10px] text-muted-foreground">SHARED WORKSPACE</p>
+   764→                    <div className="mt-1 flex flex-wrap gap-2">
+   765→                      {Object.entries(colab.sharedWorkspace).map(([key, value]) => (
+   766→                        <span key={key} className="rounded-lg bg-white/5 px-2 py-1 text-xs text-foreground">
+   767→                          {key}: <span className="text-primary">{String(value)}</span>
+   768→                        </span>
+   769→                      ))}
+   770→                    </div>
+   771→                  </div>
+   772→
+   773→                  {/* Checkpoints */}
+   774→                  {colab.checkpoints.length > 0 && (
+   775→                    <div className="mt-3">
+   776→                      <p className="mb-1 text-[10px] text-muted-foreground">CHECKPOINTS</p>
+   777→                      <div className="space-y-1">
+   778→                        {colab.checkpoints.map((cp) => (
+   779→                          <div key={cp.id} className="flex items-center justify-between rounded-lg bg-white/5 p-2">
+   780→                            <div className="flex items-center gap-2">
+   781→                              <Save className="h-3 w-3 text-amber-400" />
+   782→                              <span className="text-xs text-foreground">{cp.label}</span>
+   783→                            </div>
+   784→                            <div className="flex items-center gap-2">
+   785→                              <span className="text-[10px] text-muted-foreground">{new Date(cp.createdAt).toLocaleTimeString()}</span>
+   786→                              <button
+   787→                                onClick={() => handleAction(`recover-${cp.id}`, () => api.swarm.recoverCheckpoint(colab.id, cp.id))}
+   788→                                disabled={actionLoading === `recover-${cp.id}`}
+   789→                                className="flex items-center gap-1 rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-400 hover:bg-cyan-500/25 disabled:opacity-50"
+   790→                              >
+   791→                                <RotateCcw className="h-2.5 w-2.5" /> Recover
+   792→                              </button>
+   793→                            </div>
+   794→                          </div>
+   795→                        ))}
+   796→                      </div>
+   797→                    </div>
+   798→                  )}
+   799→                </div>
+   800→              ))}
+   801→            </div>
+   802→          ) : (
+   803→            <p className="text-sm text-muted-foreground">No active collaborations</p>
+   804→          )}
+   805→        </div>
+   806→
+   807→        {/* History */}
+   808→        <div className="rounded-xl border border-border bg-card p-5">
+   809→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   810→            <Clock className="h-4 w-4 text-primary" /> Collaboration History
+   811→          </h3>
+   812→          <div className="overflow-x-auto">
+   813→            <table className="w-full text-sm">
+   814→              <thead>
+   815→                <tr className="border-b border-border text-xs text-muted-foreground">
+   816→                  <th className="pb-2 text-left">Name</th>
+   817→                  <th className="pb-2 text-left">Status</th>
+   818→                  <th className="pb-2 text-right">Participants</th>
+   819→                  <th className="pb-2 text-right">Checkpoints</th>
+   820→                  <th className="pb-2 text-right">Last Activity</th>
+   821→                </tr>
+   822→              </thead>
+   823→              <tbody>
+   824→                {collaborations.map((colab) => (
+   825→                  <tr key={colab.id} className="border-b border-border/50">
+   826→                    <td className="py-2 font-medium text-foreground">{colab.name}</td>
+   827→                    <td className="py-2"><StatusBadge status={colab.status} /></td>
+   828→                    <td className="py-2 text-right text-foreground">{colab.participantIds.length}</td>
+   829→                    <td className="py-2 text-right text-foreground">{colab.checkpoints.length}</td>
+   830→                    <td className="py-2 text-right text-muted-foreground">{new Date(colab.lastActivityAt).toLocaleTimeString()}</td>
+   831→                  </tr>
+   832→                ))}
+   833→              </tbody>
+   834→            </table>
+   835→          </div>
+   836→        </div>
+   837→      </div>
+   838→    );
+   839→  }
+   840→
+   841→  // ─── Working Memory Tab ─────────────────────────────────────────
+   842→
+   843→  function renderMemory() {
+   844→    return (
+   845→      <div className="space-y-6">
+   846→        {/* KPIs */}
+   847→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   848→          <StatCard label="Memory Sessions" value={memorySessions.length} icon={Brain} color="text-purple-400" />
+   849→          <StatCard label="Active Sessions" value={memorySessions.filter(s => s.participants.length > 0).length} icon={Activity} color="text-emerald-400" />
+   850→          <StatCard label="Total Participants" value={memorySessions.reduce((sum, s) => sum + s.participants.length, 0)} icon={Bug} color="text-cyan-400" />
+   851→          <StatCard label="Blackboard Keys" value={memorySessions.reduce((sum, s) => sum + Object.keys(s.blackboard).length, 0)} icon={FileText} color="text-amber-400" />
+   852→        </div>
+   853→
+   854→        {/* Create Session */}
+   855→        <div className="rounded-xl border border-border bg-card p-5">
+   856→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   857→            <Plus className="h-4 w-4 text-primary" /> Create Memory Session
+   858→          </h3>
+   859→          <div className="grid gap-4 md:grid-cols-3">
+   860→            <input
+   861→              type="text"
+   862→              placeholder="Session name"
+   863→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+   864→            />
+   865→            <input
+   866→              type="text"
+   867→              placeholder="Participant IDs (comma-separated)"
+   868→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+   869→            />
+   870→            <button
+   871→              onClick={() => handleAction('create-mem', () => api.swarm.createMemorySession({ name: 'New Session', participants: [] }))}
+   872→              disabled={actionLoading === 'create-mem'}
+   873→              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+   874→            >
+   875→              {actionLoading === 'create-mem' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+   876→              Create
+   877→            </button>
+   878→          </div>
+   879→        </div>
+   880→
+   881→        {/* Sessions */}
+   882→        <div className="space-y-4">
+   883→          {memorySessions.map((session) => (
+   884→            <div key={session.id} className="rounded-xl border border-border bg-card p-5">
+   885→              <div className="flex items-center justify-between">
+   886→                <div>
+   887→                  <h4 className="text-sm font-semibold text-foreground">{session.name}</h4>
+   888→                  <p className="text-xs text-muted-foreground">{session.participants.length} participants · Updated {new Date(session.updatedAt).toLocaleTimeString()}</p>
+   889→                </div>
+   890→                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">Active</span>
+   891→              </div>
+   892→
+   893→              {/* Blackboard */}
+   894→              <div className="mt-4 rounded-lg bg-white/5 p-3">
+   895→                <p className="mb-2 text-[10px] font-medium text-muted-foreground">BLACKBOARD (SHARED)</p>
+   896→                <div className="space-y-1">
+   897→                  {Object.entries(session.blackboard).map(([key, value]) => (
+   898→                    <div key={key} className="flex items-center justify-between rounded bg-white/5 px-2 py-1.5 text-xs">
+   899→                      <span className="font-medium text-foreground">{key}</span>
+   900→                      <span className="text-primary">{String(value)}</span>
+   901→                    </div>
+   902→                  ))}
+   903→                </div>
+   904→              </div>
+   905→
+   906→              {/* Scratchpads */}
+   907→              <div className="mt-3 rounded-lg bg-white/5 p-3">
+   908→                <p className="mb-2 text-[10px] font-medium text-muted-foreground">SCRATCHPADS (PRIVATE)</p>
+   909→                <div className="grid gap-2 md:grid-cols-2">
+   910→                  {Object.entries(session.scratchpads).map(([agentId, data]) => (
+   911→                    <div key={agentId} className="rounded-lg border border-border/50 bg-white/5 p-2">
+   912→                      <p className="text-[10px] font-medium text-primary">{agentId}</p>
+   913→                      <div className="mt-1 space-y-0.5">
+   914→                        {Object.entries(data).map(([k, v]) => (
+   915→                          <div key={k} className="flex items-center justify-between text-[10px]">
+   916→                            <span className="text-muted-foreground">{k}</span>
+   917→                            <span className="text-foreground">{String(v)}</span>
+   918→                          </div>
+   919→                        ))}
+   920→                      </div>
+   921→                    </div>
+   922→                  ))}
+   923→                </div>
+   924→              </div>
+   925→
+   926→              {/* Shared Workspace */}
+   927→              <div className="mt-3 rounded-lg bg-white/5 p-3">
+   928→                <p className="mb-2 text-[10px] font-medium text-muted-foreground">SHARED WORKSPACE</p>
+   929→                <div className="flex flex-wrap gap-2">
+   930→                  {Object.entries(session.sharedWorkspace).map(([key, value]) => (
+   931→                    <div key={key} className="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1">
+   932→                      <span className="text-xs text-muted-foreground">{key}:</span>
+   933→                      <span className="text-xs font-medium text-foreground">{String(value)}</span>
+   934→                    </div>
+   935→                  ))}
+   936→                </div>
+   937→              </div>
+   938→            </div>
+   939→          ))}
+   940→        </div>
+   941→      </div>
+   942→    );
+   943→  }
+   944→
+   945→  // ─── Feedback Loop Tab ──────────────────────────────────────────
+   946→
+   947→  function renderFeedbackLoop() {
+   948→    return (
+   949→      <div className="space-y-6">
+   950→        {/* KPIs */}
+   951→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   952→          <StatCard label="Config Version" value={`v${feedbackParams.version}`} icon={Zap} color="text-cyan-400" />
+   953→          <StatCard label="Learning Rate" value={feedbackParams.learningRate} icon={TrendingUp} color="text-emerald-400" />
+   954→          <StatCard label="Decay Rate" value={feedbackParams.decayRate} icon={ArrowDownRight} color="text-amber-400" />
+   955→          <StatCard label="Momentum" value={feedbackParams.momentum} icon={Activity} color="text-pink-400" />
+   956→        </div>
+   957→
+   958→        {/* Current Parameters */}
+   959→        <div className="rounded-xl border border-border bg-card p-5">
+   960→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   961→            <Zap className="h-4 w-4 text-primary" /> Current Parameters
+   962→          </h3>
+   963→          <div className="space-y-3">
+   964→            {Object.entries(feedbackParams.parameters).map(([param, value]) => {
+   965→              const width = Math.max(10, value * 100);
+   966→              const colors: Record<string, string> = {
+   967→                exploration_rate: 'bg-purple-500',
+   968→                exploitation_rate: 'bg-emerald-500',
+   969→                convergence_threshold: 'bg-cyan-500',
+   970→                max_iterations: 'bg-amber-500',
+   971→                adaptation_speed: 'bg-pink-500',
+   972→              };
+   973→              return (
+   974→                <div key={param}>
+   975→                  <div className="mb-1 flex items-center justify-between text-sm">
+   976→                    <span className="font-medium text-foreground">{param.replace(/_/g, ' ')}</span>
+   977→                    <span className="text-muted-foreground">{value}</span>
+   978→                  </div>
+   979→                  <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+   980→                    <div className={cn('h-full rounded-full transition-all', colors[param] || 'bg-primary')} style={{ width: `${width}%` }} />
+   981→                  </div>
+   982→                </div>
+   983→              );
+   984→            })}
+   985→          </div>
+   986→          <div className="mt-4 flex items-center justify-between rounded-lg bg-white/5 p-3 text-xs">
+   987→            <span className="text-muted-foreground">Last Adjustment</span>
+   988→            <span className="font-semibold text-foreground">{new Date(feedbackParams.lastAdjustmentAt).toLocaleString()}</span>
+   989→          </div>
+   990→        </div>
+   991→
+   992→        {/* Run Feedback Cycle */}
+   993→        <div className="flex gap-3">
+   994→          <button
+   995→            onClick={() => handleAction('run-cycle', () => api.swarm.runFeedbackCycle())}
+   996→            disabled={actionLoading === 'run-cycle'}
+   997→            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+   998→          >
+   999→            {actionLoading === 'run-cycle' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+  1000→            Run Feedback Cycle
+  1001→          </button>
+  1002→        </div>
+  1003→
+  1004→        {/* Adjustment History */}
+  1005→        <div className="rounded-xl border border-border bg-card p-5">
+  1006→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+  1007→            <Clock className="h-4 w-4 text-primary" /> Adjustment History
+  1008→          </h3>
+  1009→          <div className="space-y-2">
+  1010→            {feedbackAdjustments.map((adj) => (
+  1011→              <div key={adj.id} className={cn(
+  1012→                'flex items-center gap-3 rounded-lg border p-3',
+  1013→                adj.rolledBack ? 'border-red-500/20 bg-red-500/5' : 'border-border/50 bg-white/5'
+  1014→              )}>
+  1015→                <div className="flex-1">
+  1016→                  <div className="flex items-center gap-2">
+  1017→                    <span className="text-sm font-medium text-foreground">{adj.parameter.replace(/_/g, ' ')}</span>
+  1018→                    {adj.rolledBack && (
+  1019→                      <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">rolled back</span>
+  1020→                    )}
+  1021→                  </div>
+  1022→                  <p className="mt-0.5 text-xs text-muted-foreground">{adj.reason}</p>
+  1023→                </div>
+  1024→                <div className="text-right">
+  1025→                  <div className="flex items-center gap-2 text-xs">
+  1026→                    <span className="text-red-400">{adj.oldValue}</span>
+  1027→                    <span className="text-muted-foreground">→</span>
+  1028→                    <span className="text-emerald-400">{adj.newValue}</span>
+  1029→                  </div>
+  1030→                  <p className="text-[10px] text-muted-foreground">{new Date(adj.appliedAt).toLocaleTimeString()}</p>
+  1031→                </div>
+  1032→                {!adj.rolledBack && (
+  1033→                  <button
+  1034→                    onClick={() => handleAction(`rollback-${adj.id}`, () => api.swarm.rollbackAdjustment(adj.id))}
+  1035→                    disabled={actionLoading === `rollback-${adj.id}`}
+  1036→                    className="flex items-center gap-1 rounded-lg border border-red-500/30 px-2 py-1 text-[10px] font-semibold text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+  1037→                  >
+  1038→                    <RotateCcw className="h-3 w-3" /> Rollback
+  1039→                  </button>
+  1040→                )}
+  1041→              </div>
+  1042→            ))}
+  1043→          </div>
+  1044→        </div>
+  1045→      </div>
+  1046→    );
+  1047→  }
+  1048→
+  1049→  // ─── Topology Tab ───────────────────────────────────────────────
+  1050→
+  1051→  function renderTopology() {
+  1052→    const totalNodes = topologies.reduce((sum, t) => sum + t.nodes.length, 0);
+  1053→    const totalEdges = topologies.reduce((sum, t) => sum + t.edges.length, 0);
+  1054→    const isolatedNodes = topologies.reduce((sum, t) => sum + t.metrics.isolatedNodes, 0);
+  1055→
+  1056→    return (
+  1057→      <div className="space-y-6">
+  1058→        {/* KPIs */}
+  1059→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+  1060→          <StatCard label="Topologies" value={topologies.length} icon={Network} color="text-emerald-400" />
+  1061→          <StatCard label="Total Nodes" value={totalNodes} icon={CircleDot} color="text-cyan-400" />
+  1062→          <StatCard label="Total Edges" value={totalEdges} icon={GitBranch} color="text-amber-400" />
+  1063→          <StatCard label="Isolated Nodes" value={isolatedNodes} icon={Unplug} color="text-red-400" />
+  1064→        </div>
+  1065→
+  1066→        {/* Create Topology */}
+  1067→        <div className="rounded-xl border border-border bg-card p-5">
+  1068→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+  1069→            <Plus className="h-4 w-4 text-primary" /> Create Topology
+  1070→          </h3>
+  1071→          <div className="grid gap-4 md:grid-cols-4">
+  1072→            <input
+  1073→              type="text"
+  1074→              placeholder="Topology name"
+  1075→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+  1076→            />
+  1077→            <select className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+  1078→              <option value="star">Star</option>
+  1079→              <option value="mesh">Mesh</option>
+  1080→              <option value="ring">Ring</option>
+  1081→              <option value="tree">Tree</option>
+  1082→              <option value="custom">Custom</option>
+  1083→            </select>
+  1084→            <input
+  1085→              type="number"
+  1086→              defaultValue={4}
+  1087→              min={2}
+  1088→              max={20}
+  1089→              placeholder="Node count"
+  1090→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+  1091→            />
+  1092→            <button
+  1093→              onClick={() => handleAction('create-topo', () => api.swarm.createTopology({ name: 'New Topology', type: 'mesh', nodeCount: 4 }))}
+  1094→              disabled={actionLoading === 'create-topo'}
+  1095→              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+  1096→            >
+  1097→              {actionLoading === 'create-topo' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+  1098→              Create
+  1099→            </button>
+  1100→          </div>
+  1101→        </div>
+  1102→
+  1103→        {/* Topology Cards */}
+  1104→        <div className="space-y-4">
+  1105→          {topologies.map((topo) => (
+  1106→            <div key={topo.id} className="rounded-xl border border-border bg-card p-5">
+  1107→              <div className="flex items-center justify-between">
+  1108→                <div className="flex items-center gap-2">
+  1109→                  <TopologyBadge type={topo.type} />
+  1110→                  <span className="text-sm font-semibold text-foreground">{topo.name}</span>
+  1111→                  {topo.metrics.isConnected ? (
+  1112→                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">Connected</span>
+  1113→                  ) : (
+  1114→                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">Disconnected</span>
+  1115→                  )}
+  1116→                </div>
+  1117→              </div>
+  1118→
+  1119→              {/* Metrics */}
+  1120→              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+  1121→                <div className="rounded-lg bg-white/5 p-3 text-center">
+  1122→                  <p className="text-lg font-bold text-foreground">{topo.nodes.length}</p>
+  1123→                  <p className="text-[10px] text-muted-foreground">Nodes</p>
+  1124→                </div>
+  1125→                <div className="rounded-lg bg-white/5 p-3 text-center">
+  1126→                  <p className="text-lg font-bold text-foreground">{topo.edges.length}</p>
+  1127→                  <p className="text-[10px] text-muted-foreground">Edges</p>
+  1128→                </div>
+  1129→                <div className="rounded-lg bg-white/5 p-3 text-center">
+  1130→                  <p className="text-lg font-bold text-foreground">{topo.metrics.avgDegree.toFixed(1)}</p>
+  1131→                  <p className="text-[10px] text-muted-foreground">Avg Degree</p>
+  1132→                </div>
+  1133→                <div className="rounded-lg bg-white/5 p-3 text-center">
+  1134→                  <p className="text-lg font-bold text-foreground">{topo.metrics.clusteringCoeff.toFixed(2)}</p>
+  1135→                  <p className="text-[10px] text-muted-foreground">Clustering</p>
+  1136→                </div>
+  1137→                <div className="rounded-lg bg-white/5 p-3 text-center">
+  1138→                  <p className="text-lg font-bold text-foreground">{topo.metrics.diameter}</p>
+  1139→                  <p className="text-[10px] text-muted-foreground">Diameter</p>
+  1140→                </div>
+  1141→              </div>
+  1142→
+  1143→              {/* Nodes */}
+  1144→              <div className="mt-4">
+  1145→                <p className="mb-2 text-[10px] font-medium text-muted-foreground">NODES</p>
+  1146→                <div className="flex flex-wrap gap-2">
+  1147→                  {topo.nodes.map((node) => (
+  1148→                    <div key={node.id} className={cn(
+  1149→                      'flex items-center gap-2 rounded-lg border p-2',
+  1150→                      node.isolated ? 'border-red-500/30 bg-red-500/5' : 'border-border/50 bg-white/5'
+  1151→                    )}>
+  1152→                      <CircleDot className={cn('h-3 w-3', node.isolated ? 'text-red-400' : 'text-emerald-400')} />
+  1153→                      <div>
+  1154→                        <p className="text-xs font-medium text-foreground">{node.agentId}</p>
+  1155→                        <p className="text-[9px] text-muted-foreground">{node.id}</p>
+  1156→                      </div>
+  1157→                      {node.isolated ? (
+  1158→                        <button
+  1159→                          onClick={() => handleAction(`restore-${node.id}`, () => api.swarm.restoreNode(topo.id, node.id))}
+  1160→                          disabled={actionLoading === `restore-${node.id}`}
+  1161→                          className="ml-1 flex items-center gap-0.5 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 hover:bg-emerald-500/25 disabled:opacity-50"
+  1162→                        >
+  1163→                          <Plug className="h-2.5 w-2.5" /> Restore
+  1164→                        </button>
+  1165→                      ) : (
+  1166→                        <button
+  1167→                          onClick={() => handleAction(`isolate-${node.id}`, () => api.swarm.isolateNode(topo.id, node.id))}
+  1168→                          disabled={actionLoading === `isolate-${node.id}`}
+  1169→                          className="ml-1 flex items-center gap-0.5 rounded bg-red-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-red-400 hover:bg-red-500/25 disabled:opacity-50"
+  1170→                        >
+  1171→                          <Unplug className="h-2.5 w-2.5" /> Isolate
+  1172→                        </button>
+  1173→                      )}
+  1174→                    </div>
+  1175→                  ))}
+  1176→                </div>
+  1177→              </div>
+  1178→
+  1179→              {/* Edges */}
+  1180→              {topo.edges.length > 0 && (
+  1181→                <div className="mt-4">
+  1182→                  <p className="mb-2 text-[10px] font-medium text-muted-foreground">EDGES</p>
+  1183→                  <div className="flex flex-wrap gap-2">
+  1184→                    {topo.edges.map((edge, i) => (
+  1185→                      <span key={i} className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2 py-1 text-[10px]">
+  1186→                        <span className="text-cyan-400">{edge.source}</span>
+  1187→                        <ChevronRight className="h-3 w-3 text-muted-foreground" />
+  1188→                        <span className="text-purple-400">{edge.target}</span>
+  1189→                        <span className="ml-1 text-muted-foreground">w:{edge.weight.toFixed(2)}</span>
+  1190→                      </span>
+  1191→                    ))}
+  1192→                  </div>
+  1193→                </div>
+  1194→              )}
+  1195→            </div>
+  1196→          ))}
+  1197→        </div>
+  1198→      </div>
+  1199→    );
+  1200→  }
+  1201→
+  1202→  // ─── DAG Orchestrator Tab ───────────────────────────────────────
+  1203→
+  1204→  function renderDAG() {
+  1205→    return (
+  1206→      <div className="space-y-6">
+  1207→        {/* KPIs */}
+  1208→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+  1209→          <StatCard label="DAG Executions" value={dagExecutions.length} icon={GitBranch} color="text-emerald-400" />
+  1210→          <StatCard label="Running" value={dagExecutions.filter(d => d.status === 'running').length} icon={Activity} color="text-amber-400" />
+  1211→          <StatCard label="Completed" value={dagExecutions.filter(d => d.status === 'completed').length} icon={CheckCircle2} color="text-cyan-400" />
+  1212→          <StatCard label="Total Nodes" value={dagExecutions.reduce((sum, d) => sum + d.nodes.length, 0)} icon={CircleDot} color="text-pink-400" />
+  1213→        </div>
+  1214→
+  1215→        {/* Execute DAG */}
+  1216→        <div className="rounded-xl border border-border bg-card p-5">
+  1217→          <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+  1218→            <Play className="h-4 w-4 text-primary" /> Execute DAG
+  1219→          </h3>
+  1220→          <div className="grid gap-4 md:grid-cols-3">
+  1221→            <input
+  1222→              type="text"
+  1223→              placeholder="DAG name"
+  1224→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+  1225→            />
+  1226→            <input
+  1227→              type="text"
+  1228→              placeholder="Nodes (comma-separated)"
+  1229→              className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
+  1230→            />
+  1231→            <button
+  1232→              onClick={() => handleAction('exec-dag', () => api.swarm.executeDAG({ name: 'New DAG', nodes: [], edges: [] }))}
+  1233→              disabled={actionLoading === 'exec-dag'}
+  1234→              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+  1235→            >
+  1236→              {actionLoading === 'exec-dag' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+  1237→              Execute
+  1238→            </button>
+  1239→          </div>
+  1240→        </div>
+  1241→
+  1242→        {/* DAG Results */}
+  1243→        <div className="space-y-4">
+  1244→          {dagExecutions.map((dag) => (
+  1245→            <div key={dag.id} className="rounded-xl border border-border bg-card p-5">
+  1246→              <div className="flex items-center justify-between">
+  1247→                <div className="flex items-center gap-2">
+  1248→                  <StatusBadge status={dag.status} />
+  1249→                  <span className="text-sm font-semibold text-foreground">{dag.name}</span>
+  1250→                </div>
+  1251→                <button
+  1252→                  onClick={() => {
+  1253→                    setSelectedDAG(selectedDAG === dag.id ? null : dag.id);
+  1254→                    if (selectedDAG !== dag.id) {
+  1255→                      handleAction(`trace-${dag.id}`, async () => {
+  1256→                        const result = await api.swarm.getDAGTrace(dag.id);
+  1257→                        if (result.data) setDAGTrace(result.data);
+  1258→                      });
+  1259→                    }
+  1260→                  }}
+  1261→                  className="flex items-center gap-1 rounded-lg bg-primary/15 px-2 py-1 text-[10px] font-semibold text-primary hover:bg-primary/25"
+  1262→                >
+  1263→                  <Eye className="h-3 w-3" /> Trace
+  1264→                </button>
+  1265→              </div>
+  1266→
+  1267→              {/* DAG Visualization */}
+  1268→              <div className="mt-4">
+  1269→                <p className="mb-2 text-[10px] font-medium text-muted-foreground">EXECUTION GRAPH</p>
+  1270→                <div className="flex flex-wrap items-center gap-2">
+  1271→                  {dag.nodes.map((node, i) => (
+  1272→                    <div key={node.id} className="flex items-center gap-2">
+  1273→                      <div className={cn(
+  1274→                        'rounded-lg border p-2 min-w-[120px]',
+  1275→                        node.status === 'completed' ? 'border-emerald-500/30 bg-emerald-500/5' :
+  1276→                        node.status === 'running' ? 'border-amber-500/30 bg-amber-500/5' :
+  1277→                        node.status === 'failed' ? 'border-red-500/30 bg-red-500/5' :
+  1278→                        'border-border/50 bg-white/5'
+  1279→                      )}>
+  1280→                        <div className="flex items-center gap-1">
+  1281→                          {node.status === 'completed' && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+  1282→                          {node.status === 'running' && <Activity className="h-3 w-3 text-amber-400 animate-pulse" />}
+  1283→                          {node.status === 'failed' && <XCircle className="h-3 w-3 text-red-400" />}
+  1284→                          {node.status === 'pending' && <Clock className="h-3 w-3 text-slate-400" />}
+  1285→                          <span className="text-xs font-medium text-foreground">{node.label}</span>
+  1286→                        </div>
+  1287→                        {node.agentId && (
+  1288→                          <p className="mt-0.5 text-[9px] text-muted-foreground">{node.agentId}</p>
+  1289→                        )}
+  1290→                      </div>
+  1291→                      {i < dag.nodes.length - 1 && dag.edges.some(e => e.source === node.id) && (
+  1292→                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+  1293→                      )}
+  1294→                    </div>
+  1295→                  ))}
+  1296→                </div>
+  1297→              </div>
+  1298→
+  1299→              {/* Node Details Table */}
+  1300→              <div className="mt-4 overflow-x-auto">
+  1301→                <table className="w-full text-sm">
+  1302→                  <thead>
+  1303→                    <tr className="border-b border-border text-xs text-muted-foreground">
+  1304→                      <th className="pb-2 text-left">Node</th>
+  1305→                      <th className="pb-2 text-left">Agent</th>
+  1306→                      <th className="pb-2 text-left">Status</th>
+  1307→                      <th className="pb-2 text-right">Started</th>
+  1308→                      <th className="pb-2 text-right">Completed</th>
+  1309→                    </tr>
+  1310→                  </thead>
+  1311→                  <tbody>
+  1312→                    {dag.nodes.map((node) => (
+  1313→                      <tr key={node.id} className="border-b border-border/50">
+  1314→                        <td className="py-2 font-medium text-foreground">{node.label}</td>
+  1315→                        <td className="py-2 text-muted-foreground">{node.agentId || '—'}</td>
+  1316→                        <td className="py-2"><StatusBadge status={node.status} /></td>
+  1317→                        <td className="py-2 text-right text-muted-foreground">{node.startedAt ? new Date(node.startedAt).toLocaleTimeString() : '—'}</td>
+  1318→                        <td className="py-2 text-right text-muted-foreground">{node.completedAt ? new Date(node.completedAt).toLocaleTimeString() : '—'}</td>
+  1319→                      </tr>
+  1320→                    ))}
+  1321→                  </tbody>
+  1322→                </table>
+  1323→              </div>
+  1324→
+  1325→              {/* Execution Trace */}
+  1326→              {selectedDAG === dag.id && dagTrace && (
+  1327→                <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+  1328→                  <h4 className="mb-3 flex items-center gap-2 text-xs font-semibold text-primary">
+  1329→                    <Eye className="h-4 w-4" /> Execution Trace
+  1330→                  </h4>
+  1331→                  <div className="space-y-2">
+  1332→                    {dagTrace.steps.map((step, i) => (
+  1333→                      <div key={i} className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+  1334→                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
+  1335→                          {i + 1}
+  1336→                        </span>
+  1337→                        <div className="flex-1">
+  1338→                          <p className="text-xs font-medium text-foreground">{step.nodeLabel}</p>
+  1339→                          <p className="text-[10px] text-muted-foreground">
+  1340→                            {step.agentId || 'Unassigned'} · Duration: {(step.durationMs / 1000).toFixed(1)}s
+  1341→                          </p>
+  1342→                        </div>
+  1343→                        <StatusBadge status={step.status} />
+  1344→                        {step.output && (
+  1345→                          <span className="text-[10px] text-primary">output ✓</span>
+  1346→                        )}
+  1347→                      </div>
+  1348→                    ))}
+  1349→                  </div>
+  1350→                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+  1351→                    <span>Total Duration</span>
+  1352→                    <span className="font-semibold text-foreground">{(dagTrace.totalDurationMs / 1000).toFixed(1)}s</span>
+  1353→                  </div>
+  1354→                </div>
+  1355→              )}
+  1356→            </div>
+  1357→          ))}
+  1358→        </div>
+  1359→      </div>
+  1360→    );
+  1361→  }
+  1362→}
+  1363→

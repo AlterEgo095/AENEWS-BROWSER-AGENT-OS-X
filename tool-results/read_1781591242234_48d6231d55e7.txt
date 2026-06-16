@@ -1,0 +1,783 @@
+     1→#!/usr/bin/env bash
+     2→# ══════════════════════════════════════════════════════════════════════
+     3→# AENEWS Agent OS X — Backup & Restore Script
+     4→# ══════════════════════════════════════════════════════════════════════
+     5→# Usage: ./backup.sh [full|db-only|restore|list]
+     6→#
+     7→# Backs up all data stores: PostgreSQL, Redis, Neo4j, Qdrant, MinIO
+     8→# Supports rotation (keeps last 7 backups) and selective restore.
+     9→# ══════════════════════════════════════════════════════════════════════
+    10→
+    11→set -euo pipefail
+    12→
+    13→# ─── Colors ────────────────────────────────────────────────────────────
+    14→RED='\033[0;31m'
+    15→GREEN='\033[0;32m'
+    16→YELLOW='\033[1;33m'
+    17→BLUE='\033[0;34m'
+    18→CYAN='\033[0;36m'
+    19→BOLD='\033[1m'
+    20→NC='\033[0m'
+    21→
+    22→# ─── Configuration ─────────────────────────────────────────────────────
+    23→SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    24→PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+    25→DOCKER_DIR="${PROJECT_ROOT}/docker"
+    26→COMPOSE_PROD="${DOCKER_DIR}/docker-compose.prod.yml"
+    27→BACKUP_BASE="${PROJECT_ROOT}/backups"
+    28→TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+    29→BACKUP_DIR="${BACKUP_BASE}/${TIMESTAMP}"
+    30→KEEP_BACKUPS=7  # Number of backups to retain during rotation
+    31→
+    32→# Container names
+    33→PG_CONTAINER="aenews-postgres"
+    34→REDIS_CONTAINER="aenews-redis"
+    35→NEO4J_CONTAINER="aenews-neo4j"
+    36→QDRANT_CONTAINER="aenews-qdrant"
+    37→MINIO_CONTAINER="aenews-minio"
+    38→
+    39→# ─── Helper Functions ──────────────────────────────────────────────────
+    40→log_header() {
+    41→    echo -e "\n${CYAN}${BOLD}═══════════════════════════════════════════════════════════════${NC}"
+    42→    echo -e "${CYAN}${BOLD}  $1${NC}"
+    43→    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════════${NC}\n"
+    44→}
+    45→
+    46→log_step() {
+    47→    echo -e "${BLUE}${BOLD}▶ $1${NC}"
+    48→}
+    49→
+    50→log_success() {
+    51→    echo -e "${GREEN}${BOLD}✓ $1${NC}"
+    52→}
+    53→
+    54→log_warning() {
+    55→    echo -e "${YELLOW}${BOLD}⚠ $1${NC}"
+    56→}
+    57→
+    58→log_error() {
+    59→    echo -e "${RED}${BOLD}✗ $1${NC}"
+    60→}
+    61→
+    62→log_info() {
+    63→    echo -e "${CYAN}  $1${NC}"
+    64→}
+    65→
+    66→docker_compose() {
+    67→    docker compose -f "${COMPOSE_PROD}" "$@" 2>/dev/null || \
+    68→        docker-compose -f "${COMPOSE_PROD}" "$@"
+    69→}
+    70→
+    71→container_is_running() {
+    72→    docker ps -q -f "name=^${1}$" &>/dev/null | grep -q .
+    73→}
+    74→
+    75→ensure_container_running() {
+    76→    local container="$1"
+    77→    local service="$2"
+    78→
+    79→    if ! container_is_running "$container"; then
+    80→        log_warning "Container '${container}' is not running. Starting it..."
+    81→        docker_compose up -d "$service"
+    82→        sleep 5
+    83→        local elapsed=0
+    84→        while [ $elapsed -lt 60 ]; do
+    85→            local status
+    86→            status=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "missing")
+    87→            if [ "$status" = "healthy" ]; then
+    88→                return 0
+    89→            fi
+    90→            sleep 5
+    91→            elapsed=$((elapsed + 5))
+    92→        done
+    93→        log_error "Container '${container}' failed to start"
+    94→        return 1
+    95→    fi
+    96→}
+    97→
+    98→get_env_value() {
+    99→    local key="$1"
+   100→    local default="${2:-}"
+   101→    local val
+   102→    val=$(docker exec "${PG_CONTAINER}" printenv "$key" 2>/dev/null || echo "")
+   103→    if [ -z "$val" ] && [ -f "${PROJECT_ROOT}/.env" ]; then
+   104→        val=$(grep "^${key}=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2- || echo "")
+   105→    fi
+   106→    echo "${val:-$default}"
+   107→}
+   108→
+   109→# ─── Load environment ──────────────────────────────────────────────────
+   110→load_env() {
+   111→    if [ -f "${PROJECT_ROOT}/.env" ]; then
+   112→        set -a
+   113→        # shellcheck disable=SC1090
+   114→        source "${PROJECT_ROOT}/.env"
+   115→        set +a
+   116→    fi
+   117→}
+   118→
+   119→# ─── PostgreSQL Backup ─────────────────────────────────────────────────
+   120→backup_postgres() {
+   121→    log_step "Backing up PostgreSQL..."
+   122→
+   123→    ensure_container_running "${PG_CONTAINER}" "postgres"
+   124→
+   125→    local db_name="${POSTGRES_DB:-aenews_osx}"
+   126→    local db_user="${POSTGRES_USER:-aenews}"
+   127→    local db_password="${POSTGRES_PASSWORD:-aenews_secret_2024}"
+   128→    local backup_file="${BACKUP_DIR}/postgres_${TIMESTAMP}.sql.gz"
+   129→
+   130→    log_info "Database: ${db_name}"
+   131→
+   132→    docker exec "${PG_CONTAINER}" pg_dump \
+   133→        -U "${db_user}" \
+   134→        -d "${db_name}" \
+   135→        --format=plain \
+   136→        --no-owner \
+   137→        --no-acl \
+   138→        --clean \
+   139→        --if-exists \
+   140→        2>/dev/null | gzip > "${backup_file}"
+   141→
+   142→    local size
+   143→    size=$(du -h "${backup_file}" | cut -f1)
+   144→    log_success "PostgreSQL backup completed (${size}): ${backup_file}"
+   145→}
+   146→
+   147→# ─── PostgreSQL Restore ────────────────────────────────────────────────
+   148→restore_postgres() {
+   149→    local backup_file="$1"
+   150→
+   151→    if [ ! -f "$backup_file" ]; then
+   152→        log_error "PostgreSQL backup file not found: ${backup_file}"
+   153→        return 1
+   154→    fi
+   155→
+   156→    log_step "Restoring PostgreSQL from ${backup_file}..."
+   157→
+   158→    ensure_container_running "${PG_CONTAINER}" "postgres"
+   159→
+   160→    local db_name="${POSTGRES_DB:-aenews_osx}"
+   161→    local db_user="${POSTGRES_USER:-aenews}"
+   162→
+   163→    gunzip -c "${backup_file}" | docker exec -i "${PG_CONTAINER}" psql \
+   164→        -U "${db_user}" \
+   165→        -d "${db_name}" \
+   166→        2>/dev/null
+   167→
+   168→    log_success "PostgreSQL restore completed"
+   169→}
+   170→
+   171→# ─── Redis Backup ──────────────────────────────────────────────────────
+   172→backup_redis() {
+   173→    log_step "Backing up Redis..."
+   174→
+   175→    ensure_container_running "${REDIS_CONTAINER}" "redis"
+   176→
+   177→    local redis_password="${REDIS_PASSWORD:-aenews_redis_2024}"
+   178→    local backup_file="${BACKUP_DIR}/redis_${TIMESTAMP}.rdb"
+   179→
+   180→    # Trigger BGSAVE
+   181→    docker exec "${REDIS_CONTAINER}" redis-cli \
+   182→        -a "${redis_password}" \
+   183→        BGSAVE 2>/dev/null
+   184→
+   185→    # Wait for BGSAVE to complete
+   186→    local elapsed=0
+   187→    while [ $elapsed -lt 30 ]; do
+   188→        local bgsave_status
+   189→        bgsave_status=$(docker exec "${REDIS_CONTAINER}" redis-cli \
+   190→            -a "${redis_password}" \
+   191→            LASTSAVE 2>/dev/null)
+   192→        sleep 2
+   193→        elapsed=$((elapsed + 2))
+   194→        # Check if save is done
+   195→        local saving
+   196→        saving=$(docker exec "${REDIS_CONTAINER}" redis-cli \
+   197→            -a "${redis_password}" \
+   198→            --no-auth-warning \
+   199→            INFO persistence 2>/dev/null | grep "rdb_last_bgsave_status:ok" || echo "")
+   200→        if [ -n "$saving" ]; then
+   201→            break
+   202→        fi
+   203→    done
+   204→
+   205→    # Copy the dump.rdb file out of the container
+   206→    docker cp "${REDIS_CONTAINER}:/data/dump.rdb" "${backup_file}" 2>/dev/null || {
+   207→        # Fallback: try appendonly.aof
+   208→        docker cp "${REDIS_CONTAINER}:/data/appendonly.aof" "${BACKUP_DIR}/redis_${TIMESTAMP}.aof" 2>/dev/null || true
+   209→        log_warning "Could not copy Redis dump.rdb, attempted appendonly.aof"
+   210→    }
+   211→
+   212→    if [ -f "${backup_file}" ]; then
+   213→        local size
+   214→        size=$(du -h "${backup_file}" | cut -f1)
+   215→        log_success "Redis backup completed (${size}): ${backup_file}"
+   216→    else
+   217→        log_warning "Redis backup file not created (Redis may be empty or using AOF only)"
+   218→    fi
+   219→}
+   220→
+   221→# ─── Redis Restore ─────────────────────────────────────────────────────
+   222→restore_redis() {
+   223→    local backup_file="$1"
+   224→
+   225→    if [ ! -f "$backup_file" ]; then
+   226→        log_error "Redis backup file not found: ${backup_file}"
+   227→        return 1
+   228→    fi
+   229→
+   230→    log_step "Restoring Redis from ${backup_file}..."
+   231→
+   232→    local redis_password="${REDIS_PASSWORD:-aenews_redis_2024}"
+   233→
+   234→    # Stop Redis, replace data, start Redis
+   235→    docker_compose stop redis 2>/dev/null || true
+   236→    docker cp "${backup_file}" "${REDIS_CONTAINER}:/data/dump.rdb"
+   237→    docker_compose start redis 2>/dev/null || docker_compose up -d redis 2>/dev/null
+   238→
+   239→    log_success "Redis restore completed"
+   240→}
+   241→
+   242→# ─── Neo4j Backup ──────────────────────────────────────────────────────
+   243→backup_neo4j() {
+   244→    log_step "Backing up Neo4j..."
+   245→
+   246→    ensure_container_running "${NEO4J_CONTAINER}" "neo4j"
+   247→
+   248→    local neo4j_password="${NEO4J_PASSWORD:-aenews_neo4j_2024}"
+   249→    local backup_file="${BACKUP_DIR}/neo4j_${TIMESTAMP}.dump"
+   250→
+   251→    # Use neo4j-admin dump inside the container
+   252→    docker exec "${NEO4J_CONTAINER}" neo4j-admin database dump neo4j \
+   253→        --to-path=/tmp/ \
+   254→        --overwrite-destination \
+   255→        2>/dev/null || {
+   256→            # Fallback: try older neo4j-admin syntax
+   257→            docker exec "${NEO4J_CONTAINER}" neo4j-admin dump \
+   258→                --database=neo4j \
+   259→                --to=/tmp/neo4j.dump \
+   260→                2>/dev/null || {
+   261→                    log_warning "neo4j-admin dump failed. Attempting file copy..."
+   262→                    # Fallback: copy data directory
+   263→                    docker cp "${NEO4J_CONTAINER}:/data/" "${BACKUP_DIR}/neo4j_data_${TIMESTAMP}/" 2>/dev/null || true
+   264→                    log_success "Neo4j backup completed (file copy): ${BACKUP_DIR}/neo4j_data_${TIMESTAMP}/"
+   265→                    return 0
+   266→                }
+   267→        }
+   268→
+   269→    # Copy dump file from container
+   270→    docker cp "${NEO4J_CONTAINER}:/tmp/neo4j.dump" "${backup_file}" 2>/dev/null || \
+   271→        docker cp "${NEO4J_CONTAINER}:/tmp/neo4j_"*.dump "${backup_file}" 2>/dev/null || true
+   272→
+   273→    # Clean up temp file in container
+   274→    docker exec "${NEO4J_CONTAINER}" rm -f /tmp/neo4j.dump 2>/dev/null || true
+   275→
+   276→    if [ -f "${backup_file}" ]; then
+   277→        local size
+   278→        size=$(du -h "${backup_file}" | cut -f1)
+   279→        log_success "Neo4j backup completed (${size}): ${backup_file}"
+   280→    else
+   281→        log_warning "Neo4j dump file not created"
+   282→    fi
+   283→}
+   284→
+   285→# ─── Neo4j Restore ─────────────────────────────────────────────────────
+   286→restore_neo4j() {
+   287→    local backup_file="$1"
+   288→
+   289→    if [ ! -f "$backup_file" ]; then
+   290→        log_error "Neo4j backup file not found: ${backup_file}"
+   291→        return 1
+   292→    fi
+   293→
+   294→    log_step "Restoring Neo4j from ${backup_file}..."
+   295→
+   296→    # Stop Neo4j for restore
+   297→    docker_compose stop neo4j 2>/dev/null || true
+   298→
+   299→    # Copy dump into container
+   300→    docker cp "${backup_file}" "${NEO4J_CONTAINER}:/tmp/neo4j.dump"
+   301→
+   302→    # Run neo4j-admin load
+   303→    docker exec "${NEO4J_CONTAINER}" neo4j-admin database load neo4j \
+   304→        --from-path=/tmp/ \
+   305→        --overwrite-destination \
+   306→        2>/dev/null || {
+   307→            docker exec "${NEO4J_CONTAINER}" neo4j-admin load \
+   308→                --database=neo4j \
+   309→                --from=/tmp/neo4j.dump \
+   310→                --force \
+   311→                2>/dev/null || log_error "Neo4j restore failed"
+   312→        }
+   313→
+   314→    # Clean up and start
+   315→    docker exec "${NEO4J_CONTAINER}" rm -f /tmp/neo4j.dump 2>/dev/null || true
+   316→    docker_compose start neo4j 2>/dev/null || docker_compose up -d neo4j 2>/dev/null
+   317→
+   318→    log_success "Neo4j restore completed"
+   319→}
+   320→
+   321→# ─── Qdrant Backup ─────────────────────────────────────────────────────
+   322→backup_qdrant() {
+   323→    log_step "Backing up Qdrant..."
+   324→
+   325→    ensure_container_running "${QDRANT_CONTAINER}" "qdrant"
+   326→
+   327→    local backup_file="${BACKUP_DIR}/qdrant_${TIMESTAMP}.tar.gz"
+   328→
+   329→    # Create snapshot via Qdrant API
+   330→    local collections
+   331→    collections=$(curl -sf "http://localhost:6333/collections" 2>/dev/null | \
+   332→        python3 -c "import sys,json; data=json.load(sys.stdin); [print(c['name']) for c in data.get('result',{}).get('collections',[])]" 2>/dev/null || echo "")
+   333→
+   334→    if [ -z "$collections" ]; then
+   335→        log_warning "No Qdrant collections found or API unavailable. Copying storage directory."
+   336→        docker cp "${QDRANT_CONTAINER}:/qdrant/storage/" "${BACKUP_DIR}/qdrant_storage_${TIMESTAMP}/" 2>/dev/null || true
+   337→        cd "${BACKUP_DIR}" && tar czf "qdrant_${TIMESTAMP}.tar.gz" "qdrant_storage_${TIMESTAMP}/" 2>/dev/null && \
+   338→            rm -rf "qdrant_storage_${TIMESTAMP}/"
+   339→        log_success "Qdrant backup completed (storage copy)"
+   340→        return 0
+   341→    fi
+   342→
+   343→    # Create snapshots for each collection
+   344→    for collection in $collections; do
+   345→        log_info "Creating snapshot for collection: ${collection}"
+   346→        curl -sf -X POST "http://localhost:6333/collections/${collection}/snapshots" 2>/dev/null || \
+   347→            log_warning "Failed to create snapshot for collection: ${collection}"
+   348→    done
+   349→
+   350→    # Copy snapshots out
+   351→    docker cp "${QDRANT_CONTAINER}:/qdrant/storage/" "${BACKUP_DIR}/qdrant_storage_${TIMESTAMP}/" 2>/dev/null || true
+   352→
+   353→    # Compress
+   354→    if [ -d "${BACKUP_DIR}/qdrant_storage_${TIMESTAMP}" ]; then
+   355→        cd "${BACKUP_DIR}" && tar czf "qdrant_${TIMESTAMP}.tar.gz" "qdrant_storage_${TIMESTAMP}/" 2>/dev/null && \
+   356→            rm -rf "qdrant_storage_${TIMESTAMP}/"
+   357→    fi
+   358→
+   359→    if [ -f "${backup_file}" ]; then
+   360→        local size
+   361→        size=$(du -h "${backup_file}" | cut -f1)
+   362→        log_success "Qdrant backup completed (${size}): ${backup_file}"
+   363→    else
+   364→        log_warning "Qdrant backup file not created"
+   365→    fi
+   366→}
+   367→
+   368→# ─── Qdrant Restore ────────────────────────────────────────────────────
+   369→restore_qdrant() {
+   370→    local backup_file="$1"
+   371→
+   372→    if [ ! -f "$backup_file" ]; then
+   373→        log_error "Qdrant backup file not found: ${backup_file}"
+   374→        return 1
+   375→    fi
+   376→
+   377→    log_step "Restoring Qdrant from ${backup_file}..."
+   378→
+   379→    docker_compose stop qdrant 2>/dev/null || true
+   380→
+   381→    # Extract and copy back
+   382→    local extract_dir="${BACKUP_DIR}/qdrant_restore_${TIMESTAMP}"
+   383→    mkdir -p "${extract_dir}"
+   384→    tar xzf "${backup_file}" -C "${extract_dir}"
+   385→
+   386→    docker cp "${extract_dir}/storage/" "${QDRANT_CONTAINER}:/qdrant/" 2>/dev/null || true
+   387→    rm -rf "${extract_dir}"
+   388→
+   389→    docker_compose start qdrant 2>/dev/null || docker_compose up -d qdrant 2>/dev/null
+   390→
+   391→    log_success "Qdrant restore completed"
+   392→}
+   393→
+   394→# ─── MinIO Backup ──────────────────────────────────────────────────────
+   395→backup_minio() {
+   396→    log_step "Backing up MinIO..."
+   397→
+   398→    ensure_container_running "${MINIO_CONTAINER}" "minio"
+   399→
+   400→    local backup_file="${BACKUP_DIR}/minio_${TIMESTAMP}.tar.gz"
+   401→
+   402→    # Copy data directory from container
+   403→    docker cp "${MINIO_CONTAINER}:/data/" "${BACKUP_DIR}/minio_data_${TIMESTAMP}/" 2>/dev/null || {
+   404→        log_warning "Could not copy MinIO data directory"
+   405→        return 0
+   406→    }
+   407→
+   408→    # Compress
+   409→    cd "${BACKUP_DIR}" && tar czf "minio_${TIMESTAMP}.tar.gz" "minio_data_${TIMESTAMP}/" 2>/dev/null && \
+   410→        rm -rf "minio_data_${TIMESTAMP}/"
+   411→
+   412→    if [ -f "${backup_file}" ]; then
+   413→        local size
+   414→        size=$(du -h "${backup_file}" | cut -f1)
+   415→        log_success "MinIO backup completed (${size}): ${backup_file}"
+   416→    else
+   417→        log_warning "MinIO backup file not created"
+   418→    fi
+   419→}
+   420→
+   421→# ─── MinIO Restore ─────────────────────────────────────────────────────
+   422→restore_minio() {
+   423→    local backup_file="$1"
+   424→
+   425→    if [ ! -f "$backup_file" ]; then
+   426→        log_error "MinIO backup file not found: ${backup_file}"
+   427→        return 1
+   428→    fi
+   429→
+   430→    log_step "Restoring MinIO from ${backup_file}..."
+   431→
+   432→    docker_compose stop minio 2>/dev/null || true
+   433→
+   434→    # Extract and copy back
+   435→    local extract_dir="${BACKUP_DIR}/minio_restore_${TIMESTAMP}"
+   436→    mkdir -p "${extract_dir}"
+   437→    tar xzf "${backup_file}" -C "${extract_dir}"
+   438→
+   439→    docker cp "${extract_dir}/data/" "${MINIO_CONTAINER}:/" 2>/dev/null || true
+   440→    rm -rf "${extract_dir}"
+   441→
+   442→    docker_compose start minio 2>/dev/null || docker_compose up -d minio 2>/dev/null
+   443→
+   444→    log_success "MinIO restore completed"
+   445→}
+   446→
+   447→# ─── Full Backup ───────────────────────────────────────────────────────
+   448→full_backup() {
+   449→    log_header "AENEWS Agent OS X — Full Backup"
+   450→
+   451→    load_env
+   452→
+   453→    # Create backup directory
+   454→    mkdir -p "${BACKUP_DIR}"
+   455→
+   456→    log_info "Backup directory: ${BACKUP_DIR}"
+   457→    log_info "Timestamp: ${TIMESTAMP}"
+   458→
+   459→    # Run all backups
+   460→    backup_postgres
+   461→    backup_redis
+   462→    backup_neo4j
+   463→    backup_qdrant
+   464→    backup_minio
+   465→
+   466→    # Create a compressed archive of the entire backup
+   467→    log_step "Creating compressed archive..."
+   468→    local archive_name="aenews_backup_${TIMESTAMP}.tar.gz"
+   469→    cd "${BACKUP_BASE}" && tar czf "${archive_name}" "${TIMESTAMP}/" 2>/dev/null
+   470→
+   471→    local archive_size
+   472→    archive_size=$(du -h "${BACKUP_BASE}/${archive_name}" | cut -f1)
+   473→    log_success "Backup archive created (${archive_size}): ${BACKUP_BASE}/${archive_name}"
+   474→
+   475→    # Write manifest
+   476→    cat > "${BACKUP_DIR}/manifest.json" <<EOF
+   477→{
+   478→    "timestamp": "${TIMESTAMP}",
+   479→    "date": "$(date -Iseconds)",
+   480→    "type": "full",
+   481→    "services": ["postgres", "redis", "neo4j", "qdrant", "minio"],
+   482→    "archive": "${archive_name}",
+   483→    "generated_by": "aenews-backup-script"
+   484→}
+   485→EOF
+   486→
+   487→    # Rotate old backups
+   488→    rotate_backups
+   489→
+   490→    log_header "Backup Complete!"
+   491→    echo -e "${GREEN}${BOLD}  Archive: ${BACKUP_BASE}/${archive_name}${NC}"
+   492→    echo -e "${GREEN}${BOLD}  Size: ${archive_size}${NC}"
+   493→    echo -e "${GREEN}${BOLD}  Retained: ${KEEP_BACKUPS} most recent backups${NC}"
+   494→}
+   495→
+   496→# ─── Database-Only Backup ──────────────────────────────────────────────
+   497→db_only_backup() {
+   498→    log_header "AENEWS Agent OS X — Database-Only Backup"
+   499→
+   500→    load_env
+   501→    mkdir -p "${BACKUP_DIR}"
+   502→
+   503→    log_info "Backup directory: ${BACKUP_DIR}"
+   504→    log_info "Timestamp: ${TIMESTAMP}"
+   505→
+   506→    backup_postgres
+   507→    backup_redis
+   508→    backup_neo4j
+   509→
+   510→    # Create archive
+   511→    log_step "Creating compressed archive..."
+   512→    local archive_name="aenews_db_backup_${TIMESTAMP}.tar.gz"
+   513→    cd "${BACKUP_BASE}" && tar czf "${archive_name}" "${TIMESTAMP}/" 2>/dev/null
+   514→
+   515→    local archive_size
+   516→    archive_size=$(du -h "${BACKUP_BASE}/${archive_name}" | cut -f1)
+   517→    log_success "Database backup archive created (${archive_size}): ${BACKUP_BASE}/${archive_name}"
+   518→
+   519→    # Write manifest
+   520→    cat > "${BACKUP_DIR}/manifest.json" <<EOF
+   521→{
+   522→    "timestamp": "${TIMESTAMP}",
+   523→    "date": "$(date -Iseconds)",
+   524→    "type": "db-only",
+   525→    "services": ["postgres", "redis", "neo4j"],
+   526→    "archive": "${archive_name}",
+   527→    "generated_by": "aenews-backup-script"
+   528→}
+   529→EOF
+   530→
+   531→    rotate_backups
+   532→
+   533→    log_header "Database Backup Complete!"
+   534→}
+   535→
+   536→# ─── Restore ───────────────────────────────────────────────────────────
+   537→restore_backup() {
+   538→    log_header "AENEWS Agent OS X — Restore"
+   539→
+   540→    load_env
+   541→
+   542→    local backup_path="${1:-}"
+   543→
+   544→    # If no backup specified, show available backups
+   545→    if [ -z "$backup_path" ]; then
+   546→        echo -e "${YELLOW}Available backups:${NC}"
+   547→        list_backups
+   548→        echo ""
+   549→        echo -e "${RED}${BOLD}Enter backup timestamp to restore (YYYYMMDD_HHMMSS): ${NC}"
+   550→        read -r backup_ts
+   551→
+   552→        if [ -z "$backup_ts" ]; then
+   553→            log_error "No backup timestamp provided"
+   554→            exit 1
+   555→        fi
+   556→
+   557→        backup_path="${BACKUP_BASE}/${backup_ts}"
+   558→    fi
+   559→
+   560→    # Check if it's a compressed archive or a directory
+   561→    if [ -f "${backup_path}" ] && [[ "${backup_path}" == *.tar.gz ]]; then
+   562→        log_step "Extracting archive: ${backup_path}"
+   563→        local extract_dir="${backup_path%.tar.gz}"
+   564→        mkdir -p "${extract_dir}"
+   565→        tar xzf "${backup_path}" -C "${extract_dir}" --strip-components=1
+   566→        backup_path="${extract_dir}"
+   567→    fi
+   568→
+   569→    if [ ! -d "${backup_path}" ]; then
+   570→        log_error "Backup directory not found: ${backup_path}"
+   571→        exit 1
+   572→    fi
+   573→
+   574→    # Show manifest if available
+   575→    if [ -f "${backup_path}/manifest.json" ]; then
+   576→        log_info "Backup manifest:"
+   577→        cat "${backup_path}/manifest.json"
+   578→        echo ""
+   579→    fi
+   580→
+   581→    # Confirmation
+   582→    echo -e "${RED}${BOLD}⚠  WARNING: This will overwrite current data!  ⚠${NC}"
+   583→    echo -e "${RED}${BOLD}   Make sure you have a current backup before proceeding.${NC}"
+   584→    echo ""
+   585→    read -rp "$(echo -e ${RED}${BOLD}Type 'RESTORE' to confirm: ${NC})" confirm
+   586→
+   587→    if [ "$confirm" != "RESTORE" ]; then
+   588→        log_info "Restore cancelled"
+   589→        exit 0
+   590→    fi
+   591→
+   592→    # Restore each service
+   593→    local ts_dir
+   594→    ts_dir=$(basename "${backup_path}")
+   595→
+   596→    # Find backup files
+   597→    local pg_file redis_file neo4j_file qdrant_file minio_file
+   598→
+   599→    pg_file=$(find "${backup_path}" -name "postgres_*.sql.gz" -print -quit 2>/dev/null || echo "")
+   600→    redis_file=$(find "${backup_path}" -name "redis_*.rdb" -print -quit 2>/dev/null || echo "")
+   601→    neo4j_file=$(find "${backup_path}" -name "neo4j_*.dump" -print -quit 2>/dev/null || echo "")
+   602→    qdrant_file=$(find "${backup_path}" -name "qdrant_*.tar.gz" -print -quit 2>/dev/null || echo "")
+   603→    minio_file=$(find "${backup_path}" -name "minio_*.tar.gz" -print -quit 2>/dev/null || echo "")
+   604→
+   605→    # Selective restore
+   606→    echo ""
+   607→    echo -e "${BOLD}Select services to restore:${NC}"
+   608→    echo "  1) All services"
+   609→    echo "  2) PostgreSQL only"
+   610→    echo "  3) Redis only"
+   611→    echo "  4) Neo4j only"
+   612→    echo "  5) Qdrant only"
+   613→    echo "  6) MinIO only"
+   614→    echo "  7) Custom selection"
+   615→    read -rp "$(echo -e ${BOLD}Choice [1-7]: ${NC})" choice
+   616→
+   617→    case "$choice" in
+   618→        1)
+   619→            [ -n "$pg_file" ] && restore_postgres "$pg_file"
+   620→            [ -n "$redis_file" ] && restore_redis "$redis_file"
+   621→            [ -n "$neo4j_file" ] && restore_neo4j "$neo4j_file"
+   622→            [ -n "$qdrant_file" ] && restore_qdrant "$qdrant_file"
+   623→            [ -n "$minio_file" ] && restore_minio "$minio_file"
+   624→            ;;
+   625→        2) [ -n "$pg_file" ] && restore_postgres "$pg_file" ;;
+   626→        3) [ -n "$redis_file" ] && restore_redis "$redis_file" ;;
+   627→        4) [ -n "$neo4j_file" ] && restore_neo4j "$neo4j_file" ;;
+   628→        5) [ -n "$qdrant_file" ] && restore_qdrant "$qdrant_file" ;;
+   629→        6) [ -n "$minio_file" ] && restore_minio "$minio_file" ;;
+   630→        7)
+   631→            read -rp "Restore PostgreSQL? [y/N]: " r_pg
+   632→            read -rp "Restore Redis? [y/N]: " r_redis
+   633→            read -rp "Restore Neo4j? [y/N]: " r_neo4j
+   634→            read -rp "Restore Qdrant? [y/N]: " r_qdrant
+   635→            read -rp "Restore MinIO? [y/N]: " r_minio
+   636→
+   637→            [[ "$r_pg" == [yY]* ]] && [ -n "$pg_file" ] && restore_postgres "$pg_file"
+   638→            [[ "$r_redis" == [yY]* ]] && [ -n "$redis_file" ] && restore_redis "$redis_file"
+   639→            [[ "$r_neo4j" == [yY]* ]] && [ -n "$neo4j_file" ] && restore_neo4j "$neo4j_file"
+   640→            [[ "$r_qdrant" == [yY]* ]] && [ -n "$qdrant_file" ] && restore_qdrant "$qdrant_file"
+   641→            [[ "$r_minio" == [yY]* ]] && [ -n "$minio_file" ] && restore_minio "$minio_file"
+   642→            ;;
+   643→        *)
+   644→            log_error "Invalid choice"
+   645→            exit 1
+   646→            ;;
+   647→    esac
+   648→
+   649→    log_header "Restore Complete!"
+   650→}
+   651→
+   652→# ─── List Backups ──────────────────────────────────────────────────────
+   653→list_backups() {
+   654→    if [ ! -d "${BACKUP_BASE}" ]; then
+   655→        log_info "No backups directory found at ${BACKUP_BASE}"
+   656→        return 0
+   657→    fi
+   658→
+   659→    echo -e "${BOLD}Available Backups:${NC}\n"
+   660→
+   661→    # List directories (raw backups)
+   662→    for dir in "${BACKUP_BASE}"/[0-9]*; do
+   663→        if [ -d "$dir" ]; then
+   664→            local name
+   665→            name=$(basename "$dir")
+   666→            local manifest="${dir}/manifest.json"
+   667→            if [ -f "$manifest" ]; then
+   668→                local btype bdate services
+   669→                btype=$(python3 -c "import json; d=json.load(open('${manifest}')); print(d.get('type','unknown'))" 2>/dev/null || echo "unknown")
+   670→                bdate=$(python3 -c "import json; d=json.load(open('${manifest}')); print(d.get('date','unknown'))" 2>/dev/null || echo "unknown")
+   671→                services=$(python3 -c "import json; d=json.load(open('${manifest}')); print(','.join(d.get('services',[])))" 2>/dev/null || echo "unknown")
+   672→                echo -e "  ${GREEN}${name}${NC}  type=${btype}  date=${bdate}  services=[${services}]"
+   673→            else
+   674→                local dir_size
+   675→                dir_size=$(du -sh "$dir" 2>/dev/null | cut -f1)
+   676→                echo -e "  ${YELLOW}${name}${NC}  size=${dir_size}  (no manifest)"
+   677→            fi
+   678→        fi
+   679→    done
+   680→
+   681→    # List archives
+   682→    for archive in "${BACKUP_BASE}"/aenews_*.tar.gz; do
+   683→        if [ -f "$archive" ]; then
+   684→            local name
+   685→            name=$(basename "$archive")
+   686→            local size
+   687→            size=$(du -h "$archive" | cut -f1)
+   688→            echo -e "  ${CYAN}${name}${NC}  size=${size}  (archive)"
+   689→        fi
+   690→    done
+   691→
+   692→    echo ""
+   693→    local total_count
+   694→    total_count=$(find "${BACKUP_BASE}" -maxdepth 1 -name "[0-9]*" -type d 2>/dev/null | wc -l | tr -d ' ')
+   695→    local total_size
+   696→    total_size=$(du -sh "${BACKUP_BASE}" 2>/dev/null | cut -f1)
+   697→    echo -e "  Total: ${total_count} backups, ${total_size} disk usage"
+   698→}
+   699→
+   700→# ─── Rotate Backups ────────────────────────────────────────────────────
+   701→rotate_backups() {
+   702→    log_step "Rotating backups (keeping last ${KEEP_BACKUPS})..."
+   703→
+   704→    local count
+   705→    count=$(find "${BACKUP_BASE}" -maxdepth 1 -name "[0-9]*" -type d | sort | wc -l | tr -d ' ')
+   706→
+   707→    if [ "$count" -le "${KEEP_BACKUPS}" ]; then
+   708→        log_info "Only ${count} backups found. No rotation needed."
+   709→        return 0
+   710→    fi
+   711→
+   712→    local to_delete
+   713→    to_delete=$((count - KEEP_BACKUPS))
+   714→
+   715→    log_info "Removing ${to_delete} old backup(s)..."
+   716→
+   717→    find "${BACKUP_BASE}" -maxdepth 1 -name "[0-9]*" -type d | sort | head -n "${to_delete}" | while read -r dir; do
+   718→        local name
+   719→        name=$(basename "$dir")
+   720→        log_info "Removing old backup: ${name}"
+   721→        rm -rf "$dir"
+   722→
+   723→        # Also remove the corresponding archive if it exists
+   724→        rm -f "${BACKUP_BASE}/aenews_backup_${name}.tar.gz" 2>/dev/null
+   725→        rm -f "${BACKUP_BASE}/aenews_db_backup_${name}.tar.gz" 2>/dev/null
+   726→    done
+   727→
+   728→    log_success "Backup rotation complete. Kept last ${KEEP_BACKUPS} backups."
+   729→}
+   730→
+   731→# ─── Usage ─────────────────────────────────────────────────────────────
+   732→usage() {
+   733→    echo -e "${BOLD}AENEWS Agent OS X — Backup & Restore${NC}"
+   734→    echo ""
+   735→    echo "Usage: $0 [COMMAND]"
+   736→    echo ""
+   737→    echo "Commands:"
+   738→    echo "  full       Full backup (all services: PostgreSQL, Redis, Neo4j, Qdrant, MinIO)"
+   739→    echo "  db-only    Database-only backup (PostgreSQL, Redis, Neo4j)"
+   740→    echo "  restore    Interactive restore from a backup"
+   741→    echo "  list       List available backups"
+   742→    echo ""
+   743→    echo "Examples:"
+   744→    echo "  $0 full           # Full backup of all services"
+   745→    echo "  $0 db-only        # Backup databases only (smaller, faster)"
+   746→    echo "  $0 restore        # Interactive restore"
+   747→    echo "  $0 list           # Show all backups"
+   748→}
+   749→
+   750→# ─── Main ──────────────────────────────────────────────────────────────
+   751→main() {
+   752→    local command="${1:-}"
+   753→
+   754→    case "$command" in
+   755→        full)
+   756→            full_backup
+   757→            ;;
+   758→        db-only)
+   759→            db_only_backup
+   760→            ;;
+   761→        restore)
+   762→            restore_backup "${2:-}"
+   763→            ;;
+   764→        list)
+   765→            list_backups
+   766→            ;;
+   767→        help|--help|-h)
+   768→            usage
+   769→            ;;
+   770→        "")
+   771→            usage
+   772→            exit 1
+   773→            ;;
+   774→        *)
+   775→            log_error "Unknown command: $command"
+   776→            usage
+   777→            exit 1
+   778→            ;;
+   779→    esac
+   780→}
+   781→
+   782→main "$@"
+   783→

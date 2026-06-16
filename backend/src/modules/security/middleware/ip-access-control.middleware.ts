@@ -95,8 +95,8 @@ export class IpAccessControlMiddleware implements NestMiddleware {
       return this.config.metricsWhitelist;
     }
 
-    // Internal endpoints (health, debug)
-    if (path.includes('/health') && path.includes('/debug')) {
+    // Internal endpoints (health OR debug)
+    if (path.includes('/health') || path.includes('/debug')) {
       return this.config.internalWhitelist;
     }
 

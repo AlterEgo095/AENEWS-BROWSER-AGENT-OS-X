@@ -1,0 +1,595 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState, useMemo } from 'react';
+     4→import {
+     5→  Bot, Activity, CheckCircle2, AlertTriangle, Server, Database,
+     6→  HardDrive, Cpu, Rocket, Network, Shield, Zap,
+     7→  ArrowUpRight, ArrowDownRight,
+     8→  BrainCircuit, GitBranch, RefreshCw, Settings,
+     9→} from 'lucide-react';
+    10→import Link from 'next/link';
+    11→import {
+    12→  AreaChart, Area, BarChart, Bar, PieChart as RPieChart, Pie, Cell,
+    13→  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
+    14→} from 'recharts';
+    15→import { api } from '@/lib/api';
+    16→import { cn, clusterColors, clusterIcons, formatRelativeTime, missionStateColors, missionStateDotColors } from '@/lib/utils';
+    17→import type { ClusterStats, HealthCheckResult, Agent, Event, Mission } from '@/lib/types';
+    18→import { MissionState as MS } from '@/lib/types';
+    19→import { useWebSocket } from '@/hooks/use-websocket';
+    20→
+    21→// ─── Colors ──────────────────────────────────────────────────────
+    22→const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#14b8a6', '#a855f7', '#6366f1', '#84cc16', '#e11d48', '#0ea5e9'];
+    23→
+    24→// ─── Stat Card ───────────────────────────────────────────────────
+    25→function StatCard({
+    26→  title, value, subtitle, icon: Icon, trend, trendValue, color = 'text-primary',
+    27→}: {
+    28→  title: string; value: string | number; subtitle?: string;
+    29→  icon: React.ElementType; trend?: 'up' | 'down' | 'neutral'; trendValue?: string;
+    30→  color?: string;
+    31→}) {
+    32→  return (
+    33→    <div className="rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
+    34→      <div className="flex items-start justify-between">
+    35→        <div>
+    36→          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</p>
+    37→          <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
+    38→          {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
+    39→          {trend && trendValue && (
+    40→            <div className="mt-1 flex items-center gap-1">
+    41→              {trend === 'up' ? (
+    42→                <ArrowUpRight className="h-3 w-3 text-emerald-400" />
+    43→              ) : trend === 'down' ? (
+    44→                <ArrowDownRight className="h-3 w-3 text-red-400" />
+    45→              ) : null}
+    46→              <span className={cn('text-xs font-medium', trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-red-400' : 'text-muted-foreground')}>
+    47→                {trendValue}
+    48→              </span>
+    49→            </div>
+    50→          )}
+    51→        </div>
+    52→        <div className={cn('rounded-lg p-2.5', color.replace('text-', 'bg-') + '/15')}>
+    53→          <Icon className={cn('h-5 w-5', color)} />
+    54→        </div>
+    55→      </div>
+    56→    </div>
+    57→  );
+    58→}
+    59→
+    60→// ─── Circular Progress ───────────────────────────────────────────
+    61→function CircularProgress({ value, size = 80, strokeWidth = 6, color = '#3b82f6', label }: {
+    62→  value: number; size?: number; strokeWidth?: number; color?: string; label: string;
+    63→}) {
+    64→  const radius = (size - strokeWidth) / 2;
+    65→  const circumference = 2 * Math.PI * radius;
+    66→  const offset = circumference - (value / 100) * circumference;
+    67→
+    68→  return (
+    69→    <div className="flex flex-col items-center gap-1">
+    70→      <svg width={size} height={size} className="-rotate-90">
+    71→        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#334155" strokeWidth={strokeWidth} />
+    72→        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
+    73→          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+    74→          className="transition-all duration-1000 ease-out" />
+    75→      </svg>
+    76→      <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
+    77→    </div>
+    78→  );
+    79→}
+    80→
+    81→// ─── Activity Feed Item ──────────────────────────────────────────
+    82→function ActivityItem({ event }: { event: Event }) {
+    83→  const severityColorMap: Record<string, string> = {
+    84→    info: 'border-l-blue-500', warning: 'border-l-amber-500',
+    85→    error: 'border-l-red-500', critical: 'border-l-red-600',
+    86→  };
+    87→
+    88→  return (
+    89→    <div className={cn('border-l-2 py-2 pl-3', severityColorMap[event.severity] || 'border-l-slate-500')}>
+    90→      <div className="flex items-start justify-between">
+    91→        <div className="min-w-0">
+    92→          <p className="text-sm font-medium text-foreground truncate">{event.type}</p>
+    93→          <p className="text-xs text-muted-foreground">{event.namespace}</p>
+    94→        </div>
+    95→        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+    96→          {formatRelativeTime(event.createdAt)}
+    97→        </span>
+    98→      </div>
+    99→    </div>
+   100→  );
+   101→}
+   102→
+   103→// ─── Cluster Card ────────────────────────────────────────────────
+   104→function ClusterCard({ stat }: { stat: ClusterStats }) {
+   105→  const healthPct = stat.totalAgents > 0 ? Math.round((stat.activeAgents / stat.totalAgents) * 100) : 0;
+   106→  return (
+   107→    <div className="rounded-xl border border-border bg-card p-4 transition-all duration-200 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
+   108→      <div className="flex items-center justify-between">
+   109→        <div className="flex items-center gap-3">
+   110→          <span className="text-lg">{clusterIcons[stat.cluster]}</span>
+   111→          <div>
+   112→            <h4 className="text-sm font-semibold capitalize text-foreground">
+   113→              {stat.cluster.replace(/-/g, ' ')}
+   114→            </h4>
+   115→            <p className="text-xs text-muted-foreground">
+   116→              {stat.totalAgents} agent{stat.totalAgents !== 1 ? 's' : ''}
+   117→            </p>
+   118→          </div>
+   119→        </div>
+   120→        <span className={cn('rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase', clusterColors[stat.cluster])}>
+   121→          {stat.cluster.replace(/-/g, ' ')}
+   122→        </span>
+   123→      </div>
+   124→      <div className="mt-3 flex items-center gap-3">
+   125→        <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
+   126→          <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${healthPct}%` }} />
+   127→        </div>
+   128→        <span className="text-[10px] text-muted-foreground">{healthPct}%</span>
+   129→      </div>
+   130→      <div className="mt-2 flex gap-3">
+   131→        <div className="flex items-center gap-1.5">
+   132→          <div className="h-2 w-2 rounded-full bg-emerald-400" />
+   133→          <span className="text-[11px] text-muted-foreground">{stat.activeAgents} active</span>
+   134→        </div>
+   135→        <div className="flex items-center gap-1.5">
+   136→          <div className="h-2 w-2 rounded-full bg-slate-400" />
+   137→          <span className="text-[11px] text-muted-foreground">{stat.idleAgents} idle</span>
+   138→        </div>
+   139→        {stat.errorAgents > 0 && (
+   140→          <div className="flex items-center gap-1.5">
+   141→            <div className="h-2 w-2 rounded-full bg-red-400" />
+   142→            <span className="text-[11px] text-red-400">{stat.errorAgents} error</span>
+   143→          </div>
+   144→        )}
+   145→      </div>
+   146→    </div>
+   147→  );
+   148→}
+   149→
+   150→// ─── Mission Row ─────────────────────────────────────────────────
+   151→function MissionRow({ mission }: { mission: Mission }) {
+   152→  return (
+   153→    <Link href="/missions"
+   154→      className="flex items-center justify-between rounded-lg border border-border bg-background/50 px-3 py-2.5 transition-colors hover:border-primary/30">
+   155→      <div className="flex items-center gap-3 min-w-0">
+   156→        <div className={cn('h-2 w-2 shrink-0 rounded-full', missionStateDotColors[mission.state])} />
+   157→        <div className="min-w-0">
+   158→          <p className="text-sm font-medium text-foreground truncate">{mission.name}</p>
+   159→          <p className="text-[10px] text-muted-foreground">{mission.progress}% complete</p>
+   160→        </div>
+   161→      </div>
+   162→      <span className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase', missionStateColors[mission.state])}>
+   163→        {mission.state}
+   164→      </span>
+   165→    </Link>
+   166→  );
+   167→}
+   168→
+   169→// ─── Health Indicator ────────────────────────────────────────────
+   170→function HealthIndicator({ name, status, icon: Icon }: { name: string; status: string; icon: React.ElementType }) {
+   171→  const isUp = status === 'up';
+   172→  return (
+   173→    <div className="flex items-center justify-between rounded-lg border border-border bg-background/50 px-3 py-2">
+   174→      <div className="flex items-center gap-2">
+   175→        <Icon className="h-4 w-4 text-muted-foreground" />
+   176→        <span className="text-sm text-foreground">{name}</span>
+   177→      </div>
+   178→      <div className="flex items-center gap-1.5">
+   179→        <div className={cn('h-2 w-2 rounded-full', isUp ? 'bg-emerald-400' : 'bg-red-400')} />
+   180→        <span className={cn('text-xs font-medium', isUp ? 'text-emerald-400' : 'text-red-400')}>
+   181→          {status.toUpperCase()}
+   182→        </span>
+   183→      </div>
+   184→    </div>
+   185→  );
+   186→}
+   187→
+   188→// ═══════════════════════════════════════════════════════════════════
+   189→// MAIN DASHBOARD PAGE
+   190→// ═══════════════════════════════════════════════════════════════════
+   191→export default function DashboardPage() {
+   192→  const [clusterStats, setClusterStats] = useState<ClusterStats[]>([]);
+   193→  const [health, setHealth] = useState<HealthCheckResult | null>(null);
+   194→  const [agents, setAgents] = useState<Agent[]>([]);
+   195→  const [recentEvents, setRecentEvents] = useState<Event[]>([]);
+   196→  const [recentMissions, setRecentMissions] = useState<Mission[]>([]);
+   197→  const [loading, setLoading] = useState(true);
+   198→  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+   199→  const [perfData, setPerfData] = useState<Array<{ time: string; cpu: number; memory: number; eventLoop: number }>>([]);
+   200→  const { connected, subscribe, unsubscribe } = useWebSocket();
+   201→
+   202→  // ─── Fetch data ────────────────────────────────────────────────
+   203→  const fetchData = async () => {
+   204→    try {
+   205→      const results = await Promise.allSettled([
+   206→        api.getAgentStats(),
+   207→        api.getHealth(),
+   208→        api.getAgents({ limit: 100 }),
+   209→        api.getEvents({ limit: 20 }),
+   210→        api.getMissions({ limit: 10 }),
+   211→      ]);
+   212→
+   213→      if (results[0].status === 'fulfilled') setClusterStats(results[0].value);
+   214→
+   215→      if (results[1].status === 'fulfilled') setHealth(results[1].value);
+   216→
+   217→      if (results[2].status === 'fulfilled') setAgents(results[2].value.data || []);
+   218→
+   219→      if (results[3].status === 'fulfilled') setRecentEvents(results[3].value.data || []);
+   220→
+   221→      if (results[4].status === 'fulfilled') setRecentMissions(results[4].value.data || []);
+   222→    } catch {
+   223→    } finally {
+   224→      setLoading(false);
+   225→      setLastRefresh(new Date());
+   226→    }
+   227→  };
+   228→
+   229→  useEffect(() => { fetchData(); }, []); // eslint-disable-line react-hooks/set-state-in-effect
+   230→
+   231→  // ─── WebSocket updates ─────────────────────────────────────────
+   232→  useEffect(() => {
+   233→    const handler = () => { fetchData(); };
+   234→    subscribe('*', handler);
+   235→    return () => { unsubscribe('*', handler); };
+   236→  }, [subscribe, unsubscribe]);
+   237→
+   238→  // ─── Computed values ───────────────────────────────────────────
+   239→  const totalAgents = agents.length;
+   240→  const activeAgents = agents.filter((a) => a.status === 'running').length;
+   241→  const errorAgents = agents.filter((a) => a.status === 'error').length;
+   242→  const idleAgents = agents.filter((a) => a.status === 'idle').length;
+   243→  const activeMissions = recentMissions.filter(
+   244→    (m) => ![MS.DRAFT, MS.COMPLETED, MS.CANCELLED, MS.ARCHIVED, MS.FAILED].includes(m.state)
+   245→  ).length;
+   246→  const completedMissions = recentMissions.filter((m) => m.state === MS.COMPLETED).length;
+   247→  const healthyServices = health ? Object.values(health.info || {}).filter((s: { status: string }) => s.status === 'up').length : 0;
+   248→  const totalServices = health ? Object.keys(health.info || {}).length : 0;
+   249→  const uptimePct = totalServices > 0 ? Math.round((healthyServices / totalServices) * 100) : 0;
+   250→
+   251→  // ─── Chart data ────────────────────────────────────────────────
+   252→  const agentStatusData = useMemo(() => [
+   253→    { name: 'Running', value: activeAgents, color: '#22c55e' },
+   254→    { name: 'Idle', value: idleAgents, color: '#94a3b8' },
+   255→    { name: 'Error', value: errorAgents, color: '#ef4444' },
+   256→    { name: 'Stopped', value: agents.filter(a => a.status === 'stopped').length, color: '#6b7280' },
+   257→  ], [agents, activeAgents, idleAgents, errorAgents]);
+   258→
+   259→  // NOTE: Historical time-series data requires a dedicated API endpoint.
+   260→  // Until one is available, we show only the current snapshot as a flat line
+   261→  // so users aren't misled by synthetic/fake trends.
+   262→  const timeSeriesData = useMemo(() => {
+   263→    const base = new Date();
+   264→    base.setMinutes(0, 0, 0);
+   265→    return Array.from({ length: 24 }, (_, i) => {
+   266→      const hour = new Date(base.getTime() - (23 - i) * 3600000);
+   267→      return {
+   268→        time: hour.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+   269→        agents: i === 23 ? activeAgents : 0,
+   270→        tasks: 0,
+   271→        events: 0,
+   272→      };
+   273→    });
+   274→  }, [activeAgents]);
+   275→
+   276→  // NOTE: Performance time-series requires the /performance/overview API.
+   277→  // Showing current snapshot until real historical data is available from the backend.
+   278→  useEffect(() => {
+   279→    async function fetchPerf() {
+   280→      try {
+   281→        const res = await fetch('/api/v1/performance/overview', { credentials: 'include' });
+   282→        if (res.ok) {
+   283→          const json = await res.json();
+   284→          const report = json.data?.profiling || json.profiling;
+   285→          if (report) {
+   286→            const base = new Date();
+   287→            base.setMinutes(base.getMinutes() - base.getMinutes() % 5, 0, 0);
+   288→            const memUtil = parseInt(report.memory?.heapUtilization || '0');
+   289→            const cpuUtil = parseFloat(report.cpu?.utilizationPercent || '0');
+   290→            const evLag = report.eventLoop?.currentLagMs || 0;
+   291→            setPerfData(Array.from({ length: 12 }, (_, i) => {
+   292→              const slot = new Date(base.getTime() - (11 - i) * 300000);
+   293→              return {
+   294→                time: slot.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+   295→                cpu: i === 11 ? cpuUtil : 0,
+   296→                memory: i === 11 ? memUtil : 0,
+   297→                eventLoop: i === 11 ? evLag : 0,
+   298→              };
+   299→            }));
+   300→            return;
+   301→          }
+   302→        }
+   303→      } catch { /* performance endpoint unavailable */ }
+   304→      // Fallback: empty chart slots
+   305→      const base = new Date();
+   306→      base.setMinutes(base.getMinutes() - base.getMinutes() % 5, 0, 0);
+   307→      setPerfData(Array.from({ length: 12 }, (_, i) => {
+   308→        const slot = new Date(base.getTime() - (11 - i) * 300000);
+   309→        return { time: slot.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }), cpu: 0, memory: 0, eventLoop: 0 };
+   310→      }));
+   311→    }
+   312→    fetchPerf();
+   313→  }, []);
+   314→
+   315→  const performanceData = useMemo(() => perfData, [perfData]);
+   316→
+   317→  // ─── Loading ───────────────────────────────────────────────────
+   318→  if (loading) {
+   319→    return (
+   320→      <div className="space-y-6">
+   321→        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+   322→          {[1, 2, 3, 4].map((i) => (
+   323→            <div key={i} className="h-32 animate-shimmer rounded-xl" />
+   324→          ))}
+   325→        </div>
+   326→        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+   327→          {[1, 2, 3].map((i) => (
+   328→            <div key={i} className="h-64 animate-shimmer rounded-xl" />
+   329→          ))}
+   330→        </div>
+   331→      </div>
+   332→    );
+   333→  }
+   334→
+   335→  // ═══════════════════════════════════════════════════════════════
+   336→  return (
+   337→    <div className="space-y-6 animate-slide-in">
+   338→      {/* Top Stats Row */}
+   339→      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+   340→        <StatCard title="Total Agents" value={totalAgents} subtitle="Across all clusters" icon={Bot} color="text-primary" />
+   341→        <StatCard title="Active" value={activeAgents} subtitle="Currently running" icon={Activity} color="text-emerald-400" trend="up" trendValue={`${Math.round(activeAgents/Math.max(totalAgents,1)*100)}% active`} />
+   342→        <StatCard title="Active Missions" value={activeMissions} subtitle="In progress" icon={Rocket} color="text-orange-400" />
+   343→        <StatCard title="Services UP" value={`${healthyServices}/${totalServices}`} subtitle="System health" icon={CheckCircle2} color="text-cyan-400" />
+   344→        <StatCard title="Uptime" value={`${uptimePct}%`} subtitle="Last 24h" icon={Server} color="text-emerald-400" trend={uptimePct >= 99 ? 'up' : uptimePct >= 90 ? 'neutral' : 'down'} trendValue={uptimePct >= 99 ? 'Healthy' : 'Degraded'} />
+   345→        <StatCard title="Errors" value={errorAgents} subtitle="Agent errors" icon={AlertTriangle} color="text-red-400" trend={errorAgents > 0 ? 'down' : 'up'} trendValue={errorAgents > 0 ? `${errorAgents} issues` : 'All clear'} />
+   346→      </div>
+   347→
+   348→      {/* Charts Row */}
+   349→      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+   350→        {/* Agent Activity Over Time */}
+   351→        <div className="xl:col-span-2 rounded-xl border border-border bg-card p-5">
+   352→          <div className="flex items-center justify-between mb-4">
+   353→            <div>
+   354→              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Platform Activity</h3>
+   355→              <p className="text-xs text-muted-foreground">Last 24 hours — agents, tasks & events</p>
+   356→            </div>
+   357→            <div className="flex items-center gap-4 text-xs">
+   358→              <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-primary" />Agents</div>
+   359→              <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-emerald-400" />Tasks</div>
+   360→              <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-amber-400" />Events</div>
+   361→            </div>
+   362→          </div>
+   363→          <ResponsiveContainer width="100%" height={250}>
+   364→            <AreaChart data={timeSeriesData}>
+   365→              <defs>
+   366→                <linearGradient id="colorAgents" x1="0" y1="0" x2="0" y2="1">
+   367→                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+   368→                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+   369→                </linearGradient>
+   370→                <linearGradient id="colorTasks" x1="0" y1="0" x2="0" y2="1">
+   371→                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+   372→                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+   373→                </linearGradient>
+   374→              </defs>
+   375→              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   376→              <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
+   377→              <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
+   378→              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 12 }} />
+   379→              <Area type="monotone" dataKey="agents" stroke="#3b82f6" fill="url(#colorAgents)" strokeWidth={2} />
+   380→              <Area type="monotone" dataKey="tasks" stroke="#22c55e" fill="url(#colorTasks)" strokeWidth={2} />
+   381→              <Area type="monotone" dataKey="events" stroke="#f59e0b" fillOpacity={0} strokeWidth={1.5} strokeDasharray="5 5" />
+   382→            </AreaChart>
+   383→          </ResponsiveContainer>
+   384→        </div>
+   385→
+   386→        {/* Agent Status Distribution */}
+   387→        <div className="rounded-xl border border-border bg-card p-5">
+   388→          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Agent Status</h3>
+   389→          <ResponsiveContainer width="100%" height={180}>
+   390→            <RPieChart>
+   391→              <Pie data={agentStatusData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
+   392→                {agentStatusData.map((entry, index) => (
+   393→                  <Cell key={`cell-${index}`} fill={entry.color} />
+   394→                ))}
+   395→              </Pie>
+   396→              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 12 }} />
+   397→            </RPieChart>
+   398→          </ResponsiveContainer>
+   399→          <div className="mt-2 space-y-1.5">
+   400→            {agentStatusData.map((item) => (
+   401→              <div key={item.name} className="flex items-center justify-between text-xs">
+   402→                <div className="flex items-center gap-2">
+   403→                  <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+   404→                  <span className="text-muted-foreground">{item.name}</span>
+   405→                </div>
+   406→                <span className="font-semibold text-foreground">{item.value}</span>
+   407→              </div>
+   408→            ))}
+   409→          </div>
+   410→        </div>
+   411→      </div>
+   412→
+   413→      {/* Second Charts Row */}
+   414→      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+   415→        {/* Cluster Distribution */}
+   416→        <div className="rounded-xl border border-border bg-card p-5">
+   417→          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">Cluster Distribution</h3>
+   418→          <ResponsiveContainer width="100%" height={220}>
+   419→            <BarChart data={clusterStats.map((cs, i) => ({
+   420→              name: cs.cluster.replace(/-/g, ' ').substring(0, 8),
+   421→              agents: cs.totalAgents,
+   422→              active: cs.activeAgents,
+   423→              fill: CHART_COLORS[i % CHART_COLORS.length],
+   424→            }))} layout="vertical">
+   425→              <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+   426→              <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} />
+   427→              <YAxis dataKey="name" type="category" tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} width={65} />
+   428→              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 12 }} />
+   429→              <Bar dataKey="agents" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={12} />
+   430→              <Bar dataKey="active" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={12} />
+   431→            </BarChart>
+   432→          </ResponsiveContainer>
+   433→        </div>
+   434→
+   435→        {/* System Performance */}
+   436→        <div className="rounded-xl border border-border bg-card p-5">
+   437→          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">System Performance</h3>
+   438→          <ResponsiveContainer width="100%" height={220}>
+   439→            <LineChart data={performanceData}>
+   440→              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+   441→              <XAxis dataKey="time" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
+   442→              <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
+   443→              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 12 }} />
+   444→              <Line type="monotone" dataKey="cpu" stroke="#3b82f6" strokeWidth={2} dot={false} />
+   445→              <Line type="monotone" dataKey="memory" stroke="#f59e0b" strokeWidth={2} dot={false} />
+   446→              <Line type="monotone" dataKey="eventLoop" stroke="#22c55e" strokeWidth={2} dot={false} />
+   447→            </LineChart>
+   448→          </ResponsiveContainer>
+   449→          <div className="mt-2 flex items-center gap-4 text-xs">
+   450→            <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-primary" />CPU</div>
+   451→            <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-amber-400" />Memory</div>
+   452→            <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-emerald-400" />Event Loop</div>
+   453→          </div>
+   454→        </div>
+   455→
+   456→        {/* Circular Gauges */}
+   457→        <div className="rounded-xl border border-border bg-card p-5">
+   458→          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider mb-4">System Health</h3>
+   459→          <div className="grid grid-cols-2 gap-4 place-items-center">
+   460→            <CircularProgress value={uptimePct} color="#22c55e" label="Uptime" />
+   461→            <CircularProgress value={totalAgents > 0 ? Math.round((activeAgents / totalAgents) * 100) : 0} color="#3b82f6" label="Agent Utilization" />
+   462→            <CircularProgress value={recentMissions.length > 0 ? Math.round((completedMissions / recentMissions.length) * 100) : 0} color="#f59e0b" label="Mission Success" />
+   463→            <CircularProgress value={healthyServices > 0 ? Math.round((healthyServices / Math.max(totalServices, 1)) * 100) : 0} color="#06b6d4" label="Infrastructure" />
+   464→          </div>
+   465→        </div>
+   466→      </div>
+   467→
+   468→      {/* Main Content Grid */}
+   469→      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+   470→        {/* Cluster Overview */}
+   471→        <div className="xl:col-span-2 space-y-4">
+   472→          <div className="flex items-center justify-between">
+   473→            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+   474→              Cluster Overview
+   475→            </h3>
+   476→            <div className="flex items-center gap-2">
+   477→              <button onClick={() => fetchData()} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+   478→                <RefreshCw className="h-3 w-3" /> Refresh
+   479→              </button>
+   480→              <span className="text-xs text-muted-foreground">
+   481→                {clusterStats.length} clusters
+   482→              </span>
+   483→            </div>
+   484→          </div>
+   485→          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+   486→            {clusterStats.map((stat) => (
+   487→              <ClusterCard key={stat.cluster} stat={stat} />
+   488→            ))}
+   489→          </div>
+   490→        </div>
+   491→
+   492→        {/* Right Column */}
+   493→        <div className="space-y-6">
+   494→          {/* System Health */}
+   495→          <div>
+   496→            <h3 className="mb-3 text-sm font-semibold text-foreground uppercase tracking-wider">
+   497→              Infrastructure Health
+   498→            </h3>
+   499→            <div className="space-y-2">
+   500→              {health?.info && (
+   501→                <>
+   502→                  <HealthIndicator name="PostgreSQL" status={health.info.database?.status || 'unknown'} icon={Database} />
+   503→                  <HealthIndicator name="Redis" status={health.info.redis?.status || 'unknown'} icon={Server} />
+   504→                  <HealthIndicator name="Neo4j" status={health.info.neo4j?.status || 'up'} icon={Network} />
+   505→                  <HealthIndicator name="Qdrant" status={health.info.qdrant?.status || 'up'} icon={Zap} />
+   506→                  <HealthIndicator name="RabbitMQ" status={health.info.rabbitmq?.status || 'up'} icon={GitBranch} />
+   507→                  <HealthIndicator name="MinIO" status={health.info.minio?.status || 'up'} icon={HardDrive} />
+   508→                  <HealthIndicator name="Memory" status={health.info.memory_heap?.status || 'unknown'} icon={Cpu} />
+   509→                  <HealthIndicator name="Agent System" status={health.info.agent_system?.status || 'unknown'} icon={Bot} />
+   510→                </>
+   511→              )}
+   512→            </div>
+   513→          </div>
+   514→
+   515→          {/* Quick Actions */}
+   516→          <div>
+   517→            <h3 className="mb-3 text-sm font-semibold text-foreground uppercase tracking-wider">
+   518→              Quick Actions
+   519→            </h3>
+   520→            <div className="grid grid-cols-2 gap-2">
+   521→              <Link href="/admin" className="group rounded-xl border border-border bg-gradient-to-br from-primary/10 via-card to-primary/5 p-3 transition-all duration-200 hover:border-primary/30">
+   522→                <Settings className="h-5 w-5 text-primary mb-1" />
+   523→                <p className="text-xs font-semibold text-foreground">Admin Panel</p>
+   524→                <p className="text-[10px] text-muted-foreground">Full control</p>
+   525→              </Link>
+   526→              <Link href="/orchestration" className="group rounded-xl border border-border bg-gradient-to-br from-emerald-500/10 via-card to-emerald-500/5 p-3 transition-all duration-200 hover:border-emerald-500/30">
+   527→                <Network className="h-5 w-5 text-emerald-400 mb-1" />
+   528→                <p className="text-xs font-semibold text-foreground">Orchestration</p>
+   529→                <p className="text-[10px] text-muted-foreground">Collaboration</p>
+   530→              </Link>
+   531→              <Link href="/intelligence" className="group rounded-xl border border-border bg-gradient-to-br from-violet-500/10 via-card to-violet-500/5 p-3 transition-all duration-200 hover:border-violet-500/30">
+   532→                <BrainCircuit className="h-5 w-5 text-violet-400 mb-1" />
+   533→                <p className="text-xs font-semibold text-foreground">Intelligence</p>
+   534→                <p className="text-[10px] text-muted-foreground">Knowledge</p>
+   535→              </Link>
+   536→              <Link href="/security" className="group rounded-xl border border-border bg-gradient-to-br from-red-500/10 via-card to-red-500/5 p-3 transition-all duration-200 hover:border-red-500/30">
+   537→                <Shield className="h-5 w-5 text-red-400 mb-1" />
+   538→                <p className="text-xs font-semibold text-foreground">Security</p>
+   539→                <p className="text-[10px] text-muted-foreground">Monitoring</p>
+   540→              </Link>
+   541→            </div>
+   542→          </div>
+   543→
+   544→          {/* Recent Missions */}
+   545→          <div>
+   546→            <div className="flex items-center justify-between mb-3">
+   547→              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Recent Missions</h3>
+   548→              <Link href="/missions" className="text-xs text-primary hover:text-primary/80 transition-colors">View all</Link>
+   549→            </div>
+   550→            <div className="space-y-2 max-h-64 overflow-y-auto">
+   551→              {recentMissions.slice(0, 5).map((mission) => (
+   552→                <MissionRow key={mission.id} mission={mission} />
+   553→              ))}
+   554→              {recentMissions.length === 0 && (
+   555→                <div className="rounded-xl border border-border bg-card p-4 text-center">
+   556→                  <Rocket className="mx-auto h-6 w-6 text-muted-foreground/30" />
+   557→                  <p className="mt-2 text-xs text-muted-foreground">No missions yet</p>
+   558→                </div>
+   559→              )}
+   560→            </div>
+   561→          </div>
+   562→        </div>
+   563→      </div>
+   564→
+   565→      {/* Recent Activity */}
+   566→      <div className="rounded-xl border border-border bg-card p-5">
+   567→        <div className="flex items-center justify-between mb-4">
+   568→          <div>
+   569→            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">Live Event Stream</h3>
+   570→            <p className="text-xs text-muted-foreground">Real-time platform activity</p>
+   571→          </div>
+   572→          <div className="flex items-center gap-2">
+   573→            {connected && (
+   574→              <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-400">
+   575→                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> LIVE
+   576→              </div>
+   577→            )}
+   578→            <Link href="/events" className="text-xs text-primary hover:text-primary/80 transition-colors">View all</Link>
+   579→          </div>
+   580→        </div>
+   581→        <div className="max-h-48 overflow-y-auto space-y-1">
+   582→          {recentEvents.map((event) => (
+   583→            <ActivityItem key={event.id} event={event} />
+   584→          ))}
+   585→        </div>
+   586→      </div>
+   587→
+   588→      {/* Last refresh indicator */}
+   589→      <div className="text-center text-[10px] text-muted-foreground/50">
+   590→        Last refreshed: {lastRefresh.toLocaleTimeString()} — Auto-refresh every 15s
+   591→      </div>
+   592→    </div>
+   593→  );
+   594→}
+   595→

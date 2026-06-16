@@ -1,0 +1,888 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import { api } from '@/lib/api';
+     5→import { cn } from '@/lib/utils';
+     6→import {
+     7→  BrainCircuit,
+     8→  Network,
+     9→  BookOpen,
+    10→  TrendingUp,
+    11→  RotateCcw,
+    12→  MessageSquare,
+    13→  Zap,
+    14→  ChevronRight,
+    15→  Sparkles,
+    16→  AlertTriangle,
+    17→  CheckCircle2,
+    18→  XCircle,
+    19→  ArrowUpRight,
+    20→  ArrowDownRight,
+    21→  Minus,
+    22→  RefreshCw,
+    23→  Play,
+    24→  BarChart3,
+    25→  Target,
+    26→  Lightbulb,
+    27→} from 'lucide-react';
+    28→import type {
+    29→  GraphStatistics,
+    30→  LearningStatistics,
+    31→  LearningInsight,
+    32→  PatternMiningStatistics,
+    33→  DiscoveredPattern,
+    34→  CorrelationFinding,
+    35→  AdaptiveStatistics,
+    36→  AdaptiveConfig,
+    37→  ExperienceStatistics,
+    38→  FeedbackStatistics,
+    39→  FeedbackSummary,
+    40→  ActionItem,
+    41→} from '@/lib/types';
+    42→
+    43→// ─── Default empty data shapes ────────────────────────────────────
+    44→
+    45→const defaultGraphStats: GraphStatistics = {
+    46→  nodeCounts: {},
+    47→  relationshipCounts: {},
+    48→  neo4jAvailable: false,
+    49→  topAgents: [],
+    50→  topPatterns: [],
+    51→};
+    52→
+    53→const defaultLearningStats: LearningStatistics = {
+    54→  totalProfiles: 0,
+    55→  totalLearnings: 0,
+    56→  totalInsights: 0,
+    57→  avgReward: 0,
+    58→  topStrategies: [],
+    59→  clusterBreakdown: {},
+    60→};
+    61→
+    62→const defaultPatternStats: PatternMiningStatistics = {
+    63→  totalPatterns: 0,
+    64→  totalExecutions: 0,
+    65→  categoryBreakdown: {},
+    66→  avgConfidence: 0,
+    67→  topPatterns: [],
+    68→};
+    69→
+    70→const defaultAdaptiveStats: AdaptiveStatistics = {
+    71→  configVersion: 0,
+    72→  totalAdaptations: 0,
+    73→  appliedCount: 0,
+    74→  improvedCount: 0,
+    75→  degradedCount: 0,
+    76→  pinnedParameters: [],
+    77→  lastAdaptationAt: 0,
+    78→};
+    79→
+    80→const defaultExperienceStats: ExperienceStatistics = {
+    81→  totalExperiences: 0,
+    82→  successCount: 0,
+    83→  failureCount: 0,
+    84→  totalInsights: 0,
+    85→  avgDurationMs: 0,
+    86→  clusterBreakdown: {},
+    87→};
+    88→
+    89→const defaultFeedbackStats: FeedbackStatistics = {
+    90→  totalEntries: 0,
+    91→  totalAggregated: 0,
+    92→  totalActions: 0,
+    93→  avgScore: 0,
+    94→  sourceBreakdown: {},
+    95→  recentTrend: 'stable',
+    96→};
+    97→
+    98→const defaultFeedbackSummary: FeedbackSummary = {
+    99→  totalFeedback: 0,
+   100→  avgScore: 0,
+   101→  sourceDistribution: {},
+   102→  topIssues: [],
+   103→  topPraise: [],
+   104→  trendDirection: 'stable',
+   105→};
+   106→
+   107→// ─── Sub-Components ───────────────────────────────────────────────
+   108→
+   109→function StatCard({ label, value, sub, icon: Icon, color = 'text-primary' }: {
+   110→  label: string; value: string | number; sub?: string; icon: any; color?: string;
+   111→}) {
+   112→  return (
+   113→    <div className="rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/30">
+   114→      <div className="flex items-center justify-between">
+   115→        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+   116→        <Icon className={cn('h-4 w-4', color)} />
+   117→      </div>
+   118→      <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
+   119→      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+   120→    </div>
+   121→  );
+   122→}
+   123→
+   124→function TrendBadge({ trend }: { trend: 'improving' | 'degrading' | 'stable' | 'up' | 'down' | 'flat' }) {
+   125→  const isUp = trend === 'improving' || trend === 'up';
+   126→  const isDown = trend === 'degrading' || trend === 'down';
+   127→  return (
+   128→    <span className={cn(
+   129→      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+   130→      isUp && 'bg-emerald-500/15 text-emerald-400',
+   131→      isDown && 'bg-red-500/15 text-red-400',
+   132→      !isUp && !isDown && 'bg-yellow-500/15 text-yellow-400',
+   133→    )}>
+   134→      {isUp && <ArrowUpRight className="h-3 w-3" />}
+   135→      {isDown && <ArrowDownRight className="h-3 w-3" />}
+   136→      {!isUp && !isDown && <Minus className="h-3 w-3" />}
+   137→      {trend}
+   138→    </span>
+   139→  );
+   140→}
+   141→
+   142→function ImpactBadge({ impact }: { impact: 'positive' | 'negative' | 'neutral' }) {
+   143→  return (
+   144→    <span className={cn(
+   145→      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+   146→      impact === 'positive' && 'bg-emerald-500/15 text-emerald-400',
+   147→      impact === 'negative' && 'bg-red-500/15 text-red-400',
+   148→      impact === 'neutral' && 'bg-yellow-500/15 text-yellow-400',
+   149→    )}>
+   150→      {impact === 'positive' && <CheckCircle2 className="h-3 w-3" />}
+   151→      {impact === 'negative' && <XCircle className="h-3 w-3" />}
+   152→      {impact === 'neutral' && <Minus className="h-3 w-3" />}
+   153→      {impact}
+   154→    </span>
+   155→  );
+   156→}
+   157→
+   158→function PriorityBadge({ priority }: { priority: string }) {
+   159→  const colors: Record<string, string> = {
+   160→    critical: 'bg-red-500/15 text-red-400',
+   161→    high: 'bg-orange-500/15 text-orange-400',
+   162→    medium: 'bg-yellow-500/15 text-yellow-400',
+   163→    low: 'bg-blue-500/15 text-blue-400',
+   164→  };
+   165→  return (
+   166→    <span className={cn('inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold', colors[priority] || colors.low)}>
+   167→      {priority}
+   168→    </span>
+   169→  );
+   170→}
+   171→
+   172→// ─── Tab Configuration ───────────────────────────────────────────
+   173→
+   174→type TabKey = 'overview' | 'knowledge' | 'learning' | 'patterns' | 'adaptive' | 'feedback';
+   175→
+   176→const tabs: Array<{ key: TabKey; label: string; icon: any }> = [
+   177→  { key: 'overview', label: 'Overview', icon: BarChart3 },
+   178→  { key: 'knowledge', label: 'Knowledge Graph', icon: Network },
+   179→  { key: 'learning', label: 'Learning', icon: BookOpen },
+   180→  { key: 'patterns', label: 'Patterns', icon: Lightbulb },
+   181→  { key: 'adaptive', label: 'Adaptive', icon: Zap },
+   182→  { key: 'feedback', label: 'Feedback', icon: MessageSquare },
+   183→];
+   184→
+   185→// ─── Main Page ───────────────────────────────────────────────────
+   186→
+   187→export default function IntelligencePage() {
+   188→  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+   189→  const [loading, setLoading] = useState(true);
+   190→
+   191→  // Data states
+   192→  const [graphStats, setGraphStats] = useState<GraphStatistics>(defaultGraphStats);
+   193→  const [learningStats, setLearningStats] = useState<LearningStatistics>(defaultLearningStats);
+   194→  const [patternStats, setPatternStats] = useState<PatternMiningStatistics>(defaultPatternStats);
+   195→  const [correlations, setCorrelations] = useState<CorrelationFinding[]>([]);
+   196→  const [adaptiveStats, setAdaptiveStats] = useState<AdaptiveStatistics>(defaultAdaptiveStats);
+   197→  const [adaptiveConfig, setAdaptiveConfig] = useState<AdaptiveConfig | null>(null);
+   198→  const [experienceStats, setExperienceStats] = useState<ExperienceStatistics>(defaultExperienceStats);
+   199→  const [feedbackStats, setFeedbackStats] = useState<FeedbackStatistics>(defaultFeedbackStats);
+   200→  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary>(defaultFeedbackSummary);
+   201→  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+   202→  const [error, setError] = useState<string | null>(null);
+   203→
+   204→  useEffect(() => {
+   205→    async function fetchData() {
+   206→      setLoading(true);
+   207→      const results = await Promise.allSettled([
+   208→        api.intelligence.getGraphStats(),
+   209→        api.intelligence.getLearningStats(),
+   210→        api.intelligence.getPatternStats(),
+   211→        api.intelligence.getCorrelations(),
+   212→        api.intelligence.getAdaptiveStats(),
+   213→        api.intelligence.getAdaptiveConfig(),
+   214→        api.intelligence.getExperienceStats(),
+   215→        api.intelligence.getFeedbackStats(),
+   216→        api.intelligence.getFeedbackSummary(),
+   217→        api.intelligence.getFeedbackActions(),
+   218→      ]);
+   219→
+   220→      const failed = results.filter(r => r.status === 'rejected');
+   221→      if (failed.length === results.length) {
+   222→        setError('Failed to load intelligence data from the server');
+   223→      } else {
+   224→        setError(null);
+   225→      }
+   226→
+   227→      if (results[0].status === 'fulfilled') setGraphStats(results[0].value.data ?? defaultGraphStats);
+   228→      if (results[1].status === 'fulfilled') setLearningStats(results[1].value.data ?? defaultLearningStats);
+   229→      if (results[2].status === 'fulfilled') setPatternStats(results[2].value.data ?? defaultPatternStats);
+   230→      if (results[3].status === 'fulfilled') setCorrelations(results[3].value.data ?? []);
+   231→      if (results[4].status === 'fulfilled') setAdaptiveStats(results[4].value.data ?? defaultAdaptiveStats);
+   232→      if (results[5].status === 'fulfilled') setAdaptiveConfig(results[5].value.data ?? null);
+   233→      if (results[6].status === 'fulfilled') setExperienceStats(results[6].value.data ?? defaultExperienceStats);
+   234→      if (results[7].status === 'fulfilled') setFeedbackStats(results[7].value.data ?? defaultFeedbackStats);
+   235→      if (results[8].status === 'fulfilled') setFeedbackSummary(results[8].value.data ?? defaultFeedbackSummary);
+   236→      if (results[9].status === 'fulfilled') setActionItems(results[9].value.data ?? []);
+   237→
+   238→      setLoading(false);
+   239→    }
+   240→    fetchData();
+   241→  }, []);
+   242→
+   243→  // ─── Render Tabs ───────────────────────────────────────────────
+   244→
+   245→  return (
+   246→    <div className="min-h-screen bg-background p-6">
+   247→      {/* Header */}
+   248→      <div className="mb-6 flex items-center justify-between">
+   249→        <div className="flex items-center gap-3">
+   250→          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20">
+   251→            <BrainCircuit className="h-6 w-6 text-primary" />
+   252→          </div>
+   253→          <div>
+   254→            <h1 className="text-xl font-bold text-foreground">Intelligence Dashboard</h1>
+   255→            <p className="text-sm text-muted-foreground">Adaptive Intelligence & Knowledge System — Phase 9</p>
+   256→          </div>
+   257→        </div>
+   258→        <div className="flex items-center gap-2">
+   259→          <TrendBadge trend={feedbackStats.recentTrend} />
+   260→          <button className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
+   261→            <RefreshCw className="h-4 w-4" />
+   262→            Refresh
+   263→          </button>
+   264→        </div>
+   265→      </div>
+   266→
+   267→      {/* Tab Bar */}
+   268→      <div className="mb-6 flex gap-1 rounded-xl border border-border bg-card p-1">
+   269→        {tabs.map((tab) => (
+   270→          <button
+   271→            key={tab.key}
+   272→            onClick={() => setActiveTab(tab.key)}
+   273→            className={cn(
+   274→              'flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+   275→              activeTab === tab.key
+   276→                ? 'bg-primary/15 text-primary'
+   277→                : 'text-muted-foreground hover:bg-white/5 hover:text-foreground'
+   278→            )}
+   279→          >
+   280→            <tab.icon className="h-4 w-4" />
+   281→            {tab.label}
+   282→          </button>
+   283→        ))}
+   284→      </div>
+   285→
+   286→      {/* Content */}
+   287→      {loading ? (
+   288→        <div className="flex h-64 items-center justify-center">
+   289→          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+   290→        </div>
+   291→      ) : error ? (
+   292→        <div className="flex h-64 flex-col items-center justify-center gap-4">
+   293→          <AlertTriangle className="h-10 w-10 text-amber-400" />
+   294→          <p className="text-sm text-muted-foreground">{error}</p>
+   295→          <button onClick={() => window.location.reload()} className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">Retry</button>
+   296→        </div>
+   297→      ) : (
+   298→        <>
+   299→          {activeTab === 'overview' && renderOverview()}
+   300→          {activeTab === 'knowledge' && renderKnowledge()}
+   301→          {activeTab === 'learning' && renderLearning()}
+   302→          {activeTab === 'patterns' && renderPatterns()}
+   303→          {activeTab === 'adaptive' && renderAdaptive()}
+   304→          {activeTab === 'feedback' && renderFeedback()}
+   305→        </>
+   306→      )}
+   307→    </div>
+   308→  );
+   309→
+   310→  // ─── Overview Tab ───────────────────────────────────────────────
+   311→
+   312→  function renderOverview() {
+   313→    const totalNodes = Object.values(graphStats.nodeCounts).reduce((a, b) => a + b, 0);
+   314→    const totalRels = Object.values(graphStats.relationshipCounts).reduce((a, b) => a + b, 0);
+   315→
+   316→    return (
+   317→      <div className="space-y-6">
+   318→        {/* KPI Row */}
+   319→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
+   320→          <StatCard label="Graph Nodes" value={totalNodes} sub={`${Object.keys(graphStats.nodeCounts).length} types`} icon={Network} color="text-blue-400" />
+   321→          <StatCard label="Graph Edges" value={totalRels} sub={`${Object.keys(graphStats.relationshipCounts).length} types`} icon={Network} color="text-purple-400" />
+   322→          <StatCard label="Learnings" value={learningStats.totalLearnings} sub={`${learningStats.totalProfiles} agents`} icon={BookOpen} color="text-emerald-400" />
+   323→          <StatCard label="Patterns" value={patternStats.totalPatterns} sub={`${patternStats.totalExecutions} executions`} icon={Lightbulb} color="text-amber-400" />
+   324→          <StatCard label="Adaptations" value={adaptiveStats.totalAdaptations} sub={`${adaptiveStats.improvedCount} improved`} icon={Zap} color="text-cyan-400" />
+   325→          <StatCard label="Feedback" value={feedbackStats.totalEntries} sub={`avg ${(feedbackStats.avgScore * 100).toFixed(0)}%`} icon={MessageSquare} color="text-pink-400" />
+   326→        </div>
+   327→
+   328→        {/* Two Column Layout */}
+   329→        <div className="grid gap-6 lg:grid-cols-2">
+   330→          {/* Expertise Rankings */}
+   331→          <div className="rounded-xl border border-border bg-card p-5">
+   332→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   333→              <Target className="h-4 w-4 text-primary" /> Top Agent Expertise
+   334→            </h3>
+   335→            <div className="space-y-3">
+   336→              {graphStats.topAgents.map((agent, i) => (
+   337→                <div key={agent.agentId} className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+   338→                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+   339→                    {i + 1}
+   340→                  </span>
+   341→                  <div className="flex-1">
+   342→                    <div className="flex items-center gap-2">
+   343→                      <span className="text-sm font-medium text-foreground">{agent.name}</span>
+   344→                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-muted-foreground">{agent.cluster}</span>
+   345→                    </div>
+   346→                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+   347→                      <span>Score: {(agent.expertiseScore * 100).toFixed(0)}%</span>
+   348→                      <span>Missions: {agent.missionCount}</span>
+   349→                      <span>Success: {(agent.successRate * 100).toFixed(0)}%</span>
+   350→                    </div>
+   351→                  </div>
+   352→                  <div className="h-8 w-8">
+   353→                    <svg viewBox="0 0 36 36" className="h-8 w-8 -rotate-90">
+   354→                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="3" className="text-white/10" />
+   355→                      <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${agent.expertiseScore * 100} ${100 - agent.expertiseScore * 100}`} className="text-primary" />
+   356→                    </svg>
+   357→                  </div>
+   358→                </div>
+   359→              ))}
+   360→            </div>
+   361→          </div>
+   362→
+   363→          {/* Learning Strategy Scores */}
+   364→          <div className="rounded-xl border border-border bg-card p-5">
+   365→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   366→              <Sparkles className="h-4 w-4 text-primary" /> Strategy Q-Values
+   367→            </h3>
+   368→            <div className="space-y-3">
+   369→              {learningStats.topStrategies.map((s) => {
+   370→                const width = Math.max(10, ((s.avgQ + 1) / 2) * 100);
+   371→                const color = s.avgQ > 0.5 ? 'bg-emerald-500' : s.avgQ > 0 ? 'bg-yellow-500' : 'bg-red-500';
+   372→                return (
+   373→                  <div key={s.strategy} className="space-y-1">
+   374→                    <div className="flex items-center justify-between text-sm">
+   375→                      <span className="font-medium text-foreground">{s.strategy}</span>
+   376→                      <span className="text-muted-foreground">{s.avgQ.toFixed(2)}</span>
+   377→                    </div>
+   378→                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+   379→                      <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${width}%` }} />
+   380→                    </div>
+   381→                  </div>
+   382→                );
+   383→              })}
+   384→            </div>
+   385→            <div className="mt-4 rounded-lg bg-white/5 p-3">
+   386→              <div className="flex items-center justify-between text-xs">
+   387→                <span className="text-muted-foreground">Avg Reward</span>
+   388→                <span className="font-semibold text-foreground">{(learningStats.avgReward * 100).toFixed(1)}%</span>
+   389→              </div>
+   390→              <div className="flex items-center justify-between text-xs mt-1">
+   391→                <span className="text-muted-foreground">Total Insights</span>
+   392→                <span className="font-semibold text-foreground">{learningStats.totalInsights}</span>
+   393→              </div>
+   394→            </div>
+   395→          </div>
+   396→        </div>
+   397→
+   398→        {/* Experience & Feedback Row */}
+   399→        <div className="grid gap-6 lg:grid-cols-2">
+   400→          {/* Experience Replay */}
+   401→          <div className="rounded-xl border border-border bg-card p-5">
+   402→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   403→              <RotateCcw className="h-4 w-4 text-primary" /> Experience Replay
+   404→            </h3>
+   405→            <div className="grid grid-cols-3 gap-3">
+   406→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   407→                <p className="text-lg font-bold text-emerald-400">{experienceStats.successCount}</p>
+   408→                <p className="text-[10px] text-muted-foreground">Successes</p>
+   409→              </div>
+   410→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   411→                <p className="text-lg font-bold text-red-400">{experienceStats.failureCount}</p>
+   412→                <p className="text-[10px] text-muted-foreground">Failures</p>
+   413→              </div>
+   414→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   415→                <p className="text-lg font-bold text-cyan-400">{experienceStats.totalInsights}</p>
+   416→                <p className="text-[10px] text-muted-foreground">Insights</p>
+   417→              </div>
+   418→            </div>
+   419→            <div className="mt-3 flex items-center justify-between rounded-lg bg-white/5 p-3 text-xs">
+   420→              <span className="text-muted-foreground">Avg Duration</span>
+   421→              <span className="font-semibold text-foreground">{(experienceStats.avgDurationMs / 1000).toFixed(1)}s</span>
+   422→            </div>
+   423→          </div>
+   424→
+   425→          {/* Feedback Summary */}
+   426→          <div className="rounded-xl border border-border bg-card p-5">
+   427→            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+   428→              <MessageSquare className="h-4 w-4 text-primary" /> Feedback Summary
+   429→            </h3>
+   430→            <div className="grid grid-cols-2 gap-3">
+   431→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   432→                <p className="text-lg font-bold text-foreground">{feedbackSummary.totalFeedback}</p>
+   433→                <p className="text-[10px] text-muted-foreground">Total Entries</p>
+   434→              </div>
+   435→              <div className="rounded-lg bg-white/5 p-3 text-center">
+   436→                <p className="text-lg font-bold text-foreground">{(feedbackSummary.avgScore * 100).toFixed(0)}%</p>
+   437→                <p className="text-[10px] text-muted-foreground">Avg Score</p>
+   438→              </div>
+   439→            </div>
+   440→            <div className="mt-3 space-y-2">
+   441→              <div className="flex items-center justify-between text-xs">
+   442→                <span className="text-muted-foreground">Trend</span>
+   443→                <TrendBadge trend={feedbackSummary.trendDirection} />
+   444→              </div>
+   445→              {feedbackSummary.topIssues.length > 0 && (
+   446→                <div className="rounded-lg bg-red-500/5 border border-red-500/20 p-2">
+   447→                  <p className="text-[10px] font-medium text-red-400">Top Issue</p>
+   448→                  <p className="text-xs text-foreground">{feedbackSummary.topIssues[0].description}</p>
+   449→                </div>
+   450→              )}
+   451→            </div>
+   452→          </div>
+   453→        </div>
+   454→      </div>
+   455→    );
+   456→  }
+   457→
+   458→  // ─── Knowledge Graph Tab ────────────────────────────────────────
+   459→
+   460→  function renderKnowledge() {
+   461→    const totalNodes = Object.values(graphStats.nodeCounts).reduce((a, b) => a + b, 0);
+   462→    const totalRels = Object.values(graphStats.relationshipCounts).reduce((a, b) => a + b, 0);
+   463→
+   464→    return (
+   465→      <div className="space-y-6">
+   466→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   467→          <StatCard label="Total Nodes" value={totalNodes} icon={Network} color="text-blue-400" />
+   468→          <StatCard label="Total Edges" value={totalRels} icon={Network} color="text-purple-400" />
+   469→          <StatCard label="Neo4j Status" value={graphStats.neo4jAvailable ? 'Connected' : 'Cache'} icon={CheckCircle2} color={graphStats.neo4jAvailable ? 'text-emerald-400' : 'text-yellow-400'} />
+   470→          <StatCard label="Node Types" value={Object.keys(graphStats.nodeCounts).length} icon={BarChart3} color="text-cyan-400" />
+   471→        </div>
+   472→
+   473→        {/* Node Distribution */}
+   474→        <div className="rounded-xl border border-border bg-card p-5">
+   475→          <h3 className="mb-4 text-sm font-semibold text-foreground">Node Distribution</h3>
+   476→          <div className="grid grid-cols-3 gap-3 md:grid-cols-7">
+   477→            {Object.entries(graphStats.nodeCounts).map(([type, count]) => (
+   478→              <div key={type} className="rounded-lg bg-white/5 p-3 text-center">
+   479→                <p className="text-lg font-bold text-foreground">{count}</p>
+   480→                <p className="text-[10px] text-muted-foreground">{type}</p>
+   481→              </div>
+   482→            ))}
+   483→          </div>
+   484→        </div>
+   485→
+   486→        {/* Relationship Distribution */}
+   487→        <div className="rounded-xl border border-border bg-card p-5">
+   488→          <h3 className="mb-4 text-sm font-semibold text-foreground">Relationship Distribution</h3>
+   489→          <div className="space-y-2">
+   490→            {Object.entries(graphStats.relationshipCounts).map(([type, count]) => {
+   491→              const maxCount = Math.max(...Object.values(graphStats.relationshipCounts));
+   492→              const width = Math.max(10, (count / maxCount) * 100);
+   493→              return (
+   494→                <div key={type} className="flex items-center gap-3">
+   495→                  <span className="w-32 text-xs text-muted-foreground truncate">{type}</span>
+   496→                  <div className="flex-1 h-2 rounded-full bg-white/10">
+   497→                    <div className="h-full rounded-full bg-primary/60 transition-all" style={{ width: `${width}%` }} />
+   498→                  </div>
+   499→                  <span className="text-xs font-medium text-foreground w-12 text-right">{count}</span>
+   500→                </div>
+   501→              );
+   502→            })}
+   503→          </div>
+   504→        </div>
+   505→
+   506→        {/* Top Expertise */}
+   507→        <div className="rounded-xl border border-border bg-card p-5">
+   508→          <h3 className="mb-4 text-sm font-semibold text-foreground">Expertise Rankings</h3>
+   509→          <div className="overflow-x-auto">
+   510→            <table className="w-full text-sm">
+   511→              <thead>
+   512→                <tr className="border-b border-border text-xs text-muted-foreground">
+   513→                  <th className="pb-2 text-left">Agent</th>
+   514→                  <th className="pb-2 text-left">Cluster</th>
+   515→                  <th className="pb-2 text-right">Score</th>
+   516→                  <th className="pb-2 text-right">Missions</th>
+   517→                  <th className="pb-2 text-right">Success</th>
+   518→                  <th className="pb-2 text-right">Avg Duration</th>
+   519→                </tr>
+   520→              </thead>
+   521→              <tbody>
+   522→                {graphStats.topAgents.map((a) => (
+   523→                  <tr key={a.agentId} className="border-b border-border/50">
+   524→                    <td className="py-2 font-medium text-foreground">{a.name}</td>
+   525→                    <td className="py-2 text-muted-foreground">{a.cluster}</td>
+   526→                    <td className="py-2 text-right font-semibold text-primary">{(a.expertiseScore * 100).toFixed(0)}%</td>
+   527→                    <td className="py-2 text-right text-foreground">{a.missionCount}</td>
+   528→                    <td className="py-2 text-right text-emerald-400">{(a.successRate * 100).toFixed(0)}%</td>
+   529→                    <td className="py-2 text-right text-muted-foreground">{(a.avgDurationMs / 1000).toFixed(1)}s</td>
+   530→                  </tr>
+   531→                ))}
+   532→              </tbody>
+   533→            </table>
+   534→          </div>
+   535→        </div>
+   536→      </div>
+   537→    );
+   538→  }
+   539→
+   540→  // ─── Learning Tab ───────────────────────────────────────────────
+   541→
+   542→  function renderLearning() {
+   543→    return (
+   544→      <div className="space-y-6">
+   545→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   546→          <StatCard label="Agent Profiles" value={learningStats.totalProfiles} icon={BookOpen} color="text-emerald-400" />
+   547→          <StatCard label="Total Learnings" value={learningStats.totalLearnings} icon={Sparkles} color="text-amber-400" />
+   548→          <StatCard label="Total Insights" value={learningStats.totalInsights} icon={Lightbulb} color="text-cyan-400" />
+   549→          <StatCard label="Avg Reward" value={`${(learningStats.avgReward * 100).toFixed(1)}%`} icon={TrendingUp} color="text-pink-400" />
+   550→        </div>
+   551→
+   552→        {/* Strategy Q-Values */}
+   553→        <div className="rounded-xl border border-border bg-card p-5">
+   554→          <h3 className="mb-4 text-sm font-semibold text-foreground">Strategy Q-Values (Reinforcement Learning)</h3>
+   555→          <div className="space-y-4">
+   556→            {learningStats.topStrategies.map((s) => {
+   557→              const normalized = ((s.avgQ + 1) / 2) * 100;
+   558→              const color = s.avgQ > 0.5 ? 'bg-emerald-500' : s.avgQ > 0 ? 'bg-yellow-500' : 'bg-red-500';
+   559→              return (
+   560→                <div key={s.strategy}>
+   561→                  <div className="mb-1 flex items-center justify-between text-sm">
+   562→                    <span className="font-medium text-foreground">{s.strategy}</span>
+   563→                    <span className={cn('font-semibold', s.avgQ > 0.5 ? 'text-emerald-400' : s.avgQ > 0 ? 'text-yellow-400' : 'text-red-400')}>
+   564→                      Q = {s.avgQ.toFixed(3)}
+   565→                    </span>
+   566→                  </div>
+   567→                  <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
+   568→                    <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${Math.max(5, normalized)}%` }} />
+   569→                  </div>
+   570→                </div>
+   571→              );
+   572→            })}
+   573→          </div>
+   574→        </div>
+   575→
+   576→        {/* Cluster Breakdown */}
+   577→        <div className="rounded-xl border border-border bg-card p-5">
+   578→          <h3 className="mb-4 text-sm font-semibold text-foreground">Learning by Cluster</h3>
+   579→          <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
+   580→            {Object.entries(learningStats.clusterBreakdown).map(([cluster, count]) => (
+   581→              <div key={cluster} className="rounded-lg bg-white/5 p-3 text-center">
+   582→                <p className="text-lg font-bold text-foreground">{count}</p>
+   583→                <p className="text-[10px] text-muted-foreground truncate">{cluster}</p>
+   584→              </div>
+   585→            ))}
+   586→          </div>
+   587→        </div>
+   588→
+   589→        {/* Learning Parameters */}
+   590→        <div className="rounded-xl border border-border bg-card p-5">
+   591→          <h3 className="mb-4 text-sm font-semibold text-foreground">Learning Parameters</h3>
+   592→          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+   593→            {[
+   594→              { name: 'Learning Rate (α)', value: '0.10' },
+   595→              { name: 'Discount Factor (γ)', value: '0.95' },
+   596→              { name: 'Exploration (ε)', value: '0.15' },
+   597→              { name: 'Confidence Decay', value: '0.995' },
+   598→            ].map((param) => (
+   599→              <div key={param.name} className="rounded-lg bg-white/5 p-3">
+   600→                <p className="text-[10px] text-muted-foreground">{param.name}</p>
+   601→                <p className="text-lg font-bold text-foreground">{param.value}</p>
+   602→              </div>
+   603→            ))}
+   604→          </div>
+   605→        </div>
+   606→      </div>
+   607→    );
+   608→  }
+   609→
+   610→  // ─── Patterns Tab ───────────────────────────────────────────────
+   611→
+   612→  function renderPatterns() {
+   613→    return (
+   614→      <div className="space-y-6">
+   615→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   616→          <StatCard label="Discovered Patterns" value={patternStats.totalPatterns} icon={Lightbulb} color="text-amber-400" />
+   617→          <StatCard label="Total Executions" value={patternStats.totalExecutions} icon={BarChart3} color="text-blue-400" />
+   618→          <StatCard label="Avg Confidence" value={`${(patternStats.avgConfidence * 100).toFixed(0)}%`} icon={Target} color="text-emerald-400" />
+   619→          <StatCard label="Categories" value={Object.keys(patternStats.categoryBreakdown).length} icon={Network} color="text-purple-400" />
+   620→        </div>
+   621→
+   622→        {/* Category Breakdown */}
+   623→        <div className="rounded-xl border border-border bg-card p-5">
+   624→          <h3 className="mb-4 text-sm font-semibold text-foreground">Pattern Categories</h3>
+   625→          <div className="space-y-2">
+   626→            {Object.entries(patternStats.categoryBreakdown).map(([cat, count]) => {
+   627→              const maxCount = Math.max(...Object.values(patternStats.categoryBreakdown));
+   628→              const width = Math.max(10, (count / maxCount) * 100);
+   629→              const colors: Record<string, string> = {
+   630→                success_sequence: 'bg-emerald-500',
+   631→                failure_sequence: 'bg-red-500',
+   632→                optimization: 'bg-blue-500',
+   633→                anti_pattern: 'bg-orange-500',
+   634→                collaboration_effective: 'bg-purple-500',
+   635→              };
+   636→              return (
+   637→                <div key={cat} className="flex items-center gap-3">
+   638→                  <span className="w-40 text-xs text-muted-foreground truncate">{cat.replace(/_/g, ' ')}</span>
+   639→                  <div className="flex-1 h-2 rounded-full bg-white/10">
+   640→                    <div className={cn('h-full rounded-full transition-all', colors[cat] || 'bg-primary')} style={{ width: `${width}%` }} />
+   641→                  </div>
+   642→                  <span className="text-xs font-medium text-foreground w-8 text-right">{count}</span>
+   643→                </div>
+   644→              );
+   645→            })}
+   646→          </div>
+   647→        </div>
+   648→
+   649→        {/* Top Patterns */}
+   650→        <div className="rounded-xl border border-border bg-card p-5">
+   651→          <h3 className="mb-4 text-sm font-semibold text-foreground">Top Patterns</h3>
+   652→          <div className="space-y-3">
+   653→            {patternStats.topPatterns.map((p) => (
+   654→              <div key={p.id} className="rounded-lg bg-white/5 p-4">
+   655→                <div className="flex items-center justify-between">
+   656→                  <div className="flex items-center gap-2">
+   657→                    <ImpactBadge impact={p.impact} />
+   658→                    <span className="text-sm font-medium text-foreground">{p.name}</span>
+   659→                  </div>
+   660→                  <span className="text-xs text-muted-foreground">Confidence: {(p.confidence * 100).toFixed(0)}%</span>
+   661→                </div>
+   662→                <p className="mt-2 text-xs text-muted-foreground">{p.description}</p>
+   663→                <div className="mt-2 flex items-center gap-3 text-xs">
+   664→                  <span className="text-muted-foreground">Frequency: {p.frequency}</span>
+   665→                  {p.suggestedActions.length > 0 && (
+   666→                    <span className="text-primary cursor-pointer flex items-center gap-1">
+   667→                      <ChevronRight className="h-3 w-3" /> {p.suggestedActions[0]}
+   668→                    </span>
+   669→                  )}
+   670→                </div>
+   671→              </div>
+   672→            ))}
+   673→          </div>
+   674→        </div>
+   675→
+   676→        {/* Correlations */}
+   677→        {correlations.length > 0 && (
+   678→          <div className="rounded-xl border border-border bg-card p-5">
+   679→            <h3 className="mb-4 text-sm font-semibold text-foreground">Metric Correlations</h3>
+   680→            <div className="space-y-2">
+   681→              {correlations.map((c, i) => (
+   682→                <div key={i} className="flex items-center justify-between rounded-lg bg-white/5 p-3">
+   683→                  <span className="text-xs text-muted-foreground">{c.metric1} ↔ {c.metric2}</span>
+   684→                  <div className="flex items-center gap-2">
+   685→                    <span className={cn('text-sm font-semibold', c.correlation > 0 ? 'text-emerald-400' : c.correlation < 0 ? 'text-red-400' : 'text-foreground')}>
+   686→                      {c.correlation.toFixed(3)}
+   687→                    </span>
+   688→                    <span className="text-xs text-muted-foreground">significance: {(c.significance * 100).toFixed(0)}%</span>
+   689→                  </div>
+   690→                </div>
+   691→              ))}
+   692→            </div>
+   693→          </div>
+   694→        )}
+   695→      </div>
+   696→    );
+   697→  }
+   698→
+   699→  // ─── Adaptive Tab ───────────────────────────────────────────────
+   700→
+   701→  function renderAdaptive() {
+   702→    return (
+   703→      <div className="space-y-6">
+   704→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   705→          <StatCard label="Config Version" value={`v${adaptiveStats.configVersion}`} icon={Zap} color="text-cyan-400" />
+   706→          <StatCard label="Total Adaptations" value={adaptiveStats.totalAdaptations} icon={TrendingUp} color="text-emerald-400" />
+   707→          <StatCard label="Improvements" value={adaptiveStats.improvedCount} icon={CheckCircle2} color="text-emerald-400" />
+   708→          <StatCard label="Degradations" value={adaptiveStats.degradedCount} icon={AlertTriangle} color="text-red-400" />
+   709→        </div>
+   710→
+   711→        {/* Adaptation Effectiveness */}
+   712→        <div className="rounded-xl border border-border bg-card p-5">
+   713→          <h3 className="mb-4 text-sm font-semibold text-foreground">Adaptation Effectiveness</h3>
+   714→          <div className="grid grid-cols-3 gap-4">
+   715→            <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-center">
+   716→              <p className="text-2xl font-bold text-emerald-400">{adaptiveStats.improvedCount}</p>
+   717→              <p className="text-xs text-muted-foreground">Improved</p>
+   718→              <p className="text-[10px] text-muted-foreground">
+   719→                {adaptiveStats.appliedCount > 0 ? `${((adaptiveStats.improvedCount / adaptiveStats.appliedCount) * 100).toFixed(0)}%` : '0%'} of applied
+   720→              </p>
+   721→            </div>
+   722→            <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-4 text-center">
+   723→              <p className="text-2xl font-bold text-yellow-400">{adaptiveStats.appliedCount - adaptiveStats.improvedCount - adaptiveStats.degradedCount}</p>
+   724→              <p className="text-xs text-muted-foreground">Unchanged</p>
+   725→            </div>
+   726→            <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-4 text-center">
+   727→              <p className="text-2xl font-bold text-red-400">{adaptiveStats.degradedCount}</p>
+   728→              <p className="text-xs text-muted-foreground">Degraded</p>
+   729→            </div>
+   730→          </div>
+   731→        </div>
+   732→
+   733→        {/* Strategy Preferences */}
+   734→        {adaptiveConfig && (
+   735→          <div className="rounded-xl border border-border bg-card p-5">
+   736→            <h3 className="mb-4 text-sm font-semibold text-foreground">Strategy Preferences (Adaptive)</h3>
+   737→            <div className="space-y-3">
+   738→              {Object.entries(adaptiveConfig.strategyPreferences).map(([strategy, weight]) => {
+   739→                const width = Math.max(10, weight * 100);
+   740→                const isPinned = adaptiveConfig.pinned.includes(`strategyPreferences.${strategy}`);
+   741→                return (
+   742→                  <div key={strategy}>
+   743→                    <div className="mb-1 flex items-center justify-between text-sm">
+   744→                      <span className="font-medium text-foreground">{strategy} {isPinned && <span className="text-[10px] text-yellow-400">PINNED</span>}</span>
+   745→                      <span className="text-muted-foreground">{(weight * 100).toFixed(0)}%</span>
+   746→                    </div>
+   747→                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+   748→                      <div className="h-full rounded-full bg-primary/60 transition-all" style={{ width: `${width}%` }} />
+   749→                    </div>
+   750→                  </div>
+   751→                );
+   752→              })}
+   753→            </div>
+   754→          </div>
+   755→        )}
+   756→
+   757→        {/* Pinned Parameters */}
+   758→        <div className="rounded-xl border border-border bg-card p-5">
+   759→          <h3 className="mb-4 text-sm font-semibold text-foreground">Pinned Parameters</h3>
+   760→          {adaptiveStats.pinnedParameters.length > 0 ? (
+   761→            <div className="space-y-2">
+   762→              {adaptiveStats.pinnedParameters.map((p) => (
+   763→                <div key={p} className="flex items-center justify-between rounded-lg bg-yellow-500/5 border border-yellow-500/20 p-3">
+   764→                  <span className="text-sm text-foreground">{p}</span>
+   765→                  <span className="rounded bg-yellow-500/15 px-2 py-0.5 text-[10px] font-semibold text-yellow-400">PINNED</span>
+   766→                </div>
+   767→              ))}
+   768→            </div>
+   769→          ) : (
+   770→            <p className="text-sm text-muted-foreground">No parameters pinned — all adaptive</p>
+   771→          )}
+   772→        </div>
+   773→
+   774→        {/* Action Buttons */}
+   775→        <div className="flex gap-3">
+   776→          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90">
+   777→            <Play className="h-4 w-4" /> Run Adaptation Cycle
+   778→          </button>
+   779→          <button className="flex items-center gap-2 rounded-lg border border-red-500/30 px-4 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10">
+   780→            <AlertTriangle className="h-4 w-4" /> Emergency Reset
+   781→          </button>
+   782→        </div>
+   783→      </div>
+   784→    );
+   785→  }
+   786→
+   787→  // ─── Feedback Tab ───────────────────────────────────────────────
+   788→
+   789→  function renderFeedback() {
+   790→    return (
+   791→      <div className="space-y-6">
+   792→        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+   793→          <StatCard label="Total Feedback" value={feedbackStats.totalEntries} icon={MessageSquare} color="text-pink-400" />
+   794→          <StatCard label="Avg Score" value={`${(feedbackStats.avgScore * 100).toFixed(0)}%`} icon={BarChart3} color="text-emerald-400" />
+   795→          <StatCard label="Action Items" value={feedbackStats.totalActions} icon={AlertTriangle} color="text-amber-400" />
+   796→          <StatCard label="Trend" value={feedbackStats.recentTrend} icon={TrendingUp} color="text-cyan-400" />
+   797→        </div>
+   798→
+   799→        {/* Source Distribution */}
+   800→        <div className="rounded-xl border border-border bg-card p-5">
+   801→          <h3 className="mb-4 text-sm font-semibold text-foreground">Feedback Sources</h3>
+   802→          <div className="space-y-3">
+   803→            {Object.entries(feedbackStats.sourceBreakdown).map(([source, count]) => {
+   804→              const maxCount = Math.max(...Object.values(feedbackStats.sourceBreakdown));
+   805→              const width = Math.max(10, (count / maxCount) * 100);
+   806→              const colors: Record<string, string> = {
+   807→                user: 'bg-pink-500',
+   808→                system: 'bg-blue-500',
+   809→                outcome_verification: 'bg-emerald-500',
+   810→                peer: 'bg-purple-500',
+   811→                agent_self: 'bg-amber-500',
+   812→              };
+   813→              const weights: Record<string, string> = {
+   814→                user: '30%',
+   815→                system: '20%',
+   816→                outcome_verification: '25%',
+   817→                peer: '15%',
+   818→                agent_self: '10%',
+   819→              };
+   820→              return (
+   821→                <div key={source}>
+   822→                  <div className="mb-1 flex items-center justify-between text-sm">
+   823→                    <span className="font-medium text-foreground">{source.replace(/_/g, ' ')} <span className="text-[10px] text-muted-foreground">weight: {weights[source] || '?'}</span></span>
+   824→                    <span className="text-muted-foreground">{count}</span>
+   825→                  </div>
+   826→                  <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+   827→                    <div className={cn('h-full rounded-full transition-all', colors[source] || 'bg-primary')} style={{ width: `${width}%` }} />
+   828→                  </div>
+   829→                </div>
+   830→              );
+   831→            })}
+   832→          </div>
+   833→        </div>
+   834→
+   835→        {/* Top Issues & Praise */}
+   836→        <div className="grid gap-6 lg:grid-cols-2">
+   837→          <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
+   838→            <h3 className="mb-3 text-sm font-semibold text-red-400">Top Issues</h3>
+   839→            {feedbackSummary.topIssues.length > 0 ? (
+   840→              <div className="space-y-2">
+   841→                {feedbackSummary.topIssues.map((issue, i) => (
+   842→                  <div key={i} className="flex items-center justify-between rounded-lg bg-white/5 p-2">
+   843→                    <span className="text-xs text-foreground">{issue.description}</span>
+   844→                    <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">{issue.count}x</span>
+   845→                  </div>
+   846→                ))}
+   847→              </div>
+   848→            ) : (
+   849→              <p className="text-xs text-muted-foreground">No issues reported</p>
+   850→            )}
+   851→          </div>
+   852→          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+   853→            <h3 className="mb-3 text-sm font-semibold text-emerald-400">Top Praise</h3>
+   854→            {feedbackSummary.topPraise.length > 0 ? (
+   855→              <div className="space-y-2">
+   856→                {feedbackSummary.topPraise.map((praise, i) => (
+   857→                  <div key={i} className="flex items-center justify-between rounded-lg bg-white/5 p-2">
+   858→                    <span className="text-xs text-foreground">{praise.description}</span>
+   859→                    <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">{praise.count}x</span>
+   860→                  </div>
+   861→                ))}
+   862→              </div>
+   863→            ) : (
+   864→              <p className="text-xs text-muted-foreground">No praise reported</p>
+   865→            )}
+   866→          </div>
+   867→        </div>
+   868→
+   869→        {/* Action Items */}
+   870→        {actionItems.length > 0 && (
+   871→          <div className="rounded-xl border border-border bg-card p-5">
+   872→            <h3 className="mb-4 text-sm font-semibold text-foreground">Action Items from Feedback</h3>
+   873→            <div className="space-y-2">
+   874→              {actionItems.slice(0, 5).map((item) => (
+   875→                <div key={item.id} className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+   876→                  <PriorityBadge priority={item.priority} />
+   877→                  <span className="flex-1 text-xs text-foreground">{item.description}</span>
+   878→                  <span className="text-[10px] text-muted-foreground">Impact: {(item.estimatedImpact * 100).toFixed(0)}%</span>
+   879→                </div>
+   880→              ))}
+   881→            </div>
+   882→          </div>
+   883→        )}
+   884→      </div>
+   885→    );
+   886→  }
+   887→}
+   888→

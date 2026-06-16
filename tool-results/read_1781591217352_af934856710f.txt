@@ -1,0 +1,912 @@
+     1→'use client';
+     2→
+     3→import { useEffect, useState, useMemo } from 'react';
+     4→import {
+     5→  Bot,
+     6→  Play,
+     7→  Filter,
+     8→  RefreshCw,
+     9→  Search,
+    10→  ChevronDown,
+    11→  X,
+    12→  LayoutGrid,
+    13→  Layers,
+    14→  Zap,
+    15→  Coins,
+    16→} from 'lucide-react';
+    17→import { api } from '@/lib/api';
+    18→import {
+    19→  cn,
+    20→  clusterColors,
+    21→  clusterIcons,
+    22→  statusColors,
+    23→  statusDotColors,
+    24→  formatRelativeTime,
+    25→  missionCategoryConfig,
+    26→  tierConfig,
+    27→  powerLevelLabels,
+    28→} from '@/lib/utils';
+    29→import type { Agent, ClusterType, AgentStatus, MissionCategory } from '@/lib/types';
+    30→import { ClusterType as CT, AgentStatus as AS, MissionCategory as MC } from '@/lib/types';
+    31→
+    32→// Cluster-to-mission fallback mapping
+    33→const clusterToMission: Record<string, MissionCategory[]> = {
+    34→  [CT.BROWSER]: [MC.RESEARCH_ANALYSIS, MC.AUTOMATION_WORKFLOW],
+    35→  [CT.COMPUTER]: [MC.SYSTEM_ADMINISTRATION],
+    36→  [CT.CODING]: [MC.CODE_DEVELOPMENT],
+    37→  [CT.OFFICE]: [MC.DOCUMENT_PROCESSING],
+    38→  [CT.MARKETING]: [MC.MARKETING_GROWTH],
+    39→  [CT.BUSINESS]: [MC.BUSINESS_INTELLIGENCE],
+    40→  [CT.INFRASTRUCTURE]: [MC.INFRASTRUCTURE_MGMT],
+    41→  [CT.SECURITY]: [MC.SECURITY_OPS],
+    42→  [CT.META_INTELLIGENCE]: [MC.AI_ORCHESTRATION],
+    43→  [CT.LLM_INTELLIGENCE]: [MC.AI_ORCHESTRATION],
+    44→  [CT.INTELLIGENT_ORCHESTRATION]: [MC.AI_ORCHESTRATION],
+    45→  [CT.WATCHDOG]: [MC.INFRASTRUCTURE_MGMT, MC.AI_ORCHESTRATION],
+    46→  [CT.SELF_EVOLUTION]: [MC.AI_ORCHESTRATION],
+    47→  [CT.CERTIFICATION]: [MC.AI_ORCHESTRATION, MC.SECURITY_OPS],
+    48→  [CT.STEALTH_OPS]: [MC.STEALTH_OPERATIONS, MC.SECURITY_OPS],
+    49→  [CT.DATA_INTELLIGENCE]: [MC.DATA_ENGINEERING],
+    50→  [CT.COMMUNICATION]: [MC.COMMUNICATION_OPS],
+    51→};
+    52→
+    53→const clusterLabels: Record<ClusterType, string> = {
+    54→  [CT.BROWSER]: 'Browser',
+    55→  [CT.COMPUTER]: 'Computer',
+    56→  [CT.CODING]: 'Coding',
+    57→  [CT.OFFICE]: 'Office',
+    58→  [CT.MARKETING]: 'Marketing',
+    59→  [CT.BUSINESS]: 'Business',
+    60→  [CT.INFRASTRUCTURE]: 'Infrastructure',
+    61→  [CT.SECURITY]: 'Security',
+    62→  [CT.META_INTELLIGENCE]: 'Meta Intelligence',
+    63→  [CT.LLM_INTELLIGENCE]: 'LLM Intelligence',
+    64→  [CT.INTELLIGENT_ORCHESTRATION]: 'Intelligent Orchestration',
+    65→  [CT.WATCHDOG]: 'Watchdog',
+    66→  [CT.SELF_EVOLUTION]: 'Self Evolution',
+    67→  [CT.CERTIFICATION]: 'Certification',
+    68→  [CT.STEALTH_OPS]: 'Stealth Ops',
+    69→  [CT.DATA_INTELLIGENCE]: 'Data Intelligence',
+    70→  [CT.COMMUNICATION]: 'Communication',
+    71→};
+    72→
+    73→const clusterOptions: { value: ClusterType | ''; label: string }[] = [
+    74→  { value: '', label: 'All Clusters' },
+    75→  ...Object.values(CT).map((c) => ({ value: c, label: clusterLabels[c] })),
+    76→];
+    77→
+    78→const statusOptions: { value: AgentStatus | ''; label: string }[] = [
+    79→  { value: '', label: 'All Status' },
+    80→  ...Object.values(AS).map((s) => ({ value: s, label: s })),
+    81→];
+    82→
+    83→const tierOptions = [
+    84→  { value: '', label: 'All Tiers' },
+    85→  { value: 'standard', label: 'Standard' },
+    86→  { value: 'advanced', label: 'Advanced' },
+    87→  { value: 'elite', label: 'Elite' },
+    88→  { value: 'stealth', label: 'Stealth' },
+    89→];
+    90→
+    91→const powerOptions = [
+    92→  { value: 0, label: 'All Power' },
+    93→  { value: 1, label: 'Standard Power' },
+    94→  { value: 2, label: 'Advanced Power' },
+    95→  { value: 3, label: 'Elite Power' },
+    96→];
+    97→
+    98→type ViewMode = 'mission' | 'cluster';
+    99→
+   100→// Helper to resolve mission categories for an agent
+   101→function getAgentMissionCategories(agent: Agent): MissionCategory[] {
+   102→  if (agent.missionCategories && agent.missionCategories.length > 0) {
+   103→    return agent.missionCategories;
+   104→  }
+   105→  return clusterToMission[agent.cluster] || [];
+   106→}
+   107→
+   108→// Helper to resolve tier for an agent
+   109→function getAgentTier(agent: Agent): string {
+   110→  if (agent.tier) return agent.tier;
+   111→  if (agent.powerLevel === 3) return 'elite';
+   112→  if (agent.powerLevel === 2) return 'advanced';
+   113→  return 'standard';
+   114→}
+   115→
+   116→// Helper to resolve power level
+   117→function getAgentPowerLevel(agent: Agent): number {
+   118→  return agent.powerLevel || 1;
+   119→}
+   120→
+   121→// Helper to resolve credit cost
+   122→function getAgentCreditCost(agent: Agent): number {
+   123→  return agent.creditCost ?? 1;
+   124→}
+   125→
+   126→export default function AgentsPage() {
+   127→  const [agents, setAgents] = useState<Agent[]>([]);
+   128→  const [loading, setLoading] = useState(true);
+   129→  const [clusterFilter, setClusterFilter] = useState<ClusterType | ''>('');
+   130→  const [statusFilter, setStatusFilter] = useState<AgentStatus | ''>('');
+   131→  const [tierFilter, setTierFilter] = useState<string>('');
+   132→  const [powerFilter, setPowerFilter] = useState<number>(0);
+   133→  const [searchQuery, setSearchQuery] = useState('');
+   134→  const [executing, setExecuting] = useState<string | null>(null);
+   135→  const [showExecuteModal, setShowExecuteModal] = useState<Agent | null>(null);
+   136→  const [viewMode, setViewMode] = useState<ViewMode>('mission');
+   137→  const [expandedCategory, setExpandedCategory] = useState<MissionCategory | null>(null);
+   138→  const [expandedCluster, setExpandedCluster] = useState<ClusterType | null>(null);
+   139→
+   140→  useEffect(() => {
+   141→    fetchAgents();
+   142→    // eslint-disable-next-line react-hooks/exhaustive-deps
+   143→  }, [clusterFilter, statusFilter]);
+   144→
+   145→  async function fetchAgents() {
+   146→    setLoading(true);
+   147→    try {
+   148→      const params: { cluster?: string; status?: string } = {};
+   149→      if (clusterFilter) params.cluster = clusterFilter;
+   150→      const result = await api.getAgents(params);
+   151→      setAgents(result.data || []);
+   152→    } catch {
+   153→      setAgents([]);
+   154→    } finally {
+   155→      setLoading(false);
+   156→    }
+   157→  }
+   158→
+   159→  async function handleExecute(agent: Agent) {
+   160→    setExecuting(agent.id);
+   161→    try {
+   162→      await api.executeAgent(agent.id, {
+   163→        tenantId: agent.tenantId,
+   164→        config: { action: 'execute' },
+   165→      });
+   166→    } catch {
+   167→      // Silently handle
+   168→    } finally {
+   169→      setExecuting(null);
+   170→      setShowExecuteModal(null);
+   171→    }
+   172→  }
+   173→
+   174→  // Filtered agents
+   175→  const filteredAgents = useMemo(() => {
+   176→    return agents.filter((agent) => {
+   177→      const matchesSearch =
+   178→        !searchQuery ||
+   179→        agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+   180→        agent.description?.toLowerCase().includes(searchQuery.toLowerCase());
+   181→      const matchesStatus = !statusFilter || agent.status === statusFilter;
+   182→      const matchesTier = !tierFilter || getAgentTier(agent) === tierFilter;
+   183→      const matchesPower = !powerFilter || getAgentPowerLevel(agent) === powerFilter;
+   184→      return matchesSearch && matchesStatus && matchesTier && matchesPower;
+   185→    });
+   186→  }, [agents, searchQuery, statusFilter, tierFilter, powerFilter]);
+   187→
+   188→  // Group agents by mission category
+   189→  const missionGroups = useMemo(() => {
+   190→    const groups: Record<MissionCategory, Agent[]> = {} as Record<MissionCategory, Agent[]>;
+   191→    // Initialize all categories
+   192→    Object.values(MC).forEach((mc) => {
+   193→      groups[mc] = [];
+   194→    });
+   195→    filteredAgents.forEach((agent) => {
+   196→      const categories = getAgentMissionCategories(agent);
+   197→      if (categories.length === 0) {
+   198→        // Agents with no category mapping — put in a default
+   199→        groups[MC.SYSTEM_ADMINISTRATION]?.push(agent);
+   200→      } else {
+   201→        categories.forEach((cat) => {
+   202→          if (groups[cat]) {
+   203→            groups[cat].push(agent);
+   204→          }
+   205→        });
+   206→      }
+   207→    });
+   208→    return groups;
+   209→  }, [filteredAgents]);
+   210→
+   211→  // Group agents by cluster
+   212→  const clusterGroups = useMemo(() => {
+   213→    const groups: Record<ClusterType, Agent[]> = {} as Record<ClusterType, Agent[]>;
+   214→    filteredAgents.forEach((agent) => {
+   215→      if (!groups[agent.cluster]) groups[agent.cluster] = [];
+   216→      groups[agent.cluster].push(agent);
+   217→    });
+   218→    return groups;
+   219→  }, [filteredAgents]);
+   220→
+   221→  // Categories that have agents
+   222→  const activeCategories = useMemo(() => {
+   223→    return Object.values(MC).filter((mc) => missionGroups[mc] && missionGroups[mc].length > 0);
+   224→  }, [missionGroups]);
+   225→
+   226→  // Initialize expanded category on first load
+   227→  const [hasInitialized, setHasInitialized] = useState(false);
+   228→  if (!loading && activeCategories.length > 0 && !expandedCategory && !hasInitialized) {
+   229→    setExpandedCategory(activeCategories[0]);
+   230→    setHasInitialized(true);
+   231→  }
+   232→
+   233→  return (
+   234→    <div className="space-y-6 animate-slide-in">
+   235→      {/* Header */}
+   236→      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+   237→        <div>
+   238→          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+   239→            🤖 Agent Command Center
+   240→          </h1>
+   241→          <p className="text-sm text-muted-foreground">
+   242→            Choose your mission, select your agent
+   243→          </p>
+   244→        </div>
+   245→        <button
+   246→          onClick={fetchAgents}
+   247→          className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+   248→        >
+   249→          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+   250→          Refresh
+   251→        </button>
+   252→      </div>
+   253→
+   254→      {/* Filter Bar */}
+   255→      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+   256→        {/* View Toggle */}
+   257→        <div className="flex rounded-lg border border-border bg-card overflow-hidden">
+   258→          <button
+   259→            onClick={() => setViewMode('mission')}
+   260→            className={cn(
+   261→              'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
+   262→              viewMode === 'mission'
+   263→                ? 'bg-primary/15 text-primary'
+   264→                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+   265→            )}
+   266→          >
+   267→            <LayoutGrid className="h-3.5 w-3.5" />
+   268→            Mission View
+   269→          </button>
+   270→          <button
+   271→            onClick={() => setViewMode('cluster')}
+   272→            className={cn(
+   273→              'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
+   274→              viewMode === 'cluster'
+   275→                ? 'bg-primary/15 text-primary'
+   276→                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+   277→            )}
+   278→          >
+   279→            <Layers className="h-3.5 w-3.5" />
+   280→            Cluster View
+   281→          </button>
+   282→        </div>
+   283→
+   284→        {/* Search */}
+   285→        <div className="relative flex-1 max-w-md">
+   286→          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+   287→          <input
+   288→            type="text"
+   289→            placeholder="Search agents..."
+   290→            value={searchQuery}
+   291→            onChange={(e) => setSearchQuery(e.target.value)}
+   292→            className="w-full rounded-lg border border-border bg-card py-2 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+   293→          />
+   294→          {searchQuery && (
+   295→            <button
+   296→              onClick={() => setSearchQuery('')}
+   297→              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+   298→            >
+   299→              <X className="h-4 w-4" />
+   300→            </button>
+   301→          )}
+   302→        </div>
+   303→
+   304→        {/* Tier Filter */}
+   305→        <div className="relative">
+   306→          <select
+   307→            value={tierFilter}
+   308→            onChange={(e) => setTierFilter(e.target.value)}
+   309→            className="appearance-none rounded-lg border border-border bg-card py-2 pl-3 pr-8 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   310→          >
+   311→            {tierOptions.map((opt) => (
+   312→              <option key={opt.value} value={opt.value}>
+   313→                {opt.label}
+   314→              </option>
+   315→            ))}
+   316→          </select>
+   317→          <ChevronDown className="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+   318→        </div>
+   319→
+   320→        {/* Power Level Filter */}
+   321→        <div className="relative">
+   322→          <select
+   323→            value={powerFilter}
+   324→            onChange={(e) => setPowerFilter(Number(e.target.value))}
+   325→            className="appearance-none rounded-lg border border-border bg-card py-2 pl-3 pr-8 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   326→          >
+   327→            {powerOptions.map((opt) => (
+   328→              <option key={opt.value} value={opt.value}>
+   329→                {opt.label}
+   330→              </option>
+   331→            ))}
+   332→          </select>
+   333→          <ChevronDown className="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+   334→        </div>
+   335→
+   336→        {/* Cluster Filter (for cluster view) */}
+   337→        {viewMode === 'cluster' && (
+   338→          <div className="relative">
+   339→            <select
+   340→              value={clusterFilter}
+   341→              onChange={(e) => setClusterFilter(e.target.value as ClusterType | '')}
+   342→              className="appearance-none rounded-lg border border-border bg-card py-2 pl-3 pr-8 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   343→            >
+   344→              {clusterOptions.map((opt) => (
+   345→                <option key={opt.value} value={opt.value}>
+   346→                  {opt.label}
+   347→                </option>
+   348→              ))}
+   349→            </select>
+   350→            <ChevronDown className="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+   351→          </div>
+   352→        )}
+   353→
+   354→        {/* Status Filter */}
+   355→        <div className="relative">
+   356→          <select
+   357→            value={statusFilter}
+   358→            onChange={(e) => setStatusFilter(e.target.value as AgentStatus | '')}
+   359→            className="appearance-none rounded-lg border border-border bg-card py-2 pl-3 pr-8 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+   360→          >
+   361→            {statusOptions.map((opt) => (
+   362→              <option key={opt.value} value={opt.value}>
+   363→                {opt.label}
+   364→              </option>
+   365→            ))}
+   366→          </select>
+   367→          <ChevronDown className="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+   368→        </div>
+   369→
+   370→        {/* Clear Filters */}
+   371→        {(clusterFilter || statusFilter || searchQuery || tierFilter || powerFilter) && (
+   372→          <button
+   373→            onClick={() => {
+   374→              setClusterFilter('');
+   375→              setStatusFilter('');
+   376→              setSearchQuery('');
+   377→              setTierFilter('');
+   378→              setPowerFilter(0);
+   379→            }}
+   380→            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80"
+   381→          >
+   382→            <Filter className="h-3 w-3" />
+   383→            Clear filters
+   384→          </button>
+   385→        )}
+   386→      </div>
+   387→
+   388→      {/* Loading State */}
+   389→      {loading ? (
+   390→        <div className="space-y-6">
+   391→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+   392→            {[1, 2, 3, 4, 5, 6].map((i) => (
+   393→              <div key={i} className="h-28 animate-shimmer rounded-xl" />
+   394→            ))}
+   395→          </div>
+   396→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   397→            {[1, 2, 3].map((i) => (
+   398→              <div key={i} className="h-52 animate-shimmer rounded-xl" />
+   399→            ))}
+   400→          </div>
+   401→        </div>
+   402→      ) : viewMode === 'mission' ? (
+   403→        /* Mission View */
+   404→        <MissionView
+   405→          missionGroups={missionGroups}
+   406→          expandedCategory={expandedCategory}
+   407→          setExpandedCategory={setExpandedCategory}
+   408→          executing={executing}
+   409→          onExecute={(agent) => setShowExecuteModal(agent)}
+   410→        />
+   411→      ) : (
+   412→        /* Cluster View */
+   413→        <ClusterView
+   414→          clusterGroups={clusterGroups}
+   415→          expandedCluster={expandedCluster}
+   416→          setExpandedCluster={setExpandedCluster}
+   417→          executing={executing}
+   418→          onExecute={(agent) => setShowExecuteModal(agent)}
+   419→        />
+   420→      )}
+   421→
+   422→      {/* Empty State */}
+   423→      {!loading && filteredAgents.length === 0 && (
+   424→        <div className="flex flex-col items-center justify-center py-16 text-center">
+   425→          <Bot className="h-12 w-12 text-muted-foreground/30" />
+   426→          <p className="mt-4 text-sm text-muted-foreground">No agents found</p>
+   427→          <p className="text-xs text-muted-foreground/70">Try adjusting your filters</p>
+   428→        </div>
+   429→      )}
+   430→
+   431→      {/* Execute Modal */}
+   432→      {showExecuteModal && (
+   433→        <ExecuteModal
+   434→          agent={showExecuteModal}
+   435→          executing={executing}
+   436→          onExecute={() => handleExecute(showExecuteModal)}
+   437→          onClose={() => setShowExecuteModal(null)}
+   438→        />
+   439→      )}
+   440→    </div>
+   441→  );
+   442→}
+   443→
+   444→/* ─── Mission View ─────────────────────────────────────────────────────────── */
+   445→
+   446→function MissionView({
+   447→  missionGroups,
+   448→  expandedCategory,
+   449→  setExpandedCategory,
+   450→  executing,
+   451→  onExecute,
+   452→}: {
+   453→  missionGroups: Record<MissionCategory, Agent[]>;
+   454→  expandedCategory: MissionCategory | null;
+   455→  setExpandedCategory: (cat: MissionCategory | null) => void;
+   456→  executing: string | null;
+   457→  onExecute: (agent: Agent) => void;
+   458→}) {
+   459→  return (
+   460→    <div className="space-y-6">
+   461→      {/* Category Cards Grid */}
+   462→      <div>
+   463→        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+   464→          Mission Categories
+   465→        </h2>
+   466→        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+   467→          {Object.values(MC).map((mc) => {
+   468→            const config = missionCategoryConfig[mc];
+   469→            const agentCount = missionGroups[mc]?.length || 0;
+   470→            const isExpanded = expandedCategory === mc;
+   471→            const hasEliteOrStealth = missionGroups[mc]?.some(
+   472→              (a) => getAgentTier(a) === 'elite' || getAgentTier(a) === 'stealth'
+   473→            );
+   474→
+   475→            return (
+   476→              <button
+   477→                key={mc}
+   478→                onClick={() => setExpandedCategory(isExpanded ? null : mc)}
+   479→                className={cn(
+   480→                  'relative group rounded-xl border p-4 text-left transition-all duration-200 overflow-hidden',
+   481→                  isExpanded
+   482→                    ? 'border-primary/50 ring-1 ring-primary/30'
+   483→                    : 'border-border hover:border-primary/30',
+   484→                  agentCount === 0 && 'opacity-40'
+   485→                )}
+   486→              >
+   487→                {/* Gradient Background */}
+   488→                <div
+   489→                  className={cn(
+   490→                    'absolute inset-0 bg-gradient-to-br opacity-10 transition-opacity',
+   491→                    config.color,
+   492→                    isExpanded ? 'opacity-20' : 'group-hover:opacity-15'
+   493→                  )}
+   494→                />
+   495→                <div className="relative z-10">
+   496→                  <span className="text-2xl">{config.icon}</span>
+   497→                  <h3 className="mt-2 text-xs font-semibold text-foreground leading-tight">
+   498→                    {config.label}
+   499→                  </h3>
+   500→                  <p className="mt-1 text-[10px] text-muted-foreground">
+   501→                    {agentCount} {agentCount === 1 ? 'agent' : 'agents'}
+   502→                  </p>
+   503→                  {hasEliteOrStealth && (
+   504→                    <span className="mt-1.5 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-400">
+   505→                      ⭐ ELITE
+   506→                    </span>
+   507→                  )}
+   508→                </div>
+   509→              </button>
+   510→            );
+   511→          })}
+   512→        </div>
+   513→      </div>
+   514→
+   515→      {/* Expanded Category Detail */}
+   516→      {expandedCategory && missionGroups[expandedCategory] && (
+   517→        <div className="animate-slide-in">
+   518→          <div className="flex items-center gap-3 mb-4">
+   519→            <span className="text-xl">{missionCategoryConfig[expandedCategory].icon}</span>
+   520→            <div>
+   521→              <h2 className="text-lg font-bold text-foreground">
+   522→                {missionCategoryConfig[expandedCategory].label}
+   523→              </h2>
+   524→              <p className="text-xs text-muted-foreground">
+   525→                {missionCategoryConfig[expandedCategory].description} — {missionGroups[expandedCategory].length} agents
+   526→              </p>
+   527→            </div>
+   528→            <button
+   529→              onClick={() => setExpandedCategory(null)}
+   530→              className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+   531→            >
+   532→              <X className="h-4 w-4" />
+   533→            </button>
+   534→          </div>
+   535→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+   536→            {missionGroups[expandedCategory].map((agent) => (
+   537→              <EnhancedAgentCard
+   538→                key={agent.id}
+   539→                agent={agent}
+   540→                onExecute={() => onExecute(agent)}
+   541→                isExecuting={executing === agent.id}
+   542→              />
+   543→            ))}
+   544→          </div>
+   545→        </div>
+   546→      )}
+   547→    </div>
+   548→  );
+   549→}
+   550→
+   551→/* ─── Cluster View ─────────────────────────────────────────────────────────── */
+   552→
+   553→function ClusterView({
+   554→  clusterGroups,
+   555→  expandedCluster,
+   556→  setExpandedCluster,
+   557→  executing,
+   558→  onExecute,
+   559→}: {
+   560→  clusterGroups: Record<ClusterType, Agent[]>;
+   561→  expandedCluster: ClusterType | null;
+   562→  setExpandedCluster: (cluster: ClusterType | null) => void;
+   563→  executing: string | null;
+   564→  onExecute: (agent: Agent) => void;
+   565→}) {
+   566→  const sortedClusters = useMemo(() => {
+   567→    return Object.entries(clusterGroups).sort(([, a], [, b]) => b.length - a.length);
+   568→  }, [clusterGroups]);
+   569→
+   570→  return (
+   571→    <div className="space-y-6">
+   572→      {/* Cluster Summary Cards */}
+   573→      <div>
+   574→        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+   575→          Clusters
+   576→        </h2>
+   577→        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+   578→          {sortedClusters.map(([cluster, clusterAgents]) => {
+   579→            const ct = cluster as ClusterType;
+   580→            const isExpanded = expandedCluster === ct;
+   581→
+   582→            return (
+   583→              <button
+   584→                key={cluster}
+   585→                onClick={() => setExpandedCluster(isExpanded ? null : ct)}
+   586→                className={cn(
+   587→                  'group rounded-xl border p-4 text-left transition-all duration-200',
+   588→                  isExpanded
+   589→                    ? 'border-primary/50 ring-1 ring-primary/30'
+   590→                    : 'border-border hover:border-primary/30'
+   591→                )}
+   592→              >
+   593→                <span className="text-2xl">{clusterIcons[ct]}</span>
+   594→                <h3 className="mt-2 text-xs font-semibold text-foreground">
+   595→                  {clusterLabels[ct] || ct.replace(/-/g, ' ')}
+   596→                </h3>
+   597→                <p className="mt-1 text-[10px] text-muted-foreground">
+   598→                  {clusterAgents.length} {clusterAgents.length === 1 ? 'agent' : 'agents'}
+   599→                </p>
+   600→              </button>
+   601→            );
+   602→          })}
+   603→        </div>
+   604→      </div>
+   605→
+   606→      {/* Expanded Cluster Detail */}
+   607→      {expandedCluster && clusterGroups[expandedCluster] && (
+   608→        <div className="animate-slide-in">
+   609→          <div className="flex items-center gap-3 mb-4">
+   610→            <span className="text-xl">{clusterIcons[expandedCluster]}</span>
+   611→            <div>
+   612→              <h2 className="text-lg font-bold text-foreground">
+   613→                {clusterLabels[expandedCluster] || expandedCluster.replace(/-/g, ' ')}
+   614→              </h2>
+   615→              <p className="text-xs text-muted-foreground">
+   616→                {clusterGroups[expandedCluster].length} agents
+   617→              </p>
+   618→            </div>
+   619→            <button
+   620→              onClick={() => setExpandedCluster(null)}
+   621→              className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+   622→            >
+   623→              <X className="h-4 w-4" />
+   624→            </button>
+   625→          </div>
+   626→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+   627→            {clusterGroups[expandedCluster].map((agent) => (
+   628→              <EnhancedAgentCard
+   629→                key={agent.id}
+   630→                agent={agent}
+   631→                onExecute={() => onExecute(agent)}
+   632→                isExecuting={executing === agent.id}
+   633→              />
+   634→            ))}
+   635→          </div>
+   636→        </div>
+   637→      )}
+   638→    </div>
+   639→  );
+   640→}
+   641→
+   642→/* ─── Enhanced Agent Card ──────────────────────────────────────────────────── */
+   643→
+   644→function EnhancedAgentCard({
+   645→  agent,
+   646→  onExecute,
+   647→  isExecuting,
+   648→}: {
+   649→  agent: Agent;
+   650→  onExecute: () => void;
+   651→  isExecuting: boolean;
+   652→}) {
+   653→  const tier = getAgentTier(agent);
+   654→  const powerLevel = getAgentPowerLevel(agent);
+   655→  const creditCost = getAgentCreditCost(agent);
+   656→  const tierInfo = tierConfig[tier] || tierConfig.standard;
+   657→  const hasGlow = tierInfo.glow && (tier === 'elite' || tier === 'stealth');
+   658→
+   659→  return (
+   660→    <div
+   661→      className={cn(
+   662→        'group relative rounded-xl border bg-card p-5 transition-all duration-200 hover:border-primary/30',
+   663→        tierInfo.borderColor,
+   664→        hasGlow && `shadow-lg ${tierInfo.glow}`
+   665→      )}
+   666→    >
+   667→      {/* Stealth/Elite shimmer effect */}
+   668→      {hasGlow && (
+   669→        <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+   670→          <div
+   671→            className={cn(
+   672→              'absolute inset-0 bg-gradient-to-r opacity-5',
+   673→              tier === 'stealth' ? 'from-purple-500 to-transparent' : 'from-amber-500 to-transparent'
+   674→            )}
+   675→          />
+   676→        </div>
+   677→      )}
+   678→
+   679→      <div className="relative z-10">
+   680→        {/* Header */}
+   681→        <div className="flex items-start justify-between">
+   682→          <div className="flex items-center gap-3">
+   683→            <span className="text-xl">{clusterIcons[agent.cluster]}</span>
+   684→            <div>
+   685→              <h3 className="text-sm font-semibold text-foreground">{agent.name}</h3>
+   686→              <p className="text-[11px] text-muted-foreground">v{agent.version}</p>
+   687→            </div>
+   688→          </div>
+   689→          <div className="flex items-center gap-1.5">
+   690→            <div className={cn('h-2 w-2 rounded-full', statusDotColors[agent.status])} />
+   691→            <span
+   692→              className={cn(
+   693→                'rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize',
+   694→                statusColors[agent.status]
+   695→              )}
+   696→            >
+   697→              {agent.status}
+   698→            </span>
+   699→          </div>
+   700→        </div>
+   701→
+   702→        {/* Description */}
+   703→        {agent.description && (
+   704→          <p className="mt-3 text-xs text-muted-foreground line-clamp-2">
+   705→            {agent.description}
+   706→          </p>
+   707→        )}
+   708→
+   709→        {/* Tier Badge + Power Level + Credit Cost */}
+   710→        <div className="mt-3 flex items-center gap-2 flex-wrap">
+   711→          {/* Tier Badge */}
+   712→          <span
+   713→            className={cn(
+   714→              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold',
+   715→              tierInfo.bgColor,
+   716→              tierInfo.borderColor,
+   717→              tierInfo.color
+   718→            )}
+   719→          >
+   720→            {tier === 'elite' && '⭐'}
+   721→            {tier === 'stealth' && '👻'}
+   722→            {tierInfo.label}
+   723→          </span>
+   724→
+   725→          {/* Power Level Meter */}
+   726→          <div className="inline-flex items-center gap-0.5" title={powerLevelLabels[powerLevel] || 'Standard Power'}>
+   727→            {Array.from({ length: 3 }).map((_, i) => (
+   728→              <Zap
+   729→                key={i}
+   730→                className={cn(
+   731→                  'h-3 w-3',
+   732→                  i < powerLevel
+   733→                    ? tier === 'elite'
+   734→                      ? 'text-amber-400 fill-amber-400'
+   735→                      : tier === 'stealth'
+   736→                        ? 'text-purple-400 fill-purple-400'
+   737→                        : tier === 'advanced'
+   738→                          ? 'text-blue-400 fill-blue-400'
+   739→                          : 'text-slate-400 fill-slate-400'
+   740→                    : 'text-muted-foreground/20'
+   741→                )}
+   742→              />
+   743→            ))}
+   744→          </div>
+   745→
+   746→          {/* Credit Cost */}
+   747→          <span className="inline-flex items-center gap-0.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 text-[10px] font-semibold text-yellow-400">
+   748→            <Coins className="h-2.5 w-2.5" />
+   749→            {creditCost} {creditCost === 1 ? 'credit' : 'credits'}
+   750→          </span>
+   751→        </div>
+   752→
+   753→        {/* Cluster Badge */}
+   754→        <div className="mt-2 flex items-center gap-2">
+   755→          <span
+   756→            className={cn(
+   757→              'rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+   758→              clusterColors[agent.cluster]
+   759→            )}
+   760→          >
+   761→            {clusterLabels[agent.cluster] || agent.cluster.replace(/-/g, ' ')}
+   762→          </span>
+   763→        </div>
+   764→
+   765→        {/* Capabilities */}
+   766→        {agent.capabilities.length > 0 && (
+   767→          <div className="mt-3 flex flex-wrap gap-1">
+   768→            {agent.capabilities.slice(0, 3).map((cap) => (
+   769→              <span
+   770→                key={cap}
+   771→                className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+   772→              >
+   773→                {cap}
+   774→              </span>
+   775→            ))}
+   776→            {agent.capabilities.length > 3 && (
+   777→              <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+   778→                +{agent.capabilities.length - 3}
+   779→              </span>
+   780→            )}
+   781→          </div>
+   782→        )}
+   783→
+   784→        {/* Footer */}
+   785→        <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
+   786→          <span className="text-[10px] text-muted-foreground">
+   787→            {agent.lastExecutionAt
+   788→              ? `Last run: ${formatRelativeTime(agent.lastExecutionAt)}`
+   789→              : 'Never executed'}
+   790→          </span>
+   791→          <button
+   792→            onClick={onExecute}
+   793→            disabled={isExecuting || !agent.isEnabled}
+   794→            className={cn(
+   795→              'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+   796→              agent.isEnabled
+   797→                ? 'bg-primary/15 text-primary hover:bg-primary/25'
+   798→                : 'bg-white/5 text-muted-foreground cursor-not-allowed'
+   799→            )}
+   800→          >
+   801→            {isExecuting ? (
+   802→              <RefreshCw className="h-3 w-3 animate-spin" />
+   803→            ) : (
+   804→              <Play className="h-3 w-3" />
+   805→            )}
+   806→            Execute
+   807→          </button>
+   808→        </div>
+   809→      </div>
+   810→    </div>
+   811→  );
+   812→}
+   813→
+   814→/* ─── Execute Modal ────────────────────────────────────────────────────────── */
+   815→
+   816→function ExecuteModal({
+   817→  agent,
+   818→  executing,
+   819→  onExecute,
+   820→  onClose,
+   821→}: {
+   822→  agent: Agent;
+   823→  executing: string | null;
+   824→  onExecute: () => void;
+   825→  onClose: () => void;
+   826→}) {
+   827→  const tier = getAgentTier(agent);
+   828→  const powerLevel = getAgentPowerLevel(agent);
+   829→  const creditCost = getAgentCreditCost(agent);
+   830→  const tierInfo = tierConfig[tier] || tierConfig.standard;
+   831→
+   832→  return (
+   833→    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+   834→      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+   835→        <div className="flex items-center justify-between">
+   836→          <h3 className="text-lg font-semibold text-foreground">Execute Agent</h3>
+   837→          <button
+   838→            onClick={onClose}
+   839→            className="text-muted-foreground hover:text-foreground"
+   840→          >
+   841→            <X className="h-5 w-5" />
+   842→          </button>
+   843→        </div>
+   844→        <div className="mt-4 space-y-3">
+   845→          <div className="rounded-lg border border-border bg-background/50 p-3">
+   846→            <p className="text-sm font-medium text-foreground">
+   847→              {agent.name}
+   848→            </p>
+   849→            <div className="mt-2 flex items-center gap-2 flex-wrap">
+   850→              <span className="text-xs text-muted-foreground">
+   851→                Cluster: {clusterLabels[agent.cluster]}
+   852→              </span>
+   853→              <span className="text-xs text-muted-foreground">•</span>
+   854→              <span className="text-xs text-muted-foreground">
+   855→                Status: {agent.status}
+   856→              </span>
+   857→              <span className="text-xs text-muted-foreground">•</span>
+   858→              <span className={cn('text-xs font-semibold', tierInfo.color)}>
+   859→                {tierInfo.label}
+   860→              </span>
+   861→            </div>
+   862→            <div className="mt-2 flex items-center gap-3">
+   863→              <div className="flex items-center gap-0.5">
+   864→                {Array.from({ length: 3 }).map((_, i) => (
+   865→                  <Zap
+   866→                    key={i}
+   867→                    className={cn(
+   868→                      'h-3 w-3',
+   869→                      i < powerLevel ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/20'
+   870→                    )}
+   871→                  />
+   872→                ))}
+   873→                <span className="ml-1 text-[10px] text-muted-foreground">
+   874→                  {powerLevelLabels[powerLevel]}
+   875→                </span>
+   876→              </div>
+   877→              <span className="inline-flex items-center gap-0.5 text-xs text-yellow-400">
+   878→                <Coins className="h-3 w-3" />
+   879→                {creditCost} {creditCost === 1 ? 'credit' : 'credits'}
+   880→              </span>
+   881→            </div>
+   882→          </div>
+   883→          <p className="text-sm text-muted-foreground">
+   884→            This will execute the agent with the default configuration and deduct{' '}
+   885→            <span className="text-yellow-400 font-semibold">{creditCost} credit{creditCost !== 1 ? 's' : ''}</span>. Are you sure?
+   886→          </p>
+   887→        </div>
+   888→        <div className="mt-6 flex gap-3 justify-end">
+   889→          <button
+   890→            onClick={onClose}
+   891→            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-white/5"
+   892→          >
+   893→            Cancel
+   894→          </button>
+   895→          <button
+   896→            onClick={onExecute}
+   897→            disabled={executing === agent.id}
+   898→            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+   899→          >
+   900→            {executing === agent.id ? (
+   901→              <RefreshCw className="h-4 w-4 animate-spin" />
+   902→            ) : (
+   903→              <Play className="h-4 w-4" />
+   904→            )}
+   905→            Execute
+   906→          </button>
+   907→        </div>
+   908→      </div>
+   909→    </div>
+   910→  );
+   911→}
+   912→

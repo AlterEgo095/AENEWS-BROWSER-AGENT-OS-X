@@ -1,0 +1,607 @@
+     1→import {
+     2→  BaseAgent,
+     3→  AgentContext,
+     4→  AgentResult,
+     5→} from '../../../modules/agent/agent.abstract';
+     6→import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
+     7→import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
+     8→
+     9→/**
+    10→ * KubernetesAgent — Elite Kubernetes operations agent for the INFRASTRUCTURE cluster.
+    11→ *
+    12→ * Provides full Kubernetes lifecycle management including workload deployment,
+    13→ * Helm chart management, pod debugging, service mesh configuration, cluster
+    14→ * scaling, and network policy management. Uses LLM for generating context-aware
+    15→ * Kubernetes configurations and falls back to realistic manifest profiles when
+    16→ * LLM is unavailable.
+    17→ */
+    18→export class KubernetesAgent extends BaseAgent {
+    19→  readonly name = 'KubernetesAgent';
+    20→  readonly cluster = ClusterType.INFRASTRUCTURE;
+    21→  readonly capabilities = [
+    22→    'k8s-deploy',
+    23→    'service-mesh',
+    24→    'helm-charts',
+    25→    'pod-debug',
+    26→    'scaling-k8s',
+    27→    'network-policy',
+    28→    'cluster-management',
+    29→  ];
+    30→  readonly version = '3.0.0';
+    31→  readonly description =
+    32→    'Elite Kubernetes operations agent providing full cluster lifecycle management, service mesh orchestration, Helm chart deployment, pod debugging, autoscaling, and network policy enforcement';
+    33→
+    34→  readonly missionCategories = [MissionCategory.INFRASTRUCTURE_MGMT, MissionCategory.SYSTEM_ADMINISTRATION];
+    35→  readonly creditCost = 5;
+    36→  readonly powerLevel = 3;
+    37→  readonly tier = 'elite';
+    38→
+    39→  async execute(context: AgentContext): Promise<AgentResult> {
+    40→    try {
+    41→      const { config } = context;
+    42→      const action = config.action || 'deploy-workload';
+    43→      const startTime = Date.now();
+    44→
+    45→      this.emitEvent(AgentEventType.AGENT_STARTED, { action, agent: this.name });
+    46→
+    47→      switch (action) {
+    48→        case 'deploy-workload': {
+    49→          const workloadName = config.workloadName;
+    50→          const namespace = config.namespace || 'default';
+    51→          const image = config.image;
+    52→          const replicas = config.replicas || 3;
+    53→          const workloadType = config.workloadType || 'Deployment';
+    54→          const labels = config.labels || { app: workloadName || 'unknown' };
+    55→          const resources = config.resources || {
+    56→            requests: { cpu: '100m', memory: '128Mi' },
+    57→            limits: { cpu: '500m', memory: '512Mi' },
+    58→          };
+    59→          const envVars = config.envVars || [];
+    60→          const ports = config.ports || [];
+    61→          const strategy = config.strategy || { type: 'RollingUpdate', rollingUpdate: { maxSurge: 1, maxUnavailable: 0 } };
+    62→          const nodeSelector = config.nodeSelector || {};
+    63→          const tolerations = config.tolerations || [];
+    64→          const affinity = config.affinity || {};
+    65→
+    66→          this.logger.log(
+    67→            `Deploying workload ${workloadName || 'unnamed'} (${workloadType}) to namespace ${namespace} with ${replicas} replicas`,
+    68→          );
+    69→
+    70→          this.emitEvent(AgentEventType.TOOL_EXECUTED, {
+    71→            tool: 'k8s-deploy',
+    72→            workloadName,
+    73→            namespace,
+    74→            replicas,
+    75→          });
+    76→
+    77→          const llmResult = await this.executeWithLLM(
+    78→            `You are an elite Kubernetes architect. Generate a production-grade Kubernetes manifest for the specified workload with best-practice security, resource management, and reliability configurations.`,
+    79→            `Generate a complete Kubernetes ${workloadType} manifest for: name="${workloadName}", namespace="${namespace}", image="${image}", replicas=${replicas}, labels=${JSON.stringify(labels)}, resources=${JSON.stringify(resources)}, envVars=${JSON.stringify(envVars)}, ports=${JSON.stringify(ports)}, strategy=${JSON.stringify(strategy)}. Return JSON with: manifest (object with apiVersion, kind, metadata, spec), healthChecks ({livenessProbe, readinessProbe}), securityContext (object), serviceManifest (object for accompanying Service).`,
+    80→            { responseFormat: 'json', temperature: 0.2, maxTokens: 4096 },
+    81→          );
+    82→          const parsed = this.safeJsonParse(llmResult);
+    83→
+    84→          const manifest = parsed?.manifest || {
+    85→            apiVersion: 'apps/v1',
+    86→            kind: workloadType,
+    87→            metadata: { name: workloadName || 'app-deployment', namespace, labels },
+    88→            spec: {
+    89→              replicas,
+    90→              selector: { matchLabels: labels },
+    91→              strategy,
+    92→              template: {
+    93→                metadata: { labels },
+    94→                spec: {
+    95→                  containers: [{
+    96→                    name: workloadName || 'app',
+    97→                    image: image || 'nginx:latest',
+    98→                    ports: ports.length > 0 ? ports : [{ containerPort: 80 }],
+    99→                    resources,
+   100→                    env: envVars,
+   101→                  }],
+   102→                  nodeSelector,
+   103→                  tolerations,
+   104→                  affinity,
+   105→                },
+   106→              },
+   107→            },
+   108→          };
+   109→          const healthChecks = parsed?.healthChecks || {
+   110→            livenessProbe: { httpGet: { path: '/health', port: 80 }, initialDelaySeconds: 15, periodSeconds: 10 },
+   111→            readinessProbe: { httpGet: { path: '/ready', port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 },
+   112→          };
+   113→          const securityContext = parsed?.securityContext || {
+   114→            runAsNonRoot: true,
+   115→            readOnlyRootFilesystem: true,
+   116→            allowPrivilegeEscalation: false,
+   117→            capabilities: { drop: ['ALL'] },
+   118→          };
+   119→          const serviceManifest = parsed?.serviceManifest || {
+   120→            apiVersion: 'v1',
+   121→            kind: 'Service',
+   122→            metadata: { name: `${workloadName || 'app'}-service`, namespace, labels },
+   123→            spec: {
+   124→              selector: labels,
+   125→              ports: [{ port: 80, targetPort: 80, protocol: 'TCP' }],
+   126→              type: 'ClusterIP',
+   127→            },
+   128→          };
+   129→
+   130→          this.emitEvent(AgentEventType.AGENT_COMPLETED, {
+   131→            workloadName: workloadName || 'unnamed',
+   132→            namespace,
+   133→            replicas,
+   134→            workloadType,
+   135→          });
+   136→
+   137→          return {
+   138→            success: true,
+   139→            data: {
+   140→              action,
+   141→              workloadName: workloadName || null,
+   142→              namespace,
+   143→              image: image || null,
+   144→              replicas,
+   145→              workloadType,
+   146→              labels,
+   147→              resources,
+   148→              envVars,
+   149→              ports,
+   150→              strategy,
+   151→              nodeSelector,
+   152→              tolerations,
+   153→              affinity,
+   154→              manifest,
+   155→              healthChecks,
+   156→              securityContext,
+   157→              serviceManifest,
+   158→              status: 'workload_deployed',
+   159→              timestamp: new Date().toISOString(),
+   160→            },
+   161→            metadata: { duration: Date.now() - startTime },
+   162→          };
+   163→        }
+   164→
+   165→        case 'manage-helm': {
+   166→          const releaseName = config.releaseName;
+   167→          const chartName = config.chartName;
+   168→          const chartVersion = config.chartVersion || 'latest';
+   169→          const repoUrl = config.repoUrl || 'https://charts.helm.sh/stable';
+   170→          const namespace = config.namespace || 'default';
+   171→          const values = config.values || {};
+   172→          const operation = config.operation || 'install';
+   173→          const atomic = config.atomic ?? true;
+   174→          const wait = config.wait ?? true;
+   175→          const timeout = config.timeout || 300;
+   176→
+   177→          this.logger.log(
+   178→            `${operation === 'install' ? 'Installing' : 'Upgrading'} Helm release ${releaseName || 'unnamed'} (chart: ${chartName || 'unknown'})`,
+   179→          );
+   180→
+   181→          this.emitEvent(AgentEventType.TOOL_EXECUTED, {
+   182→            tool: 'helm-charts',
+   183→            releaseName,
+   184→            chartName,
+   185→            operation,
+   186→          });
+   187→
+   188→          const llmResult = await this.executeWithLLM(
+   189→            `You are an elite Helm chart specialist. Generate optimal Helm values and release configuration for production deployments.`,
+   190→            `Generate Helm configuration for: releaseName="${releaseName}", chartName="${chartName}", chartVersion="${chartVersion}", namespace="${namespace}", operation="${operation}", values=${JSON.stringify(values)}. Return JSON with: renderedValues (object), releaseNotes (string), dependencies (array of {name, version, repository}), hooks (array of {name, event, manifest}).`,
+   191→            { responseFormat: 'json', temperature: 0.2, maxTokens: 4096 },
+   192→          );
+   193→          const parsed = this.safeJsonParse(llmResult);
+   194→
+   195→          const renderedValues = parsed?.renderedValues || {
+   196→            replicaCount: 3,
+   197→            image: { repository: chartName || 'app', tag: chartVersion, pullPolicy: 'IfNotPresent' },
+   198→            service: { type: 'ClusterIP', port: 80 },
+   199→            ingress: { enabled: false },
+   200→            resources: { requests: { cpu: '100m', memory: '128Mi' }, limits: { cpu: '500m', memory: '512Mi' } },
+   201→            autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 80 },
+   202→            ...values,
+   203→          };
+   204→          const releaseNotes = parsed?.releaseNotes || `Helm release ${releaseName || 'unnamed'} ${operation} completed. Chart: ${chartName || 'unknown'} v${chartVersion}. Namespace: ${namespace}.`;
+   205→          const dependencies = parsed?.dependencies || [
+   206→            { name: 'common', version: '1.0.0', repository: 'https://charts.bitnami.com/bitnami' },
+   207→          ];
+   208→          const hooks = parsed?.hooks || [
+   209→            { name: 'pre-install-hook', event: 'pre-install', manifest: 'Job' },
+   210→            { name: 'post-install-hook', event: 'post-install', manifest: 'Job' },
+   211→          ];
+   212→
+   213→          this.emitEvent(AgentEventType.AGENT_COMPLETED, {
+   214→            releaseName: releaseName || 'unnamed',
+   215→            operation,
+   216→            chartName,
+   217→          });
+   218→
+   219→          return {
+   220→            success: true,
+   221→            data: {
+   222→              action,
+   223→              releaseName: releaseName || null,
+   224→              chartName: chartName || null,
+   225→              chartVersion,
+   226→              repoUrl,
+   227→              namespace,
+   228→              values,
+   229→              operation,
+   230→              atomic,
+   231→              wait,
+   232→              timeout,
+   233→              renderedValues,
+   234→              releaseNotes,
+   235→              dependencies,
+   236→              hooks,
+   237→              status: `helm_${operation}_completed`,
+   238→              timestamp: new Date().toISOString(),
+   239→            },
+   240→            metadata: { duration: Date.now() - startTime },
+   241→          };
+   242→        }
+   243→
+   244→        case 'debug-pod': {
+   245→          const podName = config.podName;
+   246→          const namespace = config.namespace || 'default';
+   247→          const issueType = config.issueType || 'crashloopbackoff';
+   248→          const includeLogs = config.includeLogs ?? true;
+   249→          const includeEvents = config.includeEvents ?? true;
+   250→          const includeDescribe = config.includeDescribe ?? true;
+   251→          const previousLogs = config.previousLogs ?? false;
+   252→          const tailLines = config.tailLines || 100;
+   253→          const containerName = config.containerName || null;
+   254→
+   255→          this.logger.log(
+   256→            `Debugging pod ${podName || 'unknown'} in namespace ${namespace} (issue: ${issueType})`,
+   257→          );
+   258→
+   259→          this.emitEvent(AgentEventType.TOOL_EXECUTED, {
+   260→            tool: 'pod-debug',
+   261→            podName,
+   262→            namespace,
+   263→            issueType,
+   264→          });
+   265→
+   266→          const llmResult = await this.executeWithLLM(
+   267→            `You are an elite Kubernetes troubleshooting expert. Analyze the pod issue and provide a comprehensive diagnosis with actionable remediation steps.`,
+   268→            `Diagnose Kubernetes pod issue: podName="${podName}", namespace="${namespace}", issueType="${issueType}", includeLogs=${includeLogs}, includeEvents=${includeEvents}, previousLogs=${previousLogs}. Return JSON with: diagnosis ({rootCause, severity, affectedComponents}), remediation ({steps: [{order, action, command, description}], estimatedRecoveryTime}), prevention ({recommendations: string[]}).`,
+   269→            { responseFormat: 'json', temperature: 0.2, maxTokens: 4096 },
+   270→          );
+   271→          const parsed = this.safeJsonParse(llmResult);
+   272→
+   273→          const diagnosis = parsed?.diagnosis || {
+   274→            rootCause: `Pod ${podName || 'unknown'} experiencing ${issueType} — likely due to application error, resource limits, or misconfigured probe`,
+   275→            severity: 'high',
+   276→            affectedComponents: [podName || 'unknown-pod', namespace],
+   277→          };
+   278→          const remediation = parsed?.remediation || {
+   279→            steps: [
+   280→              { order: 1, action: 'inspect', command: `kubectl describe pod ${podName || 'POD_NAME'} -n ${namespace}`, description: 'Inspect pod events and conditions' },
+   281→              { order: 2, action: 'logs', command: `kubectl logs ${podName || 'POD_NAME'} -n ${namespace}${previousLogs ? ' --previous' : ''} --tail=${tailLines}${containerName ? ` -c ${containerName}` : ''}`, description: 'Collect container logs for error analysis' },
+   282→              { order: 3, action: 'fix-config', command: `kubectl edit deployment ${podName || 'DEPLOYMENT'} -n ${namespace}`, description: 'Adjust resource limits, probe settings, or environment variables' },
+   283→              { order: 4, action: 'restart', command: `kubectl rollout restart deployment ${podName || 'DEPLOYMENT'} -n ${namespace}`, description: 'Restart the deployment with corrected configuration' },
+   284→            ],
+   285→            estimatedRecoveryTime: 120000,
+   286→          };
+   287→          const prevention = parsed?.prevention || {
+   288→            recommendations: [
+   289→              'Configure appropriate liveness and readiness probes with proper initialDelaySeconds',
+   290→              'Set resource requests and limits based on actual application requirements',
+   291→              'Implement PodDisruptionBudgets for critical workloads',
+   292→              'Use topology spread constraints for high availability',
+   293→              'Enable horizontal pod autoscaling with custom metrics',
+   294→            ],
+   295→          };
+   296→
+   297→          this.emitEvent(AgentEventType.AGENT_COMPLETED, {
+   298→            podName: podName || 'unknown',
+   299→            issueType,
+   300→            rootCause: diagnosis.rootCause,
+   301→          });
+   302→
+   303→          return {
+   304→            success: true,
+   305→            data: {
+   306→              action,
+   307→              podName: podName || null,
+   308→              namespace,
+   309→              issueType,
+   310→              includeLogs,
+   311→              includeEvents,
+   312→              includeDescribe,
+   313→              previousLogs,
+   314→              tailLines,
+   315→              containerName,
+   316→              diagnosis,
+   317→              remediation,
+   318→              prevention,
+   319→              status: 'pod_debug_completed',
+   320→              timestamp: new Date().toISOString(),
+   321→            },
+   322→            metadata: { duration: Date.now() - startTime },
+   323→          };
+   324→        }
+   325→
+   326→        case 'configure-mesh': {
+   327→          const meshType = config.meshType || 'istio';
+   328→          const namespace = config.namespace || 'default';
+   329→          const serviceName = config.serviceName;
+   330→          const trafficPolicy = config.trafficPolicy || { loadBalancer: { simple: 'ROUND_ROBIN' }, connectionPool: { tcp: { maxConnections: 100 }, http: { h2UpgradePolicy: 'DEFAULT' } } };
+   331→          const routingRules = config.routingRules || [];
+   332→          const mTLS = config.mTLS ?? true;
+   333→          const circuitBreaker = config.circuitBreaker || { consecutive5xxErrors: 5, interval: '30s', baseEjectionTime: '30s', maxEjectionPercent: 50 };
+   334→          const retryPolicy = config.retryPolicy || { attempts: 3, perTryTimeout: '2s', retryOn: '5xx,reset,connect-failure' };
+   335→          const enableTracing = config.enableTracing ?? true;
+   336→          const enableMetrics = config.enableMetrics ?? true;
+   337→
+   338→          this.logger.log(
+   339→            `Configuring ${meshType} service mesh for ${serviceName || 'service'} in namespace ${namespace}`,
+   340→          );
+   341→
+   342→          this.emitEvent(AgentEventType.TOOL_EXECUTED, {
+   343→            tool: 'service-mesh',
+   344→            meshType,
+   345→            serviceName,
+   346→            namespace,
+   347→          });
+   348→
+   349→          const llmResult = await this.executeWithLLM(
+   350→            `You are an elite service mesh architect. Design a comprehensive mesh configuration for production traffic management, security, and observability.`,
+   351→            `Design ${meshType} service mesh config for: serviceName="${serviceName}", namespace="${namespace}", mTLS=${mTLS}, trafficPolicy=${JSON.stringify(trafficPolicy)}, circuitBreaker=${JSON.stringify(circuitBreaker)}, retryPolicy=${JSON.stringify(retryPolicy)}, routingRules=${JSON.stringify(routingRules)}. Return JSON with: destinationRule (object), virtualService (object), peerAuthentication (object), envoyFilter (object or null).`,
+   352→            { responseFormat: 'json', temperature: 0.2, maxTokens: 4096 },
+   353→          );
+   354→          const parsed = this.safeJsonParse(llmResult);
+   355→
+   356→          const destinationRule = parsed?.destinationRule || {
+   357→            apiVersion: 'networking.istio.io/v1beta1',
+   358→            kind: 'DestinationRule',
+   359→            metadata: { name: `${serviceName || 'service'}-destination`, namespace },
+   360→            spec: {
+   361→              host: serviceName || 'service',
+   362→              trafficPolicy,
+   363→              connectionPool: trafficPolicy.connectionPool,
+   364→              outlierDetection: circuitBreaker,
+   365→            },
+   366→          };
+   367→          const virtualService = parsed?.virtualService || {
+   368→            apiVersion: 'networking.istio.io/v1beta1',
+   369→            kind: 'VirtualService',
+   370→            metadata: { name: `${serviceName || 'service'}-virtual-service`, namespace },
+   371→            spec: {
+   372→              hosts: [serviceName || 'service'],
+   373→              gateways: ['mesh'],
+   374→              http: routingRules.length > 0 ? routingRules : [{
+   375→                route: [{ destination: { host: serviceName || 'service', port: { number: 80 } }, weight: 100 }],
+   376→                retries: retryPolicy,
+   377→                timeout: '60s',
+   378→              }],
+   379→            },
+   380→          };
+   381→          const peerAuthentication = parsed?.peerAuthentication || {
+   382→            apiVersion: 'security.istio.io/v1beta1',
+   383→            kind: 'PeerAuthentication',
+   384→            metadata: { name: `${serviceName || 'service'}-peerauthn`, namespace },
+   385→            spec: {
+   386→              mtls: { mode: mTLS ? 'STRICT' : 'PERMISSIVE' },
+   387→            },
+   388→          };
+   389→          const envoyFilter = parsed?.envoyFilter || null;
+   390→
+   391→          this.emitEvent(AgentEventType.AGENT_COMPLETED, {
+   392→            meshType,
+   393→            serviceName: serviceName || 'unknown',
+   394→            mTLS,
+   395→          });
+   396→
+   397→          return {
+   398→            success: true,
+   399→            data: {
+   400→              action,
+   401→              meshType,
+   402→              namespace,
+   403→              serviceName: serviceName || null,
+   404→              trafficPolicy,
+   405→              routingRules,
+   406→              mTLS,
+   407→              circuitBreaker,
+   408→              retryPolicy,
+   409→              enableTracing,
+   410→              enableMetrics,
+   411→              destinationRule,
+   412→              virtualService,
+   413→              peerAuthentication,
+   414→              envoyFilter,
+   415→              status: 'mesh_configured',
+   416→              timestamp: new Date().toISOString(),
+   417→            },
+   418→            metadata: { duration: Date.now() - startTime },
+   419→          };
+   420→        }
+   421→
+   422→        case 'scale-cluster': {
+   423→          const clusterName = config.clusterName;
+   424→          const nodeGroup = config.nodeGroup || 'default';
+   425→          const minNodes = config.minNodes || 3;
+   426→          const maxNodes = config.maxNodes || 20;
+   427→          const desiredNodes = config.desiredNodes || 5;
+   428→          const scalingStrategy = config.scalingStrategy || 'cluster-autoscaler';
+   429→          const instanceType = config.instanceType || 'm5.large';
+   430→          const labels = config.labels || {};
+   431→          const taints = config.taints || [];
+   432→          const region = config.region || 'us-east-1';
+   433→          const provider = config.provider || 'aws';
+   434→          const autoscalingConfig = config.autoscalingConfig || {
+   435→            scaleDownUtilizationThreshold: 0.5,
+   436→            scaleDownUnneededTime: '10m',
+   437→            scanInterval: '10s',
+   438→            maxGracefulTerminationSec: 600,
+   439→          };
+   440→
+   441→          this.logger.log(
+   442→            `Scaling cluster ${clusterName || 'unknown'} node group ${nodeGroup} (desired: ${desiredNodes}, strategy: ${scalingStrategy})`,
+   443→          );
+   444→
+   445→          this.emitEvent(AgentEventType.TOOL_EXECUTED, {
+   446→            tool: 'scaling-k8s',
+   447→            clusterName,
+   448→            nodeGroup,
+   449→            desiredNodes,
+   450→          });
+   451→
+   452→          const llmResult = await this.executeWithLLM(
+   453→            `You are an elite Kubernetes cluster scaling expert. Design an optimal scaling plan that balances performance, cost, and reliability.`,
+   454→            `Design scaling plan for: clusterName="${clusterName}", nodeGroup="${nodeGroup}", minNodes=${minNodes}, maxNodes=${maxNodes}, desiredNodes=${desiredNodes}, strategy="${scalingStrategy}", instanceType="${instanceType}", provider="${provider}", region="${region}". Return JSON with: scalingPlan ({currentNodes, targetNodes, phasedScaling: boolean, phases: [{nodes, waitTime, validationChecks}]}), resourceAllocation ({cpuCapacity, memoryCapacity, gpuCapacity}), costEstimate ({hourlyRate, monthlyEstimate, currency}).`,
+   455→            { responseFormat: 'json', temperature: 0.2, maxTokens: 4096 },
+   456→          );
+   457→          const parsed = this.safeJsonParse(llmResult);
+   458→
+   459→          const scalingPlan = parsed?.scalingPlan || {
+   460→            currentNodes: desiredNodes > 5 ? 5 : 3,
+   461→            targetNodes: desiredNodes,
+   462→            phasedScaling: desiredNodes - (desiredNodes > 5 ? 5 : 3) > 3,
+   463→            phases: [
+   464→              { nodes: Math.ceil(desiredNodes / 2), waitTime: '120s', validationChecks: ['node-ready', 'pods-scheduled'] },
+   465→              { nodes: desiredNodes, waitTime: '120s', validationChecks: ['node-ready', 'pods-scheduled', 'hpa-stable'] },
+   466→            ],
+   467→          };
+   468→          const resourceAllocation = parsed?.resourceAllocation || {
+   469→            cpuCapacity: `${desiredNodes * 2} cores`,
+   470→            memoryCapacity: `${desiredNodes * 8} Gi`,
+   471→            gpuCapacity: '0',
+   472→          };
+   473→          const costEstimate = parsed?.costEstimate || {
+   474→            hourlyRate: (desiredNodes * 0.096).toFixed(2),
+   475→            monthlyEstimate: (desiredNodes * 0.096 * 730).toFixed(2),
+   476→            currency: 'USD',
+   477→          };
+   478→
+   479→          this.emitEvent(AgentEventType.AGENT_COMPLETED, {
+   480→            clusterName: clusterName || 'unknown',
+   481→            desiredNodes,
+   482→            scalingStrategy,
+   483→          });
+   484→
+   485→          return {
+   486→            success: true,
+   487→            data: {
+   488→              action,
+   489→              clusterName: clusterName || null,
+   490→              nodeGroup,
+   491→              minNodes,
+   492→              maxNodes,
+   493→              desiredNodes,
+   494→              scalingStrategy,
+   495→              instanceType,
+   496→              labels,
+   497→              taints,
+   498→              region,
+   499→              provider,
+   500→              autoscalingConfig,
+   501→              scalingPlan,
+   502→              resourceAllocation,
+   503→              costEstimate,
+   504→              status: 'cluster_scaling_initiated',
+   505→              timestamp: new Date().toISOString(),
+   506→            },
+   507→            metadata: { duration: Date.now() - startTime },
+   508→          };
+   509→        }
+   510→
+   511→        case 'manage-network-policy': {
+   512→          const policyName = config.policyName;
+   513→          const namespace = config.namespace || 'default';
+   514→          const policyType = config.policyType || 'ingress';
+   515→          const direction = config.direction || 'ingress';
+   516→          const podSelector = config.podSelector || {};
+   517→          const ingressRules = config.ingressRules || [];
+   518→          const egressRules = config.egressRules || [];
+   519→          const defaultDeny = config.defaultDeny ?? true;
+   520→          const allowedNamespaces = config.allowedNamespaces || [namespace];
+   521→          const allowedPorts = config.allowedPorts || [{ port: 80, protocol: 'TCP' }];
+   522→          const dnsEgress = config.dnsEgress ?? true;
+   523→
+   524→          this.logger.log(
+   525→            `Managing network policy ${policyName || 'unnamed'} in namespace ${namespace} (type: ${policyType})`,
+   526→          );
+   527→
+   528→          this.emitEvent(AgentEventType.TOOL_EXECUTED, {
+   529→            tool: 'network-policy',
+   530→            policyName,
+   531→            namespace,
+   532→            policyType,
+   533→          });
+   534→
+   535→          const llmResult = await this.executeWithLLM(
+   536→            `You are an elite Kubernetes network security specialist. Design a network policy that enforces zero-trust networking with precise microsegmentation.`,
+   537→            `Design a Kubernetes NetworkPolicy for: policyName="${policyName}", namespace="${namespace}", direction="${direction}", podSelector=${JSON.stringify(podSelector)}, defaultDeny=${defaultDeny}, allowedNamespaces=${JSON.stringify(allowedNamespaces)}, allowedPorts=${JSON.stringify(allowedPorts)}, dnsEgress=${dnsEgress}. Return JSON with: networkPolicyManifest (object with apiVersion, kind, metadata, spec), policyExplanation (string), complianceNotes (string[]).`,
+   538→            { responseFormat: 'json', temperature: 0.2, maxTokens: 4096 },
+   539→          );
+   540→          const parsed = this.safeJsonParse(llmResult);
+   541→
+   542→          const networkPolicyManifest = parsed?.networkPolicyManifest || {
+   543→            apiVersion: 'networking.k8s.io/v1',
+   544→            kind: 'NetworkPolicy',
+   545→            metadata: { name: policyName || 'default-network-policy', namespace },
+   546→            spec: {
+   547→              podSelector,
+   548→              policyTypes: [direction === 'both' ? 'Ingress' : direction === 'egress' ? 'Egress' : 'Ingress', direction === 'both' ? 'Egress' : undefined].filter(Boolean) as string[],
+   549→              ingress: ingressRules.length > 0 ? ingressRules : defaultDeny ? [] : [{
+   550→                from: allowedNamespaces.map((ns: string) => ({ namespaceSelector: { matchLabels: { 'kubernetes.io/metadata.name': ns } } })),
+   551→                ports: allowedPorts,
+   552→              }],
+   553→              egress: egressRules.length > 0 ? egressRules : dnsEgress ? [{
+   554→                to: [{ namespaceSelector: {} }, { ipBlock: { cidr: '0.0.0.0/0' } }],
+   555→                ports: [{ port: 53, protocol: 'UDP' }, { port: 53, protocol: 'TCP' }],
+   556→              }] : [],
+   557→            },
+   558→          };
+   559→          const policyExplanation = parsed?.policyExplanation || `Network policy '${policyName || 'default-network-policy'}' enforces ${defaultDeny ? 'default-deny' : 'selective-allow'} ${direction} traffic in namespace '${namespace}'. Allowed sources: ${allowedNamespaces.join(', ') || 'none'}. Allowed ports: ${allowedPorts.map((p: any) => `${p.port}/${p.protocol}`).join(', ') || 'none'}.`;
+   560→          const complianceNotes = parsed?.complianceNotes || [
+   561→            'NetworkPolicy enforces zero-trust networking at L3/L4',
+   562→            'Consider using Cilium or Calico for advanced L7 policy support',
+   563→            'Pair with Service Mesh mTLS for defense-in-depth',
+   564→            'Verify policy with kubectl policy check before production deployment',
+   565→          ];
+   566→
+   567→          this.emitEvent(AgentEventType.AGENT_COMPLETED, {
+   568→            policyName: policyName || 'unnamed',
+   569→            namespace,
+   570→            defaultDeny,
+   571→          });
+   572→
+   573→          return {
+   574→            success: true,
+   575→            data: {
+   576→              action,
+   577→              policyName: policyName || null,
+   578→              namespace,
+   579→              policyType,
+   580→              direction,
+   581→              podSelector,
+   582→              ingressRules,
+   583→              egressRules,
+   584→              defaultDeny,
+   585→              allowedNamespaces,
+   586→              allowedPorts,
+   587→              dnsEgress,
+   588→              networkPolicyManifest,
+   589→              policyExplanation,
+   590→              complianceNotes,
+   591→              status: 'network_policy_configured',
+   592→              timestamp: new Date().toISOString(),
+   593→            },
+   594→            metadata: { duration: Date.now() - startTime },
+   595→          };
+   596→        }
+   597→
+   598→        default:
+   599→          return { success: false, error: `Unknown action: ${action}` };
+   600→      }
+   601→    } catch (error: any) {
+   602→      this.emitEvent(AgentEventType.AGENT_FAILED, { error: error.message });
+   603→      return { success: false, error: error.message };
+   604→    }
+   605→  }
+   606→}
+   607→
