@@ -46,6 +46,8 @@ const clusterToMission: Record<string, MissionCategory[]> = {
   [CT.SELF_EVOLUTION]: [MC.AI_ORCHESTRATION],
   [CT.CERTIFICATION]: [MC.AI_ORCHESTRATION, MC.SECURITY_OPS],
   [CT.STEALTH_OPS]: [MC.STEALTH_OPERATIONS, MC.SECURITY_OPS],
+  [CT.DATA_INTELLIGENCE]: [MC.DATA_ENGINEERING],
+  [CT.COMMUNICATION]: [MC.COMMUNICATION_OPS],
 };
 
 const clusterLabels: Record<ClusterType, string> = {
@@ -64,6 +66,8 @@ const clusterLabels: Record<ClusterType, string> = {
   [CT.SELF_EVOLUTION]: 'Self Evolution',
   [CT.CERTIFICATION]: 'Certification',
   [CT.STEALTH_OPS]: 'Stealth Ops',
+  [CT.DATA_INTELLIGENCE]: 'Data Intelligence',
+  [CT.COMMUNICATION]: 'Communication',
 };
 
 const clusterOptions: { value: ClusterType | ''; label: string }[] = [

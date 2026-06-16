@@ -3,7 +3,7 @@ import {
   AgentContext,
   AgentResult,
 } from '../../../modules/agent/agent.abstract';
-import { ClusterType } from '../../../modules/agent/entities/agent.entity';
+import { ClusterType, MissionCategory } from '../../../modules/agent/entities/agent.entity';
 import { AgentEventType } from '../../../modules/agent-framework/services/agent-event-bus.service';
 
 /**
@@ -31,6 +31,10 @@ export class RealTimeAnalyticsAgent extends BaseAgent {
   readonly version = '3.0.0';
   readonly description =
     'Elite real-time analytics agent — stream processing, anomaly detection, dashboard KPIs, alerting, and windowed analysis with LLM-powered intelligence';
+  readonly missionCategories: MissionCategory[] = [MissionCategory.DATA_ENGINEERING];
+  readonly creditCost = 3;
+  readonly powerLevel = 3;
+  readonly tier = 'elite';
 
   /** Tracks active alert rules for the current session. */
   private alertRules: Array<{

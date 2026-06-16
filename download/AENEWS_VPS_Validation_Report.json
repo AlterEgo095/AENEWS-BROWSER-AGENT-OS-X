@@ -1,0 +1,3747 @@
+{
+  "report_title": "AENEWS Agent OS X — VPS Readiness Validation Report",
+  "generated_at": "2026-06-16T05:42:33.587756+00:00",
+  "project_root": "/home/z/my-project",
+  "overall_readiness_score": 100.0,
+  "summary": {
+    "total_checks": 239,
+    "passed": 239,
+    "failed": 0,
+    "total_agents": 158,
+    "total_clusters": 17
+  },
+  "deployment_blockers": [],
+  "categories": {
+    "Backend-Clusters": {
+      "pass": 17,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: browser",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/browser",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: computer",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/computer",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: coding",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/coding",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: office",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/office",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: marketing",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/marketing",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: business",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/business",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: infrastructure",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/infrastructure",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: security",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/security",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: meta-intelligence",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/meta-intelligence",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: llm-intelligence",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/llm-intelligence",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: intelligent-orchestration",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/intelligent-orchestration",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: watchdog",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/watchdog",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: self-evolution",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/self-evolution",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: certification",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/certification",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: stealth-ops",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/stealth-ops",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: data-intelligence",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/data-intelligence",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Clusters",
+          "name": "Cluster dir: communication",
+          "passed": true,
+          "detail": "Path: /home/z/my-project/backend/src/clusters/communication",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Agents": {
+      "pass": 19,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in browser",
+          "passed": true,
+          "detail": "18 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in computer",
+          "passed": true,
+          "detail": "8 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in coding",
+          "passed": true,
+          "detail": "13 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in office",
+          "passed": true,
+          "detail": "7 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in marketing",
+          "passed": true,
+          "detail": "9 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in business",
+          "passed": true,
+          "detail": "9 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in infrastructure",
+          "passed": true,
+          "detail": "12 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in security",
+          "passed": true,
+          "detail": "11 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in meta-intelligence",
+          "passed": true,
+          "detail": "18 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in llm-intelligence",
+          "passed": true,
+          "detail": "6 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in intelligent-orchestration",
+          "passed": true,
+          "detail": "5 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in watchdog",
+          "passed": true,
+          "detail": "3 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in self-evolution",
+          "passed": true,
+          "detail": "5 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in certification",
+          "passed": true,
+          "detail": "13 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in stealth-ops",
+          "passed": true,
+          "detail": "11 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in data-intelligence",
+          "passed": true,
+          "detail": "6 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Agents in communication",
+          "passed": true,
+          "detail": "4 agent(s) found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "Total agent count",
+          "passed": true,
+          "detail": "158 total agents across all clusters",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Agents",
+          "name": "All agents extend BaseAgent",
+          "passed": true,
+          "detail": "158/158 pass, 0 fail",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Modules": {
+      "pass": 17,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Modules",
+          "name": "Module: browser",
+          "passed": true,
+          "detail": "browser-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: computer",
+          "passed": true,
+          "detail": "computer-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: coding",
+          "passed": true,
+          "detail": "coding-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: office",
+          "passed": true,
+          "detail": "office-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: marketing",
+          "passed": true,
+          "detail": "marketing-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: business",
+          "passed": true,
+          "detail": "business-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: infrastructure",
+          "passed": true,
+          "detail": "infrastructure-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: security",
+          "passed": true,
+          "detail": "security-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: meta-intelligence",
+          "passed": true,
+          "detail": "meta-intelligence-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: llm-intelligence",
+          "passed": true,
+          "detail": "llm-intelligence-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: intelligent-orchestration",
+          "passed": true,
+          "detail": "intelligent-orchestration-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: watchdog",
+          "passed": true,
+          "detail": "watchdog.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: self-evolution",
+          "passed": true,
+          "detail": "self-evolution-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: certification",
+          "passed": true,
+          "detail": "certification-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: stealth-ops",
+          "passed": true,
+          "detail": "stealth-ops.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: data-intelligence",
+          "passed": true,
+          "detail": "data-intelligence.module.ts, data-intelligence-cluster.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Modules",
+          "name": "Module: communication",
+          "passed": true,
+          "detail": "communication-cluster.module.ts, communication.module.ts",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-AppModule": {
+      "pass": 17,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: browser",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: computer",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: coding",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: office",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: marketing",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: business",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: infrastructure",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: security",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: meta-intelligence",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: llm-intelligence",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: intelligent-orchestration",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: watchdog",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: self-evolution",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: certification",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: stealth-ops",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: data-intelligence",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-AppModule",
+          "name": "Import: communication",
+          "passed": true,
+          "detail": "Found in app.module.ts",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Frontend": {
+      "pass": 2,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Frontend",
+          "name": "ClusterType enum match",
+          "passed": true,
+          "detail": "Both have 17 matching values",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Frontend",
+          "name": "MissionCategory enum match",
+          "passed": true,
+          "detail": "Both have 15 matching values",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-LLM": {
+      "pass": 5,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-LLM",
+          "name": "Method: switchProvider",
+          "passed": true,
+          "detail": "Found in LLMService",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-LLM",
+          "name": "Method: setFallbackConfig",
+          "passed": true,
+          "detail": "Found in LLMService",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-LLM",
+          "name": "Method: applyConfig",
+          "passed": true,
+          "detail": "Found in LLMService",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-LLM",
+          "name": "Method: getConfig",
+          "passed": true,
+          "detail": "Found in LLMService",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-LLM",
+          "name": "Method: listProviders",
+          "passed": true,
+          "detail": "Found in LLMService",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Credit": {
+      "pass": 3,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Credit",
+          "name": "Entity: CreditAccount",
+          "passed": true,
+          "detail": "Found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Credit",
+          "name": "Entity: CreditTransaction",
+          "passed": true,
+          "detail": "Found",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Credit",
+          "name": "Entity: AdminSetting",
+          "passed": true,
+          "detail": "Found",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Auth": {
+      "pass": 6,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Auth",
+          "name": "JWT Strategy",
+          "passed": true,
+          "detail": "backend/src/modules/auth/strategies/jwt.strategy.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Auth",
+          "name": "Roles Guard",
+          "passed": true,
+          "detail": "backend/src/modules/auth/guards/roles.guard.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Auth",
+          "name": "JWT Auth Guard",
+          "passed": true,
+          "detail": "backend/src/modules/auth/guards/jwt-auth.guard.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Auth",
+          "name": "Auth Service",
+          "passed": true,
+          "detail": "backend/src/modules/auth/auth.service.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Auth",
+          "name": "Auth Controller",
+          "passed": true,
+          "detail": "backend/src/modules/auth/auth.controller.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Auth",
+          "name": "Auth Module",
+          "passed": true,
+          "detail": "backend/src/modules/auth/auth.module.ts",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Security": {
+      "pass": 2,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Security",
+          "name": "Security module exists",
+          "passed": true,
+          "detail": "backend/src/modules/security/security.module.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Security",
+          "name": "Encryption service exists",
+          "passed": true,
+          "detail": "backend/src/modules/security/services/encryption.service.ts",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Migrations": {
+      "pass": 4,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Migrations",
+          "name": "Migrations directory exists",
+          "passed": true,
+          "detail": "/home/z/my-project/backend/src/migrations",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Migrations",
+          "name": "Migration files present",
+          "passed": true,
+          "detail": "2 migration file(s)",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Migrations",
+          "name": "  1700000000000-InitialSchema.ts",
+          "passed": true,
+          "detail": "backend/src/migrations/1700000000000-InitialSchema.ts",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Migrations",
+          "name": "  1700000000001-PerformanceIndexes.ts",
+          "passed": true,
+          "detail": "backend/src/migrations/1700000000001-PerformanceIndexes.ts",
+          "severity": "info"
+        }
+      ]
+    },
+    "Backend-Docker": {
+      "pass": 3,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Backend-Docker",
+          "name": "docker-compose.yml exists",
+          "passed": true,
+          "detail": "/home/z/my-project/docker-compose.yml",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Docker",
+          "name": "Backend Dockerfile exists",
+          "passed": true,
+          "detail": "/home/z/my-project/docker/Dockerfile",
+          "severity": "info"
+        },
+        {
+          "category": "Backend-Docker",
+          "name": "Frontend Dockerfile exists",
+          "passed": true,
+          "detail": "/home/z/my-project/docker/Dockerfile.frontend",
+          "severity": "info"
+        }
+      ]
+    },
+    "Frontend-Pages": {
+      "pass": 17,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: / (root)",
+          "passed": true,
+          "detail": "frontend/src/app/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /login",
+          "passed": true,
+          "detail": "frontend/src/app/login/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /agents",
+          "passed": true,
+          "detail": "frontend/src/app/agents/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /tasks",
+          "passed": true,
+          "detail": "frontend/src/app/tasks/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /missions",
+          "passed": true,
+          "detail": "frontend/src/app/missions/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /events",
+          "passed": true,
+          "detail": "frontend/src/app/events/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /credits",
+          "passed": true,
+          "detail": "frontend/src/app/credits/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /admin",
+          "passed": true,
+          "detail": "frontend/src/app/admin/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /admin/llm-provider",
+          "passed": true,
+          "detail": "frontend/src/app/admin/llm-provider/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /intelligence",
+          "passed": true,
+          "detail": "frontend/src/app/intelligence/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /orchestration",
+          "passed": true,
+          "detail": "frontend/src/app/orchestration/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /swarm",
+          "passed": true,
+          "detail": "frontend/src/app/swarm/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /security",
+          "passed": true,
+          "detail": "frontend/src/app/security/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /performance",
+          "passed": true,
+          "detail": "frontend/src/app/performance/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page: /live",
+          "passed": true,
+          "detail": "frontend/src/app/live/page.tsx",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "Page count (15/15)",
+          "passed": true,
+          "detail": "Found 15 of 15 expected pages",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Pages",
+          "name": "LLM Provider admin page",
+          "passed": true,
+          "detail": "frontend/src/app/admin/llm-provider/page.tsx",
+          "severity": "info"
+        }
+      ]
+    },
+    "Frontend-Types": {
+      "pass": 18,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType enum (17/17)",
+          "passed": true,
+          "detail": "Values: ['browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence', 'llm-intelligence', 'intelligent-orchestration', 'watchdog', 'self-evolution', 'certification', 'stealth-ops', 'data-intelligence', 'communication']",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.BROWSER = 'browser'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.COMPUTER = 'computer'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.CODING = 'coding'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.OFFICE = 'office'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.MARKETING = 'marketing'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.BUSINESS = 'business'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.INFRASTRUCTURE = 'infrastructure'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.SECURITY = 'security'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.META_INTELLIGENCE = 'meta-intelligence'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.LLM_INTELLIGENCE = 'llm-intelligence'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.INTELLIGENT_ORCHESTRATION = 'intelligent-orchestration'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.WATCHDOG = 'watchdog'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.SELF_EVOLUTION = 'self-evolution'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.CERTIFICATION = 'certification'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.STEALTH_OPS = 'stealth-ops'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.DATA_INTELLIGENCE = 'data-intelligence'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Types",
+          "name": "ClusterType.COMMUNICATION = 'communication'",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        }
+      ]
+    },
+    "Frontend-Utils": {
+      "pass": 34,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[BROWSER]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[BROWSER]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[COMPUTER]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[COMPUTER]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[CODING]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[CODING]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[OFFICE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[OFFICE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[MARKETING]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[MARKETING]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[BUSINESS]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[BUSINESS]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[INFRASTRUCTURE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[INFRASTRUCTURE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[SECURITY]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[SECURITY]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[META_INTELLIGENCE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[META_INTELLIGENCE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[LLM_INTELLIGENCE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[LLM_INTELLIGENCE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[INTELLIGENT_ORCHESTRATION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[INTELLIGENT_ORCHESTRATION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[WATCHDOG]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[WATCHDOG]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[SELF_EVOLUTION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[SELF_EVOLUTION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[CERTIFICATION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[CERTIFICATION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[STEALTH_OPS]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[STEALTH_OPS]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[DATA_INTELLIGENCE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[DATA_INTELLIGENCE]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterColors[COMMUNICATION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-Utils",
+          "name": "clusterIcons[COMMUNICATION]",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        }
+      ]
+    },
+    "Frontend-API": {
+      "pass": 32,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Frontend-API",
+          "name": "Method: getAgents",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getAgent",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: executeAgent",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getTasks",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: createTask",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getEvents",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getMissions",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: createMission",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: login",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: register",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: refreshAuth",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getHealth",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getCreditsBalance",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getCreditsPackages",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getCreditsWhatsappNumber",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: collaborate",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: decompose",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: coordinate",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getClusterHealth",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getGraphStats",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getLearningStats",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: createSwarm",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getSwarmMetrics",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getLLMConfig",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: updateLLMConfig",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Method: getLLMProviders",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Route: /api/admin/credits/route.ts",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Route: /api/admin/users/route.ts",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Route: /api/admin/settings/route.ts",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Route: /api/credits/route.ts",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Route: /api/credits/deduct/route.ts",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Frontend-API",
+          "name": "Route: /api/credits/transactions/route.ts",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        }
+      ]
+    },
+    "Frontend-Build": {
+      "pass": 1,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Frontend-Build",
+          "name": "Frontend .next build output",
+          "passed": true,
+          "detail": "Found at: /home/z/my-project/frontend/.next",
+          "severity": "info"
+        }
+      ]
+    },
+    "Infra-Docker": {
+      "pass": 12,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Infra-Docker",
+          "name": "Service: postgres (active)",
+          "passed": true,
+          "detail": "Active",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: redis (active)",
+          "passed": true,
+          "detail": "Active",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: app (backend) (commented/ready)",
+          "passed": true,
+          "detail": "Defined (commented out — uncomment for VPS)",
+          "severity": "warning"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: frontend (commented/ready)",
+          "passed": true,
+          "detail": "Defined (commented out — uncomment for VPS)",
+          "severity": "warning"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: nginx (commented/ready)",
+          "passed": true,
+          "detail": "Defined (commented out — uncomment for VPS)",
+          "severity": "warning"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: rabbitmq",
+          "passed": true,
+          "detail": "Active",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: neo4j",
+          "passed": true,
+          "detail": "Active",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: qdrant",
+          "passed": true,
+          "detail": "Active",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Service: minio",
+          "passed": true,
+          "detail": "Active",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Backend Dockerfile",
+          "passed": true,
+          "detail": "docker/Dockerfile",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "Frontend Dockerfile",
+          "passed": true,
+          "detail": "docker/Dockerfile.frontend",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Docker",
+          "name": "docker-compose.prod.yml exists",
+          "passed": true,
+          "detail": "docker/docker-compose.prod.yml",
+          "severity": "info"
+        }
+      ]
+    },
+    "Infra-Nginx": {
+      "pass": 6,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Infra-Nginx",
+          "name": "nginx.conf exists",
+          "passed": true,
+          "detail": "docker/nginx/nginx.conf",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Nginx",
+          "name": "API proxy",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Nginx",
+          "name": "WebSocket support",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Nginx",
+          "name": "SSL configuration",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Nginx",
+          "name": "Security headers",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Nginx",
+          "name": "Rate limiting",
+          "passed": true,
+          "detail": "Present",
+          "severity": "info"
+        }
+      ]
+    },
+    "Infra-DB": {
+      "pass": 2,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Infra-DB",
+          "name": "init-db.sql exists",
+          "passed": true,
+          "detail": "docker/init-db.sql",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-DB",
+          "name": "Canonical init-db.sql exists",
+          "passed": true,
+          "detail": "backend/data/init-db.sql",
+          "severity": "info"
+        }
+      ]
+    },
+    "Infra-Caddy": {
+      "pass": 1,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Infra-Caddy",
+          "name": "Caddyfile exists",
+          "passed": true,
+          "detail": "/home/z/my-project/Caddyfile",
+          "severity": "info"
+        }
+      ]
+    },
+    "Infra-Monitoring": {
+      "pass": 3,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "Infra-Monitoring",
+          "name": "Prometheus config",
+          "passed": true,
+          "detail": "docker/monitoring/prometheus.yml",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Monitoring",
+          "name": "Alertmanager config",
+          "passed": true,
+          "detail": "docker/monitoring/alertmanager/alertmanager.yml",
+          "severity": "info"
+        },
+        {
+          "category": "Infra-Monitoring",
+          "name": "Grafana dashboards",
+          "passed": true,
+          "detail": "docker/monitoring/dashboards",
+          "severity": "info"
+        }
+      ]
+    },
+    "AgentAudit-Summary": {
+      "pass": 17,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: browser",
+          "passed": true,
+          "detail": "18 pass, 0 fail out of 18 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: computer",
+          "passed": true,
+          "detail": "8 pass, 0 fail out of 8 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: coding",
+          "passed": true,
+          "detail": "13 pass, 0 fail out of 13 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: office",
+          "passed": true,
+          "detail": "7 pass, 0 fail out of 7 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: marketing",
+          "passed": true,
+          "detail": "9 pass, 0 fail out of 9 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: business",
+          "passed": true,
+          "detail": "9 pass, 0 fail out of 9 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: infrastructure",
+          "passed": true,
+          "detail": "12 pass, 0 fail out of 12 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: security",
+          "passed": true,
+          "detail": "11 pass, 0 fail out of 11 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: meta-intelligence",
+          "passed": true,
+          "detail": "18 pass, 0 fail out of 18 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: llm-intelligence",
+          "passed": true,
+          "detail": "6 pass, 0 fail out of 6 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: intelligent-orchestration",
+          "passed": true,
+          "detail": "5 pass, 0 fail out of 5 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: watchdog",
+          "passed": true,
+          "detail": "3 pass, 0 fail out of 3 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: self-evolution",
+          "passed": true,
+          "detail": "5 pass, 0 fail out of 5 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: certification",
+          "passed": true,
+          "detail": "13 pass, 0 fail out of 13 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: stealth-ops",
+          "passed": true,
+          "detail": "11 pass, 0 fail out of 11 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: data-intelligence",
+          "passed": true,
+          "detail": "6 pass, 0 fail out of 6 agents",
+          "severity": "info"
+        },
+        {
+          "category": "AgentAudit-Summary",
+          "name": "Cluster: communication",
+          "passed": true,
+          "detail": "4 pass, 0 fail out of 4 agents",
+          "severity": "info"
+        }
+      ]
+    },
+    "AgentAudit": {
+      "pass": 1,
+      "fail": 0,
+      "checks": [
+        {
+          "category": "AgentAudit",
+          "name": "Overall agent audit",
+          "passed": true,
+          "detail": "158/158 agents pass all checks, 0 have issues",
+          "severity": "info"
+        }
+      ]
+    }
+  },
+  "agent_inventory": {
+    "browser": {
+      "count": 18,
+      "agents": [
+        "authentication.agent",
+        "automation.agent",
+        "captcha.agent",
+        "crawler.agent",
+        "deep-web.agent",
+        "download.agent",
+        "form-filling.agent",
+        "headless.agent",
+        "interaction.agent",
+        "monitoring.agent",
+        "navigation.agent",
+        "proxy.agent",
+        "scraping.agent",
+        "screenshot.agent",
+        "search.agent",
+        "session.agent",
+        "testing.agent",
+        "upload.agent"
+      ]
+    },
+    "computer": {
+      "count": 8,
+      "agents": [
+        "backup.agent",
+        "file-system.agent",
+        "network.agent",
+        "process.agent",
+        "software.agent",
+        "system-hacker.agent",
+        "system-info.agent",
+        "terminal.agent"
+      ]
+    },
+    "coding": {
+      "count": 13,
+      "agents": [
+        "ai-code-architect.agent",
+        "api-design.agent",
+        "code-generation.agent",
+        "code-migration.agent",
+        "code-review.agent",
+        "database-design.agent",
+        "debugging.agent",
+        "dependency.agent",
+        "deployment.agent",
+        "documentation.agent",
+        "performance-profiling.agent",
+        "testing-code.agent",
+        "version-control.agent"
+      ]
+    },
+    "office": {
+      "count": 7,
+      "agents": [
+        "calendar.agent",
+        "document-intelligence.agent",
+        "document.agent",
+        "email.agent",
+        "presentation.agent",
+        "spreadsheet.agent",
+        "task-manager.agent"
+      ]
+    },
+    "marketing": {
+      "count": 9,
+      "agents": [
+        "ads.agent",
+        "analytics.agent",
+        "branding.agent",
+        "content-creation.agent",
+        "email-marketing.agent",
+        "influencer.agent",
+        "seo.agent",
+        "social-media.agent",
+        "viral-growth.agent"
+      ]
+    },
+    "business": {
+      "count": 9,
+      "agents": [
+        "business-intelligence.agent",
+        "crm.agent",
+        "decision.agent",
+        "finance.agent",
+        "hr.agent",
+        "legal.agent",
+        "procurement.agent",
+        "reporting.agent",
+        "strategy.agent"
+      ]
+    },
+    "infrastructure": {
+      "count": 12,
+      "agents": [
+        "backup-infra.agent",
+        "ci.agent",
+        "cloud.agent",
+        "container.agent",
+        "edge-computing.agent",
+        "iac.agent",
+        "kubernetes.agent",
+        "monitoring-infra.agent",
+        "network-infra.agent",
+        "observability.agent",
+        "scaling.agent",
+        "security-infra.agent"
+      ]
+    },
+    "security": {
+      "count": 11,
+      "agents": [
+        "access-control.agent",
+        "compliance.agent",
+        "encryption.agent",
+        "forensics.agent",
+        "osint.agent",
+        "red-team.agent",
+        "reverse-engineering.agent",
+        "soc-analyst.agent",
+        "threat-detection.agent",
+        "vulnerability.agent",
+        "zero-day.agent"
+      ]
+    },
+    "meta-intelligence": {
+      "count": 18,
+      "agents": [
+        "adaptation.agent",
+        "agent-forge.agent",
+        "causal-reasoning.agent",
+        "collaboration.agent",
+        "creativity.agent",
+        "evaluation.agent",
+        "federated-learning.agent",
+        "hyper-reasoning.agent",
+        "knowledge.agent",
+        "learning.agent",
+        "memory.agent",
+        "meta-cognition.agent",
+        "multimodal.agent",
+        "optimization.agent",
+        "orchestration.agent",
+        "perception.agent",
+        "reasoning.agent",
+        "self-healing.agent"
+      ]
+    },
+    "llm-intelligence": {
+      "count": 6,
+      "agents": [
+        "llm-critic.agent",
+        "llm-decomposer.agent",
+        "llm-ensemble.agent",
+        "llm-judge.agent",
+        "llm-planner.agent",
+        "llm-validator.agent"
+      ]
+    },
+    "intelligent-orchestration": {
+      "count": 5,
+      "agents": [
+        "dynamic-scheduler.agent",
+        "mega-orchestrator.agent",
+        "mission-orchestrator-ai.agent",
+        "priority-arbiter.agent",
+        "resource-negotiator.agent"
+      ]
+    },
+    "watchdog": {
+      "count": 3,
+      "agents": [
+        "auto-fixer.agent",
+        "circuit-breaker-manager.agent",
+        "error-analyzer.agent"
+      ]
+    },
+    "self-evolution": {
+      "count": 5,
+      "agents": [
+        "auto-certifier.agent",
+        "metric-analyzer.agent",
+        "patch-generator.agent",
+        "refactor-proposer.agent",
+        "weakness-detector.agent"
+      ]
+    },
+    "certification": {
+      "count": 13,
+      "agents": [
+        "ai-quality-auditor.agent",
+        "architecture-auditor.agent",
+        "browser-auditor.agent",
+        "compliance-auditor.agent",
+        "documentation-auditor.agent",
+        "memory-auditor.agent",
+        "observability-auditor.agent",
+        "orchestrator-auditor.agent",
+        "performance-auditor.agent",
+        "plugin-auditor.agent",
+        "regression-auditor.agent",
+        "security-auditor.agent",
+        "test-auditor.agent"
+      ]
+    },
+    "stealth-ops": {
+      "count": 11,
+      "agents": [
+        "stealth-crypto.agent",
+        "stealth-phishing.agent",
+        "stealth-social.agent",
+        "stealth-browser.agent",
+        "stealth-comm.agent",
+        "stealth-exploit.agent",
+        "stealth-identity.agent",
+        "stealth-network.agent",
+        "stealth-recon.agent",
+        "stealth-scraper.agent",
+        "stealth-wrapper.agent"
+      ]
+    },
+    "data-intelligence": {
+      "count": 6,
+      "agents": [
+        "data-pipeline.agent",
+        "data-quality.agent",
+        "data-warehouse.agent",
+        "ml-pipeline.agent",
+        "real-time-analytics.agent",
+        "realtime-analytics.agent"
+      ]
+    },
+    "communication": {
+      "count": 4,
+      "agents": [
+        "api-gateway.agent",
+        "notification.agent",
+        "webhook.agent",
+        "websocket.agent"
+      ]
+    }
+  },
+  "checks_detail": [
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: browser",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/browser",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: computer",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/computer",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: coding",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/coding",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: office",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/office",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: marketing",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/marketing",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: business",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/business",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: infrastructure",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/infrastructure",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: security",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/security",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: meta-intelligence",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/meta-intelligence",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: llm-intelligence",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/llm-intelligence",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: intelligent-orchestration",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/intelligent-orchestration",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: watchdog",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/watchdog",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: self-evolution",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/self-evolution",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: certification",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/certification",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: stealth-ops",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/stealth-ops",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: data-intelligence",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/data-intelligence",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Clusters",
+      "name": "Cluster dir: communication",
+      "passed": true,
+      "detail": "Path: /home/z/my-project/backend/src/clusters/communication",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in browser",
+      "passed": true,
+      "detail": "18 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in computer",
+      "passed": true,
+      "detail": "8 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in coding",
+      "passed": true,
+      "detail": "13 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in office",
+      "passed": true,
+      "detail": "7 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in marketing",
+      "passed": true,
+      "detail": "9 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in business",
+      "passed": true,
+      "detail": "9 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in infrastructure",
+      "passed": true,
+      "detail": "12 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in security",
+      "passed": true,
+      "detail": "11 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in meta-intelligence",
+      "passed": true,
+      "detail": "18 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in llm-intelligence",
+      "passed": true,
+      "detail": "6 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in intelligent-orchestration",
+      "passed": true,
+      "detail": "5 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in watchdog",
+      "passed": true,
+      "detail": "3 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in self-evolution",
+      "passed": true,
+      "detail": "5 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in certification",
+      "passed": true,
+      "detail": "13 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in stealth-ops",
+      "passed": true,
+      "detail": "11 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in data-intelligence",
+      "passed": true,
+      "detail": "6 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Agents in communication",
+      "passed": true,
+      "detail": "4 agent(s) found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "Total agent count",
+      "passed": true,
+      "detail": "158 total agents across all clusters",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Agents",
+      "name": "All agents extend BaseAgent",
+      "passed": true,
+      "detail": "158/158 pass, 0 fail",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: browser",
+      "passed": true,
+      "detail": "browser-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: computer",
+      "passed": true,
+      "detail": "computer-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: coding",
+      "passed": true,
+      "detail": "coding-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: office",
+      "passed": true,
+      "detail": "office-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: marketing",
+      "passed": true,
+      "detail": "marketing-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: business",
+      "passed": true,
+      "detail": "business-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: infrastructure",
+      "passed": true,
+      "detail": "infrastructure-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: security",
+      "passed": true,
+      "detail": "security-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: meta-intelligence",
+      "passed": true,
+      "detail": "meta-intelligence-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: llm-intelligence",
+      "passed": true,
+      "detail": "llm-intelligence-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: intelligent-orchestration",
+      "passed": true,
+      "detail": "intelligent-orchestration-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: watchdog",
+      "passed": true,
+      "detail": "watchdog.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: self-evolution",
+      "passed": true,
+      "detail": "self-evolution-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: certification",
+      "passed": true,
+      "detail": "certification-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: stealth-ops",
+      "passed": true,
+      "detail": "stealth-ops.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: data-intelligence",
+      "passed": true,
+      "detail": "data-intelligence.module.ts, data-intelligence-cluster.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Modules",
+      "name": "Module: communication",
+      "passed": true,
+      "detail": "communication-cluster.module.ts, communication.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: browser",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: computer",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: coding",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: office",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: marketing",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: business",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: infrastructure",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: security",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: meta-intelligence",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: llm-intelligence",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: intelligent-orchestration",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: watchdog",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: self-evolution",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: certification",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: stealth-ops",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: data-intelligence",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-AppModule",
+      "name": "Import: communication",
+      "passed": true,
+      "detail": "Found in app.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Frontend",
+      "name": "ClusterType enum match",
+      "passed": true,
+      "detail": "Both have 17 matching values",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Frontend",
+      "name": "MissionCategory enum match",
+      "passed": true,
+      "detail": "Both have 15 matching values",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-LLM",
+      "name": "Method: switchProvider",
+      "passed": true,
+      "detail": "Found in LLMService",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-LLM",
+      "name": "Method: setFallbackConfig",
+      "passed": true,
+      "detail": "Found in LLMService",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-LLM",
+      "name": "Method: applyConfig",
+      "passed": true,
+      "detail": "Found in LLMService",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-LLM",
+      "name": "Method: getConfig",
+      "passed": true,
+      "detail": "Found in LLMService",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-LLM",
+      "name": "Method: listProviders",
+      "passed": true,
+      "detail": "Found in LLMService",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Credit",
+      "name": "Entity: CreditAccount",
+      "passed": true,
+      "detail": "Found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Credit",
+      "name": "Entity: CreditTransaction",
+      "passed": true,
+      "detail": "Found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Credit",
+      "name": "Entity: AdminSetting",
+      "passed": true,
+      "detail": "Found",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Auth",
+      "name": "JWT Strategy",
+      "passed": true,
+      "detail": "backend/src/modules/auth/strategies/jwt.strategy.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Auth",
+      "name": "Roles Guard",
+      "passed": true,
+      "detail": "backend/src/modules/auth/guards/roles.guard.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Auth",
+      "name": "JWT Auth Guard",
+      "passed": true,
+      "detail": "backend/src/modules/auth/guards/jwt-auth.guard.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Auth",
+      "name": "Auth Service",
+      "passed": true,
+      "detail": "backend/src/modules/auth/auth.service.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Auth",
+      "name": "Auth Controller",
+      "passed": true,
+      "detail": "backend/src/modules/auth/auth.controller.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Auth",
+      "name": "Auth Module",
+      "passed": true,
+      "detail": "backend/src/modules/auth/auth.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Security",
+      "name": "Security module exists",
+      "passed": true,
+      "detail": "backend/src/modules/security/security.module.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Security",
+      "name": "Encryption service exists",
+      "passed": true,
+      "detail": "backend/src/modules/security/services/encryption.service.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Migrations",
+      "name": "Migrations directory exists",
+      "passed": true,
+      "detail": "/home/z/my-project/backend/src/migrations",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Migrations",
+      "name": "Migration files present",
+      "passed": true,
+      "detail": "2 migration file(s)",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Migrations",
+      "name": "  1700000000000-InitialSchema.ts",
+      "passed": true,
+      "detail": "backend/src/migrations/1700000000000-InitialSchema.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Migrations",
+      "name": "  1700000000001-PerformanceIndexes.ts",
+      "passed": true,
+      "detail": "backend/src/migrations/1700000000001-PerformanceIndexes.ts",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Docker",
+      "name": "docker-compose.yml exists",
+      "passed": true,
+      "detail": "/home/z/my-project/docker-compose.yml",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Docker",
+      "name": "Backend Dockerfile exists",
+      "passed": true,
+      "detail": "/home/z/my-project/docker/Dockerfile",
+      "severity": "info"
+    },
+    {
+      "category": "Backend-Docker",
+      "name": "Frontend Dockerfile exists",
+      "passed": true,
+      "detail": "/home/z/my-project/docker/Dockerfile.frontend",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: / (root)",
+      "passed": true,
+      "detail": "frontend/src/app/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /login",
+      "passed": true,
+      "detail": "frontend/src/app/login/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /agents",
+      "passed": true,
+      "detail": "frontend/src/app/agents/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /tasks",
+      "passed": true,
+      "detail": "frontend/src/app/tasks/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /missions",
+      "passed": true,
+      "detail": "frontend/src/app/missions/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /events",
+      "passed": true,
+      "detail": "frontend/src/app/events/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /credits",
+      "passed": true,
+      "detail": "frontend/src/app/credits/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /admin",
+      "passed": true,
+      "detail": "frontend/src/app/admin/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /admin/llm-provider",
+      "passed": true,
+      "detail": "frontend/src/app/admin/llm-provider/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /intelligence",
+      "passed": true,
+      "detail": "frontend/src/app/intelligence/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /orchestration",
+      "passed": true,
+      "detail": "frontend/src/app/orchestration/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /swarm",
+      "passed": true,
+      "detail": "frontend/src/app/swarm/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /security",
+      "passed": true,
+      "detail": "frontend/src/app/security/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /performance",
+      "passed": true,
+      "detail": "frontend/src/app/performance/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page: /live",
+      "passed": true,
+      "detail": "frontend/src/app/live/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "Page count (15/15)",
+      "passed": true,
+      "detail": "Found 15 of 15 expected pages",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType enum (17/17)",
+      "passed": true,
+      "detail": "Values: ['browser', 'computer', 'coding', 'office', 'marketing', 'business', 'infrastructure', 'security', 'meta-intelligence', 'llm-intelligence', 'intelligent-orchestration', 'watchdog', 'self-evolution', 'certification', 'stealth-ops', 'data-intelligence', 'communication']",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.BROWSER = 'browser'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.COMPUTER = 'computer'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.CODING = 'coding'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.OFFICE = 'office'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.MARKETING = 'marketing'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.BUSINESS = 'business'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.INFRASTRUCTURE = 'infrastructure'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.SECURITY = 'security'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.META_INTELLIGENCE = 'meta-intelligence'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.LLM_INTELLIGENCE = 'llm-intelligence'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.INTELLIGENT_ORCHESTRATION = 'intelligent-orchestration'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.WATCHDOG = 'watchdog'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.SELF_EVOLUTION = 'self-evolution'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.CERTIFICATION = 'certification'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.STEALTH_OPS = 'stealth-ops'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.DATA_INTELLIGENCE = 'data-intelligence'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Types",
+      "name": "ClusterType.COMMUNICATION = 'communication'",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[BROWSER]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[BROWSER]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[COMPUTER]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[COMPUTER]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[CODING]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[CODING]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[OFFICE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[OFFICE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[MARKETING]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[MARKETING]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[BUSINESS]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[BUSINESS]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[INFRASTRUCTURE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[INFRASTRUCTURE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[SECURITY]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[SECURITY]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[META_INTELLIGENCE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[META_INTELLIGENCE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[LLM_INTELLIGENCE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[LLM_INTELLIGENCE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[INTELLIGENT_ORCHESTRATION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[INTELLIGENT_ORCHESTRATION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[WATCHDOG]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[WATCHDOG]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[SELF_EVOLUTION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[SELF_EVOLUTION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[CERTIFICATION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[CERTIFICATION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[STEALTH_OPS]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[STEALTH_OPS]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[DATA_INTELLIGENCE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[DATA_INTELLIGENCE]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterColors[COMMUNICATION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Utils",
+      "name": "clusterIcons[COMMUNICATION]",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getAgents",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getAgent",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: executeAgent",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getTasks",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: createTask",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getEvents",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getMissions",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: createMission",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: login",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: register",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: refreshAuth",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getHealth",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getCreditsBalance",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getCreditsPackages",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getCreditsWhatsappNumber",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: collaborate",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: decompose",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: coordinate",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getClusterHealth",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getGraphStats",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getLearningStats",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: createSwarm",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getSwarmMetrics",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getLLMConfig",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: updateLLMConfig",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Method: getLLMProviders",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Route: /api/admin/credits/route.ts",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Route: /api/admin/users/route.ts",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Route: /api/admin/settings/route.ts",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Route: /api/credits/route.ts",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Route: /api/credits/deduct/route.ts",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-API",
+      "name": "Route: /api/credits/transactions/route.ts",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Pages",
+      "name": "LLM Provider admin page",
+      "passed": true,
+      "detail": "frontend/src/app/admin/llm-provider/page.tsx",
+      "severity": "info"
+    },
+    {
+      "category": "Frontend-Build",
+      "name": "Frontend .next build output",
+      "passed": true,
+      "detail": "Found at: /home/z/my-project/frontend/.next",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: postgres (active)",
+      "passed": true,
+      "detail": "Active",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: redis (active)",
+      "passed": true,
+      "detail": "Active",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: app (backend) (commented/ready)",
+      "passed": true,
+      "detail": "Defined (commented out — uncomment for VPS)",
+      "severity": "warning"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: frontend (commented/ready)",
+      "passed": true,
+      "detail": "Defined (commented out — uncomment for VPS)",
+      "severity": "warning"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: nginx (commented/ready)",
+      "passed": true,
+      "detail": "Defined (commented out — uncomment for VPS)",
+      "severity": "warning"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: rabbitmq",
+      "passed": true,
+      "detail": "Active",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: neo4j",
+      "passed": true,
+      "detail": "Active",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: qdrant",
+      "passed": true,
+      "detail": "Active",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Service: minio",
+      "passed": true,
+      "detail": "Active",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Backend Dockerfile",
+      "passed": true,
+      "detail": "docker/Dockerfile",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "Frontend Dockerfile",
+      "passed": true,
+      "detail": "docker/Dockerfile.frontend",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Nginx",
+      "name": "nginx.conf exists",
+      "passed": true,
+      "detail": "docker/nginx/nginx.conf",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Nginx",
+      "name": "API proxy",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Nginx",
+      "name": "WebSocket support",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Nginx",
+      "name": "SSL configuration",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Nginx",
+      "name": "Security headers",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Nginx",
+      "name": "Rate limiting",
+      "passed": true,
+      "detail": "Present",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-DB",
+      "name": "init-db.sql exists",
+      "passed": true,
+      "detail": "docker/init-db.sql",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-DB",
+      "name": "Canonical init-db.sql exists",
+      "passed": true,
+      "detail": "backend/data/init-db.sql",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Caddy",
+      "name": "Caddyfile exists",
+      "passed": true,
+      "detail": "/home/z/my-project/Caddyfile",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Docker",
+      "name": "docker-compose.prod.yml exists",
+      "passed": true,
+      "detail": "docker/docker-compose.prod.yml",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Monitoring",
+      "name": "Prometheus config",
+      "passed": true,
+      "detail": "docker/monitoring/prometheus.yml",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Monitoring",
+      "name": "Alertmanager config",
+      "passed": true,
+      "detail": "docker/monitoring/alertmanager/alertmanager.yml",
+      "severity": "info"
+    },
+    {
+      "category": "Infra-Monitoring",
+      "name": "Grafana dashboards",
+      "passed": true,
+      "detail": "docker/monitoring/dashboards",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: browser",
+      "passed": true,
+      "detail": "18 pass, 0 fail out of 18 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: computer",
+      "passed": true,
+      "detail": "8 pass, 0 fail out of 8 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: coding",
+      "passed": true,
+      "detail": "13 pass, 0 fail out of 13 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: office",
+      "passed": true,
+      "detail": "7 pass, 0 fail out of 7 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: marketing",
+      "passed": true,
+      "detail": "9 pass, 0 fail out of 9 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: business",
+      "passed": true,
+      "detail": "9 pass, 0 fail out of 9 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: infrastructure",
+      "passed": true,
+      "detail": "12 pass, 0 fail out of 12 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: security",
+      "passed": true,
+      "detail": "11 pass, 0 fail out of 11 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: meta-intelligence",
+      "passed": true,
+      "detail": "18 pass, 0 fail out of 18 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: llm-intelligence",
+      "passed": true,
+      "detail": "6 pass, 0 fail out of 6 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: intelligent-orchestration",
+      "passed": true,
+      "detail": "5 pass, 0 fail out of 5 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: watchdog",
+      "passed": true,
+      "detail": "3 pass, 0 fail out of 3 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: self-evolution",
+      "passed": true,
+      "detail": "5 pass, 0 fail out of 5 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: certification",
+      "passed": true,
+      "detail": "13 pass, 0 fail out of 13 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: stealth-ops",
+      "passed": true,
+      "detail": "11 pass, 0 fail out of 11 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: data-intelligence",
+      "passed": true,
+      "detail": "6 pass, 0 fail out of 6 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit-Summary",
+      "name": "Cluster: communication",
+      "passed": true,
+      "detail": "4 pass, 0 fail out of 4 agents",
+      "severity": "info"
+    },
+    {
+      "category": "AgentAudit",
+      "name": "Overall agent audit",
+      "passed": true,
+      "detail": "158/158 agents pass all checks, 0 have issues",
+      "severity": "info"
+    }
+  ]
+}
